@@ -1,239 +1,329 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Layers, PackageOpen, Search, X } from 'lucide-react';
-import Dropdown from '../../../components/ui/Dropdown.jsx';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import NativeIcon from '../../../components/ui/NativeIcon.jsx';
+import { primaryFile } from '../api/modrinthApi.js';
+import './ModpackVersionPrompt.css';
 
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pb[i] || 0) - (pa[i] || 0);
+    if (diff) return diff;
+  }
+  return String(b).localeCompare(String(a));
+}
+
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (!value) return null;
+  if (value >= 1073741824) return `${(value / 1073741824).toFixed(1)} GB`;
+  if (value >= 1048576) return `${(value / 1048576).toFixed(0)} MB`;
+  return `${Math.max(1, Math.round(value / 1024))} KB`;
+}
+
+/**
+ * Modpack version selector.
+ *
+ * Left rail narrows by Minecraft version (the decision players actually make
+ * first), the right pane lists builds for that version. Keyboard users can
+ * walk the list with the arrow keys and confirm with Enter.
+ */
 export default function ModpackVersionPrompt({ prompt, onConfirm, onCancel }) {
   const { project, versions = [] } = prompt || {};
-  const [selectedVersionId, setSelectedVersionId] = useState(() => versions[0]?.id || null);
-  const [selectedMcVersion, setSelectedMcVersion] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onCancel?.();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
+  const [mcVersion, setMcVersion] = useState('all');
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState(() => versions[0]?.id || null);
 
-  // Extract all unique game_versions from versions array, sorted descending
-  const availableMcVersions = useMemo(() => {
-    const set = new Set();
-    versions.forEach((v) => {
-      (v.game_versions || []).forEach((gv) => {
-        if (gv) set.add(gv);
+  const listRef = useRef(null);
+  const searchRef = useRef(null);
+
+  const mcVersions = useMemo(() => {
+    const counts = new Map();
+    versions.forEach((version) => {
+      (version.game_versions || []).forEach((gv) => {
+        if (gv) counts.set(gv, (counts.get(gv) || 0) + 1);
       });
     });
-    return Array.from(set).sort((a, b) => {
-      const pa = a.split('.').map(Number);
-      const pb = b.split('.').map(Number);
-      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-        const na = pa[i] || 0;
-        const nb = pb[i] || 0;
-        if (na !== nb) return nb - na;
-      }
-      return b.localeCompare(a);
-    });
+    return Array.from(counts.entries())
+      .sort((a, b) => compareVersions(a[0], b[0]))
+      .map(([value, count]) => ({ value, count }));
   }, [versions]);
 
-  // Options for custom Dropdown component
-  const mcVersionOptions = useMemo(() => [
-    { value: 'all', label: `All Versions (${versions.length})` },
-    ...availableMcVersions.map((v) => ({
-      value: v,
-      label: `Minecraft ${v}`
-    }))
-  ], [availableMcVersions, versions.length]);
-
-  // Filter versions by both Minecraft version dropdown and text search
-  const filteredVersions = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return versions.filter((v) => {
-      if (selectedMcVersion !== 'all') {
-        const gvs = v.game_versions || [];
-        if (!gvs.includes(selectedMcVersion)) return false;
-      }
-      if (q) {
-        const name = (v.name || v.version_number || '').toLowerCase();
-        const gameVersions = (v.game_versions || []).join(' ').toLowerCase();
-        const loaders = (v.loaders || []).join(' ').toLowerCase();
-        return name.includes(q) || gameVersions.includes(q) || loaders.includes(q);
-      }
-      return true;
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return versions.filter((version) => {
+      if (mcVersion !== 'all' && !(version.game_versions || []).includes(mcVersion)) return false;
+      if (!needle) return true;
+      const haystack = [
+        version.name,
+        version.version_number,
+        (version.game_versions || []).join(' '),
+        (version.loaders || []).join(' ')
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(needle);
     });
-  }, [versions, selectedMcVersion, searchQuery]);
+  }, [versions, mcVersion, query]);
 
-  // Auto-select first matching release if selection becomes invalid
+  const selected = filtered.find((version) => version.id === selectedId) || null;
+
   useEffect(() => {
-    if (filteredVersions.length > 0) {
-      const exists = filteredVersions.some((v) => v.id === selectedVersionId);
-      if (!exists) {
-        setSelectedVersionId(filteredVersions[0].id);
-      }
-    } else {
-      setSelectedVersionId(null);
+    if (filtered.length === 0) {
+      setSelectedId(null);
+      return;
     }
-  }, [filteredVersions, selectedVersionId]);
+    if (!filtered.some((version) => version.id === selectedId)) {
+      setSelectedId(filtered[0].id);
+    }
+  }, [filtered, selectedId]);
 
-  if (!project || !versions || versions.length === 0) return null;
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  const move = (delta) => {
+    if (filtered.length === 0) return;
+    const index = filtered.findIndex((version) => version.id === selectedId);
+    const next = Math.min(filtered.length - 1, Math.max(0, (index < 0 ? 0 : index) + delta));
+    const target = filtered[next];
+    setSelectedId(target.id);
+    listRef.current
+      ?.querySelector(`[data-version-id="${target.id}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel?.();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        move(1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        move(-1);
+        return;
+      }
+      if (event.key === 'Enter' && selectedId) {
+        event.preventDefault();
+        onConfirm?.(selectedId);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
+  if (!project || versions.length === 0) return null;
+
+  const selectedFile = selected ? primaryFile(selected) : null;
+  const selectedSize = formatSize(selectedFile?.size);
 
   return (
-    <div className="dep-prompt-backdrop" onClick={onCancel} role="presentation">
+    <div className="mvp-backdrop" onMouseDown={onCancel} role="presentation">
       <div
-        className="dep-prompt-modal modpack-version-modal"
+        className="mvp-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modpack-version-title"
-        onClick={(e) => e.stopPropagation()}
+        aria-labelledby="mvp-title"
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <button
-          type="button"
-          className="dep-prompt-close"
-          onClick={onCancel}
-          aria-label="Close dialog"
-        >
-          <X size={16} />
-        </button>
-
-        <div className="dep-prompt-header">
-          <div className="dep-prompt-icon">
-            <PackageOpen size={22} />
-          </div>
-          <div>
-            <h3 id="modpack-version-title" className="dep-prompt-title">
-              Install {project.title}
-            </h3>
-            <p className="dep-prompt-subtitle">
-              Select the Minecraft version and release you want to install
-            </p>
-          </div>
-        </div>
-
-        {/* Dual Controls: Select MC version from dropdown & Type to search */}
-        <div className="modpack-version-controls">
-          <div className="modpack-version-control-group">
-            <label className="modpack-control-label">
-              <Layers size={12} />
-              <span>Select Version</span>
-            </label>
-            <Dropdown
-              value={selectedMcVersion}
-              options={mcVersionOptions}
-              onChange={setSelectedMcVersion}
-              className="modpack-version-custom-dropdown"
-              maxHeight={220}
-              placeholder="Select version"
-            />
+        <header className="mvp-header">
+          <div className="mvp-identity">
+            {project.icon_url ? (
+              <img src={project.icon_url} alt="" className="mvp-icon" />
+            ) : (
+              <span className="mvp-icon mvp-icon-fallback">
+                <NativeIcon name="type-modpack" size={22} />
+              </span>
+            )}
+            <div className="mvp-identity-text">
+              <h3 id="mvp-title" className="mvp-title">
+                {project.title}
+              </h3>
+              <p className="mvp-subtitle">Pick the Minecraft version and build to install</p>
+            </div>
           </div>
 
-          <div className="modpack-version-control-group">
-            <label className="modpack-control-label" htmlFor="version-search-input">
-              <Search size={12} />
-              <span>Type / Search</span>
-            </label>
-            <div className="modpack-input-wrapper">
+          <button type="button" className="mvp-close" onClick={onCancel} aria-label="Close dialog">
+            <NativeIcon name="close" size={16} />
+          </button>
+        </header>
+
+        <div className="mvp-body">
+          {/* Minecraft version rail */}
+          <nav className="mvp-rail" aria-label="Minecraft versions">
+            <span className="mvp-rail-label">Minecraft</span>
+            <div className="mvp-rail-list">
+              <button
+                type="button"
+                className={`mvp-rail-item${mcVersion === 'all' ? ' is-active' : ''}`}
+                onClick={() => setMcVersion('all')}
+              >
+                <span>All versions</span>
+                <span className="mvp-rail-count">{versions.length}</span>
+              </button>
+              {mcVersions.map((entry) => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  className={`mvp-rail-item${mcVersion === entry.value ? ' is-active' : ''}`}
+                  onClick={() => setMcVersion(entry.value)}
+                >
+                  <span>{entry.value}</span>
+                  <span className="mvp-rail-count">{entry.count}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Build list */}
+          <div className="mvp-pane">
+            <div className="mvp-search">
+              <NativeIcon name="search" size={14} className="mvp-search-icon" />
               <input
-                id="version-search-input"
+                ref={searchRef}
                 type="text"
-                className="modpack-version-text-input"
-                placeholder="Type version (e.g. 1.20.1)…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                className="mvp-search-input"
+                placeholder="Search builds…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="Search modpack builds"
               />
-              {searchQuery && (
+              {query && (
                 <button
                   type="button"
-                  className="browse-search-clear"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Clear version search"
+                  className="mvp-search-clear"
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
                 >
-                  <X size={12} />
+                  <NativeIcon name="close" size={12} />
                 </button>
               )}
             </div>
-          </div>
-        </div>
 
-        <div className="dep-prompt-body" style={{ maxHeight: '340px' }}>
-          <div className="dep-prompt-section">
-            <h4 className="dep-section-heading">
-              Available Releases ({filteredVersions.length})
-            </h4>
-            <div className="dep-list">
-              {filteredVersions.map((v) => {
-                const loaders = Array.isArray(v.loaders) ? v.loaders.join(', ') : 'fabric';
-                const gameVersions = Array.isArray(v.game_versions) ? v.game_versions.join(', ') : 'Unknown';
-                const isSelected = selectedVersionId === v.id;
-                const releaseType = v.version_type || 'release';
+            <div className="mvp-list" role="radiogroup" aria-label="Available builds" ref={listRef}>
+              {filtered.map((version) => {
+                const isSelected = version.id === selectedId;
+                const channel = version.version_type || 'release';
+                const date = formatDate(version.date_published);
+                const size = formatSize(primaryFile(version)?.size);
                 return (
-                  <div
-                    key={v.id}
-                    className={`modpack-version-row ${isSelected ? 'is-selected' : ''}`}
-                    onClick={() => setSelectedVersionId(v.id)}
+                  <button
+                    key={version.id}
+                    type="button"
                     role="radio"
                     aria-checked={isSelected}
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === ' ' || e.key === 'Enter') {
-                        e.preventDefault();
-                        setSelectedVersionId(v.id);
-                      }
-                    }}
+                    data-version-id={version.id}
+                    className={`mvp-row${isSelected ? ' is-selected' : ''}`}
+                    onClick={() => setSelectedId(version.id)}
+                    onDoubleClick={() => onConfirm?.(version.id)}
                   >
-                    <div className="modpack-version-radio-wrap">
-                      <div className="modpack-version-radio-custom">
-                        <div className="modpack-version-radio-dot" />
-                      </div>
-                    </div>
-                    <div className="modpack-version-meta">
-                      <div className="modpack-version-header-row">
-                        <span className="modpack-version-name">{v.name || v.version_number}</span>
-                        <span className={`modpack-version-type-pill ${releaseType}`}>
-                          {releaseType}
-                        </span>
-                      </div>
-                      <div className="modpack-version-sub">
-                        <span>Minecraft <strong className="modpack-version-mc">{gameVersions}</strong></span>
-                        <span>·</span>
-                        <span>{loaders}</span>
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <span className="dep-badge is-required" style={{ background: '#ffffff', color: '#000000', fontWeight: 650 }}>
-                        <Check size={11} strokeWidth={3} /> Selected
+                    <span className="mvp-radio" aria-hidden="true">
+                      <span className="mvp-radio-dot" />
+                    </span>
+
+                    <span className="mvp-row-main">
+                      <span className="mvp-row-title">
+                        <span className="mvp-row-name">{version.name || version.version_number}</span>
+                        <span className={`mvp-channel is-${channel}`}>{channel}</span>
                       </span>
-                    )}
-                  </div>
+                      <span className="mvp-row-meta">
+                        <span className="mvp-row-mc">
+                          {(version.game_versions || []).slice(0, 3).join(', ') || 'Unknown'}
+                        </span>
+                        <span className="mvp-sep" aria-hidden="true">·</span>
+                        <span>{(version.loaders || []).join(', ') || 'fabric'}</span>
+                        {date && (
+                          <>
+                            <span className="mvp-sep" aria-hidden="true">·</span>
+                            <span>{date}</span>
+                          </>
+                        )}
+                        {size && (
+                          <>
+                            <span className="mvp-sep" aria-hidden="true">·</span>
+                            <span>{size}</span>
+                          </>
+                        )}
+                      </span>
+                    </span>
+
+                    <span className="mvp-row-check" aria-hidden="true">
+                      <NativeIcon name="check" size={13} strokeWidth={2.6} />
+                    </span>
+                  </button>
                 );
               })}
-              {filteredVersions.length === 0 && (
-                <p className="browse-category-empty" style={{ padding: '24px 0' }}>
-                  No versions match your selection
-                </p>
+
+              {filtered.length === 0 && (
+                <div className="mvp-empty">
+                  <NativeIcon name="search" size={20} />
+                  <p>No builds match this filter.</p>
+                  <button
+                    type="button"
+                    className="browse-btn browse-btn-secondary"
+                    onClick={() => {
+                      setQuery('');
+                      setMcVersion('all');
+                    }}
+                  >
+                    Reset filters
+                  </button>
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="dep-prompt-footer">
-          <button
-            type="button"
-            className="browse-btn browse-btn-secondary"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="browse-btn browse-btn-install"
-            onClick={() => onConfirm(selectedVersionId)}
-            disabled={!selectedVersionId}
-            style={{ minWidth: '120px' }}
-          >
-            <Download size={14} />
-            <span>Install Version</span>
-          </button>
-        </div>
+        <footer className="mvp-footer">
+          <div className="mvp-summary">
+            {selected ? (
+              <>
+                <span className="mvp-summary-label">Installing</span>
+                <span className="mvp-summary-value">
+                  {selected.name || selected.version_number}
+                </span>
+                <span className="mvp-summary-meta">
+                  {(selected.game_versions || []).slice(0, 3).join(', ')}
+                  {(selected.game_versions || []).length > 3 ? '…' : ''}
+                  {selectedSize ? ` · ${selectedSize}` : ''}
+                </span>
+              </>
+            ) : (
+              <span className="mvp-summary-label">Select a build to continue</span>
+            )}
+          </div>
+
+          <div className="mvp-actions">
+            <button type="button" className="browse-btn browse-btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="browse-btn browse-btn-install"
+              onClick={() => onConfirm?.(selectedId)}
+              disabled={!selectedId}
+            >
+              <NativeIcon name="download" size={14} />
+              <span>Install modpack</span>
+            </button>
+          </div>
+        </footer>
       </div>
     </div>
   );

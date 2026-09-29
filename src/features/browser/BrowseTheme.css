@@ -30,29 +30,20 @@
 }
 
 .browse-page-root .browse-type-tabs {
-  gap: 2px;
-  padding: 4px;
-  border-radius: 12px;
-  border: 1px solid var(--nx-line);
+  border-color: var(--nx-line);
   background: var(--nx-sunken);
 }
-.browse-page-root .browse-type-tab {
-  border-radius: 9px;
+.browse-page-root .browse-type-tabs .seg-indicator {
+  background: var(--nx-accent-soft);
+  border-color: var(--nx-accent-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--nx-glow);
+}
+.browse-page-root .browse-type-tabs .seg-tab {
   color: var(--nx-text-2);
 }
-.browse-page-root .browse-type-tab:hover {
+.browse-page-root .browse-type-tabs .seg-tab:hover:not(:disabled),
+.browse-page-root .browse-type-tabs .seg-tab.is-active {
   color: #fff;
-  background: var(--nx-accent-softer);
-}
-.browse-page-root .browse-type-tab.is-active {
-  color: #fff;
-  background: var(--nx-accent-soft);
-  box-shadow: inset 0 0 0 1px var(--nx-accent-line), var(--nx-glow);
-}
-.browse-page-root .browse-type-tab.is-active svg,
-.browse-page-root .browse-type-tab:hover svg {
-  color: var(--nx-accent-text) !important;
-  stroke: var(--nx-accent-text);
 }
 
 /* ---------- toolbar / search / sort ---------- */
@@ -443,25 +434,28 @@
 
 /* ---------- version picker table + modals ---------- */
 
-.browse-page-root .browse-version-table-wrap {
-  border: 1px solid var(--nx-line);
-  border-radius: 14px;
+.browse-page-root .browse-version-row {
+  border-color: var(--nx-line);
   background: var(--nx-panel);
 }
-.browse-page-root .browse-version-table th,
-.browse-page-root .browse-version-table td {
-  border-bottom-color: var(--nx-line);
-}
-.browse-page-root .browse-version-row:hover td {
+.browse-page-root .browse-version-row:hover {
+  border-color: var(--nx-line-strong);
   background: var(--nx-accent-softer);
 }
 .browse-page-root .browse-ver-game-chip,
+.browse-page-root .browse-ver-game-chip-more,
 .browse-page-root .browse-ver-loader-chip {
   background: var(--nx-sunken);
   border-color: var(--nx-line);
 }
-.browse-page-root .browse-ver-loader-chip {
-  color: var(--nx-accent-text);
+.browse-page-root .browse-filter-toggle,
+.browse-page-root .browse-version-dropdown .dropdown-trigger {
+  border-color: var(--nx-line);
+  background: var(--nx-sunken);
+}
+.browse-page-root .browse-filter-toggle.is-on {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
 }
 .browse-page-root .browse-confirm-modal,
 .browse-page-root .dep-prompt-modal {

@@ -1,22 +1,17 @@
-import React from 'react';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  FileCode,
-  Image,
-  Layers,
-  Package,
-  Sparkles
-} from 'lucide-react';
+import React, { useMemo } from 'react';
+import NativeIcon from '../../../components/ui/NativeIcon.jsx';
+import SegmentedTabs from '../../../components/ui/SegmentedTabs.jsx';
 import { CONTENT_TYPES, isVanilla } from '../api/modrinthApi.js';
 import { useI18n } from '../../../i18n/I18nProvider.jsx';
 
+/* Content-type glyphs are drawn in the app's own icon set so the switcher
+   reads as a single family instead of five borrowed marks. */
 const TYPE_ICONS = {
-  mod: Package,
-  modpack: Layers,
-  shader: Sparkles,
-  resourcepack: Image,
-  datapack: FileCode
+  mod: 'type-mod',
+  modpack: 'type-modpack',
+  shader: 'type-shader',
+  resourcepack: 'type-resourcepack',
+  datapack: 'type-datapack'
 };
 
 export default function BrowseHeader({
@@ -33,6 +28,21 @@ export default function BrowseHeader({
   const isTargetVanilla = target ? isVanilla(target) : false;
   const isModOnVanilla = Boolean(target) && contentType?.id === 'mod' && isTargetVanilla;
 
+  const tabItems = useMemo(
+    () =>
+      availableContentTypes.map((type) => ({
+        id: type.id,
+        label: t(type.labelKey) || type.id,
+        icon: TYPE_ICONS[type.id] || 'type-mod'
+      })),
+    [availableContentTypes, t]
+  );
+
+  const handleChange = (id) => {
+    const match = availableContentTypes.find((type) => type.id === id);
+    if (match) onSelectContentType?.(match);
+  };
+
   return (
     <header className="browse-header-bar">
       <div className="browse-header-main-row">
@@ -44,7 +54,7 @@ export default function BrowseHeader({
               onClick={onBack}
               aria-label="Go back"
             >
-              <ArrowLeft size={18} />
+              <NativeIcon name="arrow-left" size={17} />
             </button>
           )}
 
@@ -55,25 +65,13 @@ export default function BrowseHeader({
 
         {/* Content Type Tabs */}
         {!fixedContentType && (
-          <nav className="browse-type-tabs" role="tablist" aria-label="Content types">
-            {availableContentTypes.map((type) => {
-              const isSelected = type.id === contentType?.id;
-              const Icon = TYPE_ICONS[type.id] || Package;
-              return (
-                <button
-                  key={type.id}
-                  role="tab"
-                  type="button"
-                  aria-selected={isSelected}
-                  className={`browse-type-tab ${isSelected ? 'is-active' : ''}`}
-                  onClick={() => onSelectContentType(type)}
-                >
-                  <Icon size={14} />
-                  <span>{t(type.labelKey) || type.id}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <SegmentedTabs
+            className="browse-type-tabs"
+            items={tabItems}
+            value={contentType?.id}
+            onChange={handleChange}
+            ariaLabel="Content types"
+          />
         )}
       </div>
 
@@ -82,7 +80,7 @@ export default function BrowseHeader({
           "is a Vanilla instance. Minecraft Vanilla does not support mods" */}
       {isModOnVanilla && (
         <div className="browse-vanilla-warning" role="alert">
-          <AlertTriangle size={16} className="browse-vanilla-warning-icon" />
+          <NativeIcon name="alert" size={16} className="browse-vanilla-warning-icon" />
           <div className="browse-vanilla-warning-text">
             <strong>{target.name}</strong> is a Vanilla instance. Minecraft Vanilla does not support mods.
             Switch to a Fabric, Forge, NeoForge, or Quilt instance to install and play mods.

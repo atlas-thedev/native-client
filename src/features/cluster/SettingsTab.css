@@ -782,38 +782,8 @@
   }
 }
 
-/* ============================================================
-   Sidebar active-tab style (overrides InstanceManager.css).
-   The generic reset
-   `.instance-manager button:not([class*="browse-"]):not(.btn)`
-   (0,3,1) outweighs `.im-nav.active` (0,2,0), so the intended
-   active background never applied. These higher-specificity rules
-   (scoped to .im-sidebar, incl. :hover) restore a refined brand
-   tint instead of the harsh white pill, and override the forced
-   black icon color. Ideally lives in InstanceManager.css.
-   ============================================================ */
-
-.instance-manager .im-sidebar button.im-nav.active,
-.instance-manager .im-sidebar button.im-nav.active:hover,
-.instance-manager .im-sidebar button.im-nav-settings.active,
-.instance-manager .im-sidebar button.im-nav-settings.active:hover {
-  background: var(--brand-subtle);
-  color: var(--brand-2);
-}
-
-.instance-manager .im-sidebar button.im-nav.active .im-nav-text,
-.instance-manager .im-sidebar button.im-nav-settings.active .im-nav-text {
-  color: var(--brand-2);
-}
-
-.instance-manager .im-sidebar button.im-nav.active .im-nav-icon,
-.instance-manager .im-sidebar button.im-nav.active svg,
-.instance-manager .im-sidebar button.im-nav-settings.active .im-nav-icon,
-.instance-manager .im-sidebar button.im-nav-settings.active svg {
-  color: var(--brand-2) !important;
-  stroke: var(--brand-2);
-  opacity: 1;
-}
+/* The sidebar active state now lives in InstanceManager.css: the generic
+   button reset there no longer matches .im-nav, so no override is needed. */
 
 /* ---- search field: no focus ring/outline (per request) ---- */
 

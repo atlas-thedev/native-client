@@ -1,20 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  CheckCircle2,
-  Clock,
-  FolderOpen,
-  Globe2,
-  Images,
-  Layers,
-  Package,
-  Search,
-  Settings2,
-  SlidersHorizontal,
-  Sparkles,
-  X
-} from 'lucide-react';
+import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
+import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
+import useIsInstalled from '../instances/useIsInstalled.js';
 import SettingsTab from './SettingsTab.jsx';
 import InstanceContentTab from './InstanceContentTab.jsx';
 import ScreenshotManager from './ScreenshotManager.jsx';
@@ -22,6 +11,15 @@ import { formatPlaytime } from '../instances/playtimeStats.js';
 import { getClusterArt } from '../../data/versionsData.js';
 import './ClusterDetailView.css';
 import './InstanceManager.css';
+
+const TAB_META = {
+  mods: { title: 'Mods', icon: 'type-mod', folder: 'mods', search: 'Find a mod…' },
+  shaders: { title: 'Shaders', icon: 'type-shader', folder: 'shaderpacks', search: 'Find a shader…' },
+  worlds: { title: 'Worlds', icon: 'globe', folder: 'saves', search: 'Find a world…' },
+  screenshots: { title: 'Screenshots', icon: 'camera', folder: 'screenshots', search: 'Find a screenshot…' },
+  textures: { title: 'Resource packs', icon: 'type-resourcepack', folder: 'resourcepacks', search: 'Find a resource pack…' },
+  settings: { title: 'Advanced', icon: 'sliders', folder: '', search: 'Search settings…' }
+};
 
 export default function ClusterDetailView({
   cluster,
@@ -41,10 +39,7 @@ export default function ClusterDetailView({
 
   // Default tab: 'mods' for modded instances, 'worlds' for vanilla
   const [tab, setTab] = useState(() => {
-    if (initialTab === 'overview') {
-      if (!vanilla) return 'mods';
-      return 'worlds';
-    }
+    if (initialTab === 'overview') return vanilla ? 'worlds' : 'mods';
     return initialTab;
   });
 
@@ -53,13 +48,15 @@ export default function ClusterDetailView({
   const [notice, setNotice] = useState(null);
   const noticeTimerRef = useRef(null);
 
+  const isInstalled = useIsInstalled(cluster, launcherState?.status);
+  const isThisRunning =
+    (launcherState?.instanceId || launcherState?.instance?.id || launcherState?.clusterId) === cluster.id;
+
   const showNotice = (title, body) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     const payload = body ? { title, body } : { title: '', body: title };
     setNotice(payload);
-    noticeTimerRef.current = setTimeout(() => {
-      setNotice(null);
-    }, 4000);
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 4000);
   };
 
   useEffect(() => {
@@ -86,7 +83,7 @@ export default function ClusterDetailView({
 
     const handleKey = (event) => {
       const nested = dialog.current?.querySelector(
-        '.dep-prompt-backdrop, .content-modal-backdrop, .sm-dialog-backdrop, .browse-lightbox-backdrop, .browse-confirm-backdrop'
+        '.dep-prompt-backdrop, .mvp-backdrop, .content-modal-backdrop, .sm-dialog-backdrop, .browse-lightbox-backdrop, .browse-confirm-backdrop'
       );
       if (event.key === 'Escape' && !nested) {
         event.preventDefault();
@@ -120,29 +117,23 @@ export default function ClusterDetailView({
     };
   }, []);
 
-  // Main navigation tabs
-  const contentTabs = [
-    ...(!vanilla ? [
-      ['mods', 'Mods', Package],
-      ['shaders', 'Shaders', Sparkles]
-    ] : []),
-    ['worlds', 'Worlds', Globe2],
-    ['screenshots', 'Screenshots', Images],
-    ['textures', 'Resources', Layers]
-  ];
+  /* Content sections. Vanilla instances cannot load mods or shaders, so those
+     entries are never offered instead of being offered and then refused. */
+  const contentTabs = useMemo(
+    () => [
+      ...(!vanilla ? ['mods', 'shaders'] : []),
+      'worlds',
+      'screenshots',
+      'textures'
+    ],
+    [vanilla]
+  );
 
-  const folder = {
-    mods: 'mods',
-    shaders: 'shaderpacks',
-    textures: 'resourcepacks',
-    worlds: 'saves',
-    logs: 'logs',
-    screenshots: 'screenshots'
-  }[tab] || '';
+  const meta = TAB_META[tab] || TAB_META.worlds;
 
   const openFolder = async () => {
     try {
-      await window.native.instance.openFolder(cluster.id, folder);
+      await window.native.instance.openFolder(cluster.id, meta.folder);
     } catch (error) {
       showNotice('Could not open folder', error.message);
     }
@@ -156,17 +147,21 @@ export default function ClusterDetailView({
     setNotice(null);
   };
 
-  const searchPlaceholder = tab === 'settings'
-    ? 'Search settings…'
-    : tab === 'worlds'
-      ? 'Find a world…'
-      : tab === 'screenshots'
-        ? 'Find a screenshot…'
+  const handleNavKeyDown = (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const order = [...contentTabs, 'settings'];
+    const index = order.indexOf(tab);
+    const next = order[(index + (event.key === 'ArrowDown' ? 1 : -1) + order.length) % order.length];
+    switchTab(next);
+  };
+
+  const filterLabel =
+    tab === 'settings'
+      ? 'Show enabled overrides only'
       : tab === 'mods'
-        ? 'Find a mod…'
-        : tab === 'shaders'
-          ? 'Find a shader…'
-          : 'Find a resource pack…';
+        ? 'Show enabled mods only'
+        : 'Sort alphabetically';
 
   const playtimeSeconds = cluster.totalPlaytime || cluster.playtime || 0;
   const playtimeLabel = formatPlaytime(playtimeSeconds);
@@ -191,46 +186,57 @@ export default function ClusterDetailView({
           aria-label="Close instance settings"
           onClick={() => closeRef.current()}
         >
-          <X size={16} />
+          <NativeIcon name="close" size={16} />
         </button>
 
-        {/* Tactical Glass Sidebar */}
+        {/* Sidebar */}
         <aside className="im-sidebar">
-          {/* Identity Block */}
+          {/* Identity: art, name and loader badges read as one object */}
           <div className="im-identity-block">
             <div className="im-identity-banner-wrap">
               <img
                 src={getClusterArt(cluster)}
-                alt={cluster.name}
+                alt=""
                 className="im-identity-banner"
               />
               <div className="im-identity-banner-overlay" />
-            </div>
-
-            <div className="im-identity-meta">
-              <h2 className="im-identity-title" title={cluster.name}>
-                {cluster.name}
-              </h2>
-              <div className="im-identity-badges">
-                <span className="im-badge-version">
-                  {cluster.mc_version || cluster.version}
-                </span>
-                <span className={`im-badge-loader is-${loader.toLowerCase()}`}>
-                  {loader}
-                </span>
+              <div className="im-identity-overlay-meta">
+                <h2 className="im-identity-title" title={cluster.name}>
+                  {cluster.name}
+                </h2>
+                <div className="im-identity-badges">
+                  <span className="im-badge-version">{cluster.mc_version || cluster.version}</span>
+                  <span className={`im-badge-loader is-${loader.toLowerCase()}`}>{loader}</span>
+                </div>
               </div>
             </div>
 
             <div className="im-identity-stats">
-              <Clock size={12} className="im-stat-icon" />
-              <span>{playtimeLabel} played</span>
+              <span className="im-identity-stat">
+                <NativeIcon name="clock" size={12} className="im-stat-icon" />
+                <span>{playtimeLabel}</span>
+              </span>
+              <span className="im-identity-stat">
+                <NativeIcon name="dot" size={10} className={`im-state-dot${isThisRunning ? ' is-live' : ''}`} />
+                <span>{isThisRunning ? 'Running' : 'Idle'}</span>
+              </span>
             </div>
+
+            <LaunchActionButton
+              className="im-launch"
+              instance={cluster}
+              launcherState={isThisRunning ? launcherState : null}
+              isInstalled={isInstalled}
+              onLaunch={onLaunch}
+              onKill={onKill}
+              size="sm"
+            />
           </div>
 
-          {/* Instance Switcher if multiple instances */}
+          {/* Instance switcher */}
           {instances.length > 1 && (
             <div className="im-version">
-              <span className="im-version-label">SWITCH INSTANCE</span>
+              <span className="im-version-label">Switch instance</span>
               <div className="im-version-selector">
                 <Dropdown
                   className="im-version-dropdown"
@@ -238,7 +244,9 @@ export default function ClusterDetailView({
                   options={instances.map((item) => ({
                     value: item.id,
                     label: `${item.mc_version || item.version}${
-                      instances.filter((i) => (i.mc_version || i.version) === (item.mc_version || item.version)).length > 1
+                      instances.filter(
+                        (i) => (i.mc_version || i.version) === (item.mc_version || item.version)
+                      ).length > 1
                         ? ` · ${item.name}`
                         : ''
                     }`
@@ -251,54 +259,58 @@ export default function ClusterDetailView({
             </div>
           )}
 
-          {/* Navigation Items */}
-          <nav className="im-nav-list" aria-label="Instance sections">
-            {contentTabs.map(([id, title, Glyph]) => (
+          {/* Navigation */}
+          <nav className="im-nav-list" aria-label="Instance sections" onKeyDown={handleNavKeyDown}>
+            <span className="im-nav-group-label">Content</span>
+            {contentTabs.map((id) => (
               <button
                 key={id}
                 className={`im-nav ${tab === id ? 'active' : ''} im-nav-${id}`}
                 aria-current={tab === id ? 'page' : undefined}
                 onClick={() => switchTab(id)}
               >
-                <Glyph size={16} className="im-nav-icon" />
-                <span className="im-nav-text">{title}</span>
+                <NativeIcon name={TAB_META[id].icon} size={16} className="im-nav-icon" />
+                <span className="im-nav-text">{TAB_META[id].title}</span>
               </button>
             ))}
           </nav>
 
-          {/* Sidebar Footer: Advanced */}
           <div className="im-sidebar-footer">
             <button
               className={`im-nav im-nav-settings ${tab === 'settings' ? 'active' : ''}`}
               aria-current={tab === 'settings' ? 'page' : undefined}
               onClick={() => switchTab('settings')}
             >
-              <Settings2 size={16} className="im-nav-icon" />
+              <NativeIcon name="sliders" size={16} className="im-nav-icon" />
               <span className="im-nav-text">Advanced</span>
             </button>
           </div>
         </aside>
 
-        {/* Main Content Area */}
+        {/* Main */}
         <main className="im-main">
-          {/* Tactical Glass Toolbar */}
           <div className="im-toolbar">
+            <div className="im-toolbar-title">
+              <NativeIcon name={meta.icon} size={16} className="im-toolbar-title-icon" />
+              <h3>{meta.title}</h3>
+            </div>
+
             <label className="im-search">
-              <Search size={14} className="im-search-icon" />
+              <NativeIcon name="search" size={14} className="im-search-icon" />
               <input
                 aria-label="Search instance content"
-                placeholder={searchPlaceholder}
+                placeholder={meta.search}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
               {query && (
                 <button
                   type="button"
-                  className="browse-search-clear"
+                  className="im-search-clear"
                   onClick={() => setQuery('')}
                   aria-label="Clear search"
                 >
-                  <X size={13} />
+                  <NativeIcon name="close" size={12} />
                 </button>
               )}
             </label>
@@ -306,25 +318,26 @@ export default function ClusterDetailView({
             <div className="im-toolbar-actions">
               <button
                 className={`im-toolbar-btn ${filtered ? 'is-active' : ''}`}
-                title={tab === 'settings' ? 'Show enabled overrides only' : tab === 'mods' ? 'Show enabled mods only' : 'Sort alphabetically'}
-                aria-label={tab === 'settings' ? 'Show enabled overrides only' : tab === 'mods' ? 'Show enabled mods only' : 'Sort alphabetically'}
+                title={filterLabel}
+                aria-label={filterLabel}
                 aria-pressed={filtered}
                 onClick={() => setFiltered(!filtered)}
               >
-                <SlidersHorizontal size={16} />
+                <NativeIcon name="filter" size={16} />
               </button>
-              <button
-                className="im-toolbar-btn"
-                title="Open folder"
-                aria-label="Open folder"
-                onClick={openFolder}
-              >
-                <FolderOpen size={16} />
-              </button>
+              {meta.folder && (
+                <button
+                  className="im-toolbar-btn"
+                  title="Open folder"
+                  aria-label="Open folder"
+                  onClick={openFolder}
+                >
+                  <NativeIcon name="folder-open" size={16} />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Tab Hosts */}
           {['mods', 'shaders', 'textures', 'worlds'].includes(tab) && (
             <InstanceContentTab
               key={tab}
@@ -359,7 +372,7 @@ export default function ClusterDetailView({
           {notice && (
             <div className="im-toast" role="status">
               <div className="im-toast-icon">
-                <CheckCircle2 size={16} />
+                <NativeIcon name="check-circle" size={16} />
               </div>
               <div className="im-toast-content">
                 {notice.title && <strong className="im-toast-title">{notice.title}</strong>}
@@ -374,7 +387,7 @@ export default function ClusterDetailView({
                   setNotice(null);
                 }}
               >
-                <X size={14} />
+                <NativeIcon name="close" size={14} />
               </button>
             </div>
           )}
