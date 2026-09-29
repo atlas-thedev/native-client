@@ -871,7 +871,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
       <aside className="relay-inbox">
         <div className="relay-inbox-header">
           <div className="relay-inbox-title-row">
-            <h2 className="relay-inbox-title">Relay</h2>
+            <h2 className="relay-inbox-title page-title">Relay</h2>
             <span
               className={`relay-live-dot ${social?.isRealtime ? 'is-live' : ''}`}
               title={social?.isRealtime ? 'Realtime connected' : `Realtime ${social?.streamStatus || 'offline'}`}

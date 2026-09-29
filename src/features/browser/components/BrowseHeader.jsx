@@ -49,7 +49,7 @@ export default function BrowseHeader({
           )}
 
           <div className="browse-title-group">
-            <h1 className="browse-title">{pageTitle || 'Discover'}</h1>
+            <h1 className="browse-title page-title">{pageTitle || 'Discover'}</h1>
           </div>
         </div>
 

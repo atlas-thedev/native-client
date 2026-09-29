@@ -369,7 +369,7 @@ export default function SettingsView({
               <span>/</span>
               <span>{currentTabObj.group}</span>
             </div>
-            <h2 className="settings-header-title">{currentTabObj.title}</h2>
+            <h2 className="settings-header-title page-title">{currentTabObj.title}</h2>
             <p className="settings-header-desc">{currentTabObj.desc}</p>
           </div>
 

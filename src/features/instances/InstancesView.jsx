@@ -226,7 +226,7 @@ export default function InstancesView({
     <div className="instances-view">
       <header className="instances-header">
         <div className="instances-heading-group">
-          <h1 className="instances-title">{t('nav.instances')}</h1>
+          <h1 className="instances-title page-title">{t('nav.instances')}</h1>
           <p className="instances-subtitle">
             {instances.length === 0
               ? t('instances.getStarted')

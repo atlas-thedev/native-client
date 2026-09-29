@@ -486,15 +486,20 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+  padding: 3px;
+  margin: -3px;
 }
 
 .browse-filter-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 10px;
+  line-height: 1;
+  box-sizing: border-box;
+  text-align: center;
   border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -502,7 +507,8 @@
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.14s var(--ease);
+  transition: color 0.14s var(--ease), background-color 0.14s var(--ease),
+    border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
 }
 
 .browse-filter-chip:hover {
@@ -527,23 +533,34 @@
 /* Environment Segmented */
 .browse-filter-segmented {
   display: flex;
-  padding: 2px;
-  border-radius: 9px;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  overflow: visible;
+  border-radius: 10px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .browse-segmented-btn {
-  flex: 1;
-  height: 24px;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 10px;
+  line-height: 1;
+  text-align: center;
+  box-sizing: border-box;
   border: none;
   background: transparent;
-  border-radius: var(--radius-xs);
+  border-radius: 8px;
   color: var(--fg-muted);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.12s var(--ease);
+  transition: color 0.12s var(--ease), background-color 0.12s var(--ease),
+    box-shadow 0.12s var(--ease);
 }
 
 .browse-segmented-btn:hover {
@@ -640,8 +657,7 @@
   flex: 1;
   min-height: 0;
   max-height: none;
-  padding-right: 4px;
-  padding-bottom: 12px;
+  padding: 3px 4px 12px 3px;
   scrollbar-width: thin;
   scrollbar-color: var(--component-border-hover) transparent;
 }

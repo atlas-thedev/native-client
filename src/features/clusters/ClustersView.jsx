@@ -469,7 +469,7 @@ export default function ClustersView({
   return (
     <div className="clusters-view">
       <header className="clusters-header">
-        <h1 className="clusters-title">CHANGE VERSION</h1>
+        <h1 className="clusters-title page-title">CHANGE VERSION</h1>
 
         <div className="clusters-header-actions">
           <button

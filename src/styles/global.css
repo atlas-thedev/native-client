@@ -390,3 +390,19 @@ select {
   stroke: #ffffff !important;
 }
 
+
+/* ---------- Unified page title (all pages except Home) ---------- */
+.page-title.page-title {
+  margin: 0;
+  font-family: "Poppins", var(--font-sans);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-heading, var(--fg-primary, #ffffff));
+}
+.instances-heading-group > .page-title.page-title,
+.locker-header .page-title.page-title {
+  margin-bottom: 6px;
+}

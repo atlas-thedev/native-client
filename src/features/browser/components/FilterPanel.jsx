@@ -158,7 +158,7 @@ export default function FilterPanel({
           <span className="browse-filter-label">Environment</span>
           <div className="browse-filter-segmented">
             {[
-              { id: null, label: 'All' },
+              { id: null, label: 'Any' },
               { id: 'client', label: 'Client' },
               { id: 'server', label: 'Server' }
             ].map((env) => (

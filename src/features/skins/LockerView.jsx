@@ -253,7 +253,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
   return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); processFile(event.dataTransfer?.files?.[0]); }}>
     <header className="locker-header">
       <div>
-        <h1 className="locker-title">{t('locker.title') || 'LOCKER'}</h1>
+        <h1 className="locker-title page-title">{t('locker.title') || 'LOCKER'}</h1>
         <p className="locker-subtitle">{t('locker.subtitle')}</p>
       </div>
       <button

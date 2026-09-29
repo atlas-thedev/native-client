@@ -30,7 +30,6 @@ screenshot-*.png
 
 # database and runtime data
 skin-server/data/
-server/data/
 *.db
 *.env
 credentials.json

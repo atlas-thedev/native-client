@@ -174,7 +174,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     <main className="instances-view admin-view">
       <header className="instances-header admin-header">
         <div className="instances-heading-group">
-          <h1 className="instances-title">Administration</h1>
+          <h1 className="instances-title page-title">Administration</h1>
           <p className="instances-subtitle">Manage Noctra users, badges, and database health.</p>
         </div>
         <div className="instances-header-actions">

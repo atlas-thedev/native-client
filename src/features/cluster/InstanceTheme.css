@@ -1,0 +1,496 @@
+/* ============================================================
+   Noctra — Instance manager (rebuilt as hero + tab bar)
+   Loaded after InstanceManager.css / SettingsTab.css.
+   ============================================================ */
+
+.instance-manager-backdrop {
+  background: rgba(6, 4, 8, 0.84);
+}
+
+.instance-manager.im-v2 {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(1120px, calc(100vw - 48px));
+  height: min(720px, calc(100vh - 48px));
+  border-radius: 22px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-bg);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(160, 81, 162, 0.08), var(--nx-glow);
+}
+
+/* ---------- hero ---------- */
+
+.im-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px 22px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-bg-2);
+}
+.im-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.34;
+  filter: saturate(1.1) blur(2px);
+  transform: scale(1.06);
+}
+.im-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(13, 10, 15, 0.94) 0%, rgba(13, 10, 15, 0.62) 55%, rgba(13, 10, 15, 0.84) 100%),
+    linear-gradient(180deg, transparent 40%, var(--nx-bg) 130%),
+    radial-gradient(520px 200px at 12% 0%, rgba(160, 81, 162, 0.28), transparent 70%);
+}
+.im-hero .im-close {
+  top: 16px;
+  right: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--nx-line-strong);
+  background: rgba(13, 10, 15, 0.7);
+}
+.im-hero .im-close:hover {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+}
+
+.im-hero-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 8px;
+}
+.im-hero-id {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.im-hero-thumb {
+  flex: none;
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--nx-accent-line);
+  background: var(--nx-sunken);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55), var(--nx-glow);
+}
+.im-hero-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.im-hero-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.im-hero-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-accent-text);
+}
+.im-hero .im-identity-title {
+  max-width: 520px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.im-hero .im-identity-badges {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.im-hero .im-badge-version,
+.im-hero .im-badge-loader {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+}
+.im-hero .im-badge-version {
+  border: 1px solid var(--nx-line-strong);
+  background: rgba(13, 10, 15, 0.6);
+  color: var(--nx-text);
+}
+.im-hero .im-badge-loader:not(.is-vanilla) {
+  border: 1px solid var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+  color: var(--nx-accent-text);
+}
+.im-hero .im-badge-loader.is-vanilla {
+  border: 1px solid var(--nx-line-strong);
+  background: rgba(13, 10, 15, 0.6);
+  color: var(--nx-text-2);
+}
+.im-hero .im-identity-stats {
+  color: var(--nx-text-2);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+}
+
+.im-hero-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 4px;
+}
+.im-hero-actions .im-version-dropdown {
+  min-width: 160px;
+}
+
+/* ---------- tab bar ---------- */
+
+.im-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 20px 0;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-bg-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.im-tabbar::-webkit-scrollbar {
+  display: none;
+}
+.im-tabbar-spacer {
+  flex: 1;
+}
+.instance-manager .im-tab {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  margin-bottom: -1px;
+  border-radius: 12px 12px 0 0;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--nx-text-2);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+  transition: color 0.14s var(--ease), background-color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.instance-manager .im-tab:hover {
+  color: #fff;
+  background: var(--nx-accent-softer);
+}
+.instance-manager .im-tab .im-tab-icon {
+  color: var(--nx-text-3);
+  transition: color 0.14s var(--ease);
+}
+.instance-manager .im-tab.active {
+  color: #fff;
+  border-color: var(--nx-line);
+  background: var(--nx-bg);
+}
+.instance-manager .im-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: -1px;
+  height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: var(--nx-grad);
+  box-shadow: 0 0 12px rgba(160, 81, 162, 0.7);
+}
+.instance-manager .im-tab.active .im-tab-icon,
+.instance-manager .im-tab:hover .im-tab-icon {
+  color: var(--nx-accent-text) !important;
+  stroke: var(--nx-accent-text);
+}
+.instance-manager .im-tab.im-nav-settings.active {
+  color: #fff;
+  background: var(--nx-bg);
+}
+
+/* ---------- main area ---------- */
+
+.instance-manager .im-main {
+  background: var(--nx-bg);
+}
+.instance-manager .im-toolbar {
+  height: 60px;
+  padding: 0 24px;
+  background: transparent;
+  border-bottom: 1px solid var(--nx-line);
+}
+.instance-manager .im-search input {
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-panel);
+}
+.instance-manager .im-search input:focus {
+  border-color: var(--nx-accent-line);
+  box-shadow: 0 0 0 3px var(--nx-accent-soft);
+}
+.instance-manager .im-toolbar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-panel);
+}
+.instance-manager .im-toolbar-btn:hover,
+.instance-manager .im-toolbar-btn.is-active {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+}
+.instance-manager .im-toolbar-btn:hover svg,
+.instance-manager .im-toolbar-btn.is-active svg {
+  color: var(--nx-accent-text) !important;
+  stroke: var(--nx-accent-text);
+}
+.instance-manager .im-count {
+  top: -46px;
+  right: 24px;
+}
+
+/* content rows */
+.instance-manager .im-file-row {
+  height: 62px;
+  border-radius: 14px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-panel);
+}
+.instance-manager .im-file-row:hover {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-panel-2);
+}
+.instance-manager .im-file-version-tag,
+.instance-manager .im-file-size-tag {
+  border-radius: 999px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-sunken);
+}
+.instance-manager .im-upload-banner {
+  border-radius: 14px;
+  border: 1px dashed var(--nx-accent-line);
+  background: var(--nx-accent-softer);
+}
+.instance-manager .im-badge-loader:not(.is-vanilla) {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+  color: var(--nx-accent-text);
+}
+
+/* hard-coded white accents -> orchid */
+.instance-manager button.im-add,
+.instance-manager button.sm-add,
+.instance-manager .im-save-btn {
+  color: #fff;
+  border: 1px solid var(--nx-accent-hi);
+  background: var(--nx-grad);
+  box-shadow: 0 6px 18px rgba(140, 63, 149, 0.3);
+}
+.instance-manager button.im-add:hover,
+.instance-manager button.sm-add:hover {
+  filter: brightness(1.1);
+  background: var(--nx-grad);
+  color: #fff;
+}
+.instance-manager .im-preset-pill.is-active,
+.instance-manager .im-summary-chip.is-active,
+.instance-manager .im-setting-card-icon.is-active {
+  color: #fff;
+  border-color: var(--nx-accent);
+  background: var(--nx-accent-soft);
+}
+
+/* ============================================================
+   Instance settings (nis-*) — sectioned cards with accent rails
+   ============================================================ */
+
+.instance-manager .nis-scroll {
+  padding: 22px 26px 26px;
+  gap: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nx-line-strong) transparent;
+}
+
+.instance-manager .nis-banner {
+  border-radius: 14px;
+  border: 1px solid var(--nx-accent-line);
+  background:
+    linear-gradient(90deg, rgba(160, 81, 162, 0.16), rgba(160, 81, 162, 0.04)),
+    var(--nx-panel);
+}
+.instance-manager .nis-banner-icon {
+  color: var(--nx-accent-text);
+}
+
+.instance-manager .nis-summary {
+  gap: 12px;
+}
+.instance-manager .nis-chip {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-panel);
+}
+.instance-manager .nis-chip.is-active {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+  box-shadow: var(--nx-glow);
+}
+.instance-manager .nis-chip.is-active .nis-chip-icon {
+  color: var(--nx-accent-text);
+}
+
+.instance-manager .nis-card {
+  position: relative;
+  border-radius: 18px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-panel);
+}
+.instance-manager .nis-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18px;
+  bottom: 18px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nx-line-strong);
+  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.instance-manager .nis-card.is-active {
+  border-color: var(--nx-accent-line);
+  box-shadow: var(--nx-glow);
+}
+.instance-manager .nis-card.is-active::before {
+  background: var(--nx-grad);
+  box-shadow: 0 0 14px rgba(160, 81, 162, 0.7);
+}
+.instance-manager .nis-card-head {
+  padding: 4px 4px 0;
+}
+.instance-manager .nis-card-icon {
+  border-radius: 12px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-sunken);
+  color: var(--nx-text-2);
+}
+.instance-manager .nis-card.is-active .nis-card-icon {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+  color: var(--nx-accent-text);
+}
+.instance-manager .nis-card-title {
+  color: #fff;
+  font-weight: 750;
+}
+
+.instance-manager .nis-toggle.is-on .nis-toggle-track {
+  background: var(--nx-grad);
+  box-shadow: 0 0 12px rgba(160, 81, 162, 0.45);
+}
+.instance-manager .nis-toggle-track {
+  background: var(--nx-line-strong);
+}
+
+.instance-manager .nis-seg {
+  border-radius: 11px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-sunken);
+}
+.instance-manager .nis-seg-item.is-active,
+.instance-manager .nis-pill.is-active {
+  color: #fff;
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--nx-accent-line);
+}
+.instance-manager .nis-pill {
+  border-radius: 999px;
+}
+.instance-manager .nis-dim,
+.instance-manager .nis-input,
+.instance-manager .nis-textarea {
+  border-radius: 11px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-sunken);
+}
+.instance-manager .nis-dim:focus-within,
+.instance-manager .nis-input:focus,
+.instance-manager .nis-textarea:focus {
+  border-color: var(--nx-accent-line);
+  box-shadow: 0 0 0 3px var(--nx-accent-soft);
+}
+
+.instance-manager .nis-slider {
+  background: linear-gradient(
+    to right,
+    var(--nx-accent) 0,
+    var(--nx-accent-hi) var(--nis-fill, 0%),
+    var(--nx-sunken) var(--nis-fill, 0%),
+    var(--nx-sunken) 100%
+  );
+}
+.instance-manager .nis-slider::-webkit-slider-thumb {
+  border: 3px solid var(--nx-accent);
+  box-shadow: 0 0 14px rgba(160, 81, 162, 0.6);
+}
+.instance-manager .nis-slider::-moz-range-thumb {
+  border: 3px solid var(--nx-accent);
+}
+.instance-manager .nis-slider::-moz-range-progress {
+  background: var(--nx-accent);
+}
+.instance-manager .nis-stepper {
+  border-radius: 11px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-sunken);
+}
+
+.instance-manager .nis-footer {
+  padding: 14px 26px;
+  border-top: 1px solid var(--nx-line);
+  background: var(--nx-bg-2);
+}
+.instance-manager .nis-btn {
+  border-radius: 11px;
+}
+.instance-manager .nis-btn-primary {
+  border: 1px solid var(--nx-accent-hi);
+  background: var(--nx-grad);
+  box-shadow: 0 6px 18px rgba(140, 63, 149, 0.32);
+}
+.instance-manager .nis-btn-ghost {
+  border-color: var(--nx-line-strong);
+}
+.instance-manager .nis-btn-ghost:not(:disabled):hover {
+  border-color: var(--nx-accent-line);
+  background: var(--nx-accent-softer);
+}
+
+@media (max-width: 900px) {
+  .im-hero-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .instance-manager .nis-summary {
+    grid-template-columns: 1fr;
+  }
+}
