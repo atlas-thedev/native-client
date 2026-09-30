@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowUp, Blocks, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Settings, ShieldCheck, User, WifiOff, X } from 'lucide-react';
+import React from 'react';
+import { AlertTriangle, ArrowUp, Blocks, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Settings, ShieldCheck, User, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -21,17 +21,6 @@ export const PERSONAL_NAV_ITEMS = [
   { id: 'relay', labelKey: 'nav.relay', icon: MessageSquare }
 ];
 
-const SIDEBAR_KEY = 'noctra.sidebar.collapsed';
-const SIDEBAR_WIDTH = { expanded: '224px', collapsed: '72px' };
-
-function readCollapsed() {
-  try {
-    return window.localStorage.getItem(SIDEBAR_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export const NAV_ITEMS = [...CORE_NAV_ITEMS, ...PERSONAL_NAV_ITEMS];
 
 function RailButton({ icon: Icon, active, onClick, label, badge = 0, status = null, tone = null, children, className = '', locked = false, lockTooltip = '', tourId = null }) {
@@ -47,8 +36,7 @@ function RailButton({ icon: Icon, active, onClick, label, badge = 0, status = nu
     >
       {children || (
         <>
-          {Icon ? <Icon size={19} strokeWidth={1.9} aria-hidden="true" /> : null}
-          <span className="rail-label">{label}</span>
+          {Icon ? <Icon size={21} strokeWidth={1.9} aria-hidden="true" /> : null}
         </>
       )}
       {badge > 0 && <em className="rail-badge">{badge > 99 ? '99+' : badge}</em>}
@@ -134,15 +122,6 @@ export default function AppNavbar({
   isAdmin = false
 }) {
   const { t } = useI18n();
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-  useEffect(() => {
-    document.documentElement.style.setProperty('--nav-rail-width', collapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded);
-    try {
-      window.localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
-    } catch {
-      /* storage unavailable */
-    }
-  }, [collapsed]);
   const buildVersion = window.native?.version || packageInfo.version;
   const updatePill = deriveUpdatePill(updateStatus, t);
   const networkPill = deriveNetworkPill(networkStatus, t);
@@ -215,33 +194,19 @@ export default function AppNavbar({
         </div>
       </header>
 
-      <aside className={`noctra-rail${collapsed ? ' is-collapsed' : ''}`} aria-label={t('nav.primary')}>
-        <div className="rail-head">
-          <button
-            type="button"
-            className="noctra-rail-logo"
-            onClick={() => onSelectTab('home')}
-            aria-label="Noctra Client"
-            data-tooltip="Noctra Client"
-            data-tour="brand"
-          >
-            <Logo height={26} variant="mark" />
-            <span className="rail-brand-name">Noctra</span>
-          </button>
-          <button
-            type="button"
-            className="rail-collapse-btn"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
-        </div>
+      <aside className="noctra-rail" aria-label={t('nav.primary')}>
+        <button
+          type="button"
+          className="noctra-rail-logo"
+          onClick={() => onSelectTab('home')}
+          aria-label="Noctra Client"
+          data-tooltip="Noctra Client"
+          data-tour="brand"
+        >
+          <Logo height={28} variant="mark" />
+        </button>
 
         <nav className="rail-group rail-core-group" aria-label="Launcher">
-          <span className="rail-section-label">Launcher</span>
           {CORE_NAV_ITEMS.map(({ id, labelKey, icon }) => {
             return (
               <RailButton
@@ -256,8 +221,9 @@ export default function AppNavbar({
           })}
         </nav>
 
+        <span className="rail-divider" aria-hidden="true" />
+
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
-          <span className="rail-section-label">Personal</span>
           {PERSONAL_NAV_ITEMS.map(({ id, labelKey, icon }) => {
             const isRestricted = (id === 'skins' || id === 'relay') && !isNoctra;
             return (
@@ -278,11 +244,12 @@ export default function AppNavbar({
           })}
         </nav>
 
+        {isAdmin && <span className="rail-divider" aria-hidden="true" />}
+
         {isAdmin && (
-          <nav className="rail-group" aria-label="Administration">
-            <span className="rail-section-label">Admin</span>
+          <div className="rail-group" aria-label="Administration">
             <RailButton icon={ShieldCheck} active={currentTab === 'admin'} onClick={() => onSelectTab('admin')} label="Admin control room" className="rail-admin-btn" />
-          </nav>
+          </div>
         )}
 
         <div className="rail-spacer" />
@@ -308,14 +275,10 @@ export default function AppNavbar({
             tourId="account"
           >
             {account?.name ? (
-              <PlayerAvatar account={account} size={30} radius={8} className="rail-avatar" />
+              <PlayerAvatar account={account} size={32} radius={9} className="rail-avatar" />
             ) : (
-              <span className="rail-avatar-fallback"><User size={17} strokeWidth={1.9} aria-hidden="true" /></span>
+              <span className="rail-avatar-fallback"><User size={18} strokeWidth={1.9} aria-hidden="true" /></span>
             )}
-            <span className="rail-account-text">
-              <strong>{account?.name || t('account.accounts')}</strong>
-              <small>{account?.isMicrosoft ? 'Microsoft account' : isNoctra ? 'Noctra account' : 'Switch account'}</small>
-            </span>
           </RailButton>
         </div>
       </aside>

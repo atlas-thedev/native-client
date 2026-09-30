@@ -276,26 +276,24 @@
   background: var(--danger);
 }
 
-/* ---------- sidebar ----------
-   Dark labelled sidebar: brand + collapse toggle on top, grouped
-   destinations, then settings and the account card pinned to the
-   bottom. Collapses to an icon-only rail. Solid colours only. */
+/* ---------- rail ----------
+   Single column of icon targets: destinations on top, settings and
+   the account avatar pinned to the bottom. Black, solid colours only —
+   no gradients, no glows. */
 
 .noctra-rail {
   position: absolute;
   z-index: 80;
   inset: 0 auto 0 0;
-  width: var(--nav-rail-width, 224px);
+  width: var(--nav-rail-width, 72px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 14px 12px 14px;
-  box-sizing: border-box;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 0 16px;
   background: #000;
   border-right: 1px solid var(--hairline);
-  overflow: hidden;
   -webkit-app-region: drag;
-  transition: width 0.18s var(--ease);
 }
 
 .window-frame:not(.maximized) .noctra-rail {
@@ -303,23 +301,15 @@
   border-bottom-left-radius: 14px;
 }
 
-.rail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 44px;
-}
-
 .noctra-rail-logo {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  height: 40px;
-  padding: 0 8px;
-  border-radius: var(--radius-md);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-bottom: 10px;
+  border-radius: var(--radius-lg);
   -webkit-app-region: no-drag;
   transition: background 0.14s var(--ease);
 }
@@ -327,85 +317,45 @@
 .noctra-rail-logo:hover { background: var(--surface-tint); }
 
 .noctra-rail-logo .noctra-logo,
-.noctra-rail-logo .native-logo { display: grid; place-items: center; flex: none; }
+.noctra-rail-logo .native-logo { display: grid; place-items: center; }
 
 .noctra-rail-logo .noctra-mark,
 .noctra-rail-logo .native-mark {
-  width: 24px !important;
-  height: 24px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 0 !important;
   filter: grayscale(1) brightness(3);
   object-fit: contain;
   transform: none;
 }
 
-.rail-brand-name {
-  font: 800 15px var(--font-sans);
-  letter-spacing: 0.02em;
-  color: var(--fg-primary-hover);
-  white-space: nowrap;
-}
-
-.rail-collapse-btn {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-full);
-  color: var(--fg-muted);
-  -webkit-app-region: no-drag;
-  transition: background 0.14s var(--ease), color 0.14s var(--ease);
-}
-
-.rail-collapse-btn:hover { background: var(--surface-tint-hover); color: var(--fg-primary-hover); }
-.rail-collapse-btn:focus-visible { outline: 2px solid var(--fg-secondary); outline-offset: 2px; }
-
 .rail-group {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
 }
 
-.rail-section-label {
-  padding: 0 10px 6px;
-  font: 700 10px var(--font-sans);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-
+/* Every rail control shares one geometry: 44px square, 21px glyph. */
 .rail-btn {
   position: relative;
-  width: 100%;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
   flex: none;
-  padding: 0 10px;
-  box-sizing: border-box;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--fg-secondary);
-  text-align: left;
+  color: var(--fg-muted);
   -webkit-app-region: no-drag;
   transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
 }
 
-.rail-btn > svg { flex: none; width: 19px; height: 19px; }
-
-.rail-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 600 13.5px var(--font-sans);
-}
+.rail-btn > svg { width: 21px; height: 21px; }
 
 .rail-btn:hover { background: var(--surface-tint); color: var(--fg-primary-hover); }
+.rail-btn:active { background: var(--surface-tint-hover); }
 .rail-btn:focus-visible { outline: 2px solid var(--fg-secondary); outline-offset: 1px; }
 
 .rail-btn.is-active {
@@ -416,108 +366,108 @@
 
 .rail-btn.is-active > svg { color: var(--accent-text); stroke: var(--accent-text); }
 
+/* Solid accent tick on the rail edge marks the active destination. */
+.rail-btn.is-active:not(.rail-account-btn)::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent-text);
+  transform: translateY(-50%);
+}
+
 .rail-btn.tone-alert { color: var(--danger); }
 
 .rail-admin-btn { color: #a78bfa; }
 .rail-admin-btn:hover { color: #c4b5fd; background: rgba(139, 92, 246, 0.1); }
 
+.rail-divider { display: block; width: 22px; height: 1px; margin: 8px 0; background: var(--hairline); }
 .rail-spacer { flex: 1; }
 
-/* Badge, lock and status marks sit on the right edge of the row */
+/* ---------- account avatar ----------
+   A plain rounded tile in a rail button. Hover and active only change the
+   button behind it — the avatar itself never scales, glows or gets a border. */
+.rail-btn.rail-account-btn { margin-top: 4px; }
+
+.rail-avatar {
+  display: block;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.rail-avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--surface-tint-hover);
+  color: var(--fg-secondary);
+}
+
+.rail-account-btn:hover .rail-avatar-fallback,
+.rail-account-btn.is-active .rail-avatar-fallback { color: var(--fg-primary-hover); }
+
+/* ---------- marks ---------- */
+
 .rail-badge {
-  margin-left: auto;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
   display: grid;
   place-items: center;
   box-sizing: border-box;
+  border: 2px solid #000;
   border-radius: var(--radius-full);
   background: var(--danger);
-  font: 700 10.5px/1 var(--font-sans);
+  font: 700 9px/1 var(--font-sans);
   font-style: normal;
   color: var(--fg-on-danger, #fff);
+  box-sizing: content-box;
 }
 
 .rail-lock-badge {
-  margin-left: auto;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 15px;
+  height: 15px;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
   border-radius: 50%;
-  background: var(--surface-tint-hover);
+  background: #000;
+  border: 1px solid var(--hairline-strong);
   color: var(--fg-secondary);
   pointer-events: none;
 }
 
-.rail-btn.is-locked { opacity: 0.8; }
+.rail-btn.is-locked { opacity: 0.85; }
 .rail-btn.is-locked:hover { opacity: 1; }
 
 .rail-status {
   position: absolute;
-  top: 50%;
-  right: 12px;
-  width: 8px;
-  height: 8px;
+  right: 6px;
+  bottom: 6px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  transform: translateY(-50%);
+  border: 2px solid #000;
+  box-sizing: content-box;
 }
 .rail-status.gold { background: var(--color-gold); }
 .rail-status.muted { background: var(--fg-muted); }
 .rail-status.red { background: var(--color-danger); }
 .rail-status.brand { background: var(--accent-text); }
 
-/* Account card */
-.rail-foot { gap: 8px; padding-top: 12px; border-top: 1px solid var(--hairline); }
-
-.rail-btn.rail-account-btn {
-  height: 54px;
-  padding: 0 10px;
-  background: var(--surface-tint);
-  border-color: var(--hairline);
-  border-radius: var(--radius-lg);
-}
-.rail-btn.rail-account-btn:hover { background: var(--surface-tint-hover); border-color: var(--hairline-strong); }
-.rail-btn.rail-account-btn.is-active { border-color: rgba(255, 255, 255, 0.28); }
-
-.rail-avatar { flex: none; border: 1px solid var(--hairline-strong); }
-
-.rail-avatar-fallback {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: #000;
-  border: 1px solid var(--hairline-strong);
-  color: var(--fg-secondary);
-}
-
-.rail-account-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-right: 14px; }
-.rail-account-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13px var(--font-sans); color: var(--fg-primary-hover); }
-.rail-account-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px var(--font-sans); color: var(--fg-muted); }
-
-/* ---------- collapsed (icon rail) ---------- */
-
-.noctra-rail.is-collapsed { padding: 14px 10px; align-items: stretch; }
-.noctra-rail.is-collapsed .rail-head { flex-direction: column; gap: 10px; }
-.noctra-rail.is-collapsed .rail-brand-name,
-.noctra-rail.is-collapsed .rail-label,
-.noctra-rail.is-collapsed .rail-account-text { display: none; }
-.noctra-rail.is-collapsed .noctra-rail-logo { padding: 0; width: 44px; justify-content: center; }
-.noctra-rail.is-collapsed .rail-section-label { height: 1px; padding: 0; margin: 4px 12px; overflow: hidden; background: var(--hairline); color: transparent; font-size: 0; }
-.noctra-rail.is-collapsed .rail-btn { justify-content: center; padding: 0; }
-.noctra-rail.is-collapsed .rail-btn.rail-account-btn { height: 44px; background: transparent; border-color: transparent; }
-.noctra-rail.is-collapsed .rail-btn.rail-account-btn.is-active { background: rgba(255, 255, 255, 0.08); border-color: var(--hairline); }
-.noctra-rail.is-collapsed .rail-badge,
-.noctra-rail.is-collapsed .rail-lock-badge { position: absolute; top: 4px; right: 4px; margin: 0; width: 16px; min-width: 16px; height: 16px; padding: 0; font-size: 9px; }
-.noctra-rail.is-collapsed .rail-status { top: auto; bottom: 6px; right: 6px; transform: none; }
-
-/* Tooltips only exist in the icon rail: labels open to the right. */
-.noctra-rail.is-collapsed .rail-btn::after,
-.noctra-rail.is-collapsed .noctra-rail-logo::after {
+/* Tooltips: the rail sits on the window edge, so labels open to the right. */
+.rail-btn::after,
+.noctra-rail-logo::after {
   content: attr(data-tooltip);
   position: absolute;
   left: calc(100% + 14px);
@@ -537,12 +487,9 @@
   transition: opacity 0.14s var(--ease), transform 0.14s var(--ease-out);
 }
 
-.noctra-rail.is-collapsed .rail-btn:hover::after,
-.noctra-rail.is-collapsed .rail-btn:focus-visible::after,
-.noctra-rail.is-collapsed .noctra-rail-logo:hover::after { opacity: 1; transform: translate(0, -50%); }
-
-/* Tooltip needs to escape the rail while collapsed */
-.noctra-rail.is-collapsed { overflow: visible; }
+.rail-btn:hover::after,
+.rail-btn:focus-visible::after,
+.noctra-rail-logo:hover::after { opacity: 1; transform: translate(0, -50%); }
 
 @media (prefers-reduced-motion: reduce) {
   .rail-btn,
