@@ -453,13 +453,20 @@
 
 .rail-status {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 8px;
+  bottom: 8px;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   border: 2px solid #000;
   box-sizing: content-box;
+}
+/* On the avatar the dot sits on the tile's corner instead of covering the face. */
+.rail-account-btn .rail-status {
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
 }
 .rail-status.gold { background: var(--color-gold); }
 .rail-status.muted { background: var(--fg-muted); }

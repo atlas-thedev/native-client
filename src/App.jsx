@@ -23,7 +23,8 @@ export default function App() {
   const activeAccount = accounts.find(a => a.id === activeId) ?? (accounts.length > 0 ? accounts[0] : null);
   // Cosmetics decorate the account; they must never overwrite its identity
   // (`active.skinId` is a skin id, not an account id).
-  const cosmetics = (activeAccount && wardrobe && wardrobe.accountId === activeAccount.id) ? wardrobe.active : null;
+  // Microsoft accounts use their official Mojang skin, never a Noctra wardrobe one.
+  const cosmetics = (activeAccount && activeAccount.type !== 'microsoft' && wardrobe && wardrobe.accountId === activeAccount.id) ? wardrobe.active : null;
   const account = useMemo(() => {
     if (!activeAccount) return GUEST;
     return {

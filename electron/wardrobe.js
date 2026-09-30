@@ -278,18 +278,34 @@ const warmingSkins = new Map();
  * in-flight fetch so the background warm (from `publicState`) and an awaited
  * caller (the `wardrobe:avatar` handler) never fetch twice.
  */
+// Skin cache files are keyed per identity. A Microsoft account and a Noctra
+// account can share a username, so a bare `<username>.png` let one account
+// show the other's skin.
+function isMicrosoftAccount(account) {
+  return account?.type === 'microsoft' || account?.isMicrosoft === true;
+}
+
+function skinCacheFile(account) {
+  const username = cleanName(account?.name, 'Player');
+  if (!isMicrosoftAccount(account)) return path.join(cacheDir(), `${username}.png`);
+  const id = String(account.uuid || account.id || username).replace(/[^a-zA-Z0-9_-]/g, '');
+  return path.join(cacheDir(), `ms-${id || 'player'}.png`);
+}
+
 function warmSkinCache(account) {
   if (!account?.name || account.name === 'guest' || !deps?.app) return Promise.resolve(false);
-  const username = cleanName(account.name, 'Player');
-  const target = path.join(cacheDir(), `${username}.png`);
+  const target = skinCacheFile(account);
+  const username = path.basename(target, '.png');
   if (fs.existsSync(target)) return Promise.resolve(true);
   if (warmingSkins.has(username)) return warmingSkins.get(username);
 
   const task = (async () => {
     fs.mkdirSync(cacheDir(), { recursive: true });
 
-    // 1. Try Noctra wardrobe server first
-    try {
+    // 1. Try Noctra wardrobe server first (local accounts only — the server
+    // looks skins up by username, which would hand a Microsoft account the
+    // skin of a Noctra account with the same name).
+    if (!isMicrosoftAccount(account)) try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);
       const cslRes = await fetch(`${apiRoot()}/csl/${encodeURIComponent(username)}.json`, { signal: controller.signal });
@@ -365,8 +381,7 @@ function publicState(account) {
 
   // If no custom skin is active, check if we have a cached texture on disk for this account
   if (!skinUrl && account?.name && account.name !== 'guest' && deps?.app) {
-    const username = cleanName(account.name, 'Player');
-    const cachedSkinPath = path.join(cacheDir(), `${username}.png`);
+    const cachedSkinPath = skinCacheFile(account);
     if (fs.existsSync(cachedSkinPath)) {
       try {
         skinUrl = `data:image/png;base64,${fs.readFileSync(cachedSkinPath).toString('base64')}`;
@@ -557,6 +572,9 @@ function readActiveBuffers(account) {
 
 async function pullRemoteWardrobe(account) {
   if (!account?.name || account.name === 'guest') return null;
+  // The Noctra server resolves wardrobes by username: never pull another
+  // account's cosmetics into a Microsoft profile that happens to share it.
+  if (isMicrosoftAccount(account)) return null;
   const username = cleanName(account.name, 'Player');
 
   try {
@@ -736,6 +754,7 @@ async function pullRemoteWardrobe(account) {
 
 async function syncWardrobe(account) {
   if (!account?.name || account.name === 'guest') return { ok: false };
+  if (isMicrosoftAccount(account)) return { ok: false };
   const username = cleanName(account.name, 'Player');
   let metadata = loadMetadata(account);
 
