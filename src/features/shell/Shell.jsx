@@ -118,6 +118,22 @@ export default function Shell({
 
   const instancesManager = useInstances(initialInstances);
   const launcher = useLauncher();
+  const [gameSince, setGameSince] = useState(null);
+  useEffect(() => {
+    setGameSince((current) => (launcher.status === 'running' ? current || Date.now() : null));
+  }, [launcher.status]);
+  const runningInstance = launcher.status === 'running'
+    ? instancesManager.instances.find((item) => item.id === launcher.instanceId)
+    : null;
+  const runningGame = launcher.status === 'running'
+    ? {
+        name: runningInstance?.name || 'Minecraft',
+        version: runningInstance?.mc_version || runningInstance?.version || '',
+        loader: runningInstance?.mc_loader || runningInstance?.loader || '',
+        since: gameSince || Date.now(),
+        instance: runningInstance || null
+      }
+    : null;
   usePlaytimeTracker(instancesManager.recordSession, { launcherState: launcher });
   const social = useSocial(isNoctra ? account : null);
   const crash = useCrashReports();
@@ -447,6 +463,9 @@ export default function Shell({
           friendsBadge={isNoctra ? social.badgeTotal : 0}
           liveUserCount={social.liveUserCount}
           isAdmin={isAdmin}
+          runningGame={runningGame}
+          onStopGame={launcher.kill}
+          onOpenRunningGame={runningGame?.instance ? () => handleOpenCluster(runningGame.instance) : undefined}
         />
 
         <div className="shell-content-layer">

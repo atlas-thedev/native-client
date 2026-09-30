@@ -5,6 +5,7 @@ import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import DownloadManagerButton from './DownloadManagerButton.jsx';
+import RunningGamePill from './RunningGamePill.jsx';
 import packageInfo from '../../../package.json';
 import './AppNavbar.css';
 
@@ -119,7 +120,10 @@ export default function AppNavbar({
   isTutorialOpen = false,
   friendsBadge = 0,
   liveUserCount = null,
-  isAdmin = false
+  isAdmin = false,
+  runningGame = null,
+  onStopGame,
+  onOpenRunningGame
 }) {
   const { t } = useI18n();
   const buildVersion = window.native?.version || packageInfo.version;
@@ -174,6 +178,7 @@ export default function AppNavbar({
           )}
         </div>
         <div className="titlebar-actions">
+          <RunningGamePill game={runningGame} onStop={onStopGame} onOpen={onOpenRunningGame} />
           <DownloadManagerButton />
           <button
             type="button"

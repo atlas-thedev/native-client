@@ -706,9 +706,12 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       }
       const win = deps.getWin();
       const { launcherAction, reopenOnExit } = settingsMod.get().behavior;
-      if (win && !win.isDestroyed() && launcherAction !== 'keep' && reopenOnExit) {
+      // Always bring the launcher back after a crash so the report is visible.
+      const crashed = !childFailed && code !== 0 && code !== null;
+      if (win && !win.isDestroyed() && launcherAction !== 'keep' && (reopenOnExit || crashed)) {
         win.show();
         if (win.isMinimized()) win.restore();
+        if (crashed) win.focus();
       }
     });
   } catch (err) {

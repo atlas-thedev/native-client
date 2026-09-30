@@ -24,7 +24,10 @@ const en = {
   'onboarding.noVersions': 'Connect to the internet to load Minecraft versions.', 'onboarding.finish': 'Create instance',
   'onboarding.finishing': 'Creating…', 'onboarding.defaultInstance': 'My first instance',
   'error.offlineName': 'Use 3–16 letters, numbers, or underscores.', 'error.microsoftLogin': 'Microsoft sign-in was not completed.',
-  'error.offlineAccount': 'Could not create the offline account.', 'error.saveSetup': 'Could not save your setup. Please try again.'
+  'error.offlineAccount': 'Could not create the offline account.', 'error.saveSetup': 'Could not save your setup. Please try again.',
+  'game.running': 'Game running', 'game.status': 'Status', 'game.uptime': 'Uptime', 'game.openInstance': 'Open instance', 'game.stop': 'Stop',
+  'settings.launchAction': 'Minimize when the game starts', 'settings.launchActionDesc': 'Gets the launcher out of your way while you play.',
+  'settings.reopenOnExit': 'Bring it back when the game closes', 'settings.reopenOnExitDesc': 'Restores the launcher after you quit Minecraft. It always comes back if the game crashes.',
 };
 
 const es = {

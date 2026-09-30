@@ -16,6 +16,7 @@ const fs = require('fs');
 
 const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
 const LOCAL_ROOT = 'http://127.0.0.1:3418';
+const STREAM_SILENCE_MS = Number(process.env.NOCTRA_STREAM_SILENCE_MS) || 70_000;
 
 let deps = null;
 let heartbeatInterval = null;
@@ -155,19 +156,33 @@ async function connectStreamOnce(root, token) {
   const decoder = new TextDecoder();
   let buffer = '';
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  // The server pings every 15s. Silence for longer means the socket died
+  // quietly (sleep/resume, NAT timeout), so drop it and reconnect.
+  let watchdog = null;
+  const arm = () => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => { try { controller.abort(); } catch {} }, STREAM_SILENCE_MS);
+  };
+  arm();
 
-    let split = buffer.indexOf('\n\n');
-    while (split !== -1) {
-      const block = buffer.slice(0, split);
-      buffer = buffer.slice(split + 2);
-      handleStreamFrame(block);
-      split = buffer.indexOf('\n\n');
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      arm();
+      buffer += decoder.decode(value, { stream: true });
+
+      let split = buffer.indexOf('\n\n');
+      while (split !== -1) {
+        const block = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        handleStreamFrame(block);
+        split = buffer.indexOf('\n\n');
+      }
     }
+  } finally {
+    clearTimeout(watchdog);
   }
 }
 

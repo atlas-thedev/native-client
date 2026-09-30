@@ -81,7 +81,8 @@ const LEGACY_PREFS_KEY = 'native.preferences';
 
 const DEFAULT_PREFS = {
   discordRpc: true,
-  closeOnLaunch: false,
+  launcherAction: 'keep',
+  reopenOnExit: true,
   keepLogs: true,
   fullscreen: false,
   ram: 4,
@@ -200,6 +201,21 @@ export default function SettingsView({
     };
   }, []);
 
+  // Window behavior lives in the main-process settings store, not localStorage.
+  useEffect(() => {
+    let cancelled = false;
+    window.native?.settings?.load?.().then((stored) => {
+      const b = stored?.behavior;
+      if (cancelled || !b) return;
+      setPrefs((prev) => ({
+        ...prev,
+        launcherAction: b.launcherAction === 'keep' || !b.launcherAction ? 'keep' : 'minimize',
+        reopenOnExit: b.reopenOnExit !== false
+      }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     const onKey = (event) => {
       if (event.key === 'Escape' && onBack) {
@@ -291,7 +307,7 @@ export default function SettingsView({
   const searchIndex = useMemo(
     () => [
       { tab: 'launcher', icon: Zap, title: 'Discord Rich Presence', desc: t('settings.discordDesc'), keywords: 'discord rpc activity status' },
-      { tab: 'launcher', icon: Monitor, title: t('settings.closeOnLaunch'), desc: t('settings.closeOnLaunchDesc'), keywords: 'close exit hide launcher launch' },
+      { tab: 'launcher', icon: Monitor, title: t('settings.launchAction'), desc: t('settings.launchActionDesc'), keywords: 'minimize hide close launcher launch window reopen restore' },
       { tab: 'launcher', icon: Terminal, title: t('settings.keepLogs'), desc: t('settings.keepLogsDesc'), keywords: 'logs log session console' },
       { tab: 'launcher', icon: Folder, title: t('settings.dataLocation'), desc: 'Stores your downloaded Minecraft packages, assets, profiles, and runtime files.', keywords: 'data folder directory path open copy files' },
       { tab: 'launcher', icon: RefreshCw, title: t('settings.checkUpdates'), desc: `Noctra Client Build v${buildVersion}`, keywords: 'update updates version build release channel' },
@@ -488,16 +504,16 @@ export default function SettingsView({
                     </div>
                   </div>
 
-                  {/* Close on Launch */}
+                  {/* Launcher window while playing */}
                   <div className="noctra-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Monitor size={18} />
                       </div>
                       <div className="setting-card-text">
-                        <span className="setting-card-name">{t('settings.closeOnLaunch')}</span>
+                        <span className="setting-card-name">{t('settings.launchAction')}</span>
                         <span className="setting-card-desc">
-                          {t('settings.closeOnLaunchDesc')}
+                          {t('settings.launchActionDesc')}
                         </span>
                       </div>
                     </div>
@@ -505,8 +521,8 @@ export default function SettingsView({
                       <label className="noctra-switch">
                         <input
                           type="checkbox"
-                          checked={prefs.closeOnLaunch}
-                          onChange={(e) => updatePref({ closeOnLaunch: e.target.checked })}
+                          checked={prefs.launcherAction === 'minimize'}
+                          onChange={(e) => updatePref({ launcherAction: e.target.checked ? 'minimize' : 'keep' })}
                         />
                         <span className="noctra-switch-track">
                           <span className="noctra-switch-thumb" />
@@ -514,6 +530,34 @@ export default function SettingsView({
                       </label>
                     </div>
                   </div>
+
+                  {prefs.launcherAction === 'minimize' && (
+                    <div className="noctra-setting-card">
+                      <div className="setting-card-left">
+                        <div className="setting-card-icon-wrap">
+                          <Monitor size={18} />
+                        </div>
+                        <div className="setting-card-text">
+                          <span className="setting-card-name">{t('settings.reopenOnExit')}</span>
+                          <span className="setting-card-desc">
+                            {t('settings.reopenOnExitDesc')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="setting-card-control">
+                        <label className="noctra-switch">
+                          <input
+                            type="checkbox"
+                            checked={prefs.reopenOnExit}
+                            onChange={(e) => updatePref({ reopenOnExit: e.target.checked })}
+                          />
+                          <span className="noctra-switch-track">
+                            <span className="noctra-switch-thumb" />
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Keep Logs */}
                   <div className="noctra-setting-card">

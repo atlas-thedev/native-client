@@ -20,7 +20,8 @@ const LEGACY_PREFS_KEY = 'native.preferences';
 
 const DEFAULT_PREFS = {
   discordRpc: true,
-  closeOnLaunch: false,
+  launcherAction: 'keep',
+  reopenOnExit: true,
   keepLogs: true,
   fullscreen: false,
   ram: 4,
@@ -86,6 +87,21 @@ export default function SettingsModal({
         /* keep defaults */
       }
     })();
+    return () => { cancelled = true; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    window.native?.settings?.load?.().then((stored) => {
+      const b = stored?.behavior;
+      if (cancelled || !b) return;
+      setPrefs((prev) => ({
+        ...prev,
+        launcherAction: b.launcherAction === 'keep' || !b.launcherAction ? 'keep' : 'minimize',
+        reopenOnExit: b.reopenOnExit !== false
+      }));
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [open]);
 
@@ -253,18 +269,35 @@ export default function SettingsModal({
 
                   <div className="settings-row">
                     <div className="settings-row-info">
-                      <span className="settings-row-title">{t('settings.closeOnLaunch')}</span>
-                      <span className="settings-row-desc">{t('settings.closeOnLaunchDesc')}</span>
+                      <span className="settings-row-title">{t('settings.launchAction')}</span>
+                      <span className="settings-row-desc">{t('settings.launchActionDesc')}</span>
                     </div>
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
-                        checked={prefs.closeOnLaunch}
-                        onChange={(event) => updatePref({ closeOnLaunch: event.target.checked })}
+                        checked={prefs.launcherAction === 'minimize'}
+                        onChange={(event) => updatePref({ launcherAction: event.target.checked ? 'minimize' : 'keep' })}
                       />
                       <span className="slider" />
                     </label>
                   </div>
+
+                  {prefs.launcherAction === 'minimize' && (
+                  <div className="settings-row">
+                    <div className="settings-row-info">
+                      <span className="settings-row-title">{t('settings.reopenOnExit')}</span>
+                      <span className="settings-row-desc">{t('settings.reopenOnExitDesc')}</span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={prefs.reopenOnExit}
+                        onChange={(event) => updatePref({ reopenOnExit: event.target.checked })}
+                      />
+                      <span className="slider" />
+                    </label>
+                  </div>
+                  )}
 
                   <div className="settings-row">
                     <div className="settings-row-info">

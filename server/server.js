@@ -667,8 +667,16 @@ async function handler(req, res) {
           });
         } catch {}
 
+        let closed = false;
         const close = () => {
+          if (closed) return;
+          closed = true;
           unsubscribe();
+          // Another window/device of the same account may still be connected.
+          if (events.isConnected(authUser.id)) return;
+          try {
+            db.updatePresence(authUser.id, { status: 'offline', activity: null, serverAddress: null });
+          } catch {}
           try {
             events.publish(db.getFriendIds(authUser.id), 'presence', {
               userId: authUser.id,
