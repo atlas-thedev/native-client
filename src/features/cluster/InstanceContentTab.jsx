@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Package, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 
 const formatSize = (bytes) => {
@@ -11,10 +11,10 @@ const formatSize = (bytes) => {
 const ENRICHED_TYPES = new Set(['mods', 'shaders', 'textures']);
 
 const config = {
-  mods: { folder: 'mods', title: '3rd Party Mods', noun: 'mods' },
+  mods: { folder: 'mods', title: '3rd Party Mods', noun: 'mods', browse: 'mod' },
   worlds: { folder: 'saves', title: 'Worlds', noun: 'worlds' },
-  shaders: { folder: 'shaderpacks', title: 'Shaders', noun: 'shader packs' },
-  textures: { folder: 'resourcepacks', title: 'Resources', noun: 'resource packs' },
+  shaders: { folder: 'shaderpacks', title: 'Shaders', noun: 'shader packs', browse: 'shader' },
+  textures: { folder: 'resourcepacks', title: 'Resources', noun: 'resource packs', browse: 'resourcepack' },
   screenshots: { folder: 'screenshots', title: 'Screenshots', noun: 'screenshots' }
 };
 
@@ -39,8 +39,9 @@ function WorldArtwork({ world }) {
   );
 }
 
-export default function InstanceContentTab({ cluster, type, query, filtered }) {
-  const { folder, title, noun } = config[type] || config.mods;
+export default function InstanceContentTab({ cluster, type, query, filtered, onBrowse }) {
+  const { folder, title, noun, browse } = config[type] || config.mods;
+  const canBrowse = Boolean(browse && onBrowse);
   const localOnly = type === 'worlds' || type === 'screenshots';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,6 +154,8 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
   };
 
   const openFolder = () => action(() => window.native.instance.openFolder(cluster.id, folder));
+  const browseContent = () => onBrowse(browse);
+  const addContent = canBrowse ? browseContent : openFolder;
 
   const toggleContent = (row) => {
     const nextEnabled = !row.enabled;
@@ -226,13 +229,13 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
         {/* Upload Banner per Screen 5 */}
         <div
           className="im-upload-banner"
-          onClick={openFolder}
+          onClick={addContent}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              openFolder();
+              addContent();
             }
           }}
         >
@@ -246,9 +249,16 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
             <p className="im-upload-banner-subtitle">
               {localOnly
                 ? `Local ${noun} for this Minecraft instance. Click to manage in folder.`
-                : `Drag & drop files here, or open the folder to add ${noun}.`}
+                : canBrowse
+                  ? `Browse Modrinth and install ${noun} straight into this instance.`
+                  : `Drag & drop files here, or open the folder to add ${noun}.`}
             </p>
           </div>
+          {canBrowse && (
+            <span className="im-upload-banner-cta">
+              <Search size={13} /> Browse
+            </span>
+          )}
         </div>
 
         {error && (
@@ -363,13 +373,20 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
               ? 'No matches. Try another search or clear the filter.'
               : `No ${noun} found yet.`}
             {!rows.length && (
-              <button
-                type="button"
-                className="im-empty-action-btn"
-                onClick={openFolder}
-              >
-                {`Open ${folder} folder`}
-              </button>
+              <div className="im-empty-actions">
+                {canBrowse && (
+                  <button type="button" className="im-empty-action-btn" onClick={browseContent}>
+                    {`Browse ${noun}`}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={canBrowse ? 'im-empty-secondary-btn' : 'im-empty-action-btn'}
+                  onClick={openFolder}
+                >
+                  {`Open ${folder} folder`}
+                </button>
+              </div>
             )}
           </div>
         )}

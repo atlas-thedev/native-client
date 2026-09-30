@@ -32,6 +32,7 @@ export default function ClusterDetailView({
   onUpdateCluster,
   social,
   account,
+  onNavigateBrowse,
   initialTab = 'overview'
 }) {
   const loader = cluster.mc_loader || cluster.loader || 'Vanilla';
@@ -344,6 +345,13 @@ export default function ClusterDetailView({
               type={tab}
               query={query}
               filtered={filtered}
+              onBrowse={
+                onNavigateBrowse
+                  ? (contentType) => {
+                      if (confirmDiscard()) onNavigateBrowse(cluster, contentType);
+                    }
+                  : undefined
+              }
             />
           )}
 

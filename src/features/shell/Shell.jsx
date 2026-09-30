@@ -83,6 +83,11 @@ export default function Shell({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
   const [browseIntent, setBrowseIntent] = useState(null);
+  /* Set when Discover was opened from a specific instance (e.g. the instance
+     manager's add-content banner). Locks installs to that instance and gives
+     the header a back button. */
+  const [browseTargetId, setBrowseTargetId] = useState(null);
+  const [browseBack, setBrowseBack] = useState(null);
   const [createInstanceOpen, setCreateInstanceOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -287,10 +292,29 @@ export default function Shell({
     setInstanceManagerOpen(true);
   };
 
-  const handleNavigateBrowse = (cluster) => {
+  const BROWSE_MANAGER_TABS = { mod: 'mods', shader: 'shaders', resourcepack: 'textures' };
+
+  const handleNavigateBrowse = (cluster, contentType) => {
     if (cluster?.id) instancesManager.select(cluster.id);
-    setBrowseReturnTab(currentTab === 'discover' ? browseReturnTab : currentTab);
+    const returnTab = currentTab === 'discover' ? browseReturnTab : currentTab;
+    setBrowseReturnTab(returnTab);
+    setBrowseTargetId(cluster?.id || null);
+    setBrowseBack({
+      tab: returnTab,
+      managerTab: instanceManagerOpen ? BROWSE_MANAGER_TABS[contentType] || 'overview' : null
+    });
+    if (contentType) setBrowseIntent({ contentType, nonce: Date.now() });
+    setInstanceManagerOpen(false);
     setCurrentTab('discover');
+  };
+
+  const handleBrowseBack = () => {
+    const back = browseBack;
+    const target = instancesManager.instances.find((item) => item.id === browseTargetId);
+    setBrowseTargetId(null);
+    setBrowseBack(null);
+    setCurrentTab(back?.tab || 'instances');
+    if (back?.managerTab && target) handleOpenCluster(target, back.managerTab);
   };
 
   const handleCreateInstance = (values) => {
@@ -328,6 +352,10 @@ export default function Shell({
     if (tab === 'relay' && currentTab !== 'relay') social?.setActiveChatFriend?.(null);
     if (tab !== 'settings') {
       setPreviousTab(currentTab === 'settings' ? 'home' : currentTab);
+    }
+    if (tab !== 'discover') {
+      setBrowseTargetId(null);
+      setBrowseBack(null);
     }
     setCurrentTab(tab);
   };
@@ -456,6 +484,10 @@ export default function Shell({
           <BrowseView
             initialIntent={browseIntent}
             instances={instancesManager.instances}
+            selectedCluster={
+              instancesManager.instances.find((item) => item.id === browseTargetId) || undefined
+            }
+            onBack={browseTargetId ? handleBrowseBack : undefined}
             onSelectCluster={instancesManager.select}
             onAddInstance={handleAddInstance}
             onOpenCluster={handleOpenCluster}

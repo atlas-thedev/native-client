@@ -563,6 +563,28 @@
   color: var(--fg-secondary);
 }
 
+.im-upload-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border-hover);
+  background: var(--component-bg);
+  color: var(--fg-primary-hover);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+
+.im-upload-banner:hover .im-upload-banner-cta,
+.im-upload-banner:focus-visible .im-upload-banner-cta {
+  background: var(--component-bg-hover);
+  border-color: var(--component-border-pressed);
+}
+
 /* File list — one grouped surface, hairline-separated rows */
 .im-file-list {
   display: flex;
@@ -858,6 +880,20 @@
 }
 
 .instance-manager .im-empty-action-btn:hover { background: var(--accent-text); color: var(--page); filter: brightness(1.08); }
+
+.im-empty-actions { display: flex; align-items: center; gap: 8px; }
+
+.instance-manager .im-empty-secondary-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border-hover);
+  color: var(--fg-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.instance-manager .im-empty-secondary-btn:hover { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
 
 .im-error {
   display: flex;
