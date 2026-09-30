@@ -366,15 +366,16 @@
 
 .rail-btn.is-active > svg { color: var(--accent-text); stroke: var(--accent-text); }
 
-/* Solid accent tick on the rail edge marks the active destination. */
+/* Solid accent tick, flush with the rail edge, marks the active destination.
+   Button is centred in the 72px rail (14px inset) and has a 1px border. */
 .rail-btn.is-active:not(.rail-account-btn)::before {
   content: '';
   position: absolute;
-  left: -14px;
+  left: -15px;
   top: 50%;
-  width: 3px;
-  height: 18px;
-  border-radius: 0 3px 3px 0;
+  width: 4px;
+  height: 24px;
+  border-radius: 0 4px 4px 0;
   background: var(--accent-text);
   transform: translateY(-50%);
 }
