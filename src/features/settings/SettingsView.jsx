@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Check,
   CheckCircle2,
   Copy,
@@ -302,11 +301,15 @@ export default function SettingsView({
 
   return (
     <div className="settings-view-page" data-testid="settings-view-page">
-      {/* ── Left Sidebar Navigation ── */}
-      <aside className="settings-page-sidebar">
-        <div className="settings-sidebar-top">
-          <div className="settings-sidebar-brand">
-            <span className="settings-sidebar-kicker">Preferences</span>
+      <header className="settings-topbar">
+        <div className="settings-topbar-row">
+          <div className="settings-header-info">
+            <span className="settings-header-breadcrumb">
+              <span>Preferences</span>
+              <span>/</span>
+              <span>{currentTabObj.group}</span>
+            </span>
+            <h2 className="settings-header-title page-title">Settings</h2>
           </div>
 
           <div className="settings-search-box">
@@ -321,13 +324,12 @@ export default function SettingsView({
           </div>
         </div>
 
-        <nav className="settings-nav-list" aria-label="Settings categories">
+        <nav className="settings-tabs" aria-label="Settings categories">
           {['Client', 'System'].map((groupName) => {
             const groupTabs = filteredTabs.filter((tab) => tab.group === groupName);
             if (groupTabs.length === 0) return null;
             return (
-              <React.Fragment key={groupName}>
-                <span className="settings-nav-group-label">{groupName}</span>
+              <div className="settings-tab-group" key={groupName} role="group" aria-label={groupName}>
                 {groupTabs.map((tab) => {
                   const IconComp = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -336,47 +338,27 @@ export default function SettingsView({
                       key={tab.id}
                       type="button"
                       className={`settings-nav-btn ${isActive ? 'is-active' : ''}`}
+                      aria-current={isActive ? 'page' : undefined}
+                      title={tab.desc}
                       onClick={() => setActiveTab(tab.id)}
                     >
-                      <div className="settings-nav-icon-wrap">
-                        <IconComp size={15} />
-                      </div>
-                      <div className="settings-nav-text">
-                        <span className="settings-nav-title">{tab.title}</span>
-                        <span className="settings-nav-desc">{tab.desc}</span>
-                      </div>
+                      <IconComp size={15} />
+                      <span className="settings-nav-title">{tab.title}</span>
                     </button>
                   );
                 })}
-              </React.Fragment>
+              </div>
             );
           })}
+          {filteredTabs.length === 0 && (
+            <span className="settings-tabs-empty">No settings match “{searchQuery}”</span>
+          )}
         </nav>
+      </header>
 
-        <div className="settings-sidebar-footer">
-          <span>Noctra Client</span>
-          <b>v{buildVersion}</b>
-        </div>
-      </aside>
-
-      {/* ── Right Main Content Area ── */}
       <main className="settings-page-main">
-        {/* Header Bar */}
-        <header className="settings-page-header">
-          <div className="settings-header-info">
-            <div className="settings-header-breadcrumb">
-              <span>Settings</span>
-              <span>/</span>
-              <span>{currentTabObj.group}</span>
-            </div>
-            <h2 className="settings-header-title page-title">{currentTabObj.title}</h2>
-            <p className="settings-header-desc">{currentTabObj.desc}</p>
-          </div>
+        <p className="settings-header-desc">{currentTabObj.desc}</p>
 
-
-        </header>
-
-        {/* Scrollable Settings Cards Container */}
         <div className="settings-scroll-container">
           {/* ════ TAB: LAUNCHER & GENERAL ════ */}
           {activeTab === 'launcher' && (
@@ -525,7 +507,7 @@ export default function SettingsView({
                   <div className="settings-section-line" />
                 </div>
                 <div className="settings-cards-stack">
-                  <div className="noctra-setting-card">
+                  <div className="noctra-setting-card is-wide">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <RefreshCw size={18} />
