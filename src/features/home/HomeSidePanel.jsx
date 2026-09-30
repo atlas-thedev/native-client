@@ -57,29 +57,101 @@ function useRecent(loader) {
   return items;
 }
 
-// Pings are cached for a minute so revisiting Home doesn't re-hit servers.
-const pingCache = new Map();
+/* ---------- persistent icon + status cache ------------------------------
+   Server favicons and world icons are kept in localStorage so a server you
+   have pinged before shows its real icon instantly (and while offline),
+   instead of flashing a placeholder on every visit. */
+
+const STORE_KEY = 'noctra.home.jumpBackIn.v1';
+const MAX_SERVERS = 40;
+const MAX_WORLDS = 60;
 const PING_TTL = 60_000;
+
+export const serverKey = (address) => hostOf(address).toLowerCase();
+
+function readStore() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    return { servers: data.servers || {}, worlds: data.worlds || {} };
+  } catch {
+    return { servers: {}, worlds: {} };
+  }
+}
+
+function trim(map, max) {
+  const entries = Object.entries(map).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+  return Object.fromEntries(entries.slice(0, max));
+}
+
+function writeStore(patch) {
+  try {
+    const store = readStore();
+    const next = {
+      servers: trim({ ...store.servers, ...(patch.servers || {}) }, MAX_SERVERS),
+      worlds: trim({ ...store.worlds, ...(patch.worlds || {}) }, MAX_WORLDS)
+    };
+    localStorage.setItem(STORE_KEY, JSON.stringify(next));
+  } catch {
+    // Quota or private mode: icons simply are not remembered.
+  }
+}
+
+/** Cached entry for a server, falling back to another host on the same
+    network (play.hypixel.net ↔ mc.hypixel.net share one icon). */
+function cachedServer(store, address) {
+  const key = serverKey(address);
+  if (store.servers[key]) return store.servers[key];
+  const root = rootDomain(address);
+  const sibling = Object.entries(store.servers).find(([other, value]) => rootDomain(other) === root && value.favicon);
+  return sibling ? { favicon: sibling[1].favicon } : null;
+}
 
 function useServerStatus(addresses) {
   const key = addresses.join('|');
-  const [status, setStatus] = useState({});
+  const [status, setStatus] = useState(() => {
+    const store = readStore();
+    const initial = {};
+    for (const address of addresses) {
+      const hit = cachedServer(store, address);
+      if (hit) initial[address] = { ...hit, stale: true };
+    }
+    return initial;
+  });
 
   useEffect(() => {
+    const store = readStore();
+    // Paint remembered icons / numbers right away.
+    setStatus((current) => {
+      const next = { ...current };
+      for (const address of addresses) {
+        if (!next[address]) {
+          const hit = cachedServer(store, address);
+          if (hit) next[address] = { ...hit, stale: true };
+        }
+      }
+      return next;
+    });
+
     const ping = window.native?.server?.ping;
     if (!ping) return undefined;
     let cancelled = false;
     for (const address of addresses) {
-      const hit = pingCache.get(address);
-      if (hit && Date.now() - hit.at < PING_TTL) {
-        setStatus((current) => ({ ...current, [address]: hit.value }));
-        continue;
-      }
+      const hit = store.servers[serverKey(address)];
+      if (hit && hit.online && Date.now() - (hit.at || 0) < PING_TTL) continue;
       ping(address)
         .catch(() => ({ online: false }))
         .then((value) => {
-          pingCache.set(address, { at: Date.now(), value });
-          if (!cancelled) setStatus((current) => ({ ...current, [address]: value }));
+          const previous = readStore().servers[serverKey(address)] || cachedServer(readStore(), address);
+          const entry = {
+            online: Boolean(value?.online),
+            players: value?.players || null,
+            latency: Number.isFinite(value?.latency) ? value.latency : null,
+            // Keep the last known icon when the server is offline or sends none.
+            favicon: value?.favicon || previous?.favicon || null,
+            at: Date.now()
+          };
+          writeStore({ servers: { [serverKey(address)]: entry } });
+          if (!cancelled) setStatus((current) => ({ ...current, [address]: entry }));
         });
     }
     return () => {
@@ -89,6 +161,27 @@ function useServerStatus(addresses) {
 
   return status;
 }
+
+/** World icons: use the file from disk, remember it, reuse it if the file
+    later goes missing (e.g. the world is open in another tool). */
+function withWorldIcons(worlds) {
+  if (!worlds) return worlds;
+  const store = readStore();
+  const patch = {};
+  const result = worlds.map((world) => {
+    const key = `${world.instanceId}/${world.folder}`;
+    if (world.iconUrl) {
+      if (store.worlds[key]?.iconUrl !== world.iconUrl) patch[key] = { iconUrl: world.iconUrl, at: Date.now() };
+      return world;
+    }
+    const cached = store.worlds[key]?.iconUrl;
+    return cached ? { ...world, iconUrl: cached } : world;
+  });
+  if (Object.keys(patch).length) writeStore({ worlds: patch });
+  return result;
+}
+
+const latencyTone = (ms) => (ms == null ? '' : ms < 80 ? 'is-good' : ms < 180 ? 'is-ok' : 'is-bad');
 
 /* ---------- pieces -------------------------------------------------- */
 
@@ -125,7 +218,8 @@ function Row({ icon, title, subtitle, meta, onPlay, playLabel }) {
 
 export default function HomeSidePanel({ instances = [], fallbackInstance = null, onLaunch }) {
   const servers = useRecent(window.native?.instance?.recentServers);
-  const worlds = useRecent(window.native?.instance?.recentWorlds);
+  const rawWorlds = useRecent(window.native?.instance?.recentWorlds);
+  const worlds = useMemo(() => withWorldIcons(rawWorlds), [rawWorlds]);
   const byId = useMemo(() => new Map(instances.map((item) => [String(item.id), item])), [instances]);
 
   // Servers from shared logs (or a deleted instance) join with the selected one.
@@ -202,12 +296,17 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
                     title={serverName(entry.address)}
                     subtitle={[instance.name, ago(entry.connectedAt)].filter(Boolean).join(' · ')}
                     meta={
-                      live === undefined ? (
+                      live?.online === undefined ? (
                         <span className="jb-skel" />
                       ) : live.online ? (
-                        <span className="jb-players">
-                          <span className="jb-dot" />
-                          {numberFormat.format(live.players?.online ?? 0)}
+                        <span className="jb-stat">
+                          <span className={`jb-ping ${latencyTone(live.latency)}`}>
+                            <span className="jb-dot" />
+                            {live.latency != null ? `${live.latency} ms` : 'Online'}
+                          </span>
+                          <span className="jb-players">
+                            {numberFormat.format(live.players?.online ?? 0)} online
+                          </span>
                         </span>
                       ) : (
                         <span className="jb-offline">Offline</span>

@@ -84,7 +84,12 @@ export default function LaunchActionButton({
       title={label}
     >
       <span className="launch-action-icon">
-        <NativeIcon name={icon} size={size === 'sm' ? 15 : size === 'md' ? 17 : 19} className={mode === 'progress' ? 'spin' : ''} />
+        <NativeIcon
+          name={icon}
+          size={size === 'sm' ? 14 : size === 'md' ? 16 : 18}
+          strokeWidth={2.2}
+          className={mode === 'progress' ? 'spin' : ''}
+        />
       </span>
 
       <span className="launch-action-text">
