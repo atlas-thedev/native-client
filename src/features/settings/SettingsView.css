@@ -452,3 +452,74 @@
   .settings-scroll-container { padding: 14px 20px 40px; }
   .settings-cards-stack, .about-info-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ── Search ──────────────────────────────────────────────── */
+
+.settings-search-input { padding-right: 34px; }
+
+.settings-search-clear {
+  position: absolute;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--st-raise);
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+.settings-search-clear:hover { color: var(--fg-primary-hover); }
+
+.settings-cards-stack.is-results { grid-template-columns: minmax(0, 1fr); }
+
+button.settings-result {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.settings-result .setting-card-left {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-areas: 'icon text';
+  align-items: center;
+  gap: 14px;
+  grid-area: text;
+}
+button.noctra-setting-card.settings-result.is-wide {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'text control';
+}
+button.settings-result:focus-visible { outline: 2px solid var(--fg-secondary); outline-offset: 2px; }
+
+.settings-result-tab {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--st-well);
+  border: 1px solid var(--st-line-strong);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+button.settings-result .setting-card-control svg { color: var(--fg-muted); }
+button.settings-result:hover .setting-card-control svg { color: var(--fg-primary-hover); }
+
+.settings-search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 56px 20px;
+  border: 1px dashed var(--st-line-strong);
+  border-radius: var(--radius-xl);
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+}
+.settings-search-empty strong { font-size: 14px; color: var(--fg-primary-hover); }

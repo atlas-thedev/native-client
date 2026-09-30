@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Check,
   CheckCircle2,
+  ChevronRight,
   Copy,
   Cpu,
   Database,
@@ -286,16 +287,45 @@ export default function SettingsView({
     } catch {}
   };
 
-  const filteredTabs = useMemo(() => {
-    if (!searchQuery.trim()) return TABS;
-    const q = searchQuery.toLowerCase();
-    return TABS.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.desc.toLowerCase().includes(q) ||
-        t.group.toLowerCase().includes(q)
-    );
-  }, [searchQuery]);
+  // Every individual setting, so search finds them across all tabs.
+  const searchIndex = useMemo(
+    () => [
+      { tab: 'launcher', icon: Zap, title: 'Discord Rich Presence', desc: t('settings.discordDesc'), keywords: 'discord rpc activity status' },
+      { tab: 'launcher', icon: Monitor, title: t('settings.closeOnLaunch'), desc: t('settings.closeOnLaunchDesc'), keywords: 'close exit hide launcher launch' },
+      { tab: 'launcher', icon: Terminal, title: t('settings.keepLogs'), desc: t('settings.keepLogsDesc'), keywords: 'logs log session console' },
+      { tab: 'launcher', icon: Folder, title: t('settings.dataLocation'), desc: 'Stores your downloaded Minecraft packages, assets, profiles, and runtime files.', keywords: 'data folder directory path open copy files' },
+      { tab: 'launcher', icon: RefreshCw, title: t('settings.checkUpdates'), desc: `Noctra Client Build v${buildVersion}`, keywords: 'update updates version build release channel' },
+      { tab: 'launcher', icon: ShieldCheck, title: t('settings.checkOnStartup'), desc: t('settings.checkOnStartupDesc'), keywords: 'update startup automatic' },
+      { tab: 'launcher', icon: History, title: t('settings.backgroundChecks'), desc: t('settings.backgroundChecksDesc'), keywords: 'update background periodic' },
+      { tab: 'launcher', icon: Zap, title: t('settings.autoDownload'), desc: t('settings.autoDownloadDesc'), keywords: 'update download automatic install' },
+      { tab: 'minecraft', icon: Monitor, title: t('settings.fullscreen'), desc: t('settings.fullscreenDesc'), keywords: 'fullscreen window display screen' },
+      { tab: 'minecraft', icon: Sliders, title: 'Default Window Dimensions', desc: 'Target viewport size when launching instances in windowed mode.', keywords: 'resolution width height size 720p 1080p 1440p 4k hd fhd qhd' },
+      { tab: 'minecraft', icon: Cpu, title: t('settings.defaultMemory'), desc: t('settings.defaultMemoryDesc'), keywords: 'ram memory allocation gb heap xmx' },
+      { tab: 'java', icon: Terminal, title: t('settings.javaExecutable'), desc: t('settings.javaExecutableDesc'), keywords: 'java path runtime jre jdk executable' },
+      { tab: 'java', icon: Zap, title: t('settings.jvmArgs'), desc: t('settings.jvmArgsDesc'), keywords: 'jvm arguments flags args aikar g1gc shenandoah gc optimization' },
+      { tab: 'storage', icon: HardDrive, title: 'Storage usage', desc: 'Disk space used by each instance.', keywords: 'disk space mods worlds packs playtime rescan' },
+      { tab: 'storage', icon: Database, title: 'Clear download caches', desc: 'Free space used by manifests, artwork and cached data.', keywords: 'cache clear delete manifest artwork' },
+      { tab: 'changelog', icon: History, title: 'Release notes', desc: 'Version history and patch notes.', keywords: 'changelog patch notes versions history' },
+      { tab: 'about', icon: Info, title: 'About Noctra', desc: 'Launcher version, platform and credits.', keywords: 'about version platform architecture credits' },
+      { tab: 'about', icon: ExternalLink, title: 'GitHub repository & issue tracker', desc: 'Community and support links.', keywords: 'github repo issues bug support community' }
+    ],
+    [t, buildVersion]
+  );
+
+  const searchResults = useMemo(() => {
+    const terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return null;
+    return searchIndex.filter((item) => {
+      const tabInfo = TABS.find((tab) => tab.id === item.tab);
+      const haystack = `${item.title} ${item.desc} ${item.keywords} ${tabInfo?.title || ''} ${tabInfo?.group || ''}`.toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [searchQuery, searchIndex]);
+
+  const openResult = (tabId) => {
+    setActiveTab(tabId);
+    setSearchQuery('');
+  };
 
   const currentTabObj = TABS.find((t) => t.id === activeTab) || TABS[0];
 
@@ -320,19 +350,37 @@ export default function SettingsView({
               placeholder="Search settings..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && searchQuery) {
+                  e.stopPropagation();
+                  setSearchQuery('');
+                }
+              }}
+              aria-label="Search settings"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                className="settings-search-clear"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         </div>
 
         <nav className="settings-tabs" aria-label="Settings categories">
           {['Client', 'System'].map((groupName) => {
-            const groupTabs = filteredTabs.filter((tab) => tab.group === groupName);
+            const groupTabs = TABS.filter((tab) => tab.group === groupName);
             if (groupTabs.length === 0) return null;
             return (
               <div className="settings-tab-group" key={groupName} role="group" aria-label={groupName}>
                 {groupTabs.map((tab) => {
                   const IconComp = tab.icon;
-                  const isActive = activeTab === tab.id;
+                  const isActive = !searchResults && activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
@@ -340,7 +388,7 @@ export default function SettingsView({
                       className={`settings-nav-btn ${isActive ? 'is-active' : ''}`}
                       aria-current={isActive ? 'page' : undefined}
                       title={tab.desc}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => openResult(tab.id)}
                     >
                       <IconComp size={15} />
                       <span className="settings-nav-title">{tab.title}</span>
@@ -350,18 +398,62 @@ export default function SettingsView({
               </div>
             );
           })}
-          {filteredTabs.length === 0 && (
-            <span className="settings-tabs-empty">No settings match “{searchQuery}”</span>
-          )}
         </nav>
       </header>
 
       <main className="settings-page-main">
-        <p className="settings-header-desc">{currentTabObj.desc}</p>
+        {!searchResults && <p className="settings-header-desc">{currentTabObj.desc}</p>}
 
         <div className="settings-scroll-container">
+          {searchResults && (
+            <div className="settings-section-block" data-testid="settings-search-results">
+              <div className="settings-section-title-wrap">
+                <span className="settings-section-title">
+                  {searchResults.length} {searchResults.length === 1 ? 'result' : 'results'} for “{searchQuery.trim()}”
+                </span>
+                <div className="settings-section-line" />
+              </div>
+              {searchResults.length === 0 ? (
+                <div className="settings-search-empty">
+                  <Search size={20} aria-hidden="true" />
+                  <strong>No settings match your search</strong>
+                  <span>Try a different word, like “java”, “memory” or “update”.</span>
+                </div>
+              ) : (
+                <div className="settings-cards-stack is-results">
+                  {searchResults.map((item) => {
+                    const ItemIcon = item.icon;
+                    const tabInfo = TABS.find((tab) => tab.id === item.tab);
+                    return (
+                      <button
+                        key={`${item.tab}:${item.title}`}
+                        type="button"
+                        className="noctra-setting-card is-wide settings-result"
+                        onClick={() => openResult(item.tab)}
+                      >
+                        <div className="setting-card-left">
+                          <div className="setting-card-icon-wrap">
+                            <ItemIcon size={18} />
+                          </div>
+                          <div className="setting-card-text">
+                            <span className="setting-card-name">{item.title}</span>
+                            <span className="setting-card-desc">{item.desc}</span>
+                          </div>
+                        </div>
+                        <div className="setting-card-control">
+                          <span className="settings-result-tab">{tabInfo?.title}</span>
+                          <ChevronRight size={16} aria-hidden="true" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ════ TAB: LAUNCHER & GENERAL ════ */}
-          {activeTab === 'launcher' && (
+          {!searchResults && activeTab === 'launcher' && (
             <>
 
               {/* Behavior & Features */}
@@ -622,7 +714,7 @@ export default function SettingsView({
           )}
 
           {/* ════ TAB: MINECRAFT & DISPLAY ════ */}
-          {activeTab === 'minecraft' && (
+          {!searchResults && activeTab === 'minecraft' && (
             <>
               {/* Display & Window */}
               <div className="settings-section-block">
@@ -748,7 +840,7 @@ export default function SettingsView({
           )}
 
           {/* ════ TAB: JAVA & RUNTIME ════ */}
-          {activeTab === 'java' && (
+          {!searchResults && activeTab === 'java' && (
             <>
               <div className="settings-section-block">
                 <div className="settings-section-title-wrap">
@@ -846,21 +938,21 @@ export default function SettingsView({
           )}
 
           {/* ════ TAB: STORAGE ════ */}
-          {activeTab === 'storage' && (
+          {!searchResults && activeTab === 'storage' && (
             <div className="settings-section-block">
               <StoragePanel instances={instances} />
             </div>
           )}
 
           {/* ════ TAB: CHANGELOG ════ */}
-          {activeTab === 'changelog' && (
+          {!searchResults && activeTab === 'changelog' && (
             <div className="settings-section-block">
               <ChangelogPanel onOpenUpdater={onOpenUpdater} />
             </div>
           )}
 
           {/* ════ TAB: ABOUT NOCTRA ════ */}
-          {activeTab === 'about' && (
+          {!searchResults && activeTab === 'about' && (
             <div className="settings-section-block">
               <div className="about-noctra-hero">
                 <div className="about-hero-left">
