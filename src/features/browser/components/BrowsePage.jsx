@@ -320,8 +320,9 @@ export default function BrowsePage({
         <InstancePickerModal
           open={pickerOpen}
           mode="settings"
-          title="Choose Instance"
-          subtitle={pendingInstall ? `Installing ${pendingInstall.project.title}` : ''}
+          title="Install to instance"
+          actionLabel="Install"
+          subtitle={pendingInstall ? pendingInstall.project.title : ''}
           instances={instances}
           compatFor={compatFor}
           onClose={handleCancelPick}
