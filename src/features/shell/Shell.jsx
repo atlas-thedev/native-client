@@ -409,6 +409,7 @@ export default function Shell({
               launcherState={launcher}
               onLaunch={handleLaunch}
               onKill={launcher.kill}
+              onNavigateBrowse={handleNavigateBrowse}
             />
           )}
 

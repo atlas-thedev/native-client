@@ -669,3 +669,34 @@
     animation: none;
   }
 }
+
+/* ---------- stage: hero on the left, companion panel on the right ---------- */
+
+.home-stage {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 24px;
+  padding-right: var(--home-padding);
+}
+
+.home-stage-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-stage-main .home-hero-content {
+  padding-right: 0;
+}
+
+@media (max-width: 1040px) {
+  .home-side { width: 300px; }
+}
+
+@media (max-width: 900px) {
+  .home-side { display: none; }
+}

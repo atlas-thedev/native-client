@@ -7,6 +7,7 @@ import { getClusterArt, INITIAL_CLUSTERS } from '../../data/versionsData.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
+import HomeSidePanel from './HomeSidePanel.jsx';
 import './HomeView.css';
 
 const loadersOf = (instance) => instance?.mc_loader || instance?.loader || 'Vanilla';
@@ -31,7 +32,8 @@ export default function HomeView({
   account,
   launcherState,
   onLaunch,
-  onKill
+  onKill,
+  onNavigateBrowse
 }) {
   const { t } = useI18n();
   const [contextMenu, setContextMenu] = useState(null);
@@ -148,6 +150,8 @@ export default function HomeView({
         <div className="home-bg-fade" />
       </div>
 
+      <div className="home-stage">
+      <div className="home-stage-main">
       {/* Greeting */}
       <div className="home-topbar">
         <div className="home-greeting">
@@ -236,6 +240,19 @@ export default function HomeView({
             </div>
           </div>
         )}
+      </div>
+
+      </div>
+
+      {!isStarterMode && cluster && (
+        <HomeSidePanel
+          instance={cluster}
+          instances={instances}
+          onLaunch={onLaunch}
+          onOpenCluster={onOpenCluster}
+          onNavigateBrowse={onNavigateBrowse}
+        />
+      )}
       </div>
 
       {/* Instance switcher rail */}
