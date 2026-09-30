@@ -60,6 +60,18 @@ export default function BrowseHeader({
 
           <div className="browse-title-group">
             <h1 className="browse-title page-title">{pageTitle || 'Discover'}</h1>
+            {target && (
+              <div className="browse-target-line" title={`Installing into ${target.name}`}>
+                <span className="browse-target-art" aria-hidden="true">
+                  <NativeIcon name="cube" size={12} />
+                </span>
+                <span className="browse-target-label">Adding to</span>
+                <strong className="browse-target-name">{target.name}</strong>
+                <span className="browse-target-meta">
+                  {target.mc_version || target.version} · {target.mc_loader || target.loader || 'Vanilla'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

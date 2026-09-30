@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
+import { AlertCircle, ArrowRight, CheckCircle2, Download, RefreshCw, X } from 'lucide-react';
 import { marked } from 'marked';
 import './UpdateCenter.css';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
@@ -46,12 +47,15 @@ export default function UpdateCenter({ open, onClose, status, onCheck, onDownloa
     <div className="uc-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="update-center" role="dialog" aria-modal="true" aria-labelledby="uc-title">
         <header className="uc-head">
+          <span className={`uc-head-icon is-${status.type}`} aria-hidden="true">
+            {headIcon(status.type)}
+          </span>
           <div className="uc-head-text">
             <h2 className="uc-title" id="uc-title">{headline(status, percent, t)}</h2>
             <p className="uc-subtitle">{subline(status, t)}</p>
           </div>
-          <button type="button" className="uc-close" onClick={onClose} aria-label={t('update.close')}>
-            {t('update.close')}
+          <button type="button" className="uc-close" onClick={onClose} aria-label={t('update.close')} title={t('update.close')}>
+            <X size={16} />
           </button>
         </header>
 
@@ -75,7 +79,7 @@ export default function UpdateCenter({ open, onClose, status, onCheck, onDownloa
                 <span>{t('update.currentVersion', { version: '' }).replace(/[:\s]+$/, '')}</span>
                 <strong>v{currentVersion}</strong>
               </div>
-              <span className="uc-version-sep" aria-hidden="true">→</span>
+              <span className="uc-version-sep" aria-hidden="true"><ArrowRight size={16} /></span>
               <div className="uc-version-column is-new">
                 <span>{status.type === 'downloaded' ? 'Ready to install' : 'Available version'}</span>
                 <strong>v{status.version ?? '—'}</strong>
@@ -184,6 +188,13 @@ export default function UpdateCenter({ open, onClose, status, onCheck, onDownloa
       </section>
     </div>
   );
+}
+
+function headIcon(type) {
+  if (type === 'not-available') return <CheckCircle2 size={20} />;
+  if (type === 'error') return <AlertCircle size={20} />;
+  if (type === 'available' || type === 'downloaded' || type === 'downloading') return <Download size={20} />;
+  return <RefreshCw size={20} className={['checking', 'preparing', 'installing'].includes(type) ? 'uc-spin' : ''} />;
 }
 
 function headline(status, percent, t) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Minus, Square, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Minus, Square, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import BrandIcon from '../../components/ui/BrandIcon.jsx';
@@ -57,6 +57,7 @@ export default function AccountSwitcherModal({
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regModel, setRegModel] = useState('classic');
+  const [showPassword, setShowPassword] = useState(false);
 
   // OTP 6-digit verification state
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
@@ -479,13 +480,24 @@ export default function AccountSwitcherModal({
 
                   <div className="noctra-form-group">
                     <label className="noctra-form-label">{t('account.password')}</label>
-                    <input
-                      type="password"
-                      className="noctra-form-input"
-                      placeholder="••••••••"
-                      value={passwordInput}
-                      onChange={(e) => { setPasswordInput(e.target.value); setError(''); }}
-                    />
+                    <div className="noctra-input-wrap">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        className="noctra-form-input has-toggle"
+                        placeholder="••••••••"
+                        value={passwordInput}
+                        onChange={(e) => { setPasswordInput(e.target.value); setError(''); }}
+                      />
+                      <button
+                        type="button"
+                        className="noctra-input-toggle"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
 
                   {error && <div className="account-login-error" role="alert">{error}</div>}
@@ -540,6 +552,7 @@ export default function AccountSwitcherModal({
                       radius={12}
                     />
                   </div>
+                  <span className="noctra-auth-step">Step 1 of 2</span>
                   <h2 className="noctra-auth-title">{t('account.createNoctra')}</h2>
                   <p className="noctra-auth-sub">{t('account.nativeSubtitle')}</p>
                 </div>
@@ -571,13 +584,24 @@ export default function AccountSwitcherModal({
 
                   <div className="noctra-form-group">
                     <label className="noctra-form-label">{t('account.password')}</label>
-                    <input
-                      type="password"
-                      className="noctra-form-input"
-                      placeholder="At least 6 characters"
-                      value={regPassword}
-                      onChange={(e) => { setRegPassword(e.target.value); setError(''); }}
-                    />
+                    <div className="noctra-input-wrap">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        className="noctra-form-input has-toggle"
+                        placeholder="At least 6 characters"
+                        value={regPassword}
+                        onChange={(e) => { setRegPassword(e.target.value); setError(''); }}
+                      />
+                      <button
+                        type="button"
+                        className="noctra-input-toggle"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="noctra-form-group">
@@ -649,6 +673,7 @@ export default function AccountSwitcherModal({
 
                 <div className="noctra-auth-header">
                   <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
+                  <span className="noctra-auth-step">Step 2 of 2</span>
                   <h2 className="noctra-auth-title">{t('account.verifyCodeTitle')}</h2>
                   <p className="noctra-auth-sub">
                     {t('account.verifyCodeSubtitle', { email: regEmail })}

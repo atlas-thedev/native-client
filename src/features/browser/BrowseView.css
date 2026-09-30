@@ -75,6 +75,36 @@
   gap: 2px;
 }
 
+.browse-target-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 6px;
+  padding: 3px 10px 3px 3px;
+  align-self: flex-start;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--component-border-hover);
+  background: var(--component-bg);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.browse-target-art {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ghost-overlay-pressed);
+  color: var(--fg-secondary);
+  flex: none;
+}
+
+.browse-target-label { color: var(--fg-muted); }
+.browse-target-name { color: var(--fg-primary-hover); font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browse-target-meta { color: var(--fg-secondary); font-family: var(--font-mono); font-size: 11px; white-space: nowrap; }
+
 .browse-title {
   font-size: 20px;
   font-weight: 700;
