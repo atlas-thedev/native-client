@@ -158,3 +158,25 @@ test('Unknown crash still returns a readable report', () => {
   assert.match(reportToText(r, { instanceName: 'Test', version: '1.20.1' }), /Noctra crash report/);
   assert.equal(exitMeaning(0), null);
 });
+
+test('a Fabric crash report (with a "Fabric Mods:" section) is analysed, not rejected', () => {
+  const crashReport = [
+    '---- Minecraft Crash Report ----',
+    'Time: 2026-09-30 18:00:00',
+    'Description: Exception in server tick loop',
+    '',
+    'java.lang.IllegalStateException: boom',
+    '\tat net.minecraft.server.MinecraftServer.tick(MinecraftServer.java:1)',
+    '',
+    '-- System Details --',
+    'Details:',
+    '\tMinecraft Version: 1.21.1',
+    '\tOperating System: Windows 11 (amd64) version 10.0',
+    '\tJava Version: 21.0.4, Microsoft',
+    '\tFabric Mods:',
+    '\t\tfabric-api: Fabric API 0.100.0'
+  ].join('\n');
+  const r = analyzeCrash({ log: '', crashReport, exitCode: 1, instance, mods: [] });
+  assert.ok(r.headline);
+  assert.equal(r.facts?.loader ?? 'Fabric', 'Fabric');
+});

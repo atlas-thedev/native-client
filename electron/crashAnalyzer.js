@@ -490,7 +490,7 @@ function blameMods(ctx, chain) {
 function readFacts(ctx) {
   const pick = (re, src) => {
     const hit = ctx.find(re, src ? { src } : undefined);
-    return hit ? hit.match[1].trim() : null;
+    return hit && hit.match[1] != null ? String(hit.match[1]).trim() : null;
   };
   const facts = {
     description: pick(/^Description:\s*(.+)$/, 'crash-report'),
@@ -501,7 +501,7 @@ function readFacts(ctx) {
     memory: pick(/^\s*Memory:\s*(.+)$/),
     gpu: pick(/^\s*Graphics card #0 name:\s*(.+)$/) || pick(/^\s*GL info:\s*'?([^']+?)(?:' \(|$)/) || pick(/^\s*Backend library:\s*(.+)$/),
     glVersion: pick(/^\s*GL info:\s*'.*?'\s*\(([^)]+)\)/) || pick(/^\s*OpenGL:\s*(.+)$/),
-    loader: pick(/^\s*Fabric Mods:\s*$/) ? 'Fabric' : null,
+    loader: ctx.find(/^\s*Fabric Mods:\s*$/) ? 'Fabric' : null,
     modded: pick(/^\s*Is Modded:\s*(.+)$/),
     jvmFlags: pick(/^\s*JVM Flags:\s*(.+)$/),
     time: pick(/^Time:\s*(.+)$/, 'crash-report')
