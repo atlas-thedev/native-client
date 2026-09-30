@@ -5,7 +5,6 @@ import { I18nProvider } from './i18n/I18nProvider.jsx';
 import './lib/appearance.js';
 import './styles/theme.css';
 import './styles/global.css';
-import './styles/minecraft-buttons.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

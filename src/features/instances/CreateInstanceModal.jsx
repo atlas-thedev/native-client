@@ -351,7 +351,8 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
             {t('common.cancel')}
           </button>
           <button type="button" className="ci-brand-btn" onClick={submit} disabled={!canSubmit}>
-            {t('onboarding.finish')}
+            <NativeIcon name="plus" size={15} />
+            <span>{t('onboarding.finish')}</span>
           </button>
         </footer>
       </div>
