@@ -17,7 +17,6 @@
   padding-left: 20px;
   background: var(--page-sunken);
   border-bottom: 1px solid var(--hairline);
-  box-shadow: 0 1px 16px rgba(0, 0, 0, 0.12);
   -webkit-app-region: drag;
 }
 
@@ -79,7 +78,6 @@
 .quick-tutorial-btn[data-tour-target-active="true"],
 .quick-tutorial-btn.is-active {
   transform: none;
-  box-shadow: 0 0 12px var(--brand-subtle);
 }
 
 .quick-tutorial-btn:active {
@@ -115,7 +113,6 @@
   height: 5px;
   border-radius: 50%;
   background: var(--color-success);
-  box-shadow: 0 0 7px var(--color-success);
 }
 
 .noctra-live-users {
@@ -126,7 +123,6 @@
 
 .noctra-live-users > svg {
   color: var(--success);
-  filter: drop-shadow(0 0 4px var(--success-subtle));
 }
 
 .noctra-live-users > b { color: var(--fg-primary-hover); }
@@ -151,7 +147,7 @@
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.16s var(--ease), border-color 0.16s var(--ease),
-    color 0.16s var(--ease), box-shadow 0.16s var(--ease), transform 0.16s var(--ease-out);
+    color 0.16s var(--ease), transform 0.16s var(--ease-out);
 }
 
 .noctra-update-pill:hover { transform: translateY(-1px); }
@@ -164,18 +160,14 @@
   border-color: var(--brand-border);
   background: var(--brand-subtle);
   color: var(--brand-soft);
-  box-shadow: 0 0 14px var(--brand-glow);
 }
-.noctra-update-pill.available:hover { box-shadow: 0 0 20px var(--brand-glow); }
 
 /* Ready to install — success accent signals the restart action. */
 .noctra-update-pill.ready {
   border-color: rgba(34, 197, 94, 0.5);
   background: rgba(34, 197, 94, 0.14);
   color: var(--color-success);
-  box-shadow: 0 0 14px rgba(34, 197, 94, 0.3);
 }
-.noctra-update-pill.ready:hover { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
 
 /* Downloading — quiet brand tint while work is in progress. */
 .noctra-update-pill.downloading {
@@ -284,24 +276,26 @@
   background: var(--danger);
 }
 
-/* ---------- rail ---------- */
+/* ---------- sidebar ----------
+   Dark labelled sidebar: brand + collapse toggle on top, grouped
+   destinations, then settings and the account card pinned to the
+   bottom. Collapses to an icon-only rail. Solid colours only. */
 
 .noctra-rail {
   position: absolute;
   z-index: 80;
   inset: 0 auto 0 0;
-  width: var(--nav-rail-width, 72px);
+  width: var(--nav-rail-width, 224px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 20px 0 18px;
-  background: color-mix(in srgb, var(--page-sunken) 94%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.08);
-  backdrop-filter: blur(18px) saturate(1.08);
+  gap: 18px;
+  padding: 14px 12px 14px;
+  box-sizing: border-box;
+  background: #000;
   border-right: 1px solid var(--hairline);
-  box-shadow: 8px 0 30px -24px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
   -webkit-app-region: drag;
+  transition: width 0.18s var(--ease);
 }
 
 .window-frame:not(.maximized) .noctra-rail {
@@ -309,143 +303,224 @@
   border-bottom-left-radius: 14px;
 }
 
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 44px;
+}
+
 .noctra-rail-logo {
   position: relative;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  margin-bottom: 12px;
-  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
   -webkit-app-region: no-drag;
-  transition: background 0.15s var(--ease), transform 0.15s var(--ease-out);
+  transition: background 0.14s var(--ease);
 }
 
-.noctra-rail-logo:hover {
-  background: var(--surface-tint);
-  transform: translateY(-1px);
-}
+.noctra-rail-logo:hover { background: var(--surface-tint); }
 
 .noctra-rail-logo .noctra-logo,
-.noctra-rail-logo .native-logo {
-  display: grid;
-  place-items: center;
-}
+.noctra-rail-logo .native-logo { display: grid; place-items: center; flex: none; }
 
 .noctra-rail-logo .noctra-mark,
 .noctra-rail-logo .native-mark {
-  width: 25px !important;
-  height: 25px !important;
+  width: 24px !important;
+  height: 24px !important;
   border-radius: 0 !important;
   filter: grayscale(1) brightness(3);
   object-fit: contain;
   transform: none;
 }
 
+.rail-brand-name {
+  font: 800 15px var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--fg-primary-hover);
+  white-space: nowrap;
+}
+
+.rail-collapse-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  color: var(--fg-muted);
+  -webkit-app-region: no-drag;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.rail-collapse-btn:hover { background: var(--surface-tint-hover); color: var(--fg-primary-hover); }
+.rail-collapse-btn:focus-visible { outline: 2px solid var(--fg-secondary); outline-offset: 2px; }
+
 .rail-group {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 5px;
+  gap: 2px;
 }
 
-/* Every rail control shares one geometry: 44px square, 21px glyph. */
+.rail-section-label {
+  padding: 0 10px 6px;
+  font: 700 10px var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
 .rail-btn {
   position: relative;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex: none;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--fg-secondary);
+  text-align: left;
   -webkit-app-region: no-drag;
-  border: 1px solid transparent;
-  transition: background 0.16s var(--ease), border-color 0.16s var(--ease),
-    color 0.16s var(--ease), transform 0.16s var(--ease-out), box-shadow 0.16s var(--ease);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
 }
 
-.rail-btn > svg {
-  width: 21px;
-  height: 21px;
+.rail-btn > svg { flex: none; width: 19px; height: 19px; }
+
+.rail-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 13.5px var(--font-sans);
 }
 
-.rail-btn:hover {
-  background: var(--surface-tint);
-  border-color: var(--hairline);
-  color: #ffffff;
-  transform: translateX(1px);
-}
-
-.rail-btn:hover > svg {
-  color: #ffffff !important;
-  stroke: #ffffff;
-}
-
-.rail-btn:active {
-  transform: scale(0.96);
-}
-
-.rail-btn:focus-visible {
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
-}
+.rail-btn:hover { background: var(--surface-tint); color: var(--fg-primary-hover); }
+.rail-btn:focus-visible { outline: 2px solid var(--fg-secondary); outline-offset: 1px; }
 
 .rail-btn.is-active {
-  background: var(--brand-subtle);
-  border-color: var(--brand-border);
-  box-shadow: 0 6px 18px -12px var(--brand-glow), inset 0 0 16px rgba(255, 255, 255, 0.018);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--hairline);
+  color: var(--fg-primary-hover);
 }
 
-.rail-btn.is-active > svg {
-  color: #ffffff !important;
-  stroke: #ffffff;
-}
+.rail-btn.is-active > svg { color: var(--accent-text); stroke: var(--accent-text); }
 
-/* Accent bar pinned to the rail edge marks the active destination. */
-.rail-btn.is-active::before {
-  content: '';
-  position: absolute;
-  left: -14px;
-  top: 50%;
-  width: 3px;
-  height: 20px;
-  border-radius: 0 3px 3px 0;
-  background: var(--brand-2);
-  box-shadow: 0 0 12px var(--brand-glow);
-  transform: translateY(-50%);
-}
-
-.rail-btn.tone-alert {
-  color: var(--danger);
-}
+.rail-btn.tone-alert { color: var(--danger); }
 
 .rail-admin-btn { color: #a78bfa; }
-.rail-admin-btn:hover { color: #c4b5fd; background: rgba(139, 92, 246, .1); }
+.rail-admin-btn:hover { color: #c4b5fd; background: rgba(139, 92, 246, 0.1); }
 
-/* Sidebar Avatar subtle white border & hover glow */
-.rail-avatar {
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.12), 0 2px 5px rgba(0, 0, 0, 0.45);
-  transition: all 0.18s var(--ease);
+.rail-spacer { flex: 1; }
+
+/* Badge, lock and status marks sit on the right edge of the row */
+.rail-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+  font: 700 10.5px/1 var(--font-sans);
+  font-style: normal;
+  color: var(--fg-on-danger, #fff);
 }
 
-.rail-account-btn:hover .rail-avatar,
-.rail-account-btn.is-active .rail-avatar {
-  border-color: #ffffff;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35), 0 2px 8px rgba(0, 0, 0, 0.55);
-  transform: scale(1.08);
+.rail-lock-badge {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-tint-hover);
+  color: var(--fg-secondary);
+  pointer-events: none;
 }
 
-/* Tooltips: the rail sits on the window edge, so labels open to the right. */
-.rail-btn::after,
-.noctra-rail-logo::after {
+.rail-btn.is-locked { opacity: 0.8; }
+.rail-btn.is-locked:hover { opacity: 1; }
+
+.rail-status {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+.rail-status.gold { background: var(--color-gold); }
+.rail-status.muted { background: var(--fg-muted); }
+.rail-status.red { background: var(--color-danger); }
+.rail-status.brand { background: var(--accent-text); }
+
+/* Account card */
+.rail-foot { gap: 8px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+
+.rail-btn.rail-account-btn {
+  height: 54px;
+  padding: 0 10px;
+  background: var(--surface-tint);
+  border-color: var(--hairline);
+  border-radius: var(--radius-lg);
+}
+.rail-btn.rail-account-btn:hover { background: var(--surface-tint-hover); border-color: var(--hairline-strong); }
+.rail-btn.rail-account-btn.is-active { border-color: rgba(255, 255, 255, 0.28); }
+
+.rail-avatar { flex: none; border: 1px solid var(--hairline-strong); }
+
+.rail-avatar-fallback {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #000;
+  border: 1px solid var(--hairline-strong);
+  color: var(--fg-secondary);
+}
+
+.rail-account-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-right: 14px; }
+.rail-account-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13px var(--font-sans); color: var(--fg-primary-hover); }
+.rail-account-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px var(--font-sans); color: var(--fg-muted); }
+
+/* ---------- collapsed (icon rail) ---------- */
+
+.noctra-rail.is-collapsed { padding: 14px 10px; align-items: stretch; }
+.noctra-rail.is-collapsed .rail-head { flex-direction: column; gap: 10px; }
+.noctra-rail.is-collapsed .rail-brand-name,
+.noctra-rail.is-collapsed .rail-label,
+.noctra-rail.is-collapsed .rail-account-text { display: none; }
+.noctra-rail.is-collapsed .noctra-rail-logo { padding: 0; width: 44px; justify-content: center; }
+.noctra-rail.is-collapsed .rail-section-label { height: 1px; padding: 0; margin: 4px 12px; overflow: hidden; background: var(--hairline); color: transparent; font-size: 0; }
+.noctra-rail.is-collapsed .rail-btn { justify-content: center; padding: 0; }
+.noctra-rail.is-collapsed .rail-btn.rail-account-btn { height: 44px; background: transparent; border-color: transparent; }
+.noctra-rail.is-collapsed .rail-btn.rail-account-btn.is-active { background: rgba(255, 255, 255, 0.08); border-color: var(--hairline); }
+.noctra-rail.is-collapsed .rail-badge,
+.noctra-rail.is-collapsed .rail-lock-badge { position: absolute; top: 4px; right: 4px; margin: 0; width: 16px; min-width: 16px; height: 16px; padding: 0; font-size: 9px; }
+.noctra-rail.is-collapsed .rail-status { top: auto; bottom: 6px; right: 6px; transform: none; }
+
+/* Tooltips only exist in the icon rail: labels open to the right. */
+.noctra-rail.is-collapsed .rail-btn::after,
+.noctra-rail.is-collapsed .noctra-rail-logo::after {
   content: attr(data-tooltip);
   position: absolute;
-  left: calc(100% + 12px);
+  left: calc(100% + 14px);
   top: 50%;
   z-index: 90;
   padding: 6px 10px;
@@ -462,95 +537,12 @@
   transition: opacity 0.14s var(--ease), transform 0.14s var(--ease-out);
 }
 
-.rail-btn:hover::after,
-.rail-btn:focus-visible::after,
-.noctra-rail-logo:hover::after {
-  opacity: 1;
-  transform: translate(0, -50%);
-}
+.noctra-rail.is-collapsed .rail-btn:hover::after,
+.noctra-rail.is-collapsed .rail-btn:focus-visible::after,
+.noctra-rail.is-collapsed .noctra-rail-logo:hover::after { opacity: 1; transform: translate(0, -50%); }
 
-.rail-divider {
-  display: block;
-  width: 22px;
-  height: 1px;
-  margin: 7px 0;
-  background: var(--hairline);
-}
-
-.rail-spacer {
-  flex: 1;
-}
-
-.rail-badge {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--page-sunken);
-  border-radius: 9px;
-  background: var(--danger);
-  font: 700 9px/1 var(--font-sans);
-  font-style: normal;
-  color: var(--fg-on-danger, #fff);
-  box-sizing: content-box;
-}
-
-.rail-status {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1.5px solid var(--page-sunken);
-}
-
-.rail-status.gold {
-  background: var(--color-gold);
-  box-shadow: 0 0 8px rgba(230, 179, 63, 0.55);
-}
-
-.rail-status.muted {
-  background: var(--fg-muted);
-}
-
-.rail-status.red {
-  background: var(--color-danger);
-}
-
-/* Brand dot marks the settings button when an update is waiting there. */
-.rail-status.brand {
-  background: var(--brand-2);
-  box-shadow: 0 0 8px var(--brand-glow);
-}
-
-.rail-lock-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 14px;
-  height: 14px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--surface-0, rgba(20, 16, 22, 0.95));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  color: var(--brand, rgba(160, 81, 162, 1));
-  pointer-events: none;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
-}
-
-.rail-btn.is-locked {
-  opacity: 0.85;
-}
-
-.rail-btn.is-locked:hover {
-  opacity: 1;
-}
+/* Tooltip needs to escape the rail while collapsed */
+.noctra-rail.is-collapsed { overflow: visible; }
 
 @media (prefers-reduced-motion: reduce) {
   .rail-btn,
