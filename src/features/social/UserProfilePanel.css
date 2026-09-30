@@ -221,8 +221,8 @@
 }
 
 .np-activity.is-playing .np-activity-icon {
-  background: rgba(242, 63, 67, 0.15);
-  color: #f23f43;
+  background: rgba(217, 166, 218, 0.15);
+  color: #d9a6da;
 }
 
 .np-activity-text {
@@ -363,3 +363,33 @@
   background: rgba(255, 255, 255, 0.1);
   color: #ddd;
 }
+
+/* ── Calm pass: a plain column, no banner, no cards ─────────────── */
+.np-panel { background: transparent; border-left: 1px solid var(--hairline, rgba(255,255,255,.06)); }
+.np-close { top: 12px; right: 12px; width: 28px; height: 28px; color: var(--fg-muted); background: transparent; }
+.np-close:hover { color: var(--fg-primary); background: rgba(255,255,255,.07); }
+.np-avatar-wrap { margin: 44px 0 0 20px; padding: 0; background: none; }
+.np-avatar { border-radius: 50% !important; }
+.np-body { gap: 22px; padding: 14px 20px 24px; }
+.np-name { font-weight: 700; font-size: 18px; color: var(--fg-primary-hover, #fff); }
+.np-handle { color: var(--fg-muted); font-size: 12.5px; }
+.np-divider { display: none; }
+.np-block { gap: 6px; }
+.np-label { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg-muted); }
+.np-card { background: none; border: 0; border-radius: 0; padding: 0; }
+.np-activity { display: block; }
+.np-activity-text strong { font-size: 13.5px; font-weight: 600; }
+.np-activity.is-playing .np-activity-text strong { color: var(--accent-text, #d9a6da); }
+.np-activity-sub { color: var(--fg-muted); font-size: 12px; }
+.np-details { display: flex; flex-direction: column; }
+.np-detail-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--hairline, rgba(255,255,255,.06)); }
+.np-detail-row:first-child { padding-top: 2px; }
+.np-detail-key { color: var(--fg-muted); font-size: 12.5px; }
+.np-detail-val { color: var(--fg-primary); font-size: 12.5px; font-weight: 500; text-align: right; }
+.np-actions { gap: 0; margin-top: 0; border-top: 0; }
+.np-action { padding: 10px 0; border: 0; border-radius: 0; background: none; color: var(--fg-secondary); border-bottom: 1px solid var(--hairline, rgba(255,255,255,.06)); }
+.np-action:hover { background: none; color: var(--fg-primary); }
+.np-action.is-danger { color: var(--danger, #ef4444); background: none; border-bottom: 0; }
+.np-action.is-danger:hover { background: none; color: var(--danger, #ef4444); opacity: .85; }
+.np-activity.is-playing { background: none; border: 0; }
+.np-detail-key { text-transform: none; letter-spacing: 0; font-size: 12.5px; }

@@ -1,21 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   ChevronLeft,
   ChevronRight,
   Copy,
-  Database,
   LoaderCircle,
   RefreshCw,
-  Search,
-  ShieldCheck
+  Search
 } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import '../instances/InstancesView.css';
-import '../settings/SettingsPanels.css';
 import './AdminView.css';
 
 const formatNumber = (value) => Number(value || 0).toLocaleString();
+const plural = (value, noun) => `${formatNumber(value)} ${noun}${Number(value) === 1 ? '' : 's'}`;
 
 function formatBytes(bytes = 0) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
@@ -33,16 +30,6 @@ function InitialAvatar({ name }) {
   const letters = String(name || '?').slice(0, 2).toUpperCase();
   const hue = [...String(name || '')].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
   return <span className="admin-user-avatar" style={{ '--avatar-hue': hue }}>{letters}</span>;
-}
-
-function StatCard({ label, value, detail }) {
-  return (
-    <article className="sp-metric">
-      <span className="sp-metric-label">{label}</span>
-      <span className="sp-metric-value">{value}</span>
-      <span className="sp-metric-sub">{detail}</span>
-    </article>
-  );
 }
 
 function BadgeControl({ badgeId, active, busy, onToggle }) {
@@ -170,6 +157,11 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     return true;
   }), [userFilter, users]);
 
+  const tabs = [
+    ['overview', 'Overview', null],
+    ['users', 'Users', formatNumber(pagination.total)]
+  ];
+
   return (
     <main className="instances-view admin-view">
       <header className="instances-header admin-header">
@@ -178,81 +170,85 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           <p className="instances-subtitle">Manage Noctra users, badges, and database health.</p>
         </div>
         <div className="instances-header-actions">
-          <span className="admin-access-label"><ShieldCheck size={13}/> Admin only</span>
+          <span className="admin-access-label">Admin only</span>
           <button className="instances-ghost-btn admin-refresh" onClick={refresh} disabled={refreshing}>
-            <RefreshCw size={15} className={refreshing ? 'is-spinning' : ''}/>
-            <span>Refresh data</span>
+            <RefreshCw size={14} className={refreshing ? 'is-spinning' : ''}/>
+            <span>Refresh</span>
           </button>
         </div>
       </header>
 
       {error && <div className="admin-error" role="alert"><span>{error}</span><button onClick={refresh}>Try again</button></div>}
 
-      <nav className="instances-nav-tabs admin-tabs" aria-label="Admin sections">
-        <button type="button" className={`instances-nav-tab ${section === 'overview' ? 'active' : ''}`} onClick={() => setSection('overview')}>
-          <Database size={15}/><span>Overview</span>
-        </button>
-        <button type="button" className={`instances-nav-tab ${section === 'users' ? 'active' : ''}`} onClick={() => setSection('users')}>
-          <Activity size={15}/><span>Users</span><span className="instances-tab-count">{formatNumber(pagination.total)}</span>
-        </button>
+      <nav className="admin-tabs" aria-label="Admin sections">
+        {tabs.map(([id, label, count]) => (
+          <button key={id} type="button" className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>
+            {label}{count && <span>{count}</span>}
+          </button>
+        ))}
       </nav>
 
       {section === 'overview' ? (
-        <div className="instances-body admin-body">
-          <section className="sp-metric-grid admin-stats" aria-label="Database statistics">
-            <StatCard label="Registered users" value={formatNumber(overview?.users)} detail={`${formatNumber(overview?.activeSessions)} active sessions`}/>
-            <StatCard label="Online now" value={formatNumber(overview?.onlineUsers)} detail="Authenticated presence"/>
-            <StatCard label="Relay messages" value={formatNumber(overview?.messages)} detail={`${formatNumber(overview?.groups)} groups`}/>
-            <StatCard label="Database size" value={formatBytes(overview?.database?.sizeBytes)} detail={`${overview?.database?.engine || 'SQLite'} · ${overview?.database?.journalMode || '—'}`}/>
-          </section>
+        <div className="admin-scroll">
+          <div className="admin-overview">
+            <p className="admin-lead">
+              <strong>{formatNumber(overview?.onlineUsers)}</strong>
+              <span>online now, out of {formatNumber(overview?.users)} registered users</span>
+            </p>
 
-          <div className="admin-overview-grid">
-            <section className="admin-panel admin-database-panel">
-              <div className="sp-section-head admin-panel-heading">
-                <div><h2 className="sp-section-title">Database tables</h2><p>Sanitized row counts from the live database.</p></div>
-                <span className="admin-health"><i/> Healthy</span>
-              </div>
-              <div className="admin-table-grid">
-                {tableRows.map((table) => <div key={table.name}><code>{table.name}</code><strong>{formatNumber(table.rows)}</strong><small>rows</small></div>)}
-              </div>
+            <section aria-label="Database statistics">
+              <h2 className="admin-label">Activity</h2>
+              <dl className="admin-facts">
+                <div><dt>Active sessions</dt><dd>{formatNumber(overview?.activeSessions)}</dd></div>
+                <div><dt>Friendships</dt><dd>{formatNumber(overview?.friendships)}</dd></div>
+                <div><dt>Relay messages</dt><dd>{formatNumber(overview?.messages)}</dd></div>
+                <div><dt>Groups</dt><dd>{formatNumber(overview?.groups)}</dd></div>
+              </dl>
             </section>
 
-            <aside className="admin-panel admin-security-panel">
-              <div className="sp-section-head admin-panel-heading"><div><h2 className="sp-section-title">Access & health</h2><p>Live administrative service status.</p></div></div>
-              <div className="admin-health-row"><span>Last checked</span><strong>{formatDate(overview?.database?.checkedAt, 'Just now')}</strong></div>
-              <div className="admin-health-row"><span>Active sessions</span><strong>{formatNumber(overview?.activeSessions)}</strong></div>
-              <div className="admin-health-row"><span>Friendships</span><strong>{formatNumber(overview?.friendships)}</strong></div>
-              <div className="admin-safe-note"><ShieldCheck size={16}/><span><strong>Protected data</strong><small>Passwords, salts, tokens, and verification codes are never returned to this page.</small></span></div>
-            </aside>
+            <section aria-label="Database tables">
+              <h2 className="admin-label">
+                Database <span>{formatBytes(overview?.database?.sizeBytes)} · {overview?.database?.engine || 'SQLite'} · {overview?.database?.journalMode || '\u2014'}</span>
+                <em className="admin-health"><i/> Healthy</em>
+              </h2>
+              <dl className="admin-facts is-mono">
+                {tableRows.map((table) => <div key={table.name}><dt>{table.name}</dt><dd>{formatNumber(table.rows)}</dd></div>)}
+              </dl>
+              <p className="admin-note">
+                Last checked {formatDate(overview?.database?.checkedAt, 'just now')}. Passwords, salts, tokens, and verification codes are never returned to this page.
+              </p>
+            </section>
           </div>
         </div>
       ) : (
         <div className="admin-users-section">
-          <div className="instances-toolbar admin-toolbar">
-            <label className="instances-search admin-search"><Search size={15}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search username, email, or ID…"/></label>
-            <div className="instances-chips">
-              {[['all', 'All users'], ['online', 'Online'], ['admin', 'Admins']].map(([id, label]) => (
-                <button key={id} type="button" className={`instances-chip ${userFilter === id ? 'active' : ''}`} onClick={() => setUserFilter(id)}>{label}</button>
+          <div className="admin-toolbar">
+            <label className="admin-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search username, email, or ID"/></label>
+            <div className="admin-filters">
+              {[['all', 'All'], ['online', 'Online'], ['admin', 'Admins']].map(([id, label]) => (
+                <button key={id} type="button" className={userFilter === id ? 'active' : ''} onClick={() => setUserFilter(id)}>{label}</button>
               ))}
             </div>
             <span className="admin-result-count">{formatNumber(visibleUsers.length)} shown</span>
           </div>
 
-          <section className="admin-panel admin-users-panel">
-            <header className="admin-user-columns" aria-hidden="true"><span>Player</span><span>Activity</span><span>Badge access</span></header>
-            <div className="admin-user-list" aria-busy={loading}>
+          <div className="admin-user-list" aria-busy={loading}>
             {loading && !users.length ? (
-              <div className="admin-loading"><LoaderCircle size={22} className="is-spinning"/><span>Loading secure user records…</span></div>
+              <div className="admin-loading"><LoaderCircle size={18} className="is-spinning"/><span>Loading users…</span></div>
             ) : visibleUsers.length ? visibleUsers.map((user) => (
               <article className="admin-user-row" key={user.id}>
-                <div className="admin-user-identity">
-                  <InitialAvatar name={user.username}/>
-                  <span><strong>{user.username}{user.isAdmin && <em><ShieldCheck size={10}/> Admin</em>}</strong><small>{user.email}</small><button onClick={() => navigator.clipboard?.writeText(user.id)} title="Copy user ID"><code>{user.id}</code><Copy size={10}/></button></span>
-                </div>
-                <div className="admin-user-activity">
-                  <span className={`admin-presence is-${user.status || 'offline'}`}><i/>{user.status || 'offline'}</span>
-                  <small>Joined {formatDate(user.createdAt)}</small>
-                  <small>{formatNumber(user.friendCount)} friends · {formatNumber(user.groupCount)} groups · {formatNumber(user.messageCount)} messages</small>
+                <InitialAvatar name={user.username}/>
+                <div className="admin-user-main">
+                  <div className="admin-user-name">
+                    <strong>{user.username}</strong>
+                    {user.isAdmin && <em>Admin</em>}
+                    <span className={`admin-presence is-${user.status || 'offline'}`}><i/>{user.status || 'offline'}</span>
+                    <button type="button" className="admin-copy-id" onClick={() => navigator.clipboard?.writeText(user.id)} title="Copy user ID"><code>{user.id}</code><Copy size={10}/></button>
+                  </div>
+                  <small>{user.email}</small>
+                  <small className="admin-user-meta">
+                    Joined {formatDate(user.createdAt)} · {plural(user.friendCount, 'friend')} · {plural(user.groupCount, 'group')} · {plural(user.messageCount, 'message')}
+                  </small>
                 </div>
                 <div className="admin-user-badges">
                   {Object.keys(BADGE_DEFS).map((badgeId) => (
@@ -266,14 +262,13 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
                   ))}
                 </div>
               </article>
-            )) : <div className="admin-loading"><Search size={22}/><span>No users match this view.</span></div>}
-            </div>
+            )) : <div className="admin-loading"><span>No users match this view.</span></div>}
+          </div>
 
-            <footer className="admin-pagination">
-              <span>Page {page} of {pagination.totalPages} · {formatNumber(pagination.total)} total users</span>
-              <div><button onClick={() => changePage(page - 1)} disabled={loading || page <= 1} aria-label="Previous page"><ChevronLeft size={15}/></button><button onClick={() => changePage(page + 1)} disabled={loading || page >= pagination.totalPages} aria-label="Next page"><ChevronRight size={15}/></button></div>
-            </footer>
-          </section>
+          <footer className="admin-pagination">
+            <span>Page {page} of {pagination.totalPages} · {formatNumber(pagination.total)} total users</span>
+            <div><button onClick={() => changePage(page - 1)} disabled={loading || page <= 1} aria-label="Previous page"><ChevronLeft size={15}/></button><button onClick={() => changePage(page + 1)} disabled={loading || page >= pagination.totalPages} aria-label="Next page"><ChevronRight size={15}/></button></div>
+          </footer>
         </div>
       )}
     </main>

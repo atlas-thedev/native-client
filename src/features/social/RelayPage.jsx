@@ -133,7 +133,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   const [previewMediaModal, setPreviewMediaModal] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [showProfilePanel, setShowProfilePanel] = useState(true);
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
 
   const [sending, setSending] = useState(false);
 
@@ -345,7 +345,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
       return {
         status: 'in-game',
         text: entity.activity || (entity.serverAddress ? `Playing on ${entity.serverAddress}` : 'Playing Minecraft'),
-        color: '#f23f43'
+        color: '#d9a6da'
       };
     }
     if (status === 'online' || status === 'in-launcher' || status === 'in-menus') {

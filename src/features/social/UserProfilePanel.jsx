@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Ban, CalendarDays, Gamepad2, Server, Trash2, UserMinus, X } from 'lucide-react';
+import { Ban, CalendarDays, Server, Trash2, UserMinus, X } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import Badges, { getUserBadges } from './Badges.jsx';
 import './UserProfilePanel.css';
@@ -29,26 +29,23 @@ export default function UserProfilePanel({
   const status = presence?.status || 'offline';
   const isPlaying = status === 'in-game';
   const isOnline = status === 'in-launcher' || status === 'online';
-  const statusColor = presence?.color || (isPlaying ? '#f23f43' : isOnline ? '#23a55a' : '#80848e');
+  const statusColor = presence?.color || (isPlaying ? '#d9a6da' : isOnline ? '#23a55a' : '#80848e');
   const bio = user.bio || user.about || '';
   const badgeCount = getUserBadges(user).length;
 
   return (
     <aside className="np-panel" role="complementary" aria-label="User Profile">
-      {/* Appearance-color banner */}
-      <div className="np-banner">
-        <button
-          type="button"
-          className="np-close"
-          onClick={onClose}
-          aria-label="Close Profile"
-          title="Close Profile"
-        >
-          <X size={15} />
-        </button>
-      </div>
+      <button
+        type="button"
+        className="np-close"
+        onClick={onClose}
+        aria-label="Close Profile"
+        title="Close Profile"
+      >
+        <X size={15} />
+      </button>
 
-      {/* Avatar overlapping the banner */}
+      {/* Avatar */}
       <div className="np-avatar-wrap" style={{ '--np-ring': statusColor }}>
         <RelayAvatar
           name={user.name}
@@ -84,10 +81,7 @@ export default function UserProfilePanel({
         <div className="np-block">
           <span className="np-label">Activity</span>
           <div className={`np-card np-activity ${isPlaying ? 'is-playing' : ''}`}>
-            <span className="np-activity-icon">
-              <Gamepad2 size={18} />
-            </span>
-            <div className="np-activity-text">
+                        <div className="np-activity-text">
               <strong>{isPlaying ? (presence?.text || 'In-game') : (isOnline ? 'In Launcher' : 'Not playing')}</strong>
               {isPlaying && presence?.serverAddress ? (
                 <span className="np-activity-sub">
@@ -105,21 +99,9 @@ export default function UserProfilePanel({
         <div className="np-block">
           <span className="np-label">Details</span>
           <div className="np-card np-details">
-            <div className="np-detail-row">
-              <CalendarDays size={15} />
-              <div className="np-detail-copy">
-                <span className="np-detail-key">Member since</span>
-                <span className="np-detail-val">{formatMemberDate(user.memberSince || user.createdAt)}</span>
-              </div>
-            </div>
+            <div className="np-detail-row"><span className="np-detail-key">Member since</span><span className="np-detail-val">{formatMemberDate(user.memberSince || user.createdAt)}</span></div>
             {user.friendsSince && (
-              <div className="np-detail-row">
-                <UserMinus size={15} />
-                <div className="np-detail-copy">
-                  <span className="np-detail-key">Friends since</span>
-                  <span className="np-detail-val">{formatMemberDate(user.friendsSince)}</span>
-                </div>
-              </div>
+              <div className="np-detail-row"><span className="np-detail-key">Friends since</span><span className="np-detail-val">{formatMemberDate(user.friendsSince)}</span></div>
             )}
           </div>
         </div>

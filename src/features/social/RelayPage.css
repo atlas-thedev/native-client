@@ -378,10 +378,10 @@
   gap: 6px;
   padding: 5px 8px;
   color: var(--fg-muted);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: color var(--relay-fast) var(--relay-ease);
@@ -391,8 +391,7 @@
 
 .relay-section-count {
   margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0;
   color: var(--fg-muted);
   opacity: 0.7;
@@ -565,7 +564,7 @@
 
 .relay-thread-item:hover { background: var(--component-bg-hover); }
 
-.relay-thread-item.is-active { background: var(--brand-subtle); }
+.relay-thread-item.is-active { background: rgba(255, 255, 255, 0.06); }
 
 .relay-thread-item.is-active::before {
   content: '';
@@ -702,10 +701,9 @@
   display: grid;
   place-items: center;
   border-radius: 99px;
-  background: var(--brand);
-  color: var(--fg-on-brand);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  background: var(--accent-text, #d9a6da);
+  color: var(--on-accent, #1a1118);
+  font-size: 10.5px;
   font-weight: 700;
 }
 
@@ -775,8 +773,8 @@
   text-overflow: ellipsis;
 }
 
-.relay-peer-status-text.in-game { color: var(--success); }
-.relay-peer-status-text.in-launcher { color: var(--brand-2); }
+.relay-peer-status-text.in-game { color: var(--accent-text, #d9a6da); }
+.relay-peer-status-text.in-launcher { color: var(--fg-muted); }
 
 .relay-join-inline {
   flex: none;
@@ -906,20 +904,11 @@
   margin: 16px 0 10px;
 }
 
-.relay-date-divider::before,
-.relay-date-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--hairline);
-}
+.relay-date-divider { justify-content: center; }
 
 .relay-date-pill {
   flex: none;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 12px;
   color: var(--fg-muted);
 }
 
@@ -1100,14 +1089,13 @@
   border-radius: var(--radius-lg);
   background: var(--relay-bubble-in);
   border: 1px solid var(--relay-bubble-in-border);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .relay-message-row.is-incoming .relay-message-bubble { border-bottom-left-radius: var(--radius-xs); }
 
 .relay-message-row.is-outgoing .relay-message-bubble {
-  background: var(--relay-bubble-out);
-  border-color: var(--relay-bubble-out-border);
+  background: var(--accent-text, #d9a6da);
+  border-color: transparent;
   border-bottom-right-radius: var(--radius-xs);
 }
 
@@ -1128,7 +1116,8 @@
   overflow-wrap: anywhere;
 }
 
-.relay-message-row.is-outgoing .relay-message-text { color: var(--fg-primary-hover); }
+.relay-message-row.is-outgoing .relay-message-text { color: var(--on-accent, #1a1118); }
+.relay-message-row.is-outgoing .relay-message-bubble a { color: inherit; text-decoration: underline; }
 
 .relay-msg-highlight {
   animation: relay-highlight 1.8s var(--relay-ease);
@@ -1890,3 +1879,27 @@
   transition-duration: 1ms !important;
   transform: none !important;
 }
+
+
+/* ── Calm pass ─────────────────────────────────────────────────────
+   Conversation search is an icon until you need it. */
+.relay-convo-search-bar {
+  width: 34px;
+  padding: 0 9px;
+  background: transparent;
+  border-color: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  transition: width 180ms var(--relay-ease), border-color var(--relay-fast) var(--relay-ease);
+}
+.relay-convo-search-bar .relay-convo-search-input { width: 0; flex: 0 0 0; opacity: 0; }
+.relay-convo-search-bar:focus-within,
+.relay-convo-search-bar:has(.relay-convo-search-input:not(:placeholder-shown)) {
+  width: 210px;
+  background: transparent;
+  border-color: var(--hairline);
+  cursor: text;
+}
+.relay-convo-search-bar:focus-within .relay-convo-search-input,
+.relay-convo-search-bar:has(.relay-convo-search-input:not(:placeholder-shown)) .relay-convo-search-input { flex: 1; width: auto; opacity: 1; }
+.relay-convo-search-bar:hover .relay-search-icon { color: var(--fg-primary); }

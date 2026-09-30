@@ -311,7 +311,7 @@
 }
 
 .noctra-friend-activity.is-playing {
-  color: #f23f43;
+  color: var(--accent-text, #d9a6da);
   font-weight: 500;
 }
 
@@ -461,3 +461,21 @@
 .btn-unblock:hover {
   background: rgba(255, 255, 255, 0.16);
 }
+
+/* ── Calm pass: rows on the page, hairlines between them ─────────── */
+.noctra-friends-tab-bar { background: transparent; backdrop-filter: none; border-bottom-color: var(--hairline, rgba(255,255,255,.06)); }
+.noctra-friends-search-box { background: transparent; border-color: var(--hairline, rgba(255,255,255,.08)); border-radius: 999px; padding: 8px 16px; }
+.noctra-friends-search-box:focus-within { background: transparent; border-color: rgba(255,255,255,.2); }
+.noctra-list-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-bottom: 4px; }
+.noctra-friend-card {
+  margin-bottom: 0;
+  padding: 12px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline, rgba(255,255,255,.06));
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.noctra-friend-card:hover { background: rgba(255,255,255,.025); border-color: var(--hairline, rgba(255,255,255,.06)); }
+.noctra-friend-tab { border-radius: 999px; padding: 6px 13px; font-weight: 500; }
+.noctra-friend-tab.is-active { background: rgba(255,255,255,.09); }
