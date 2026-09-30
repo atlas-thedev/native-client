@@ -40,7 +40,7 @@
   background: var(--page-elevated, #050608);
   border: 1px solid var(--component-border-hover, rgba(255, 255, 255, 0.15));
   border-radius: var(--radius-xl, 16px);
-  box-shadow: var(--shadow-popover, 0 18px 44px rgba(0, 0, 0, 0.75)), var(--shadow-brand, none);
+  box-shadow: var(--shadow-popover, 0 18px 44px rgba(0, 0, 0, 0.75));
   animation: picker-pop 0.18s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
 }
 
@@ -173,7 +173,6 @@
 .instance-picker-search:focus-within {
   color: var(--accent-text, #e4e4e7);
   border-color: var(--brand-border, rgba(255, 255, 255, 0.3));
-  box-shadow: 0 0 0 3px var(--brand-subtle, rgba(255, 255, 255, 0.06));
 }
 
 .instance-picker-search input {
@@ -320,7 +319,6 @@
   border-radius: var(--radius-md, 10px);
   background: var(--page-sunken, #000);
   border: 1px solid var(--component-border-hover, rgba(255, 255, 255, 0.15));
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.6);
 }
 
 .instance-picker-thumb {
@@ -421,7 +419,6 @@
   color: var(--fg-on-brand, #fff);
   background: var(--brand);
   border: 1px solid var(--brand-border, rgba(255, 255, 255, 0.2));
-  box-shadow: var(--shadow-brand, none);
   transition: filter 0.12s, background 0.12s, border-color 0.12s;
 }
 

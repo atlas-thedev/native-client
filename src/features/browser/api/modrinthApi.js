@@ -8,8 +8,8 @@ export const PAGE_SIZE = 20;
  * dedicated .mrpack installer instead of a plain file download.
  */
 export const CONTENT_TYPES = [
-  { id: 'mod', labelKey: 'browse.mods', projectType: 'mod', folder: 'mods', icon: 'package' },
   { id: 'modpack', labelKey: 'browse.modpacks', projectType: 'modpack', folder: null, icon: 'layers' },
+  { id: 'mod', labelKey: 'browse.mods', projectType: 'mod', folder: 'mods', icon: 'package' },
   { id: 'shader', labelKey: 'browse.shaderpacks', projectType: 'shader', folder: 'shaderpacks', icon: 'sparkles' },
   {
     id: 'resourcepack',

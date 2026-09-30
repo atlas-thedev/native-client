@@ -50,7 +50,9 @@ export default function BrowsePage({
       const match = CONTENT_TYPES.find((c) => c.id === allowedTypes[0]);
       return match || CONTENT_TYPES[0];
     }
-    return CONTENT_TYPES[0];
+    return (
+      availableContentTypes.find((c) => c.id === 'mod') || availableContentTypes[0] || CONTENT_TYPES[0]
+    );
   });
 
   const [selectedProject, setSelectedProject] = useState(null);
