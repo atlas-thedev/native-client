@@ -196,28 +196,26 @@ export default function ClusterDetailView({
                 src={getClusterArt(cluster)}
                 alt=""
                 className="im-identity-banner"
+                draggable={false}
               />
-              <div className="im-identity-banner-overlay" />
-              <div className="im-identity-overlay-meta">
-                <h2 className="im-identity-title" title={cluster.name}>
-                  {cluster.name}
-                </h2>
-                <div className="im-identity-badges">
-                  <span className="im-badge-version">{cluster.mc_version || cluster.version}</span>
-                  <span className={`im-badge-loader is-${loader.toLowerCase()}`}>{loader}</span>
-                </div>
-              </div>
+              <span className={`im-state-pill${isThisRunning ? ' is-live' : ''}`}>
+                <span className="im-state-dot" aria-hidden="true" />
+                {isThisRunning ? 'Running' : 'Idle'}
+              </span>
             </div>
 
-            <div className="im-identity-stats">
-              <span className="im-identity-stat">
-                <NativeIcon name="clock" size={12} className="im-stat-icon" />
-                <span>{playtimeLabel}</span>
-              </span>
-              <span className="im-identity-stat">
-                <NativeIcon name="dot" size={10} className={`im-state-dot${isThisRunning ? ' is-live' : ''}`} />
-                <span>{isThisRunning ? 'Running' : 'Idle'}</span>
-              </span>
+            <div className="im-identity-overlay-meta">
+              <h2 className="im-identity-title" title={cluster.name}>
+                {cluster.name}
+              </h2>
+              <div className="im-identity-badges">
+                <span className="im-badge-version">{cluster.mc_version || cluster.version}</span>
+                <span className={`im-badge-loader is-${loader.toLowerCase()}`}>{loader}</span>
+                <span className="im-identity-stat" title="Total playtime">
+                  <NativeIcon name="clock" size={12} className="im-stat-icon" />
+                  <span>{playtimeLabel}</span>
+                </span>
+              </div>
             </div>
 
             <LaunchActionButton
@@ -274,6 +272,7 @@ export default function ClusterDetailView({
           </nav>
 
           <div className="im-sidebar-footer">
+            <span className="im-nav-group-label">Instance</span>
             <button
               className={`im-nav im-nav-settings ${tab === 'settings' ? 'active' : ''}`}
               aria-current={tab === 'settings' ? 'page' : undefined}

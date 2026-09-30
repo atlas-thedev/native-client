@@ -1,15 +1,7 @@
 /* ============================================================
-   Instance settings screen (SettingsTab)
-   Fully self-contained; nis-* = Noctra Instance Settings.
-   Every control (toggle, segmented, slider, stepper, button,
-   pill) is styled here from scratch — no shared component CSS.
+   Instance settings (SettingsTab) — nis-* = Noctra Instance Settings
+   Solid surfaces and theme tokens only. No gradients, no glows.
    ============================================================ */
-
-.im-settings-host {
-  display: flex;
-  min-height: 0;
-  height: 100%;
-}
 
 .nis {
   display: flex;
@@ -23,13 +15,27 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 18px 22px;
+  padding: 18px 24px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  scrollbar-width: thin;
 }
 
-/* ---- caution / scope banner ---- */
+.nis-loading,
+.nis-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ---- scope note ---- */
 
 .nis-banner {
   flex: none;
@@ -37,759 +43,401 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 11px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--warning-subtle);
-  background: var(--warning-subtle);
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--component-border);
+  background: var(--component-bg);
 }
 
-.nis-banner-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.nis-banner-icon {
-  color: var(--warning);
-  flex: none;
-}
-
-.nis-banner-text {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--fg-secondary);
-}
-
-.nis-banner-text strong {
-  color: var(--fg-primary);
-  font-weight: 650;
-}
+.nis-banner-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nis-banner-icon { flex: none; color: var(--warning); }
+.nis-banner-text { font-size: 12.5px; line-height: 1.45; color: var(--fg-secondary); }
+.nis-banner-text strong { color: var(--fg-primary-hover); font-weight: 600; }
 
 .nis-banner-status {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: none;
-  padding: 4px 9px;
+  height: 22px;
+  padding: 0 9px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--fg-muted);
+  background: var(--ghost-overlay-hover);
+  color: var(--fg-secondary);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 
-/* ---- summary chips ---- */
-
-.nis-summary {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.nis-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--component-border);
-  background: var(--component-bg);
-  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
-}
-
-.nis-chip.is-active {
-  border-color: var(--brand-border);
-  background: var(--brand-subtle);
-}
-
-.nis-chip-icon {
-  color: var(--fg-muted);
-  flex: none;
-}
-
-.nis-chip.is-active .nis-chip-icon {
-  color: var(--fg-primary);
-}
-
-.nis-chip-meta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.nis-chip-name {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
-.nis-chip-value {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--fg-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ---- section cards ---- */
+/* ---- cards ---- */
 
 .nis-card {
   flex: none;
   border-radius: var(--radius-lg);
   border: 1px solid var(--component-border);
   background: var(--component-bg);
-  overflow: hidden;
-  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: border-color 0.16s var(--ease);
 }
 
-.nis-card.is-active {
-  border-color: var(--brand-border);
-  box-shadow: var(--shadow-brand);
-}
+.nis-card.is-active { border-color: var(--component-border-pressed); }
 
 .nis-card-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
   padding: 14px 16px;
 }
 
-.nis-card-id {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-}
+.nis-card-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
 
 .nis-card-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  flex: none;
-  border-radius: var(--radius);
-  border: 1px solid var(--component-border);
-  background: var(--page-elevated);
+  border-radius: var(--radius-md);
+  background: var(--page-sunken);
+  border: 1px solid var(--hairline-strong);
   color: var(--fg-secondary);
-  transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
 }
 
-.nis-card.is-active .nis-card-icon {
-  color: #fff;
-  border-color: var(--brand-border);
-  background: var(--brand-gradient);
-}
+.nis-card.is-active .nis-card-icon { color: var(--fg-primary-hover); }
 
-.nis-card-title {
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--fg-primary);
-}
-
-.nis-card-desc {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--fg-muted);
-  max-width: 52ch;
-}
+.nis-card-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--fg-primary-hover); }
+.nis-card-desc { margin: 1px 0 0; font-size: 12px; line-height: 1.4; color: var(--fg-muted); }
 
 .nis-card-body {
-  border: none;
-  margin: 0;
-  padding: 0 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  transition: opacity 0.16s var(--ease);
 }
 
-.nis-card-body:disabled {
-  opacity: 0.5;
+.nis-card-body:disabled { opacity: 0.45; }
+
+/* ---- fields ---- */
+
+.nis-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.nis-field-label { font-size: 12px; font-weight: 600; color: var(--fg-secondary); }
+.nis-field-hint { font-size: 11.5px; color: var(--fg-muted); }
+
+.nis-input,
+.nis-textarea {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border);
+  background: var(--page-sunken);
+  color: var(--fg-primary);
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.14s var(--ease);
 }
 
-/* ---- from-scratch toggle ---- */
+.nis-input { height: 36px; padding-top: 0; padding-bottom: 0; }
+.nis-textarea { resize: vertical; min-height: 64px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+.nis-input::placeholder,
+.nis-textarea::placeholder { color: var(--fg-muted); }
+.nis-input:hover,
+.nis-textarea:hover { border-color: var(--component-border-hover); }
+.nis-input:focus,
+.nis-textarea:focus { border-color: var(--component-border-pressed); }
+
+.nis-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.nis-x { color: var(--fg-muted); }
+
+.nis-dim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border);
+  background: var(--page-sunken);
+  transition: border-color 0.14s var(--ease);
+}
+
+.nis-dim:hover { border-color: var(--component-border-hover); }
+.nis-dim:focus-within { border-color: var(--component-border-pressed); }
+.nis-dim.is-off { opacity: 0.45; }
+.nis-dim-label { font-size: 11px; font-weight: 600; color: var(--fg-muted); }
+
+.nis-dim input {
+  width: 72px;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  font-family: var(--font-mono);
+  text-align: right;
+  padding: 0 8px;
+  -moz-appearance: textfield;
+}
+
+.nis-dim input::-webkit-outer-spin-button,
+.nis-dim input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.nis-toggle-line {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--fg-secondary);
+}
+
+.nis-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border);
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+
+.nis-reset:hover:not(:disabled) {
+  background: var(--ghost-overlay-hover);
+  color: var(--fg-primary-hover);
+  border-color: var(--component-border-hover);
+}
+
+/* ---- toggle ---- */
 
 .nis-toggle {
   position: relative;
-  width: 40px;
-  height: 22px;
   flex: none;
+  width: 38px;
+  height: 22px;
   padding: 0;
-  border: none;
-  background: none;
+  border: 0;
+  background: transparent;
   cursor: pointer;
 }
+
+.nis-toggle:disabled { cursor: default; opacity: 0.45; }
 
 .nis-toggle-track {
   position: absolute;
   inset: 0;
   border-radius: var(--radius-full);
-  background: var(--component-border);
-  transition: background 0.18s var(--ease);
-}
-
-.nis-toggle.is-on .nis-toggle-track {
-  background: var(--brand-gradient);
+  background: var(--component-bg-pressed);
+  border: 1px solid var(--component-border-hover);
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
 }
 
 .nis-toggle-thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
+  top: 4px;
+  left: 4px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-  transition: transform 0.18s var(--ease);
+  background: var(--fg-muted);
+  transition: transform 0.16s var(--ease), background 0.16s var(--ease);
 }
 
-.nis-toggle.is-on .nis-toggle-thumb {
-  transform: translateX(18px);
-}
+.nis-toggle.is-on .nis-toggle-track { background: var(--accent-text); border-color: var(--accent-text); }
+.nis-toggle.is-on .nis-toggle-thumb { transform: translateX(16px); background: var(--page); }
 
-.nis-toggle:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* ---- from-scratch segmented control ---- */
+/* ---- segmented ---- */
 
 .nis-seg {
   display: inline-flex;
-  gap: 3px;
+  align-self: flex-start;
   padding: 3px;
-  border-radius: var(--radius);
+  gap: 2px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--component-border);
   background: var(--page-sunken);
-  width: fit-content;
-  max-width: 100%;
 }
 
 .nis-seg-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  border: none;
-  border-radius: calc(var(--radius) - 3px);
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
+  color: var(--fg-secondary);
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
 }
 
-.nis-seg-item:hover:not(:disabled):not(.is-active) {
-  color: var(--fg-primary);
-}
+.nis-seg-item:hover:not(:disabled):not(.is-active) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+.nis-seg-item.is-active { background: var(--ghost-overlay-pressed); color: var(--fg-primary-hover); font-weight: 600; }
+.nis-seg-item:disabled { cursor: default; }
 
-.nis-seg-item.is-active {
-  background: var(--component-bg);
-  color: var(--fg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
+/* ---- pills / presets ---- */
 
-.nis-seg-item:disabled {
-  cursor: default;
-}
-
-/* ---- generic rows / fields ---- */
-
-.nis-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.nis-field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.nis-field-label {
-  font-size: 11.5px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  color: var(--fg-secondary);
-}
-
-.nis-field-hint {
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-
-.nis-input,
-.nis-textarea {
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--component-border);
-  background: var(--page-sunken);
-  color: var(--fg-primary);
-  font-size: 13px;
-  font-family: var(--font-sans);
-  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
-}
-
-.nis-textarea {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 44px;
-}
-
-.nis-input::placeholder,
-.nis-textarea::placeholder {
-  color: var(--fg-muted);
-}
-
-.nis-input:focus,
-.nis-textarea:focus {
-  border-color: var(--brand-border);
-  box-shadow: 0 0 0 3px var(--brand-subtle);
-}
-
-/* ---- resolution dimensions ---- */
-
-.nis-dim {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px 0 10px;
-  height: 40px;
-  border-radius: var(--radius);
-  border: 1px solid var(--component-border);
-  background: var(--page-sunken);
-  transition: border-color 0.15s var(--ease), opacity 0.15s var(--ease);
-}
-
-.nis-dim.is-off {
-  opacity: 0.45;
-}
-
-.nis-dim:focus-within {
-  border-color: var(--brand-border);
-}
-
-.nis-dim-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--fg-muted);
-}
-
-.nis-dim input {
-  width: 70px;
-  background: none;
-  border: none;
-  color: var(--fg-primary);
-  font-size: 13px;
-  font-family: var(--font-mono);
-}
-
-.nis-x {
-  color: var(--fg-muted);
-  font-size: 13px;
-}
-
-.nis-toggle-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12.5px;
-  color: var(--fg-secondary);
-}
-
-/* ---- reset button ---- */
-
-.nis-reset {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  margin-left: auto;
-  border-radius: var(--radius);
-  border: 1px solid var(--component-border);
-  background: var(--component-bg);
-  color: var(--fg-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
-}
-
-.nis-reset:hover:not(:disabled) {
-  background: var(--component-bg-hover);
-  border-color: var(--component-border-hover);
-  color: var(--fg-primary);
-}
-
-/* ---- preset pills ---- */
-
-.nis-presets {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.nis-presets.is-off {
-  opacity: 0.45;
-}
-
-.nis-presets-label {
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+.nis-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.nis-presets.is-off { opacity: 0.45; }
+.nis-presets-label { margin-right: 4px; font-size: 12px; font-weight: 600; color: var(--fg-secondary); }
 
 .nis-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 12px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
   border-radius: var(--radius-full);
   border: 1px solid var(--component-border);
-  background: var(--component-bg);
+  background: transparent;
   color: var(--fg-secondary);
-  font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
 }
 
 .nis-pill:hover:not(:disabled) {
-  background: var(--component-bg-hover);
-  color: var(--fg-primary);
+  background: var(--ghost-overlay-hover);
+  color: var(--fg-primary-hover);
   border-color: var(--component-border-hover);
 }
 
 .nis-pill.is-active {
-  color: #fff;
-  border-color: var(--brand-border);
-  background: var(--brand-subtle-hover);
+  background: var(--ghost-overlay-pressed);
+  border-color: var(--component-border-pressed);
+  color: var(--fg-primary-hover);
+  font-weight: 600;
 }
 
-.nis-pill:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
+.nis-pill:disabled { cursor: default; }
 
 /* ---- memory ---- */
 
-.nis-mem-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.nis-mem-quick {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-}
-
-/* ---- from-scratch stepper ---- */
+.nis-mem-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.nis-mem-quick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 
 .nis-stepper {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   height: 36px;
-  padding: 0 4px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   border: 1px solid var(--component-border);
   background: var(--page-sunken);
+  overflow: hidden;
 }
 
-.nis-stepper.is-off {
-  opacity: 0.5;
-}
+.nis-stepper.is-off { opacity: 0.45; }
 
 .nis-stepper-btn {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--radius-xs);
+  width: 34px;
+  height: 100%;
+  border: 0;
   background: transparent;
   color: var(--fg-secondary);
   cursor: pointer;
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
 }
 
-.nis-stepper-btn:hover:not(:disabled) {
-  background: var(--component-bg-hover);
-  color: var(--fg-primary);
-}
-
-.nis-stepper-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+.nis-stepper-btn:hover:not(:disabled) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+.nis-stepper-btn:disabled { cursor: default; opacity: 0.35; }
 
 .nis-stepper-value {
-  min-width: 62px;
+  min-width: 72px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--fg-primary);
+  font-weight: 600;
+  color: var(--fg-primary-hover);
 }
 
-.nis-stepper-value em {
-  margin-left: 3px;
-  font-style: normal;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg-muted);
-}
+.nis-stepper-value em { margin-left: 4px; font-style: normal; font-weight: 500; color: var(--fg-muted); }
 
-/* ---- from-scratch slider ---- */
-
-.nis-slider-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.nis-slider-wrap { display: flex; flex-direction: column; gap: 6px; }
 
 .nis-slider {
-  -webkit-appearance: none;
-  appearance: none;
   width: 100%;
-  height: 6px;
-  border-radius: var(--radius-full);
-  outline: none;
+  height: 20px;
+  margin: 0;
   cursor: pointer;
-  background: linear-gradient(
-    to right,
-    var(--brand-2) 0,
-    var(--brand-2) var(--nis-fill, 0%),
-    var(--page-sunken) var(--nis-fill, 0%),
-    var(--page-sunken) 100%
-  );
+  accent-color: var(--accent-text);
 }
 
-.nis-slider::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: transparent;
-}
+.nis-slider:disabled { cursor: default; }
 
-.nis-slider::-moz-range-track {
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: transparent;
-}
-
-.nis-slider::-moz-range-progress {
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--brand-2);
-}
-
-.nis-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -5px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--brand-2);
-  box-shadow: var(--shadow-brand);
-  cursor: pointer;
-}
-
-.nis-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--brand-2);
-  cursor: pointer;
-}
-
-.nis-slider:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.nis-ticks {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10.5px;
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-}
-
-/* ---- notes ---- */
+.nis-ticks { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--font-mono); color: var(--fg-muted); }
 
 .nis-note {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-subtle);
+  color: var(--warning);
   font-size: 12px;
 }
 
-.nis-note.is-warn {
-  color: var(--warning);
-}
-
-/* ---- empty / loading ---- */
-
-.nis-empty,
-.nis-loading {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 120px;
-  color: var(--fg-muted);
-  font-size: 13px;
-}
-
-.nis-loading {
-  height: 100%;
-}
-
-/* ---- sticky footer ---- */
+/* ---- footer ---- */
 
 .nis-footer {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 12px 18px;
-  border-top: 1px solid var(--component-border);
-  background: var(--surface-glass-strong);
-  backdrop-filter: blur(var(--blur-glass));
+  gap: 16px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--hairline);
+  background: var(--page-elevated);
 }
 
-.nis-status {
-  font-size: 12px;
-  color: var(--fg-muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.nis-status { min-width: 0; font-size: 12.5px; color: var(--fg-muted); }
+.nis-status.is-dirty { color: var(--fg-primary); }
+.nis-status.is-saved { color: var(--success); }
+.nis-status.is-error { color: var(--danger); }
 
-.nis-status.is-dirty {
-  color: var(--warning);
-}
-
-.nis-status.is-saved {
-  color: var(--success);
-}
-
-.nis-status.is-error {
-  color: var(--danger);
-}
-
-.nis-footer-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-
-/* ---- from-scratch button ---- */
+.nis-footer-actions { flex: none; display: flex; align-items: center; gap: 8px; }
 
 .nis-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: filter 0.15s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
-}
-
-.nis-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.nis-btn-primary {
-  background: var(--brand-gradient);
-  color: #fff;
-  box-shadow: var(--shadow-brand);
-}
-
-.nis-btn-primary:not(:disabled):hover {
-  filter: brightness(1.08);
-}
-
-.nis-btn-ghost {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--component-border-hover);
   background: transparent;
-  border-color: var(--component-border);
-  color: var(--fg-secondary);
-}
-
-.nis-btn-ghost:not(:disabled):hover {
-  background: var(--component-bg-hover);
   color: var(--fg-primary);
-  border-color: var(--component-border-hover);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
 }
 
-.nis-btn-danger {
-  background: var(--danger);
-  color: #fff;
+.nis-btn:hover:not(:disabled) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+.nis-btn:disabled { cursor: default; opacity: 0.45; }
+
+.nis-btn-primary,
+.nis-btn-primary:hover:not(:disabled) {
+  background: var(--accent-text);
+  border-color: var(--accent-text);
+  color: var(--page);
 }
 
-/* ---- focus visibility (accessibility) ---- */
-
-.nis button:focus-visible,
-.nis input:focus-visible,
-.nis textarea:focus-visible {
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
-}
-
-@media (max-width: 720px) {
-  .nis-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* The sidebar active state now lives in InstanceManager.css: the generic
-   button reset there no longer matches .im-nav, so no override is needed. */
-
-/* ---- search field: no focus ring/outline (per request) ---- */
-
-.instance-manager .im-search input:focus,
-.instance-manager .im-search input:focus-visible {
-  border-color: var(--component-border);
-  box-shadow: none;
-  outline: none;
-}
+.nis-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }

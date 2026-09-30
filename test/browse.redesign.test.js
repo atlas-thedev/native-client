@@ -123,10 +123,20 @@ test('Instance manager renders big curved version banner, white active/hover ico
   const imCss = fs.readFileSync(path.join(ROOT, 'src/features/cluster/InstanceManager.css'), 'utf8');
   assert.ok(imCss.includes('.im-identity-banner-wrap'), 'Banner wrap is styled in InstanceManager.css');
   assert.ok(imCss.includes('top: 13px;'), 'Close button is vertically centered in toolbar without overlap');
-  assert.ok(imCss.includes('padding: 0 68px 0 24px;'), 'Toolbar reserves right gutter for close button');
-  assert.ok(imCss.includes('.im-nav.active svg') && imCss.includes('stroke: #ffffff;'), 'Active nav icons are white');
-  assert.ok(imCss.includes('.im-nav.active .im-nav-text') && imCss.includes('color: #ffffff;'), 'Active nav text is white');
-  assert.ok(imCss.includes('.im-add,') && imCss.includes('linear-gradient'), 'Section heading add button uses linear gradient');
+  assert.ok(imCss.includes('padding: 0 64px 0 24px;'), 'Toolbar reserves right gutter for close button');
+  assert.ok(imCss.includes('.instance-manager .im-nav.active'), 'Active nav item has its own state');
+  assert.ok(/\.instance-manager \.im-nav \{[^}]*width: 100%/.test(imCss), 'Every nav item, including Advanced, is full width');
+  assert.ok(!imCss.includes('.im-nav-settings {'), 'Advanced uses the same nav item styling as the other sections');
+
+  for (const file of [
+    'src/features/cluster/InstanceManager.css',
+    'src/features/cluster/SettingsTab.css',
+    'src/features/instances/InstancesView.css'
+  ]) {
+    const css = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!/gradient\(/.test(css), `${file} uses solid colours only`);
+    assert.ok(!/brand-glow|box-shadow:\s*0 0 \d+px/.test(css), `${file} has no glow effects`);
+  }
 
   const smCss = fs.readFileSync(path.join(ROOT, 'src/features/cluster/ScreenshotManager.css'), 'utf8');
   assert.ok(smCss.includes('padding: 20px 24px 32px;'), 'Screenshot panel matches modal content padding');

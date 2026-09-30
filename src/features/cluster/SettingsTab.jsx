@@ -80,8 +80,6 @@ function NisSegmented({ value, options, onChange = () => {}, disabled = false, l
 }
 
 function NisSlider({ value, min = 0, max = 100, step = 1, onChange = () => {}, disabled = false, label }) {
-  const span = max - min;
-  const pct = span > 0 ? ((Number(value) - min) / span) * 100 : 0;
   return (
     <input
       type="range"
@@ -92,7 +90,6 @@ function NisSlider({ value, min = 0, max = 100, step = 1, onChange = () => {}, d
       value={value}
       disabled={disabled}
       aria-label={label}
-      style={{ '--nis-fill': `${Math.max(0, Math.min(100, pct))}%` }}
       onChange={(event) => onChange(Number(event.target.value))}
     />
   );
@@ -386,33 +383,6 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
           <div className="nis-banner-status">
             <Cloud size={12} />
             <span>{activeOverrides} of 3 overriding global</span>
-          </div>
-        </div>
-
-        {/* At-a-glance summary */}
-        <div className="nis-summary" aria-label="Override summary">
-          <div className={`nis-chip ${r.enabled ? 'is-active' : ''}`}>
-            <Maximize2 size={14} className="nis-chip-icon" />
-            <div className="nis-chip-meta">
-              <span className="nis-chip-name">Display</span>
-              <span className="nis-chip-value">
-                {r.enabled ? (sizeLocked ? 'Fullscreen' : `${r.width} \u00d7 ${r.height}`) : 'Global default'}
-              </span>
-            </div>
-          </div>
-          <div className={`nis-chip ${m.enabled ? 'is-active' : ''}`}>
-            <Cpu size={14} className="nis-chip-icon" />
-            <div className="nis-chip-meta">
-              <span className="nis-chip-name">Memory</span>
-              <span className="nis-chip-value">{m.enabled ? `${m.max} GB / ${systemRam} GB` : 'Global default'}</span>
-            </div>
-          </div>
-          <div className={`nis-chip ${draft.jvmEnabled ? 'is-active' : ''}`}>
-            <Code2 size={14} className="nis-chip-icon" />
-            <div className="nis-chip-meta">
-              <span className="nis-chip-name">Java</span>
-              <span className="nis-chip-value">{draft.jvmEnabled ? 'Custom runtime' : 'Automatic'}</span>
-            </div>
           </div>
         </div>
 

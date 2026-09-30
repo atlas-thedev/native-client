@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Package, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Package, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 
 const formatSize = (bytes) => {
@@ -213,7 +213,13 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
   return (
     <div className="im-content">
       <div className="im-count" aria-live="polite">
-        {loading ? `Fetching ${noun}…` : `${rows.length} ${noun} loaded`}
+        {loading
+          ? `Fetching ${noun}…`
+          : `${rows.length} ${noun}${
+              rows.some((row) => row.enabled === false)
+                ? ` · ${rows.filter((row) => row.enabled === false).length} disabled`
+                : ''
+            }`}
       </div>
 
       <div className="im-panel">
@@ -333,15 +339,6 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
                     >
                       <span className="im-toggle-track">
                         <span className="im-toggle-thumb" />
-                      </span>
-                      <span className="im-toggle-text">
-                        {row.enabled ? (
-                          <>
-                            <Check size={11} /> Enabled
-                          </>
-                        ) : (
-                          'Disabled'
-                        )}
                       </span>
                     </button>
                   )}

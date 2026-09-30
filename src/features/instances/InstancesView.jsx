@@ -4,6 +4,9 @@ import { getClusterArt } from '../../data/versionsData.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { formatLaunchProgress } from '../launcher/useLauncher.js';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
+import fabricIcon from '../../assets/icons/fabric.png';
+import forgeIcon from '../../assets/icons/forge.jpg';
+import vanillaIcon from '../../assets/icons/vanilla.png';
 
 import './InstancesView.css';
 
@@ -13,6 +16,12 @@ const SORTS = [
   { id: 'created', key: 'instances.sortNewest' },
   { id: 'playtime', key: 'instances.sortPlayed' }
 ];
+
+const LOADER_ICONS = {
+  vanilla: vanillaIcon,
+  fabric: fabricIcon,
+  forge: forgeIcon
+};
 
 const LOADER_FILTERS = ['All', 'Vanilla', 'Fabric', 'Forge', 'NeoForge', 'Quilt'];
 
@@ -243,7 +252,7 @@ export default function InstancesView({
       </header>
 
       {instances.length > 0 && (
-            <div className="instances-toolbar">
+        <div className="instances-toolbar">
           <label className="instances-search">
             <NativeIcon name="search" size={16} />
             <input
@@ -381,7 +390,6 @@ export default function InstancesView({
                 >
                   <div className="instance-card-art">
                     <img src={artOf(instance)} alt="" draggable="false" />
-                    <div className="instance-card-art-fade" />
 
                     {running && (
                       <span className="instance-card-live">
@@ -390,27 +398,6 @@ export default function InstancesView({
                       </span>
                     )}
 
-                    <div
-                      className="instance-card-hover"
-                      onClick={(event) => {
-                        if (event.target !== event.currentTarget) {
-                          event.stopPropagation();
-                        }
-                      }}
-                    >
-                      <LaunchActionButton
-                        instance={instance}
-                        launcherState={running ? launcherState : null}
-                        isInstalled={Boolean(isInstalledOnDisk)}
-                        onLaunch={(target) => {
-                          onSelect?.(target.id);
-                          onLaunch?.(target);
-                        }}
-                        onKill={onKill}
-                        size="md"
-                        className={layout === 'list' ? 'is-icon-only' : ''}
-                      />
-                    </div>
                   </div>
 
                   <div className="instance-card-body">
@@ -529,15 +516,45 @@ export default function InstancesView({
 
                     <div className="instance-card-chips">
                       <span className="instance-chip mono">{versionOf(instance)}</span>
-                      <span className="instance-chip brand">{loaderOf(instance)}</span>
+                      <span className="instance-chip brand">
+                        {LOADER_ICONS[String(loaderOf(instance)).toLowerCase()] && (
+                          <img
+                            className="instance-chip-icon"
+                            src={LOADER_ICONS[String(loaderOf(instance)).toLowerCase()]}
+                            alt=""
+                            draggable="false"
+                          />
+                        )}
+                        {loaderOf(instance)}
+                      </span>
                     </div>
 
-                    <div className="instance-card-stats">
-                      <span>
-                        <NativeIcon name="clock" size={12} />
-                        {formatDuration(instance.playtimeSecs || 0)}
-                      </span>
-                      <span>{relativeTime(instance.lastPlayed, formatRelativeTime, t)}</span>
+                    <div className="instance-card-footer">
+                      <div className="instance-card-stats">
+                        <span title="Total playtime">
+                          <NativeIcon name="clock" size={12} />
+                          {formatDuration(instance.playtimeSecs || 0)}
+                        </span>
+                        <span>{relativeTime(instance.lastPlayed, formatRelativeTime, t)}</span>
+                      </div>
+
+                      <div
+                        className="instance-card-launch"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <LaunchActionButton
+                          instance={instance}
+                          launcherState={running ? launcherState : null}
+                          isInstalled={Boolean(isInstalledOnDisk)}
+                          onLaunch={(target) => {
+                            onSelect?.(target.id);
+                            onLaunch?.(target);
+                          }}
+                          onKill={onKill}
+                          size="md"
+                          className={layout === 'list' ? 'is-icon-only' : ''}
+                        />
+                      </div>
                     </div>
                   </div>
                 </article>
