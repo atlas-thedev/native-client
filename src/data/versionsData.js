@@ -362,8 +362,9 @@ export function getClusterArt(cluster) {
   const ver = String(cluster.mc_version || cluster.version || cluster.name || cluster.id || '').trim();
   if (!ver) return ART_ASSETS.default;
 
-  if (ver.startsWith('26.2')) return ChaosCubedArt;
-  if (ver.startsWith('26')) return TinyTakeoverArt;
+  if (ver.startsWith('26.1')) return TinyTakeoverArt;
+  // 26.2 and anything newer (26.3, ...) reuses the latest bundled artwork.
+  if (ver.startsWith('26')) return ChaosCubedArt;
   if (ver.startsWith('1.21.11') || ver.includes('Mounts')) return MountsMayhemArt;
   if (ver.startsWith('1.21.10') || ver.includes('Copper')) return CopperAgeArt;
   if (ver.startsWith('1.21')) return TrickyTrialsArt;

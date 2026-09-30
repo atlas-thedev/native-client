@@ -20,56 +20,6 @@ import "./ClustersView.css";
 
 const SNAPSHOT_LINE = "snapshots";
 
-/**
- * Canonical Major Releases in order, with 26.2 and 26.1 leading at the top:
- * Row 1: 26.2 | 26.1 | 1.21
- * Row 2: 1.20 | 1.19 | 1.18
- * Row 3: 1.17 | 1.16 | 1.15
- * Row 4: 1.14 | 1.13 | 1.12
- * Row 5: 1.11 | 1.10 | 1.9
- * Row 6: 1.8  | 1.7
- */
-const FEATURED_ORDER = [
-  "26.2",
-  "26.1",
-  "1.21",
-  "1.20",
-  "1.19",
-  "1.18",
-  "1.17",
-  "1.16",
-  "1.15",
-  "1.14",
-  "1.13",
-  "1.12",
-  "1.11",
-  "1.10",
-  "1.9",
-  "1.8",
-  "1.7"
-];
-
-/** Default patches per card matching canonical releases */
-const CANONICAL_PATCHES = {
-  "26.2": "26.2",
-  "26.1": "26.1.1",
-  "1.21": "1.21.7",
-  "1.20": "1.20.4",
-  "1.19": "1.19.1",
-  "1.18": "1.18.2",
-  "1.17": "1.17.1",
-  "1.16": "1.16.5",
-  "1.15": "1.15.2",
-  "1.14": "1.14.4",
-  "1.13": "1.13.1",
-  "1.12": "1.12.2",
-  "1.11": "1.11.2",
-  "1.10": "1.10.2",
-  "1.9": "1.9.4",
-  "1.8": "1.8.9",
-  "1.7": "1.7.10"
-};
-
 function getLoaderIcon(loader) {
   if (loader === "Forge") return forgeIcon;
   if (loader === "Vanilla") return vanillaIcon;
@@ -134,11 +84,12 @@ export default function ClustersView({
   const [fabricSet, setFabricSet] = useState(null);
   const [banners, setBanners] = useState(null);
 
-  // Selected card defaults to 1.21 to match reference mockup c65d
-  const [selectedLine, setSelectedLine] = useState("1.21");
+  // Until a card is picked, the newest release line is the highlighted one
+  const [selectedLine, setSelectedLine] = useState(null);
   const [selectedPatches, setSelectedPatches] = useState({});
   const [selectedLoaders, setSelectedLoaders] = useState({});
   const [openDropdownLine, setOpenDropdownLine] = useState(null);
+  const [dropUp, setDropUp] = useState(false);
   const [includeSnapshots, setIncludeSnapshots] = useState(false);
   const [creatingLineId, setCreatingLineId] = useState(null);
   const [instancePicker, setInstancePicker] = useState({
@@ -230,25 +181,18 @@ export default function ClustersView({
     });
 
     const list = Array.from(buckets.values());
+    // Newest patch first, so the default and the menu always lead with the latest.
+    list.forEach((bucket) => {
+      if (bucket.id === SNAPSHOT_LINE) return;
+      bucket.versions.sort((x, y) => compareVersions(y.id, x.id));
+    });
 
-    // 3. Sort: canonical featured order first (0..n), then newer/other versions, then snapshots
+    // 3. Sort: newest release line first (26.3, 26.2, 26.1, 1.21 ...), snapshots last.
     list.sort((a, b) => {
       if (a.id === SNAPSHOT_LINE) return 1;
       if (b.id === SNAPSHOT_LINE) return -1;
-
-      const aFeaturedIdx = FEATURED_ORDER.indexOf(a.id);
-      const bFeaturedIdx = FEATURED_ORDER.indexOf(b.id);
-
-      if (aFeaturedIdx !== -1 && bFeaturedIdx !== -1) {
-        return aFeaturedIdx - bFeaturedIdx;
-      }
-      if (aFeaturedIdx !== -1) return -1;
-      if (bFeaturedIdx !== -1) return 1;
-
-      // Fallback semver descending comparison
       const cmp = compareVersions(b.id, a.id);
       if (cmp !== 0) return cmp;
-
       return String(b.newest || "").localeCompare(String(a.newest || ""));
     });
 
@@ -268,15 +212,26 @@ export default function ClustersView({
     });
   }, [manifest, includeSnapshots, banners]);
 
-  // Patch resolution per line
-  const getPatchForLine = (lineId, lineVersions = []) => {
+  const latestRelease = useMemo(() => {
+    let best = null;
+    lines.forEach((line) => {
+      if (line.id === SNAPSHOT_LINE) return;
+      const top = line.versions[0]?.id;
+      if (top && (!best || compareVersions(top, best) > 0)) best = top;
+    });
+    return best;
+  }, [lines]);
+
+  // Patch resolution per line: the newest patch the chosen loader can run.
+  const getPatchForLine = (lineId, lineVersions = [], loader = null) => {
     if (selectedPatches[lineId]) return selectedPatches[lineId];
-    if (CANONICAL_PATCHES[lineId]) {
-      const found = lineVersions.find((v) => v.id === CANONICAL_PATCHES[lineId]);
-      if (found) return found.id;
-      return CANONICAL_PATCHES[lineId];
+    const ids = lineVersions.map((v) => v.id);
+    if (!ids.length) return lineId;
+    if (loader === "Fabric" && fabricSet) {
+      const supported = ids.find((id) => fabricSet.has(id));
+      if (supported) return supported;
     }
-    return lineVersions[0]?.id || lineId;
+    return ids[0];
   };
 
   // Loader resolution per line
@@ -324,8 +279,8 @@ export default function ClustersView({
   const handleLaunchClick = async (e, line) => {
     e.stopPropagation();
     setSelectedLine(line.id);
-    const patch = getPatchForLine(line.id, line.versions);
     const loader = getLoaderForLine(line.id);
+    const patch = getPatchForLine(line.id, line.versions, loader);
     const matches = findMatchingInstances(patch, loader);
     const matching = matches[0] || null;
 
@@ -384,8 +339,8 @@ export default function ClustersView({
   const handleOpenSettings = async (e, line) => {
     e.stopPropagation();
     setSelectedLine(line.id);
-    const patch = getPatchForLine(line.id, line.versions);
     const loader = getLoaderForLine(line.id);
+    const patch = getPatchForLine(line.id, line.versions, loader);
     const matches = findMatchingInstances(patch, loader);
     const matching = matches[0] || null;
 
@@ -469,26 +424,25 @@ export default function ClustersView({
   return (
     <div className="clusters-view">
       <header className="clusters-header">
-        <h1 className="clusters-title page-title">CHANGE VERSION</h1>
+        <div className="clusters-heading-group">
+          <h1 className="clusters-title page-title">{t("nav.versions")}</h1>
+          <p className="clusters-subtitle">
+            {latestRelease ? `Latest release ${latestRelease}` : "Minecraft releases"}
+          </p>
+        </div>
 
         <div className="clusters-header-actions">
           <button
             type="button"
             className={"clusters-chip " + (includeSnapshots ? "active" : "")}
             onClick={() => setIncludeSnapshots((v) => !v)}
-            title="Toggle snapshot builds"
+            aria-pressed={includeSnapshots}
           >
-            <NativeIcon name="sparkles" size={13} />
-            <span>{t("versions.snapshots")}</span>
+            {t("versions.snapshots")}
           </button>
 
-          <button
-            type="button"
-            className="clusters-new-btn"
-            onClick={onOpenNewInstanceModal}
-            title="Create custom instance"
-          >
-            <NativeIcon name="plus" size={14} />
+          <button type="button" className="clusters-new-btn" onClick={onOpenNewInstanceModal}>
+            <NativeIcon name="plus" size={16} />
             <span>{t("instances.new")}</span>
           </button>
         </div>
@@ -503,9 +457,9 @@ export default function ClustersView({
         <div className="clusters-grid-container">
           <div className="clusters-cards-grid">
             {lines.map((line) => {
-              const isSelected = line.id === selectedLine;
-              const patch = getPatchForLine(line.id, line.versions);
+              const isSelected = line.id === (selectedLine ?? lines[0]?.id);
               const loader = getLoaderForLine(line.id);
+              const patch = getPatchForLine(line.id, line.versions, loader);
               const matches = findMatchingInstances(patch, loader);
               const matching = matches[0] || null;
               const hasMultiple = matches.length > 1;
@@ -540,9 +494,11 @@ export default function ClustersView({
                     <button
                       type="button"
                       className={"version-patch-chip" + (isDropdownOpen ? " is-open" : "")}
-                      onClick={() =>
-                        setOpenDropdownLine((prev) => (prev === line.id ? null : line.id))
-                      }
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setDropUp(rect.bottom + 250 > window.innerHeight);
+                        setOpenDropdownLine((prev) => (prev === line.id ? null : line.id));
+                      }}
                       title="Select patch version"
                     >
                       <span>{patch}</span>
@@ -554,8 +510,8 @@ export default function ClustersView({
                     </button>
 
                     {isDropdownOpen && (
-                      <div className="version-patch-menu">
-                        {line.versions.map((v) => (
+                      <div className={"version-patch-menu" + (dropUp ? " is-up" : "")}>
+                        {line.versions.map((v, i) => (
                           <button
                             key={v.id}
                             type="button"
@@ -564,8 +520,11 @@ export default function ClustersView({
                             }
                             onClick={() => handleSelectPatch(line.id, v.id)}
                           >
-                            <span>{v.id}</span>
-                            {v.id === patch && <NativeIcon name="check" size={11} />}
+                            <span className="version-patch-name">{v.id}</span>
+                            {i === 0 && line.id !== SNAPSHOT_LINE && (
+                              <span className="version-patch-tag">Latest</span>
+                            )}
+                            {v.id === patch && <NativeIcon name="check" size={12} />}
                           </button>
                         ))}
                       </div>
@@ -591,7 +550,8 @@ export default function ClustersView({
                         onClick={(e) => handleCycleLoader(e, line.id, patch)}
                         title={"Modloader: " + loader + " (Click to switch)"}
                       >
-                        <img src={loaderIcon} alt={loader} className="version-loader-img" />
+                        <img src={loaderIcon} alt="" className="version-loader-img" />
+                        <span>{loader}</span>
                       </button>
                     </div>
 
@@ -631,7 +591,7 @@ export default function ClustersView({
                             <NativeIcon name="refresh" size={12} className="is-spinning" />
                           </span>
                         )}
-                        <span>{isBusyThisVersion ? "LAUNCHING" : hasMultiple ? `LAUNCH (${matches.length})` : "LAUNCH"}</span>
+                        <span>{isBusyThisVersion ? "Launching" : hasMultiple ? `Launch (${matches.length})` : "Launch"}</span>
                       </button>
                     </div>
                   </div>
