@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
+import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './HomeSidePanel.css';
 
 /* "Jump back in" — the last servers and singleplayer worlds you played,
@@ -185,13 +186,22 @@ const latencyTone = (ms) => (ms == null ? '' : ms < 80 ? 'is-good' : ms < 180 ? 
 
 /* ---------- pieces -------------------------------------------------- */
 
+/** Real icon when there is one; otherwise a neutral grey block so rows
+    keep the same visual rhythm instead of falling back to letters. */
 function Thumb({ src, text }) {
   const [broken, setBroken] = useState(false);
-  if (src && !broken) {
-    return <img className="jb-thumb" src={src} alt="" onError={() => setBroken(true)} />;
-  }
-  const letter = String(text || '?').replace(/[^a-z0-9]/gi, '').charAt(0).toUpperCase() || '?';
-  return <span className="jb-thumb is-mono">{letter}</span>;
+  useEffect(() => setBroken(false), [src]);
+  const usable = src && !broken;
+  return (
+    <img
+      className={`jb-thumb${usable ? '' : ' is-placeholder'}`}
+      src={usable ? src : unknownIcon}
+      alt=""
+      title={usable ? undefined : `${text || 'This'} has no icon`}
+      draggable={false}
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 function Row({ icon, title, subtitle, meta, onPlay, playLabel }) {

@@ -255,6 +255,20 @@ export default function App() {
     }
   };
 
+  // Fade out the boot splash (index.html) once the first real screen has
+  // painted: two frames after commit guarantees layout and paint happened.
+  useEffect(() => {
+    if (!startup.ready) return undefined;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => window.__noctraBootDone?.());
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [startup.ready]);
+
   if (!startup.ready) {
     return <div className="window-frame" aria-label="Loading Noctra Client" />;
   }

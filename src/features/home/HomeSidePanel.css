@@ -73,13 +73,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-.jb-thumb.is-mono {
-  display: grid;
-  place-items: center;
-  font: 700 16px var(--font-sans);
-  color: rgba(255, 255, 255, 0.8);
-  image-rendering: auto;
-}
+.jb-thumb.is-placeholder { image-rendering: pixelated; }
 
 .jb-row-text {
   flex: 1;
