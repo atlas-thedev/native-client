@@ -44,15 +44,81 @@ let lastPhaseSent = null;
 let currentDetail = 'Downloading game files…';
 let currentPhase = 'downloading';
 
-const PHASE_LABELS = {
-  assets: 'Verifying assets',
-  'assets-copy': 'Copying assets',
-  natives: 'Downloading natives',
-  classes: 'Downloading libraries',
-  'classes-custom': 'Downloading loader libraries',
-  'classes-maven-custom': 'Downloading loader libraries',
-  'version-jar': 'Downloading game jar'
-};
+/* ── Overall progress ─────────────────────────────────────────
+   Every source (Java, loader libraries, MCLC's natives / jar / libraries /
+   assets) used to report its own 0→100, so the bar restarted for each file
+   and each stage. Stages now map onto one weighted 0→100 timeline that only
+   ever moves forward; a stage that has nothing to do is simply skipped. */
+const STAGES = [
+  ['java', 12, 'Installing Java'],
+  ['loader', 8, 'Downloading loader'],
+  ['natives', 4, 'Downloading natives'],
+  ['version-jar', 12, 'Downloading game'],
+  ['classes-maven-custom', 3, 'Downloading loader libraries'],
+  ['classes-custom', 3, 'Downloading loader libraries'],
+  ['classes', 24, 'Downloading libraries'],
+  ['assets', 32, 'Downloading assets'],
+  ['assets-copy', 2, 'Copying assets']
+];
+const STAGE_INDEX = new Map(STAGES.map(([key], index) => [key, index]));
+const STAGE_START = STAGES.reduce((starts, [, weight], index) => {
+  starts.push(index === 0 ? 0 : starts[index - 1] + STAGES[index - 1][1]);
+  return starts;
+}, []);
+
+let overallPercent = 0;
+let overallStage = null;
+
+function resetProgress() {
+  overallPercent = 0;
+  overallStage = null;
+}
+
+/** Count bytes for one file toward the session total. */
+function trackBytes(key, received) {
+  if (!key || !Number.isFinite(received)) return;
+  const previous = inFlightFiles.get(key) || 0;
+  if (received > previous) {
+    cumulativeDownloadedBytes += received - previous;
+    inFlightFiles.set(key, received);
+  }
+}
+
+/**
+ * Report progress for a stage. `fraction` is 0..1 within that stage.
+ * `extra` may carry { detail, task, total, phase, force }.
+ */
+function reportProgress(stage, fraction, extra = {}) {
+  const index = STAGE_INDEX.get(stage);
+  if (index === undefined) return;
+  const [, weight, label] = STAGES[index];
+  const clamped = Math.max(0, Math.min(1, Number(fraction) || 0));
+  const next = STAGE_START[index] + weight * clamped;
+  // Never move backwards (parallel downloads can report out of order).
+  if (next > overallPercent) overallPercent = next;
+  overallStage = stage;
+
+  const now = Date.now();
+  if (!extra.force && now - lastProgressSentAt < 100 && clamped < 1) return;
+  lastProgressSentAt = now;
+  lastPercentSent = Math.round(overallPercent);
+  lastPhaseSent = stage;
+
+  const phase = extra.phase || (stage === 'assets' || stage === 'assets-copy' ? 'verifying' : 'downloading');
+  currentPhase = phase;
+  currentDetail = extra.detail || label;
+  send('launcher:progress', {
+    percent: Math.min(99, overallPercent),
+    detail: currentDetail,
+    phase,
+    stage,
+    stageLabel: label,
+    stagePercent: Math.round(clamped * 100),
+    task: extra.task ?? null,
+    total: extra.total ?? null,
+    bytes: cumulativeDownloadedBytes
+  });
+}
 
 function send(channel, payload) {
   const win = deps?.getWin();
@@ -231,13 +297,12 @@ async function ensureFabricLibraries(profile) {
     await downloadFile(artifact.url, targetPath, {
       retries: 3,
       expectedHashes: artifact.sha1 ? { sha1: artifact.sha1 } : {},
-      onProgress: ({ percent, received, total }) => {
-        send('launcher:progress', {
-          percent: percent ?? Math.round((index / Math.max(1, libraries.length)) * 100),
-          detail,
-          phase: 'downloading',
-          bytes: received,
-          size: total
+      onProgress: ({ percent, received }) => {
+        trackBytes(`fabric:${artifact.relativePath}`, received);
+        reportProgress('loader', (index + (percent ?? 0) / 100) / Math.max(1, libraries.length), {
+          detail: 'Downloading Fabric libraries',
+          task: index + 1,
+          total: libraries.length
         });
       }
     });
@@ -311,9 +376,8 @@ async function resolveForge(mcVersion, requestedVersion = null) {
       onProgress: ({ percent, received, total, retrying, attempt }) => {
         const detail = `Downloading Forge ${forgeVersion}${retrying ? ` — retry ${attempt}` : ''}`;
         setState('downloading', detail);
-        if (percent !== null) {
-          send('launcher:progress', { percent, detail, phase: 'downloading', bytes: received, size: total });
-        }
+        trackBytes(`forge:${full}`, received);
+        if (percent !== null) reportProgress('loader', percent / 100, { detail });
       }
     });
   }
@@ -447,6 +511,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
   lastPhaseSent = null;
   currentDetail = 'Preparing…';
   currentPhase = 'preparing';
+  resetProgress();
   try {
     const settings = settingsMod.get();
 
@@ -468,7 +533,10 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       try {
         javaPath = await javaMod.ensureJava(mcVersion, {
           setState,
-          sendProgress: (p) => send('launcher:progress', p)
+          sendProgress: (p) => {
+            trackBytes('java', p?.bytes);
+            reportProgress('java', (p?.percent ?? 0) / 100, { detail: p?.detail });
+          }
         });
       } catch (err) {
         setState('error', `Java setup failed: ${err.message}`);
@@ -653,79 +721,37 @@ function init(dependencies, ipcMain) {
   installRegistry.init({ app: dependencies.app });
 
   launcher.on('download-status', ({ name, type, current, total }) => {
-    const prev = inFlightFiles.get(name) || 0;
-    if (current > prev) {
-      cumulativeDownloadedBytes += (current - prev);
-      inFlightFiles.set(name, current);
-    }
-    if (total && current >= total) {
-      inFlightFiles.delete(name);
-    }
+    trackBytes(`mclc:${type}:${name}`, current);
 
-    const now = Date.now();
-
-    // Special handling for version-jar: MCLC does NOT emit a 'progress' event for the client jar!
+    // MCLC emits no 'progress' event for the client jar, only byte counts.
     if (type === 'version-jar') {
-      currentPhase = 'downloading';
-      currentDetail = 'Downloading game jar';
-      const jarPercent = total ? Math.min(100, Math.round((current / total) * 100)) : 0;
-      if (now - lastProgressSentAt >= 100 || jarPercent === 100) {
-        lastProgressSentAt = now;
-        lastPercentSent = jarPercent;
-        lastPhaseSent = type;
-        send('launcher:progress', {
-          percent: jarPercent,
-          detail: currentDetail,
-          phase: 'downloading',
-          task: current,
-          total: total,
-          bytes: cumulativeDownloadedBytes,
-          size: total
-        });
-      }
+      reportProgress('version-jar', total ? current / total : 0, { detail: 'Downloading Minecraft' });
       return;
     }
 
-    // For other downloads, periodically send real-time byte updates so the MB size smoothly increments
-    if (now - lastProgressSentAt >= 120) {
+    // Other files: keep the byte counter moving between stage events.
+    const now = Date.now();
+    if (overallStage && now - lastProgressSentAt >= 150) {
       lastProgressSentAt = now;
       send('launcher:progress', {
-        percent: lastPercentSent >= 0 ? lastPercentSent : 0,
+        percent: Math.min(99, overallPercent),
         detail: currentDetail,
         phase: currentPhase,
+        stage: overallStage,
         bytes: cumulativeDownloadedBytes
       });
     }
   });
 
   launcher.on('progress', (e) => {
-    const isAssets = e.type === 'assets' || e.type === 'assets-copy';
-    const percent = e.total ? Math.min(100, Math.round((e.task / e.total) * 100)) : 0;
-    const now = Date.now();
-
-    currentPhase = isAssets ? 'verifying' : 'downloading';
-    currentDetail = PHASE_LABELS[e.type] ?? `Downloading ${e.type}`;
-
-    // If assets are finished or verified, avoid showing "Downloading 100%"
-    if (isAssets && percent >= 100) {
-      currentDetail = 'Preparing to start…';
-      currentPhase = 'verifying';
-    }
-
-    if (e.type !== lastPhaseSent || percent !== lastPercentSent || now - lastProgressSentAt >= 100) {
-      lastProgressSentAt = now;
-      lastPercentSent = percent;
-      lastPhaseSent = e.type;
-
-      send('launcher:progress', {
-        percent,
-        detail: currentDetail,
-        phase: currentPhase,
-        task: e.task,
-        total: e.total,
-        bytes: cumulativeDownloadedBytes
-      });
-    }
+    if (!STAGE_INDEX.has(e.type)) return;
+    const fraction = e.total ? e.task / e.total : 0;
+    reportProgress(e.type, fraction, {
+      task: e.task,
+      total: e.total,
+      detail: e.type === 'assets' && fraction >= 1 ? 'Preparing to start' : undefined,
+      force: e.task === 0 || fraction >= 1
+    });
   });
 
   let logBatch = [];

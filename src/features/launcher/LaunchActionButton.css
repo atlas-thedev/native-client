@@ -70,14 +70,106 @@
 .launch-action.is-stop:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover); }
 .launch-action.is-stop:active:not(:disabled) { filter: brightness(0.94); }
 
-/* Busy / Verifying / Progress: quiet outlined pill with a solid progress bar */
-.launch-action.is-download,
-.launch-action.is-verify,
-.launch-action.is-progress {
+/* Busy (download / verify / prepare): a wide two-line pill whose
+   background fills left→right with the overall progress. */
+.launch-action.is-busy {
+  justify-content: flex-start;
+  gap: 12px;
+  width: 340px;
+  max-width: 100%;
+  height: 58px;
+  padding: 0 22px 0 20px;
   background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--fg-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  text-align: left;
+  cursor: progress;
 }
+
+.launch-action.is-busy:disabled { opacity: 1; }
+
+.la-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--progress, 0%);
+  background: color-mix(in srgb, var(--accent-text) 30%, transparent);
+  transition: width 0.35s var(--ease-out);
+  pointer-events: none;
+}
+
+.launch-action.is-busy > :not(.la-fill) { position: relative; }
+
+.launch-action.is-busy .launch-action-icon { color: var(--accent-text); }
+
+.la-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.la-title,
+.la-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.la-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.la-meta {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.la-pct {
+  flex: none;
+  min-width: 40px;
+  text-align: right;
+  font: 700 16px var(--font-mono);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+/* Cards and sidebars: one line, percent on the right. */
+.launch-action.is-busy.size-md {
+  width: auto;
+  min-width: 150px;
+  height: 38px;
+  gap: 8px;
+  padding: 0 14px 0 13px;
+}
+
+.launch-action.is-busy.size-sm {
+  width: auto;
+  min-width: 120px;
+  height: 32px;
+  gap: 7px;
+  padding: 0 12px 0 11px;
+}
+
+.launch-action.is-busy.size-md .la-meta,
+.launch-action.is-busy.size-sm .la-meta { display: none; }
+
+.launch-action.is-busy.size-md .la-title { font-size: 12.5px; }
+.launch-action.is-busy.size-sm .la-title { font-size: 12px; }
+
+.launch-action.is-busy.size-md .la-pct,
+.launch-action.is-busy.size-sm .la-pct { min-width: 0; font-size: 12px; }
+
+.launch-action.is-busy.is-icon-only { width: 38px; min-width: 0; padding: 0; justify-content: center; }
+.launch-action.is-busy.is-icon-only .la-body,
+.launch-action.is-busy.is-icon-only .la-pct { display: none; }
 
 /* Keep icons legible on the solid accent fill (theme icon colours are forced elsewhere) */
 :root .launch-action.is-launch svg,
@@ -132,23 +224,6 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   opacity: 0.75;
-}
-
-/* ---------- Progress Track ---------- */
-
-.launch-action-track {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.launch-action-fill {
-  display: block;
-  height: 100%;
-  width: var(--progress, 0%);
-  background: var(--accent-text);
-  transition: width 0.2s ease-out;
 }
 
 /* ---------- Sizes ---------- */
@@ -208,7 +283,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .launch-action,
-  .launch-action-fill {
+  .la-fill {
     transition: none;
   }
   .launch-action .spin {

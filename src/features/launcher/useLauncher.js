@@ -9,6 +9,9 @@ const IDLE = {
   total: null,
   bytes: 0,
   size: 0,
+  stage: null,
+  stageLabel: null,
+  speed: 0,
   instanceId: null
 };
 const INSTALLING = new Set(['preparing', 'downloading', 'verifying', 'launching']);
@@ -31,6 +34,8 @@ export function useLauncherInstallLock() {
 export default function useLauncher() {
   const [state, setState] = useState(IDLE);
   const errorTimer = useRef(null);
+  // Download speed: bytes/s smoothed over ~1s samples.
+  const speedSample = useRef({ at: 0, bytes: 0, speed: 0 });
 
   useEffect(() => {
     const api = window.native?.launcher;
@@ -39,6 +44,7 @@ export default function useLauncher() {
     const offState = api.onState(({ status, detail }) => {
       clearTimeout(errorTimer.current);
       const settled = status === 'idle' || status === 'error';
+      if (settled) speedSample.current = { at: 0, bytes: 0, speed: 0 };
       setState((prev) => ({
         ...(settled ? IDLE : prev),
         status,
@@ -51,7 +57,21 @@ export default function useLauncher() {
       }
     });
 
-    const offProgress = api.onProgress(({ percent, detail, phase, task, total, bytes, size }) => {
+    const offProgress = api.onProgress(({ percent, detail, phase, task, total, bytes, size, stage, stageLabel }) => {
+      const sample = speedSample.current;
+      const now = Date.now();
+      if (typeof bytes === 'number') {
+        if (!sample.at || bytes < sample.bytes) {
+          sample.at = now;
+          sample.bytes = bytes;
+          sample.speed = 0;
+        } else if (now - sample.at >= 900) {
+          const instant = ((bytes - sample.bytes) * 1000) / (now - sample.at);
+          sample.speed = sample.speed ? sample.speed * 0.6 + instant * 0.4 : instant;
+          sample.at = now;
+          sample.bytes = bytes;
+        }
+      }
       setState((prev) => {
         let nextStatus = prev.status;
         if (phase === 'verifying') nextStatus = 'verifying';
@@ -62,13 +82,23 @@ export default function useLauncher() {
         return {
           ...prev,
           status: nextStatus,
-          percent: typeof percent === 'number' ? percent : prev.percent,
           detail: detail || prev.detail,
           phase: phase ?? prev.phase,
-          task: task ?? prev.task,
-          total: total ?? prev.total,
           bytes: typeof bytes === 'number' ? bytes : prev.bytes,
-          size: typeof size === 'number' ? size : prev.size
+          size: typeof size === 'number' ? size : prev.size,
+          stage: stage ?? prev.stage,
+          stageLabel: stageLabel ?? prev.stageLabel,
+          // Stage counters belong to one stage; drop them when it changes.
+          task: stage && stage !== prev.stage ? task ?? null : task ?? prev.task,
+          total: stage && stage !== prev.stage ? total ?? null : total ?? prev.total,
+          speed: sample.speed,
+          // The main process sends one monotonic overall percent.
+          percent:
+            typeof percent === 'number'
+              ? phase === 'launching'
+                ? percent
+                : Math.max(percent, prev.percent || 0)
+              : prev.percent
         };
       });
     });
@@ -87,6 +117,7 @@ export default function useLauncher() {
       errorTimer.current = setTimeout(() => setState(IDLE), 5000);
       return;
     }
+    speedSample.current = { at: 0, bytes: 0, speed: 0 };
     setState({
       ...IDLE,
       status: 'preparing',

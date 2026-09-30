@@ -206,7 +206,7 @@ function Row({ icon, title, subtitle, meta, onPlay, playLabel }) {
         <span className="jb-row-end">
           <span className="jb-meta">{meta}</span>
           <span className="jb-play" aria-hidden="true">
-            <NativeIcon name="play" size={13} />
+            <NativeIcon name="play" size={15} />
           </span>
         </span>
       </button>
