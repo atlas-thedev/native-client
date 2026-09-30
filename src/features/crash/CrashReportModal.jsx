@@ -1,43 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertTriangle, Check, ChevronDown, CircleArrowUp, Coffee, Copy, Cpu, Download, ExternalLink, FileText, FileWarning,
-  FolderOpen, Gamepad2, Globe, History, Layers, LoaderCircle, MemoryStick, Monitor, MonitorX, Play, PowerOff, Puzzle,
-  RefreshCw, RotateCcw, Search, Settings2, Share2, Sparkles, Terminal, Wrench, X, Zap
-} from 'lucide-react';
+import { Check, ChevronDown, History, LoaderCircle, X } from 'lucide-react';
 import './CrashReportModal.css';
 
 const RENDERER_KINDS = new Set(['memory', 'java-auto', 'jvm-reset', 'jvm-add', 'loader-latest']);
-
-const CATEGORY = {
-  mods: { icon: Puzzle, label: 'Mods' },
-  java: { icon: Coffee, label: 'Java' },
-  memory: { icon: MemoryStick, label: 'Memory' },
-  graphics: { icon: MonitorX, label: 'Graphics' },
-  files: { icon: FileWarning, label: 'Game files' },
-  world: { icon: Globe, label: 'World' },
-  config: { icon: Settings2, label: 'Config' },
-  system: { icon: Cpu, label: 'System' },
-  game: { icon: Gamepad2, label: 'Game' }
-};
-
-const FIX_ICON = {
-  'disable-mod': PowerOff,
-  'update-mod': RefreshCw,
-  'install-mod': Download,
-  memory: MemoryStick,
-  java: Coffee,
-  'java-auto': Coffee,
-  'jvm-reset': Terminal,
-  'jvm-add': Terminal,
-  'loader-latest': CircleArrowUp,
-  'reset-config': RotateCcw,
-  repair: Wrench,
-  'open-url': ExternalLink,
-  'open-folder': FolderOpen,
-  'disable-shaders': Sparkles,
-  'reset-resourcepacks': Layers,
-  'forge-early-window': Monitor
-};
 
 const FIX_VERB = {
   'disable-mod': 'Disable',
@@ -58,12 +23,7 @@ const FIX_VERB = {
   'forge-early-window': 'Turn off'
 };
 
-function confidenceLabel(value) {
-  if (value >= 90) return 'Certain';
-  if (value >= 75) return 'Very likely';
-  if (value >= 55) return 'Likely';
-  return 'Best guess';
-}
+const STEPS = ['Reading the game log', 'Indexing your mods', 'Matching known crash signatures', 'Preparing fixes'];
 
 function timeAgo(at) {
   const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
@@ -77,25 +37,20 @@ function cleanError(error) {
   return String(error?.message || error || 'Something went wrong').replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '');
 }
 
-function FixRow({ fix, state, onRun, compact = false }) {
-  const Icon = FIX_ICON[fix.kind] || Wrench;
+function FixRow({ fix, state, onRun }) {
   const status = state?.status || 'idle';
   const done = status === 'done';
   return (
-    <div className={`crash-fix${fix.recommended ? ' is-recommended' : ''}${done ? ' is-done' : ''}${compact ? ' is-compact' : ''}`}>
-      <span className="crash-fix-icon"><Icon size={compact ? 14 : 16} strokeWidth={2.1} /></span>
-      <span className="crash-fix-text">
-        <span className="crash-fix-label">
-          {fix.label}
-          {fix.recommended && !done && <span className="crash-fix-badge">Recommended</span>}
-        </span>
+    <div className={`crash-fix${done ? ' is-done' : ''}`}>
+      <div className="crash-fix-text">
+        <div className="crash-fix-label">{fix.label}</div>
         {(state?.message || fix.detail) && (
-          <span className={`crash-fix-detail${status === 'failed' ? ' is-error' : ''}`}>{state?.message || fix.detail}</span>
+          <div className={`crash-fix-detail${status === 'failed' ? ' is-error' : ''}`}>{state?.message || fix.detail}</div>
         )}
-      </span>
+      </div>
       <button
         type="button"
-        className={`crash-pill${fix.recommended && !done ? ' is-accent' : ''}${done ? ' is-done' : ''}`}
+        className={`crash-pill${done ? ' is-done' : ''}`}
         disabled={status === 'working' || done}
         onClick={() => onRun(fix)}
       >
@@ -161,6 +116,8 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [step, setStep] = useState(0);
   const [expanded, setExpanded] = useState(null);
   const [toast, setToast] = useState(null);
   const [shareState, setShareState] = useState('idle');
@@ -170,6 +127,7 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
   useEffect(() => {
     setFixState(Object.fromEntries((record?.applied || []).map((id) => [id, { status: 'done' }])));
     setShowLog(false);
+    setShowDetails(false);
     setExpanded(null);
     setShareState(record?.shareUrl ? 'done' : 'idle');
   }, [record?.id]);
@@ -183,6 +141,12 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
   }, [open, record?.id, onClose]);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    if (!analyzing) { setStep(0); return undefined; }
+    const timer = setInterval(() => setStep((value) => Math.min(value + 1, STEPS.length - 1)), 1100);
+    return () => clearInterval(timer);
+  }, [analyzing]);
 
   const flash = (text) => {
     clearTimeout(toastTimer.current);
@@ -250,36 +214,33 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
   if (!open) return null;
 
   const instance = record?.instance || analyzing?.instance;
-  const Category = CATEGORY[report?.category]?.icon || AlertTriangle;
   const facts = report?.facts || {};
   const factRows = [
     ['Java', facts.java],
     ['Memory', facts.memory],
-    ['GPU', facts.gpu],
+    ['Graphics', facts.gpu],
     ['System', facts.os],
     ['Mods', report?.modCount ? String(report.modCount) : null],
     ['Exit code', record?.exitCode !== null && record?.exitCode !== undefined ? String(record.exitCode) : null]
   ].filter(([, value]) => value);
   const earlier = history.filter((item) => item.id !== record?.id).slice(0, 8);
+  const meta = [
+    instance?.name,
+    instance?.version ? `${instance.loader && instance.loader !== 'Vanilla' ? `${instance.loader} ` : ''}${instance.version}` : null,
+    record?.at ? timeAgo(record.at) : null
+  ].filter(Boolean).join(' \u00b7 ');
+  const suspects = report?.suspects || [];
+  const unsure = report && report.confidence < 75;
 
   return (
     <div className="crash-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
       <div className="crash-modal" role="dialog" aria-modal="true" aria-label="Crash report">
         <header className="crash-head">
-          <span className={`crash-head-icon${analyzing ? ' is-busy' : ''}`}>
-            {analyzing ? <LoaderCircle size={20} className="crash-spin" /> : <Category size={20} strokeWidth={2} />}
-          </span>
           <div className="crash-head-text">
-            <div className="crash-eyebrow">
-              <span className="crash-dot" />
-              {record?.manual ? 'Crash analysis' : 'Minecraft crashed'}
-              {instance?.name && <><span className="crash-sep">/</span>{instance.name}</>}
-              {instance?.version && <><span className="crash-sep">/</span>{instance.version} {instance.loader !== 'Vanilla' ? instance.loader : ''}</>}
-              {record?.at && <><span className="crash-sep">/</span>{timeAgo(record.at)}</>}
-            </div>
             <h2 className="crash-title">
               {analyzing ? 'Analyzing the crash' : error ? 'Could not analyze the crash' : report?.headline || 'Crash report'}
             </h2>
+            {meta && <div className="crash-meta">{meta}</div>}
           </div>
           {earlier.length > 0 && (
             <div className="crash-history">
@@ -292,7 +253,7 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
                   {earlier.map((item) => (
                     <button key={item.id} type="button" className="crash-history-item" onClick={() => { setHistoryOpen(false); onOpenReport?.(item.id); }}>
                       <span className="crash-history-head">{item.headline || 'Crash'}</span>
-                      <span className="crash-history-meta">{item.instance?.name} / {timeAgo(item.at)}</span>
+                      <span className="crash-history-meta">{item.instance?.name} &middot; {timeAgo(item.at)}</span>
                     </button>
                   ))}
                 </div>
@@ -304,11 +265,8 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
 
         {analyzing && (
           <div className="crash-analyzing">
-            {['Reading the game log and crash report', 'Indexing your mods', 'Matching known crash signatures', 'Preparing fixes'].map((step, index) => (
-              <div key={step} className="crash-step" style={{ animationDelay: `${index * 0.45}s` }}>
-                <span className="crash-step-dot" />{step}
-              </div>
-            ))}
+            <LoaderCircle size={16} className="crash-spin" />
+            <span key={step} className="crash-step">{STEPS[step]}</span>
           </div>
         )}
 
@@ -316,124 +274,95 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
 
         {report && !analyzing && (
           <div className="crash-body">
-            <div className="crash-main">
-              <section className="crash-diagnosis">
-                <p className="crash-summary">{report.summary}</p>
-                <div className="crash-meter" title={`${report.confidence}% confidence`}>
-                  <span className="crash-meter-track"><span className="crash-meter-fill" style={{ width: `${report.confidence}%` }} /></span>
-                  <span className="crash-meter-label">{confidenceLabel(report.confidence)}</span>
-                  <span className="crash-chip">{CATEGORY[report.category]?.label || 'Game'}</span>
-                  {primary?.fromMetadata && <span className="crash-chip">From mod files</span>}
-                </div>
-              </section>
+            <p className="crash-summary">{report.summary}</p>
+            {(unsure || suspects.length > 1) && (
+              <p className="crash-note">
+                {unsure ? 'This is a best guess. ' : ''}
+                {suspects.length > 1 ? `Suspects: ${suspects.map((mod) => mod.name).join(', ')}.` : ''}
+              </p>
+            )}
 
-              {primary?.fixes?.length > 0 && (
-                <section className="crash-section">
-                  <h3 className="crash-h3"><Zap size={14} /> Quick fixes</h3>
-                  <div className="crash-fixes">
-                    {primary.fixes.map((fix) => <FixRow key={fix.id} fix={fix} state={fixState[fix.id]} onRun={runFix} />)}
-                  </div>
-                </section>
-              )}
-
-              {report.issues.length > 1 && (
-                <section className="crash-section">
-                  <h3 className="crash-h3">Also found</h3>
-                  <div className="crash-issues">
-                    {report.issues.slice(1).map((issue, index) => {
-                      const Icon = CATEGORY[issue.category]?.icon || AlertTriangle;
-                      const isOpen = expanded === index;
-                      return (
-                        <div key={`${issue.id}-${index}`} className={`crash-issue${isOpen ? ' is-open' : ''}`}>
-                          <button type="button" className="crash-issue-head" onClick={() => setExpanded(isOpen ? null : index)}>
-                            <Icon size={15} />
-                            <span className="crash-issue-title">{issue.title}</span>
-                            <span className="crash-issue-conf">{confidenceLabel(issue.confidence)}</span>
-                            <ChevronDown size={15} className="crash-chev" />
-                          </button>
-                          {isOpen && (
-                            <div className="crash-issue-body">
-                              <p>{issue.explanation}</p>
-                              {issue.fixes.map((fix) => <FixRow key={fix.id} fix={fix} state={fixState[fix.id]} onRun={runFix} compact />)}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
+            {primary?.fixes?.length > 0 && (
               <section className="crash-section">
-                <div className="crash-h3-row">
-                  <h3 className="crash-h3"><FileText size={14} /> {showLog ? 'Full log' : 'Evidence'}</h3>
-                  <button type="button" className="crash-link" onClick={() => setShowLog((v) => !v)}>{showLog ? 'Show evidence' : 'Show full log'}</button>
+                <h3 className="crash-h3">Fix</h3>
+                <div className="crash-fixes">
+                  {primary.fixes.map((fix) => <FixRow key={fix.id} fix={fix} state={fixState[fix.id]} onRun={runFix} />)}
                 </div>
-                {showLog ? <FullLog id={record.id} /> : report.excerpt?.length ? <Evidence rows={report.excerpt} /> : <div className="crash-muted">No log lines were captured for this crash.</div>}
               </section>
-            </div>
+            )}
 
-            <aside className="crash-aside">
-              {report.suspects?.length > 0 && (
-                <section className="crash-card">
-                  <h3 className="crash-h3">Suspected mods</h3>
-                  {report.suspects.map((mod, index) => {
-                    const fix = { kind: 'disable-mod', file: mod.file, name: mod.name, label: `Disable ${mod.name}`, id: `disable-mod:${mod.file}` };
-                    const st = fixState[fix.id];
+            {report.issues.length > 1 && (
+              <section className="crash-section">
+                <h3 className="crash-h3">Also found</h3>
+                <div className="crash-fixes">
+                  {report.issues.slice(1).map((issue, index) => {
+                    const isOpen = expanded === index;
                     return (
-                      <div key={mod.file} className="crash-suspect">
-                        <span className="crash-suspect-rank">{index + 1}</span>
-                        <span className="crash-suspect-text">
-                          <span className="crash-suspect-name">{mod.name}{mod.version ? <em> {mod.version}</em> : null}</span>
-                          <span className="crash-suspect-file" title={mod.file}>{mod.file}</span>
-                        </span>
-                        <button type="button" className={`crash-mini${st?.status === 'done' ? ' is-done' : ''}`} disabled={st?.status === 'working' || st?.status === 'done'} onClick={() => runFix(fix)} title={st?.message || 'Disable this mod'}>
-                          {st?.status === 'working' ? <LoaderCircle size={13} className="crash-spin" /> : st?.status === 'done' ? <Check size={13} /> : <PowerOff size={13} />}
+                      <div key={`${issue.id}-${index}`} className="crash-issue">
+                        <button type="button" className="crash-issue-head" onClick={() => setExpanded(isOpen ? null : index)} aria-expanded={isOpen}>
+                          <span className="crash-issue-title">{issue.title}</span>
+                          <ChevronDown size={15} className={`crash-chev${isOpen ? ' is-open' : ''}`} />
                         </button>
+                        {isOpen && (
+                          <div className="crash-issue-body">
+                            <p>{issue.explanation}</p>
+                            {issue.fixes.map((fix) => <FixRow key={fix.id} fix={fix} state={fixState[fix.id]} onRun={runFix} />)}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                </section>
-              )}
+                </div>
+              </section>
+            )}
 
-              {(factRows.length > 0 || report.exitMeaning) && (
-                <section className="crash-card">
-                  <h3 className="crash-h3">Details</h3>
-                  {factRows.map(([key, value]) => (
-                    <div key={key} className="crash-fact"><span>{key}</span><span title={value}>{value}</span></div>
-                  ))}
-                  {report.exitMeaning && <p className="crash-exit">{report.exitMeaning}</p>}
+            <section className="crash-section">
+              <div className="crash-h3-row">
+                <h3 className="crash-h3">{showLog ? 'Full log' : 'From the log'}</h3>
+                <button type="button" className="crash-link" onClick={() => setShowLog((v) => !v)}>{showLog ? 'Back to excerpt' : 'Full log'}</button>
+              </div>
+              {showLog ? <FullLog id={record.id} /> : report.excerpt?.length ? <Evidence rows={report.excerpt} /> : <div className="crash-muted">No log lines were captured for this crash.</div>}
+            </section>
+
+            <section className="crash-section">
+              <button type="button" className="crash-disclosure" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails}>
+                <ChevronDown size={14} className={`crash-chev${showDetails ? ' is-open' : ''}`} /> Technical details
+              </button>
+              {showDetails && (
+                <div className="crash-details">
+                  <dl>
+                    {factRows.map(([key, value]) => (<div key={key}><dt>{key}</dt><dd title={value}>{value}</dd></div>))}
+                  </dl>
+                  {report.exitMeaning && <p>{report.exitMeaning}</p>}
                   {report.exception && (
-                    <p className="crash-exception" title={`${report.exception.type}: ${report.exception.message}`}>
+                    <p title={`${report.exception.type}: ${report.exception.message}`}>
                       <code>{report.exception.type.split('.').pop()}</code>{report.exception.message ? ` ${report.exception.message.slice(0, 160)}` : ''}
                     </p>
                   )}
-                </section>
+                  <div className="crash-files">
+                    {record.files?.crashReport && <button type="button" className="crash-link" onClick={() => window.native.crash.open(record.id, 'crash')}>Crash report</button>}
+                    {record.files?.hsErr && <button type="button" className="crash-link" onClick={() => window.native.crash.open(record.id, 'jvm')}>JVM error log</button>}
+                    <button type="button" className="crash-link" onClick={() => window.native.crash.open(record.id, 'log')}>Captured log</button>
+                    <button type="button" className="crash-link" onClick={() => window.native.crash.open(record.id, 'mods')}>Mods folder</button>
+                  </div>
+                </div>
               )}
-
-              <section className="crash-card crash-files">
-                {record.files?.crashReport && <button type="button" className="crash-file-btn" onClick={() => window.native.crash.open(record.id, 'crash')}><FileText size={14} /> Crash report</button>}
-                {record.files?.hsErr && <button type="button" className="crash-file-btn" onClick={() => window.native.crash.open(record.id, 'jvm')}><FileWarning size={14} /> JVM error log</button>}
-                <button type="button" className="crash-file-btn" onClick={() => window.native.crash.open(record.id, 'log')}><Terminal size={14} /> Captured log</button>
-                <button type="button" className="crash-file-btn" onClick={() => window.native.crash.open(record.id, 'mods')}><FolderOpen size={14} /> Mods folder</button>
-              </section>
-            </aside>
+            </section>
           </div>
         )}
 
         {report && !analyzing && (
           <footer className="crash-foot">
-            <button type="button" className="crash-pill is-ghost" onClick={shareLog} disabled={shareState === 'working'}>
-              {shareState === 'working' ? <LoaderCircle size={14} className="crash-spin" /> : shareState === 'done' ? <Check size={14} /> : <Share2 size={14} />}
-              <span>{shareState === 'done' ? 'Link copied' : 'Share log'}</span>
+            <button type="button" className="crash-text-btn" onClick={shareLog} disabled={shareState === 'working'}>
+              {shareState === 'working' ? 'Sharing' : shareState === 'done' ? 'Link copied' : 'Share log'}
             </button>
-            <button type="button" className="crash-pill is-ghost" onClick={copyReport}><Copy size={14} /><span>Copy report</span></button>
+            <button type="button" className="crash-text-btn" onClick={copyReport}>Copy report</button>
             <span className="crash-foot-space" />
             {toast && <span className="crash-toast">{toast}</span>}
-            <button type="button" className={`crash-pill${!recommended || recommendedDone ? ' is-accent is-strong' : ''}`} onClick={() => onRelaunch?.(record)}><Play size={14} /><span>Relaunch</span></button>
+            <button type="button" className={`crash-pill is-strong${!recommended || recommendedDone ? ' is-accent' : ''}`} onClick={() => onRelaunch?.(record)}>Relaunch</button>
             {recommended && !recommendedDone && (
               <button type="button" className="crash-pill is-accent is-strong" onClick={fixAndRelaunch} disabled={fixState[recommended.id]?.status === 'working'}>
-                {fixState[recommended.id]?.status === 'working' ? <LoaderCircle size={14} className="crash-spin" /> : <Zap size={14} />}
+                {fixState[recommended.id]?.status === 'working' ? <LoaderCircle size={14} className="crash-spin" /> : null}
                 <span>Fix and relaunch</span>
               </button>
             )}
