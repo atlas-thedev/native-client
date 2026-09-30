@@ -1,0 +1,223 @@
+/* ============================================================
+   Noctra — Minecraft-style action buttons
+
+   One blocky, bevelled button language for every install, download
+   and launch action in the launcher. Solid colours and hard 2px
+   bevels only: no gradients, no glows, no blur.
+
+   Variants are set through --mc-* custom properties:
+     green  primary actions (Launch, Install, Update)
+     stone  neutral actions and secondary buttons
+     red    stop / remove
+   ============================================================ */
+
+:root {
+  --mc-font: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --mc-green: #3f8f2a;
+  --mc-green-hi: #6fc94b;
+  --mc-green-lo: #2a5f1c;
+  --mc-green-hover: #4aa332;
+
+  --mc-stone: #6b6b6b;
+  --mc-stone-hi: #a0a0a0;
+  --mc-stone-lo: #3b3b3b;
+  --mc-stone-hover: #7a7a7a;
+
+  --mc-red: #a53030;
+  --mc-red-hi: #d95c5c;
+  --mc-red-lo: #661c1c;
+  --mc-red-hover: #b83a3a;
+
+  --mc-dark: #2f2f2f;
+  --mc-dark-hi: #4a4a4a;
+  --mc-dark-lo: #1c1c1c;
+}
+
+/* ---------- shared look ---------- */
+
+:root:root :is(
+  .launch-action,
+  .version-launch-btn,
+  .browse-btn,
+  .browse-ver-install-btn,
+  .uc-btn,
+  .instance-picker-action,
+  .instance-picker-new-btn,
+  .ci-ghost-btn,
+  .ci-brand-btn,
+  .ci-loader-btn
+) {
+  --mc-face: var(--mc-stone);
+  --mc-hi: var(--mc-stone-hi);
+  --mc-lo: var(--mc-stone-lo);
+  --mc-face-hover: var(--mc-stone-hover);
+
+  box-sizing: border-box;
+  background: var(--mc-face) !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 2px 2px 0 var(--mc-hi), inset -2px -2px 0 var(--mc-lo) !important;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45) !important;
+  font-family: var(--mc-font) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* ---------- variants ---------- */
+
+:root:root :is(
+  .launch-action.is-launch,
+  .launch-action.is-install,
+  .version-card.is-selected .version-launch-btn,
+  .browse-btn-install:not(.is-disabled-vanilla),
+  .browse-ver-install-btn.is-primary,
+  .uc-btn--primary,
+  .instance-picker-action:not(.is-ghost),
+  .ci-brand-btn,
+  .ci-loader-btn.active
+) {
+  --mc-face: var(--mc-green);
+  --mc-hi: var(--mc-green-hi);
+  --mc-lo: var(--mc-green-lo);
+  --mc-face-hover: var(--mc-green-hover);
+}
+
+:root:root :is(
+  .launch-action.is-stop,
+  .browse-btn-danger,
+  .browse-btn-installed:hover
+) {
+  --mc-face: var(--mc-red);
+  --mc-hi: var(--mc-red-hi);
+  --mc-lo: var(--mc-red-lo);
+  --mc-face-hover: var(--mc-red-hover);
+}
+
+/* Working states: dark well that the progress fill sits in. */
+:root:root :is(
+  .launch-action.is-progress,
+  .launch-action.is-verify,
+  .launch-action.is-download,
+  .browse-btn-busy
+) {
+  --mc-face: var(--mc-dark);
+  --mc-hi: var(--mc-dark-hi);
+  --mc-lo: var(--mc-dark-lo);
+  --mc-face-hover: var(--mc-dark);
+}
+
+/* ---------- interaction ---------- */
+
+:root:root :is(
+  .launch-action,
+  .version-launch-btn,
+  .browse-btn,
+  .browse-ver-install-btn,
+  .uc-btn,
+  .instance-picker-action,
+  .instance-picker-new-btn,
+  .ci-ghost-btn,
+  .ci-brand-btn,
+  .ci-loader-btn
+):hover:not(:disabled) {
+  background: var(--mc-face-hover) !important;
+  border-color: #fff !important;
+}
+
+:root:root :is(
+  .launch-action,
+  .version-launch-btn,
+  .browse-btn,
+  .browse-ver-install-btn,
+  .uc-btn,
+  .instance-picker-new-btn,
+  .ci-ghost-btn,
+  .ci-brand-btn,
+  .ci-loader-btn
+):active:not(:disabled) {
+  box-shadow: inset 2px 2px 0 var(--mc-lo), inset -2px -2px 0 var(--mc-hi) !important;
+}
+
+:root:root :is(
+  .launch-action,
+  .version-launch-btn,
+  .browse-btn,
+  .browse-ver-install-btn,
+  .uc-btn,
+  .instance-picker-new-btn,
+  .ci-ghost-btn,
+  .ci-brand-btn,
+  .ci-loader-btn
+):focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Unavailable */
+:root:root :is(
+  .browse-btn-install.is-disabled-vanilla,
+  .browse-ver-install-btn:disabled,
+  .browse-btn:disabled:not(.browse-btn-busy),
+  .uc-btn:disabled,
+  .ci-brand-btn:disabled
+) {
+  --mc-face: #3b3b3b;
+  --mc-hi: #4d4d4d;
+  --mc-lo: #2a2a2a;
+  color: #8b8b8b !important;
+  text-shadow: none !important;
+  cursor: not-allowed;
+}
+
+/* ---------- launch action specifics ---------- */
+
+:root:root .launch-action {
+  text-transform: uppercase;
+  letter-spacing: 0.06em !important;
+  font-size: 14px;
+}
+:root:root .launch-action.size-md { font-size: 12.5px; }
+:root:root .launch-action.size-sm { font-size: 11.5px; }
+
+/* Text buttons: no glyphs, only the spinner while working. */
+.launch-action:not(.is-progress) > .launch-action-icon { display: none; }
+
+.launch-action-label,
+.launch-action-sub { position: relative; z-index: 1; }
+
+.launch-action-sub {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* Progress: a dark well filled with green, like an XP bar. */
+.launch-action-track {
+  position: absolute;
+  inset: 2px !important;
+  height: auto !important;
+  background: transparent !important;
+  z-index: 0;
+}
+.launch-action-fill {
+  height: 100% !important;
+  background: var(--mc-green) !important;
+  box-shadow: inset 0 2px 0 var(--mc-green-hi), inset 0 -2px 0 var(--mc-green-lo) !important;
+  transition: width 0.2s linear !important;
+}
+
+/* ---------- version card launch (small) ---------- */
+
+:root:root .version-launch-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em !important;
+}

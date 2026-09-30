@@ -315,7 +315,6 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
             <div className="ci-preview-card">
               <div className="ci-preview-art">
                 {version ? <img src={artFor(version)} alt="" /> : <div className="ci-preview-blank" />}
-                <div className="ci-preview-fade" />
               </div>
               <div className="ci-preview-body">
                 <h3>{trimmedName || t('create.untitled')}</h3>
@@ -352,8 +351,7 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
             {t('common.cancel')}
           </button>
           <button type="button" className="ci-brand-btn" onClick={submit} disabled={!canSubmit}>
-            <NativeIcon name="plus" size={15} />
-            <span>{t('onboarding.finish')}</span>
+            {t('onboarding.finish')}
           </button>
         </footer>
       </div>
