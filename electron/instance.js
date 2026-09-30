@@ -723,9 +723,21 @@ function recentServers() {
     found.push({ ...connection, instanceId: null, instanceName: 'Minecraft' });
   }
 
+  for (const entry of require('./playHistory').readServers()) {
+    const address = cleanServerAddress(entry?.address);
+    if (!address || !Number.isFinite(entry.connectedAt)) continue;
+    const instanceId = entry.instanceId ? String(entry.instanceId) : null;
+    found.push({
+      address,
+      connectedAt: entry.connectedAt,
+      instanceId,
+      instanceName: (instanceId && names.get(instanceId)) || entry.instanceName || 'Minecraft'
+    });
+  }
+
   const servers = new Map();
   for (const connection of found.sort((a, b) => b.connectedAt - a.connectedAt)) {
-    const key = connection.address.toLowerCase();
+    const key = connection.address.toLowerCase().replace(/:25565$/, '');
     const existing = servers.get(key);
     if (!existing) {
       servers.set(key, { ...connection, visits: 1 });
@@ -734,6 +746,61 @@ function recentServers() {
     }
   }
   return [...servers.values()].slice(0, 8);
+}
+
+/** Most recently played singleplayer worlds across every instance. */
+function recentWorlds(limit = 8) {
+  const names = readInstanceNames();
+  let directories = [];
+  try {
+    directories = fs.readdirSync(instancesDir(), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory());
+  } catch {
+    return [];
+  }
+
+  const worlds = [];
+  for (const directory of directories) {
+    let saves = [];
+    const savesDir = resolveInside(instanceDir(directory.name), 'saves');
+    try {
+      saves = fs.readdirSync(savesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+    } catch {
+      continue;
+    }
+    for (const save of saves) {
+      const worldPath = resolveInside(savesDir, save.name);
+      let playedAt = 0;
+      // level.dat is rewritten on every save, so it tracks "last played"
+      // better than the folder mtime.
+      try { playedAt = fs.statSync(path.join(worldPath, 'level.dat')).mtimeMs; } catch {
+        try { playedAt = fs.statSync(worldPath).mtimeMs; } catch {}
+      }
+      worlds.push({
+        name: save.name,
+        folder: save.name,
+        playedAt,
+        worldPath,
+        instanceId: directory.name,
+        instanceName: names.get(directory.name) || directory.name
+      });
+    }
+  }
+
+  return worlds
+    .sort((a, b) => b.playedAt - a.playedAt)
+    .slice(0, limit)
+    .map(({ worldPath, ...world }) => {
+      let iconUrl = null;
+      try {
+        const iconPath = resolveInside(worldPath, 'icon.png');
+        const stat = fs.lstatSync(iconPath);
+        if (stat.isFile() && !stat.isSymbolicLink() && stat.size > 0 && stat.size <= 1024 * 1024) {
+          iconUrl = `data:image/png;base64,${fs.readFileSync(iconPath).toString('base64')}`;
+        }
+      } catch {}
+      return { ...world, iconUrl };
+    });
 }
 
 /* ── init ───────────────────────────────────────────────────── */
@@ -772,6 +839,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('instance:getLogFile', (_e, instanceId) => getLogFile(instanceId));
 
   ipcMain.handle('instance:recentServers', () => recentServers());
+  ipcMain.handle('instance:recentWorlds', () => recentWorlds());
 
   ipcMain.handle('instance:isInstalled', (_e, version, loader) => isInstalled(version, loader));
   ipcMain.handle('instance:verifyInstallation', (_e, version, loader) => verifyInstallation(version, loader));

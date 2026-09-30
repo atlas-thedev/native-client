@@ -121,7 +121,8 @@ const api = {
     isInstalled: (version, loader) => ipcRenderer.invoke('instance:isInstalled', version, loader),
     verifyInstallation: (version, loader) => ipcRenderer.invoke('instance:verifyInstallation', version, loader),
     installedVersions: ()       => ipcRenderer.invoke('instance:installedVersions'),
-    recentServers: ()       => ipcRenderer.invoke('instance:recentServers')
+    recentServers: ()       => ipcRenderer.invoke('instance:recentServers'),
+    recentWorlds: ()        => ipcRenderer.invoke('instance:recentWorlds')
   },
   news: {
     list: (options) => ipcRenderer.invoke('news:list', options)

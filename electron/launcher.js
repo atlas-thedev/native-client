@@ -11,6 +11,7 @@ const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
 const socialMod = require('./social');
 const discordRpcMod = require('./discordRpc');
+const playHistory = require('./playHistory');
 
 /**
  * Game launch pipeline (main process).
@@ -507,22 +508,21 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     };
     if (jvmArgs) opts.customArgs = jvmArgs;
 
+    const isModern = (() => {
+      const parts = String(mcVersion || '').split('.').map(Number);
+      return parts[0] > 1 || (parts[0] === 1 && parts[1] >= 20);
+    })();
+
+    // Quick Play: MCLC turns opts.quickPlay into the right flags
+    // (--quickPlayMultiplayer on 1.20+, --server/--port before that). Adding
+    // the same flags to customLaunchArgs as well would pass them twice.
     if (payload?.quickJoinServer) {
-      const rawTarget = String(payload.quickJoinServer).trim();
-      const [host, port = '25565'] = rawTarget.split(':');
-      const isModern = (() => {
-        const v = String(mcVersion || '');
-        const parts = v.split('.').map(Number);
-        return parts[0] > 1 || (parts[0] === 1 && parts[1] >= 20);
-      })();
       opts.quickPlay = {
         type: isModern ? 'multiplayer' : 'legacy',
-        identifier: rawTarget
+        identifier: String(payload.quickJoinServer).trim()
       };
-      const joinArgs = isModern
-        ? ['--quickPlayMultiplayer', rawTarget]
-        : ['--server', host, '--port', port];
-      opts.customLaunchArgs = (opts.customLaunchArgs || []).concat(joinArgs);
+    } else if (payload?.quickJoinWorld && isModern) {
+      opts.quickPlay = { type: 'singleplayer', identifier: String(payload.quickJoinWorld) };
     }
 
     try {
@@ -763,6 +763,11 @@ function init(dependencies, ipcMain) {
       const port = connMatch[2];
       const serverAddress = `${host}:${port}`;
       const activityName = formatServerActivity(host);
+      playHistory.recordServer({
+        address: port === '25565' ? host : serverAddress,
+        instanceId: activeInstance?.id ?? null,
+        instanceName: activeInstance?.name ?? null
+      });
       socialMod.setPresence({
         status: 'in-game',
         activity: `In-game: ${activityName}`,

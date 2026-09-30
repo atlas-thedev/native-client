@@ -265,7 +265,9 @@ export default function Shell({
       t('notify.launching'),
       options?.quickJoinServer
         ? `Connecting to ${options.quickJoinServer} with ${cluster.name || cluster.mc_version || cluster.version}\u2026`
-        : t('notify.starting', {
+        : options?.quickJoinWorld
+          ? `Opening ${options.quickJoinWorld} in ${cluster.name || cluster.mc_version || cluster.version}\u2026`
+          : t('notify.starting', {
             name: cluster.name || cluster.mc_version || cluster.version,
             version: `${cluster.mc_version || cluster.version} ${cluster.mc_loader || cluster.loader}`
           })
@@ -409,7 +411,6 @@ export default function Shell({
               launcherState={launcher}
               onLaunch={handleLaunch}
               onKill={launcher.kill}
-              onNavigateBrowse={handleNavigateBrowse}
             />
           )}
 

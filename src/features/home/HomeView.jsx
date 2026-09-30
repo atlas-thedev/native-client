@@ -32,8 +32,7 @@ export default function HomeView({
   account,
   launcherState,
   onLaunch,
-  onKill,
-  onNavigateBrowse
+  onKill
 }) {
   const { t } = useI18n();
   const [contextMenu, setContextMenu] = useState(null);
@@ -245,13 +244,7 @@ export default function HomeView({
       </div>
 
       {!isStarterMode && cluster && (
-        <HomeSidePanel
-          instance={cluster}
-          instances={instances}
-          onLaunch={onLaunch}
-          onOpenCluster={onOpenCluster}
-          onNavigateBrowse={onNavigateBrowse}
-        />
+        <HomeSidePanel instances={instances} fallbackInstance={cluster} onLaunch={onLaunch} />
       )}
       </div>
 
