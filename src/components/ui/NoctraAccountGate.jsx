@@ -1,56 +1,49 @@
 import React from 'react';
-import { LogIn } from 'lucide-react';
 import mascotImg from '../../assets/noctra-account-required.png';
 import './NoctraAccountGate.css';
 
-export default function NoctraAccountGate({ feature = 'locker', onOpenAccountSwitcher, onBackHome }) {
-  const isLocker = feature === 'locker';
+const COPY = {
+  locker: {
+    label: 'Locker',
+    subtitle: 'Sign in with a Noctra account to customize your skins and capes.'
+  },
+  relay: {
+    label: 'Relay',
+    subtitle: 'Sign in with a Noctra account to chat with friends.'
+  },
+  profile: {
+    label: 'Profile',
+    subtitle: 'Sign in with a Noctra account to customize your public profile.'
+  }
+};
 
-  const subtitle = isLocker
-    ? 'Sign in with a Noctra account to customize your skins and capes.'
-    : feature === 'relay'
-    ? 'Sign in with a Noctra account to chat with friends.'
-    : 'Sign in with a Noctra account to customize your public profile.';
+export default function NoctraAccountGate({ feature = 'locker', onOpenAccountSwitcher, onBackHome }) {
+  const copy = COPY[feature] || COPY.profile;
 
   return (
-    <div
-      className="noctra-account-gate"
-      role="region"
-      aria-label="Noctra account required"
-    >
-      <div className="gate-content">
-        <img
-          src={mascotImg}
-          alt=""
-          className="gate-mascot"
-          draggable="false"
-          width={188}
-          height={197}
-        />
+    <div className="noctra-account-gate" role="region" aria-label="Noctra account required">
+      <section className="gate-card">
+        <div className="gate-body">
+          <span className="gate-label">{copy.label}</span>
+          <h2 className="gate-title">Noctra account required</h2>
+          <p className="gate-subtitle">{copy.subtitle}</p>
 
-        <h2 className="gate-title">Noctra account required</h2>
+          <div className="gate-actions">
+            <button type="button" className="gate-btn-signin" onClick={onOpenAccountSwitcher}>
+              Sign in
+            </button>
+            {onBackHome && (
+              <button type="button" className="gate-btn-home" onClick={onBackHome}>
+                Back to Home
+              </button>
+            )}
+          </div>
+        </div>
 
-        <p className="gate-subtitle">{subtitle}</p>
-
-        <button
-          type="button"
-          className="gate-btn-signin"
-          onClick={onOpenAccountSwitcher}
-        >
-          <LogIn size={18} strokeWidth={2.4} aria-hidden="true" />
-          <span>Sign in</span>
-        </button>
-
-        {onBackHome && (
-          <button
-            type="button"
-            className="gate-btn-home"
-            onClick={onBackHome}
-          >
-            Back to Home
-          </button>
-        )}
-      </div>
+        <div className="gate-art" aria-hidden="true">
+          <img src={mascotImg} alt="" className="gate-mascot" draggable="false" width={182} height={193} />
+        </div>
+      </section>
     </div>
   );
 }
