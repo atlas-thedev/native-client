@@ -70,7 +70,12 @@
   border: 1px solid var(--accent-text);
   color: var(--page);
 }
-.instances-brand-btn svg { color: inherit; stroke: currentColor; }
+:root .instances-view .instances-brand-btn svg,
+:root .instances-view .instances-brand-btn svg *,
+:root .instances-view .instances-brand-btn .native-icon-plus path {
+  color: var(--page) !important;
+  stroke: var(--page) !important;
+}
 .instances-brand-btn:hover:not(:disabled) { filter: brightness(1.08); }
 .instances-brand-btn:disabled { opacity: 0.45; cursor: default; }
 

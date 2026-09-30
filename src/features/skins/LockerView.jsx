@@ -141,10 +141,18 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
 
   const handleResetView = () => {
     const viewer = viewerRef.current;
-    if (!viewer?.playerObject) return;
-    viewer.playerObject.rotation.set(0, 0, 0);
-    viewer.playerObject.resetJoints?.();
-    if (viewer.renderPaused) viewer.render();
+    if (!viewer) return;
+    // Orbiting moves the camera, not the model, so restore the camera pose
+    // (angle and distance) as well as the model's rotation and joints.
+    try {
+      viewer.resetCameraPose?.();
+      viewer.controls?.update?.();
+      viewer.playerObject?.rotation.set(0, 0, 0);
+      viewer.playerObject?.resetJoints?.();
+      viewer.render?.();
+    } catch (error) {
+      console.warn('Could not reset the skin view:', error);
+    }
   };
 
   const handleExport = async () => {
