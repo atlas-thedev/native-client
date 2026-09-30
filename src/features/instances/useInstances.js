@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getClusterArt } from '../../data/versionsData.js';
 import {
   EMPTY_STATS,
@@ -171,6 +171,8 @@ function loadInitialSync(initialData) {
 
 export default function useInstances(initialData = null) {
   const [data, setData] = useState(() => loadInitialSync(initialData));
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const [loaded, setLoaded] = useState(() => Boolean(initialData?.instances?.length));
 
   useEffect(() => {
@@ -292,7 +294,9 @@ export default function useInstances(initialData = null) {
     },
 
     async saveOverrides(id, values) {
-      const next = { ...data, instances: data.instances.map(item => item.id === id ? { ...item, overrides: values.overrides } : item) };
+      // Read the latest state, not the render-time closure, so overrides never clobber newer edits.
+      const latest = dataRef.current;
+      const next = { ...latest, instances: latest.instances.map(item => item.id === id ? { ...item, overrides: values.overrides } : item) };
       await saveData(next);
       setData(current => ({ ...current, instances: current.instances.map(item => item.id === id ? { ...item, overrides: values.overrides } : item) }));
     },

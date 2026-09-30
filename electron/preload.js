@@ -83,6 +83,8 @@ const api = {
     toggle: (payload) => ipcRenderer.invoke('mods:toggle', payload),
     install: (payload) => ipcRenderer.invoke('mods:install', payload),
     remove: (payload) => ipcRenderer.invoke('mods:remove', payload),
+    removeFile: (payload) => ipcRenderer.invoke('mods:removeFile', payload),
+    enrich: (instanceId, folder) => ipcRenderer.invoke('mods:enrich', instanceId, folder),
     onProgress: (callback) => subscribe('mods:progress', callback)
   },
   modpacks: {

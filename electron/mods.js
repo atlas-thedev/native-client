@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { downloadFile, writeFileAtomic } = require('./download');
+const { enrichFolder } = require('./modMetadata');
 
 /**
  * Mod installation (main process).
@@ -136,6 +137,24 @@ function init(dependencies, ipcMain) {
   deps = dependencies;
 
   ipcMain.handle('mods:installed', (_event, instanceId) => readManifest(instanceId));
+
+  // Titles / icons / authors for files Noctra did not install itself
+  // (modpack downloads, hand-copied jars). Returns { [filename]: metadata }.
+  ipcMain.handle('mods:enrich', async (_event, instanceId, folder = 'mods') => {
+    if (!ALLOWED_FOLDERS.has(folder)) throw new Error('Unsupported content folder');
+    return enrichFolder(resolveInside(instanceDir(instanceId), folder));
+  });
+
+  // Deletes a content file that is not tracked in the install manifest.
+  ipcMain.handle('mods:removeFile', (_event, { instanceId, folder = 'mods', filename }) => {
+    const { target } = validateDestination(instanceId, folder, filename);
+    try {
+      fs.unlinkSync(target);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    return true;
+  });
 
   ipcMain.handle('mods:toggle', (_event, { instanceId, projectId, enabled }) => {
     const manifest = readManifest(instanceId);

@@ -123,3 +123,14 @@ test('isVanillaInstance detects vanilla vs modded loaders correctly', (t) => {
   assert.equal(mods.isVanillaInstance('q1'), false);
   assert.equal(mods.isVanillaInstance('non-existent'), false);
 });
+
+test('untracked files can be deleted and cannot escape the content folder', t => {
+  const { dir, root } = fixture(t);
+  fs.writeFileSync(path.join(dir, 'local.jar'), 'x');
+  const handlers = {};
+  mods.init({ app: { getPath: () => root } }, { handle: (name, fn) => { handlers[name] = fn; } });
+  handlers['mods:removeFile'](null, { instanceId: 'test', folder: 'mods', filename: 'local.jar' });
+  assert.equal(fs.existsSync(path.join(dir, 'local.jar')), false);
+  assert.throws(() => handlers['mods:removeFile'](null, { instanceId: 'test', folder: 'mods', filename: '../x.jar' }), /Invalid filename/);
+  assert.throws(() => handlers['mods:removeFile'](null, { instanceId: 'test', folder: 'saves', filename: 'x' }), /Unsupported/);
+});

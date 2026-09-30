@@ -159,9 +159,7 @@ export default function ClusterDetailView({
   const filterLabel =
     tab === 'settings'
       ? 'Show enabled overrides only'
-      : tab === 'mods'
-        ? 'Show enabled mods only'
-        : 'Sort alphabetically';
+      : 'Sort alphabetically';
 
   const playtimeSeconds = cluster.totalPlaytime || cluster.playtime || 0;
   const playtimeLabel = formatPlaytime(playtimeSeconds);
@@ -316,15 +314,17 @@ export default function ClusterDetailView({
             </label>
 
             <div className="im-toolbar-actions">
-              <button
-                className={`im-toolbar-btn ${filtered ? 'is-active' : ''}`}
-                title={filterLabel}
-                aria-label={filterLabel}
-                aria-pressed={filtered}
-                onClick={() => setFiltered(!filtered)}
-              >
-                <NativeIcon name="filter" size={16} />
-              </button>
+              {tab !== 'mods' && (
+                <button
+                  className={`im-toolbar-btn ${filtered ? 'is-active' : ''}`}
+                  title={filterLabel}
+                  aria-label={filterLabel}
+                  aria-pressed={filtered}
+                  onClick={() => setFiltered(!filtered)}
+                >
+                  <NativeIcon name="filter" size={16} />
+                </button>
+              )}
               {meta.folder && (
                 <button
                   className="im-toolbar-btn"

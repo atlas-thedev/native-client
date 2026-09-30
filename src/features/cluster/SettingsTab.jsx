@@ -185,6 +185,11 @@ const SECTION_TERMS = {
   java: 'java jvm arguments runtime executable garbage collection performance flags'
 };
 
+function safeRatio(width, height) {
+  const ratio = Number(width) / Number(height);
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 16 / 9;
+}
+
 function initialDraft(cluster, global) {
   const ov = cluster.overrides || {};
   return {
@@ -228,7 +233,7 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
         setSystemRam(Math.max(1, Math.floor(memory.totalGb)));
         setDraft(next);
         setBaseline(JSON.stringify(next));
-        ratio.current = next.resolution.width / next.resolution.height || 16 / 9;
+        ratio.current = safeRatio(next.resolution.width, next.resolution.height);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || 'Could not read settings.');
@@ -248,11 +253,17 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
     setDraft((current) => ({ ...current, [key]: value }));
   };
   const resolution = (values) => change('resolution', { ...draft.resolution, ...values });
-  const memory = (values) => change('memory', { ...draft.memory, ...values });
+  const memory = (values) => {
+    const next = { ...draft.memory, ...values };
+    // A global default above this machine's RAM must not be carried into an override.
+    if (next.max > systemRam) next.max = systemRam;
+    if (!(next.max >= 1)) next.max = 1;
+    change('memory', next);
+  };
 
   const applySize = (width, height) => {
     resolution({ width, height });
-    ratio.current = width / height;
+    ratio.current = safeRatio(width, height);
   };
 
   const changeDimension = (key, value) => {
@@ -445,7 +456,7 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
                     disabled={sizeLocked}
                     label="Lock aspect ratio"
                     onChange={(lockAspect) => {
-                      ratio.current = Number(r.width) / Number(r.height) || 16 / 9;
+                      ratio.current = safeRatio(r.width, r.height);
                       resolution({ lockAspect });
                     }}
                   />

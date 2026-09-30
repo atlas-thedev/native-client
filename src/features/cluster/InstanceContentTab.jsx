@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Cloud, FolderOpen, Package, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Check, Package, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 
 const formatSize = (bytes) => {
@@ -7,6 +7,8 @@ const formatSize = (bytes) => {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
   return `${(bytes / 1024 ** 2).toFixed(2)} MB`;
 };
+
+const ENRICHED_TYPES = new Set(['mods', 'shaders', 'textures']);
 
 const config = {
   mods: { folder: 'mods', title: '3rd Party Mods', noun: 'mods' },
@@ -102,6 +104,41 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
     };
   }, [load, revision]);
 
+  /* Modpack downloads and hand-copied files have no install record. Resolve
+     their title / icon / author from Modrinth (by file hash) or the jar itself,
+     then merge it over the rows without blocking the first paint. */
+  useEffect(() => {
+    if (loading || !ENRICHED_TYPES.has(type) || !window.native?.mods?.enrich) return undefined;
+    if (!rows.some((row) => !row.metadata?.iconUrl)) return undefined;
+    let cancelled = false;
+    window.native.mods
+      .enrich(cluster.id, folder)
+      .then((found) => {
+        if (cancelled || !found) return;
+        setRows((current) =>
+          current.map((row) => {
+            const extra = found[row.filename];
+            if (!extra) return row;
+            const metadata = { ...extra };
+            for (const [key, value] of Object.entries(row.metadata || {})) {
+              if (value) metadata[key] = value;
+            }
+            return {
+              ...row,
+              metadata,
+              title: row.managed && row.metadata?.title ? row.title : extra.title || row.title
+            };
+          })
+        );
+      })
+      .catch(() => {
+        /* icons are cosmetic: keep the placeholder */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, type, folder, cluster.id, rows]);
+
   const action = async (operation) => {
     setBusy(true);
     setError('');
@@ -149,25 +186,27 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
         `Delete “${row.title}”? ${
           type === 'worlds'
             ? 'This world will be permanently deleted. Back it up first.'
-            : 'You can reinstall it from Discover.'
+            : row.managed
+              ? 'You can reinstall it from Discover.'
+              : 'This file will be permanently deleted from the instance folder.'
         }`
       )
     ) return;
-    action(() =>
-      type === 'worlds'
-        ? window.native.instance.deleteWorld(cluster.id, row.name)
-        : window.native.mods.remove({ instanceId: cluster.id, projectId: row.id })
-    );
+    action(() => {
+      if (type === 'worlds') return window.native.instance.deleteWorld(cluster.id, row.name);
+      if (row.managed) return window.native.mods.remove({ instanceId: cluster.id, projectId: row.id });
+      return window.native.mods.removeFile({ instanceId: cluster.id, folder, filename: row.filename });
+    });
   };
 
   const visible = rows.filter(
     (row) =>
       `${row.title} ${row.metadata?.author || ''} ${row.filename || ''}`
         .toLowerCase()
-        .includes(query.toLowerCase()) && !(filtered && !row.enabled)
+        .includes(query.toLowerCase())
   );
 
-  if (filtered && type !== 'mods') {
+  if (type === 'mods' || filtered) {
     visible.sort((a, b) => a.title.localeCompare(b.title));
   }
 
@@ -265,7 +304,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
                         ? `Modified ${new Date(row.modified).toLocaleDateString()}`
                         : row.managed
                           ? 'Installed content'
-                          : 'Local file · manage in folder'}
+                          : 'Local file'}
                   </small>
                 </div>
 
@@ -307,28 +346,16 @@ export default function InstanceContentTab({ cluster, type, query, filtered }) {
                     </button>
                   )}
 
-                  {row.managed || type === 'worlds' ? (
-                    <button
-                      type="button"
-                      className="im-action-btn im-delete"
-                      aria-label={`Delete ${row.title}`}
-                      disabled={busy}
-                      onClick={() => remove(row)}
-                      title="Delete"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="im-action-btn"
-                      aria-label={`Open folder for ${row.title}`}
-                      onClick={openFolder}
-                      title="Open folder"
-                    >
-                      <FolderOpen size={15} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="im-action-btn im-delete"
+                    aria-label={`Delete ${row.title}`}
+                    disabled={busy}
+                    onClick={() => remove(row)}
+                    title="Delete"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </div>
               </div>
             ))}

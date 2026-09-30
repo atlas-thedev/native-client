@@ -3,6 +3,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const { downloadFile, fetchJson, writeFileAtomic } = require('./download');
+const { enrichFolder } = require('./modMetadata');
 
 /**
  * Modpack installation (Modrinth .mrpack format).
@@ -148,6 +149,16 @@ async function install({ projectId, versionId = null, name = null, title = null,
         const rel = entry.entryName.slice(prefix.length);
         const target = resolveInside(dir, rel);
         writeFileAtomic(target, entry.getData());
+      }
+    }
+
+    // --- titles + icons for every downloaded mod (best effort, never fatal) ---
+    emit(96, 'Fetching mod details…');
+    for (const folder of ['mods', 'resourcepacks', 'shaderpacks']) {
+      try {
+        await enrichFolder(path.join(dir, folder));
+      } catch {
+        /* metadata is cosmetic; the UI retries when the instance is opened */
       }
     }
 

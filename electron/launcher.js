@@ -491,7 +491,11 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     const opts = {
       root: rootDir(),
       version: { number: mcVersion, type: 'release' },
-      memory: { min: `${memory.min}G`, max: `${memory.max}G` },
+      memory: {
+        // Never ask the JVM for a minimum heap above its maximum (it refuses to start).
+        min: `${Math.min(Number(memory.min) || 1, Number(memory.max) || 4)}G`,
+        max: `${Number(memory.max) || 4}G`
+      },
       window: {
         width: resolution.width,
         height: resolution.height,
