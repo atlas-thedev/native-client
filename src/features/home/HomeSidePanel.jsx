@@ -237,102 +237,75 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
     [worlds, byId]
   );
 
-  const [tab, setTab] = useState(null);
   const loaded = servers !== null && worlds !== null;
 
-  // Open on whichever list holds the most recent session.
-  useEffect(() => {
-    if (!loaded || tab) return;
-    const lastServer = serverRows[0]?.connectedAt || 0;
-    const lastWorld = worldRows[0]?.playedAt || 0;
-    setTab(lastWorld > lastServer ? 'worlds' : 'servers');
-  }, [loaded, tab, serverRows, worldRows]);
+  // One timeline: servers and worlds interleaved by when you last played them.
+  const recent = useMemo(
+    () =>
+      [
+        ...serverRows.map((entry) => ({ kind: 'server', at: entry.connectedAt || 0, entry })),
+        ...worldRows.map((entry) => ({ kind: 'world', at: entry.playedAt || 0, entry }))
+      ]
+        .sort((a, b) => b.at - a.at)
+        .slice(0, LIMIT),
+    [serverRows, worldRows]
+  );
 
-  const status = useServerStatus(tab === 'servers' ? serverRows.map((entry) => entry.address) : []);
+  const status = useServerStatus(
+    recent.filter((item) => item.kind === 'server').map((item) => item.entry.address)
+  );
 
-  if (!loaded || !tab) return null;
-
-  const rows = tab === 'servers' ? serverRows : worldRows;
+  // Nothing played yet: keep the wallpaper clean.
+  if (!loaded || recent.length === 0) return null;
 
   return (
     <aside className="home-side" aria-label="Jump back in">
-      <header className="jb-head">
-        <span className="jb-title">Jump back in</span>
-        <div className="jb-tabs" role="tablist">
-          {[
-            ['servers', 'Servers'],
-            ['worlds', 'Worlds']
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              className={`jb-tab ${tab === id ? 'is-active' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {rows.length === 0 ? (
-        <p className="jb-empty">
-          {tab === 'servers'
-            ? 'Servers you join will show up here.'
-            : 'Singleplayer worlds you play will show up here.'}
-        </p>
-      ) : (
-        <ul className="jb-list">
-          {tab === 'servers'
-            ? rows.map((entry) => {
-                const { instance } = entry;
-                const live = status[entry.address];
-                return (
-                  <Row
-                    key={entry.address}
-                    icon={<Thumb src={live?.favicon} text={serverName(entry.address)} />}
-                    title={serverName(entry.address)}
-                    subtitle={[instance.name, ago(entry.connectedAt)].filter(Boolean).join(' · ')}
-                    meta={
-                      live?.online === undefined ? (
-                        <span className="jb-skel" />
-                      ) : live.online ? (
-                        <span className="jb-stat">
-                          <span className={`jb-ping ${latencyTone(live.latency)}`}>
-                            <span className="jb-dot" />
-                            {live.latency != null ? `${live.latency} ms` : 'Online'}
-                          </span>
-                          <span className="jb-players">
-                            {numberFormat.format(live.players?.online ?? 0)} online
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="jb-offline">Offline</span>
-                      )
-                    }
-                    playLabel={`Join ${hostOf(entry.address)} with ${instance.name}`}
-                    onPlay={() => onLaunch?.(instance, { quickJoinServer: entry.address })}
-                  />
-                );
-              })
-            : rows.map((entry) => {
-                const instance = byId.get(String(entry.instanceId));
-                return (
-                  <Row
-                    key={`${entry.instanceId}/${entry.folder}`}
-                    icon={<Thumb src={entry.iconUrl} text={entry.name} />}
-                    title={entry.name}
-                    subtitle={[instance.name || entry.instanceName, ago(entry.playedAt)].filter(Boolean).join(' · ')}
-                    meta={<span className="jb-version">{instance.mc_version || instance.version}</span>}
-                    playLabel={`Play ${entry.name}`}
-                    onPlay={() => onLaunch?.(instance, { quickJoinWorld: entry.folder })}
-                  />
-                );
-              })}
-        </ul>
-      )}
+      <h2 className="jb-title">Jump back in</h2>
+      <ul className="jb-list">
+        {recent.map(({ kind, entry }) => {
+          if (kind === 'server') {
+            const { instance } = entry;
+            const live = status[entry.address];
+            return (
+              <Row
+                key={`s:${entry.address}`}
+                icon={<Thumb src={live?.favicon} text={serverName(entry.address)} />}
+                title={serverName(entry.address)}
+                subtitle={['Server', ago(entry.connectedAt)].filter(Boolean).join(' · ')}
+                meta={
+                  live?.online === undefined ? (
+                    <span className="jb-skel" />
+                  ) : live.online ? (
+                    <span className="jb-stat">
+                      <span className={`jb-ping ${latencyTone(live.latency)}`}>
+                        <span className="jb-dot" />
+                        {live.latency != null ? `${live.latency} ms` : 'Online'}
+                      </span>
+                      <span className="jb-players">{numberFormat.format(live.players?.online ?? 0)} online</span>
+                    </span>
+                  ) : (
+                    <span className="jb-offline">Offline</span>
+                  )
+                }
+                playLabel={`Join ${hostOf(entry.address)} with ${instance.name}`}
+                onPlay={() => onLaunch?.(instance, { quickJoinServer: entry.address })}
+              />
+            );
+          }
+          const instance = byId.get(String(entry.instanceId));
+          return (
+            <Row
+              key={`w:${entry.instanceId}/${entry.folder}`}
+              icon={<Thumb src={entry.iconUrl} text={entry.name} />}
+              title={entry.name}
+              subtitle={['World', instance.name || entry.instanceName, ago(entry.playedAt)].filter(Boolean).join(' · ')}
+              meta={<span className="jb-version">{instance.mc_version || instance.version}</span>}
+              playLabel={`Play ${entry.name} in ${instance.name}`}
+              onPlay={() => onLaunch?.(instance, { quickJoinWorld: entry.folder })}
+            />
+          );
+        })}
+      </ul>
     </aside>
   );
 }
