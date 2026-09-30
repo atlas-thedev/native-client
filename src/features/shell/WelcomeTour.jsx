@@ -1,110 +1,73 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check, CircleHelp, CircleUser, Compass, Layers3, Lightbulb, Menu, MessageSquare, Play, Settings, Sparkles, User, Blocks, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import Logo from '../../components/ui/Logo.jsx';
 import './WelcomeTour.css';
 
 /*
- * Written for someone who has never used a launcher (or Minecraft mods).
- * Every step says what the button is, why you would use it, and what to do
- * next. `term` explains one piece of jargon; `tip` is a concrete first action.
+ * Short, plain copy for first-time users: what the page is, then what to do.
  * A step without a `target` (or whose target is missing) is shown centred.
  */
 const TOUR_STEPS = [
   {
     target: null,
-    icon: Sparkles,
-    eyebrow: 'Welcome',
     title: 'Welcome to Noctra',
-    body: 'Noctra is a launcher for Minecraft. It downloads the game for you, keeps different versions and mods neatly separated, and starts the game with one click.',
-    steps: ['Create an instance (a game setup)', 'Optionally add mods or shaders', 'Press Play']
+    body: 'Noctra downloads Minecraft, keeps your versions and mods organised, and launches the game. This short tour covers the essentials.'
   },
   {
     target: '.noctra-rail',
-    icon: Menu,
-    eyebrow: 'Getting around',
-    title: 'This is your menu',
-    body: 'The bar on the left is how you move around Noctra. Click any icon to open that page. The page you are on is highlighted, and hovering an icon shows its name.',
-    tip: 'You can come back to this tour any time from the “Quick tour” button at the top.'
+    title: 'Navigation',
+    body: 'Use the sidebar to move between pages. Hover an icon to see its name.'
   },
   {
     target: '[data-tour="instances"]',
-    icon: Layers3,
-    eyebrow: 'Step 1 · Set up',
-    title: 'Instances: your game setups',
-    body: 'An instance is one separate copy of Minecraft with its own version, mods and worlds. Make one for survival, another for a modpack, and they will never mix or break each other.',
-    term: { name: 'Instance', meaning: 'A self-contained Minecraft setup. Deleting one never touches the others.' },
-    tip: 'Open this page and press “New instance” to create your first one.'
+    title: 'Instances',
+    body: 'An instance is a separate Minecraft install with its own version, mods and worlds. Create your first one here.'
   },
   {
     target: '[data-tour="versions"]',
-    icon: Blocks,
-    eyebrow: 'Step 1 · Set up',
-    title: 'Versions: choose your Minecraft',
-    body: 'Minecraft has many versions, and each has different features. Here you can browse them all and start a new instance from any one.',
-    term: { name: 'Release vs snapshot', meaning: 'Releases are the stable versions. Snapshots are early previews and can be buggy.' },
-    tip: 'New to this? Choose the newest release.'
+    title: 'Versions',
+    body: 'Browse every Minecraft release and snapshot. If you are unsure, choose the latest release.'
   },
   {
     target: '[data-tour="discover"]',
-    icon: Compass,
-    eyebrow: 'Step 2 · Customize',
-    title: 'Discover: mods, shaders and more',
-    body: 'Search thousands of free add-ons for your game: mods that add new features, shaders that make it prettier, and resource packs that change the textures. Install them straight into an instance.',
-    term: { name: 'Mod loader', meaning: 'A small helper (Fabric, Forge, NeoForge or Quilt) an instance needs before it can run mods. Pick one when you create the instance.' },
-    tip: 'Add-ons are optional. You can play plain Minecraft without any.'
+    title: 'Discover',
+    body: 'Find mods, shaders, resource packs and modpacks, and add them to an instance. Mods need a loader such as Fabric or Forge, which you choose when you create the instance.'
   },
   {
     target: '[data-tour="home"]',
-    icon: Play,
-    eyebrow: 'Step 3 · Play',
-    title: 'Home: press Play',
-    body: 'Home is where you start the game. Pick the instance you want, then press the big Play button. The first launch downloads what it needs, so it can take a minute.',
-    tip: 'If you are not sure what to pick, use the instance you played most recently.'
+    title: 'Home',
+    body: 'Pick an instance and press Play. The first launch downloads the game files, so it can take a minute.'
   },
   {
     target: '[data-tour="skins"]',
-    icon: User,
-    eyebrow: 'Make it yours',
-    title: 'Locker: skins and capes',
-    body: 'Your skin is how your character looks. Upload a skin image, preview it in 3D, and equip it. Capes are decorations worn on the back.',
-    tip: 'The Locker needs a free Noctra account so your look can sync between computers.'
+    title: 'Locker',
+    body: 'Change your skin and cape and preview them in 3D. Requires a Noctra account.'
   },
   {
     target: '[data-tour="relay"]',
-    icon: MessageSquare,
-    eyebrow: 'Play together',
-    title: 'Relay: friends and chat',
-    body: 'Add friends, see who is online, chat, and jump onto the same Minecraft server without leaving the launcher.',
-    tip: 'A red number on this icon means you have new messages or friend requests.'
+    title: 'Relay',
+    body: 'Chat with friends, see who is online and join their server.'
   },
   {
     target: '[data-tour="account"]',
-    icon: CircleUser,
-    eyebrow: 'Before you play',
-    title: 'Your account',
-    body: 'This is the player who launches the game. Sign in with a Microsoft account to play online on the official servers, or use a Noctra account for Noctra features and offline play. You can keep several and switch any time.',
-    term: { name: 'Microsoft account', meaning: 'The account you bought Minecraft with. It is needed for official multiplayer servers.' }
+    title: 'Accounts',
+    body: 'Sign in with a Microsoft account to play on official servers, or use a Noctra account for offline play and cloud features. You can switch at any time.'
   },
   {
     target: '[data-tour="settings"]',
-    icon: Settings,
-    eyebrow: 'Fine-tuning',
     title: 'Settings',
-    body: 'Change how much memory Minecraft can use, choose fullscreen or a window size, manage disk space, and check for launcher updates.',
-    tip: 'The default settings work for almost everyone. Only change them if something feels slow.'
+    body: 'Adjust memory, window size, Java, storage and updates. The defaults work for most setups.'
   },
   {
     target: '[data-tour="tutorial"]',
     preferredSide: 'bottom',
-    icon: CircleHelp,
-    eyebrow: 'All done',
-    title: 'You are ready to play',
-    body: 'That is everything you need. Start by creating an instance, then press Play. If you ever get lost, this Quick tour button replays the guide.',
-    final: true
+    title: 'That is it',
+    body: 'You can replay this tour any time from Quick tour in the title bar.'
   }
 ];
 
-const CARD_WIDTH = 380;
-const CARD_HEIGHT_FALLBACK = 320;
+const CARD_WIDTH = 340;
+const CARD_HEIGHT_FALLBACK = 170;
 const EDGE_GAP = 14;
 const TARGET_GAP = 14;
 
@@ -296,11 +259,11 @@ export default function WelcomeTour({ open, onClose }) {
 
   if (!open || !layout) return null;
 
-  const StepIcon = step.icon;
   const goNext = () => {
     if (isLast) onClose?.('complete');
     else setStepIndex((value) => value + 1);
   };
+  const goBack = () => setStepIndex((value) => Math.max(0, value - 1));
 
   return (
     <div className="welcome-tour" role="presentation">
@@ -328,79 +291,31 @@ export default function WelcomeTour({ open, onClose }) {
         aria-labelledby="welcome-tour-title"
         style={{ left: layout.card.left, top: layout.card.top }}
       >
-        <button type="button" className="welcome-tour-close" onClick={() => onClose?.('skip')} aria-label="Close tutorial">
-          <X size={15} />
-        </button>
-
-        <header className="welcome-tour-head">
-          <span className="welcome-tour-badge" aria-hidden="true">
-            {StepIcon ? <StepIcon size={18} /> : null}
-          </span>
-          <div>
-            <span className="welcome-tour-step">{step.eyebrow}</span>
-            <h2 id="welcome-tour-title">{step.title}</h2>
+        {isFirst ? (
+          <div className="welcome-tour-brand" aria-hidden="true">
+            <Logo height={30} variant="mark" />
           </div>
-        </header>
-
-        <p className="welcome-tour-body">{step.body}</p>
-
-        {step.steps && (
-          <ol className="welcome-tour-flow">
-            {step.steps.map((label, index) => (
-              <li key={label}>
-                <b>{index + 1}</b>
-                <span>{label}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        {step.term && (
-          <div className="welcome-tour-note is-term">
-            <BookOpen size={14} aria-hidden="true" />
-            <p><strong>{step.term.name}:</strong> {step.term.meaning}</p>
-          </div>
-        )}
-
-        {step.tip && (
-          <div className="welcome-tour-note is-tip">
-            <Lightbulb size={14} aria-hidden="true" />
-            <p>{step.tip}</p>
-          </div>
-        )}
-
-        <footer className="welcome-tour-actions">
-          <div className="welcome-tour-dots" role="group" aria-label={`Step ${stepIndex + 1} of ${TOUR_STEPS.length}`}>
-            {TOUR_STEPS.map((item, index) => (
-              <button
-                key={item.title}
-                type="button"
-                className={index === stepIndex ? 'is-current' : index < stepIndex ? 'is-done' : ''}
-                onClick={() => setStepIndex(index)}
-                aria-label={`Go to step ${index + 1}: ${item.title}`}
-                aria-current={index === stepIndex ? 'step' : undefined}
-              />
-            ))}
-          </div>
-
-          <div className="welcome-tour-buttons">
-            {isFirst ? (
-              <button type="button" className="welcome-tour-skip" onClick={() => onClose?.('skip')}>Skip</button>
-            ) : (
-              <button
-                type="button"
-                className="welcome-tour-back"
-                onClick={() => setStepIndex((value) => Math.max(0, value - 1))}
-                aria-label="Previous tutorial step"
-              >
-                <ArrowLeft size={14} />
-              </button>
-            )}
-            <button ref={nextRef} type="button" className="welcome-tour-next" onClick={goNext}>
-              <span>{isFirst ? 'Start the tour' : isLast ? 'Start playing' : 'Next'}</span>
-              {isLast ? <Check size={15} /> : <ArrowRight size={15} />}
+        ) : (
+          <div className="welcome-tour-meta">
+            <span className="welcome-tour-step">{stepIndex} of {TOUR_STEPS.length - 1}</span>
+            <button type="button" className="welcome-tour-close" onClick={() => onClose?.('skip')} aria-label="Close tutorial">
+              <X size={14} />
             </button>
           </div>
+        )}
+
+        <h2 id="welcome-tour-title">{step.title}</h2>
+        <p className="welcome-tour-body">{step.body}</p>
+
+        <footer className="welcome-tour-actions">
+          {isFirst ? (
+            <button type="button" className="welcome-tour-skip" onClick={() => onClose?.('skip')}>Skip</button>
+          ) : (
+            <button type="button" className="welcome-tour-back" onClick={goBack}>Back</button>
+          )}
+          <button ref={nextRef} type="button" className="welcome-tour-next" onClick={goNext}>
+            {isFirst ? 'Take the tour' : isLast ? 'Done' : 'Next'}
+          </button>
         </footer>
       </section>
     </div>
