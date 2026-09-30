@@ -338,6 +338,13 @@ export function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+const MOJANG_BANNER = /^https:\/\/launchercontent\.mojang\.com\//;
+
+/** Versions newer than the bundled artwork (26.3, 26.4 ...) use Mojang's own banner. */
+function lacksBundledArt(ver) {
+  return /^26\./.test(ver) && !ver.startsWith('26.1') && !ver.startsWith('26.2');
+}
+
 export function getClusterArt(cluster) {
   if (!cluster) return ART_ASSETS.default;
 
@@ -352,6 +359,11 @@ export function getClusterArt(cluster) {
   // packaged builds pointed at /src/.... Resolve those from the version below.
   // Genuine custom/remote artwork remains supported.
   if (savedArt && !staleBundledArt && !savedArt.includes('540x540') && !savedArt.includes('/v2/images/')) {
+    return cluster.art;
+  }
+
+  const rawVersion = String(cluster.mc_version || cluster.version || '').trim();
+  if (MOJANG_BANNER.test(savedArt) && lacksBundledArt(rawVersion)) {
     return cluster.art;
   }
 

@@ -10,7 +10,7 @@ const PATCH_NOTES_ORIGIN = 'https://launchercontent.mojang.com';
 const PATCH_NOTES_PATH = '/v2/javaPatchNotes.json';
 
 const CACHE_KEY = 'native.patchNotes';
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+const CACHE_TTL = 3 * 60 * 60 * 1000;
 
 let inflight = null;
 let memory = null;

@@ -200,7 +200,7 @@ export default function ClustersView({
       const known = bucket.known || RELEASE_LINES.find((r) => r.id === bucket.id);
       const ids = bucket.versions.map((v) => v.id);
       const banner = bannerFor(banners, ids[0], ids);
-      const highResArt = known?.art || getClusterArt({ version: bucket.id, mc_version: ids[0] });
+      const highResArt = known?.art || banner?.image || getClusterArt({ version: bucket.id, mc_version: ids[0] });
 
       return {
         ...bucket,
@@ -240,6 +240,17 @@ export default function ClustersView({
     if (["1.7", "1.8", "1.9", "1.10", "1.11", "1.12"].includes(lineId)) return "Forge";
     if (lineId === "1.13") return "Vanilla";
     return "Fabric";
+  };
+
+  // Artwork for a card: bundled art for that exact patch, then the official
+  // Mojang banner fetched from the web (newest releases have no bundled art),
+  // then the line's own artwork.
+  const artFor = (line, patch) => {
+    const exact = line.known?.versions?.find((v) => v.version === patch)?.art;
+    if (exact) return exact;
+    const banner = bannerFor(banners, patch, line.versions);
+    if (banner?.image) return banner.image;
+    return getClusterArt({ version: patch, mc_version: patch }) || line.art || ART_ASSETS.default;
   };
 
   // Find all matching instances from instances array
@@ -320,7 +331,7 @@ export default function ClustersView({
       loader,
       description: line.description || "",
       tags: line.tags || [],
-      art: getClusterArt({ version: patch, mc_version: patch }) || line.art
+      art: artFor(line, patch)
     };
 
     setCreatingLineId(line.id);
@@ -370,7 +381,7 @@ export default function ClustersView({
       loader,
       description: line.description || "",
       tags: line.tags || [],
-      art: getClusterArt({ version: patch, mc_version: patch }) || line.art
+      art: artFor(line, patch)
     };
 
     setCreatingLineId(line.id);
@@ -404,7 +415,7 @@ export default function ClustersView({
       loader,
       description: line.description || "",
       tags: line.tags || [],
-      art: getClusterArt({ version: patch, mc_version: patch }) || line.art
+      art: artFor(line, patch)
     };
 
     setCreatingLineId(line.id);
@@ -465,8 +476,7 @@ export default function ClustersView({
               const hasMultiple = matches.length > 1;
               const loaderIcon = getLoaderIcon(loader);
               const isDropdownOpen = openDropdownLine === line.id;
-              const cardArt =
-                getClusterArt({ version: patch, mc_version: patch }) || line.art || ART_ASSETS.default;
+              const cardArt = artFor(line, patch);
 
               const isBusyThisVersion =
                 (Boolean(launcherState?.busy) &&
@@ -550,8 +560,7 @@ export default function ClustersView({
                         onClick={(e) => handleCycleLoader(e, line.id, patch)}
                         title={"Modloader: " + loader + " (Click to switch)"}
                       >
-                        <img src={loaderIcon} alt="" className="version-loader-img" />
-                        <span>{loader}</span>
+                        <img src={loaderIcon} alt={loader} className="version-loader-img" />
                       </button>
                     </div>
 
@@ -591,7 +600,7 @@ export default function ClustersView({
                             <NativeIcon name="refresh" size={12} className="is-spinning" />
                           </span>
                         )}
-                        <span>{isBusyThisVersion ? "Launching" : hasMultiple ? `Launch (${matches.length})` : "Launch"}</span>
+                        <span>{isBusyThisVersion ? "LAUNCHING" : hasMultiple ? `LAUNCH (${matches.length})` : "LAUNCH"}</span>
                       </button>
                     </div>
                   </div>

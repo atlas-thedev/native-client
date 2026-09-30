@@ -14,7 +14,7 @@ const MANIFEST_URLS = [
 const FABRIC_GAME_URL = 'https://meta.fabricmc.net/v2/versions/game';
 
 const CACHE_KEY = 'native.versionManifest';
-const CACHE_TTL = 6 * 60 * 60 * 1000;
+const CACHE_TTL = 60 * 60 * 1000;
 
 export const LOADERS = ['Vanilla', 'Fabric', 'Forge', 'NeoForge', 'Quilt'];
 

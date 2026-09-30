@@ -1,7 +1,6 @@
 /* ============================================================
    Noctra — Versions page
-   Dark art cards on a black page, pill controls, solid colours and
-   theme tokens only. No gradients, no glows.
+   Art cards on a black page with pill controls in the header.
    ============================================================ */
 
 .clusters-view {
@@ -111,8 +110,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 2px 6px 24px 2px;
-  margin: -2px -6px 0 -2px;
+  padding: 4px 6px 16px 4px;
+  margin: -4px -6px 0 -4px;
 }
 
 .clusters-cards-grid {
@@ -120,45 +119,83 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: max-content;
   align-content: start;
-  gap: 14px;
+  gap: 6px 12px;
 }
 
 @media (max-width: 1040px) {
-  .clusters-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clusters-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+  }
 }
 
 @media (max-width: 680px) {
-  .clusters-cards-grid { grid-template-columns: 1fr; }
+  .clusters-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 
 /* ---------- Version Card ---------- */
 
-/* Reset global `.version-card` (defined in HomeView.css for the recents
-   scroller) so the grid can fill columns as 1fr. */
+/* Reset global `.version-card` (defined in HomeView.css for recents scroller)
+   so the clusters grid can fill columns as 1fr, not stay at 232px wide. */
 .clusters-cards-grid .version-card {
   flex: initial;
   width: auto;
 }
 
 .version-card {
-  --vc-footer: 48px;
   position: relative;
-  height: 178px;
-  border-radius: 18px;
-  background: #0a0a0b;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  height: 150px;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--component-bg, #141015);
+  border: 1px solid var(--component-border, rgba(255, 255, 255, 0.08));
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.16s var(--ease);
+  transition: transform 0.22s var(--ease-out),
+              border-color 0.2s var(--ease),
+              box-shadow 0.24s var(--ease);
 }
 
-.version-card:hover { border-color: rgba(255, 255, 255, 0.16); }
+.version-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+              inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  z-index: 6;
+}
 
-.version-card.is-selected { border-color: rgba(255, 255, 255, 0.55); }
+.version-card:hover {
+  border-color: var(--component-border-hover, rgba(255, 255, 255, 0.22));
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
 
-/* Lift the card above its neighbours while the patch menu is open. */
-.version-card:has(.version-patch-chip.is-open) { z-index: 100; }
+/* Lift the card above neighbors while its patch dropdown is open,
+   so the menu can overflow onto the row below without being clipped. */
+.version-card:has(.version-patch-chip.is-open) {
+  z-index: 100;
+}
 
+.version-card.is-selected {
+  border-color: var(--brand);
+  border-width: 1.5px;
+  box-shadow: 0 0 0 1px var(--brand-glow, rgba(160, 81, 162, 0.35)),
+              0 10px 30px rgba(0, 0, 0, 0.6),
+              0 0 28px var(--brand-glow, rgba(160, 81, 162, 0.35));
+  transform: translateY(-2px);
+}
+
+/* Respect [data-glow="off"] from appearance system */
+:root[data-glow="off"] .version-card.is-selected {
+  box-shadow: none;
+}
+
+/* Respect [data-radius="sharp"] from appearance system */
 :root[data-radius="sharp"] .version-card,
 :root[data-radius="sharp"] .version-card-art-wrap,
 :root[data-radius="sharp"] .version-patch-chip,
@@ -173,8 +210,8 @@
 
 .version-card-art-wrap {
   position: absolute;
-  inset: 0 0 var(--vc-footer) 0;
-  border-radius: 17px 17px 0 0;
+  inset: 0;
+  border-radius: calc(var(--radius-lg, 12px) - 1.5px);
   overflow: hidden;
   pointer-events: none;
 }
@@ -183,38 +220,59 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  image-rendering: -webkit-optimize-contrast;
   opacity: 0;
-  transition: filter 0.2s var(--ease), opacity 0.25s var(--ease);
+  transition: filter 0.3s var(--ease), opacity 0.25s var(--ease);
 }
-.version-card-art.is-ready { opacity: 1; }
 
-.version-card .version-card-art { filter: brightness(0.5); }
-.version-card:hover .version-card-art { filter: brightness(0.66); }
-.version-card.is-selected .version-card-art { filter: brightness(0.82); }
+.version-card-art.is-ready {
+  opacity: 1;
+}
 
-/* Flat dim so the numeral reads on any artwork. */
+.version-card.is-selected .version-card-art {
+  filter: brightness(0.85) contrast(1.08);
+}
+
+.version-card:not(.is-selected) .version-card-art {
+  filter: brightness(0.42) contrast(1.02);
+}
+
+.version-card:not(.is-selected):hover .version-card-art {
+  filter: brightness(0.65) contrast(1.05);
+}
+
 .version-card-scrim {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.1) 34%,
+    rgba(0, 0, 0, 0.22) 62%,
+    rgba(0, 0, 0, 0.92) 100%
+  );
+  pointer-events: none;
 }
 
 /* ---------- Centered Version Numeral ---------- */
 
 .version-card-center-numeral {
   position: absolute;
-  inset: 0 0 var(--vc-footer) 0;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  padding: 0 24px;
+  padding: 0 46px 6px 46px;
   font-family: "Poppins", var(--font-sans);
   font-size: clamp(48px, 5.4vw, 62px);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #ffffff;
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.92),
+               0 1px 3px rgba(0, 0, 0, 0.6);
   z-index: 5;
+  transform: translateY(-4px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -224,175 +282,242 @@
   font-size: clamp(24px, 2.6vw, 30px);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  padding: 0 20px 6px 20px;
 }
 
-/* ---------- Patch pill + menu ---------- */
+/* ---------- Top-Left Patch Dropdown Pill ---------- */
 
 .version-patch-dropdown-container {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 10px;
+  left: 10px;
   z-index: 25;
 }
 
 .version-patch-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 10px 0 12px;
-  border-radius: 999px;
-  background: #000;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px 0 9px;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #fff;
+  color: #ffffff;
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: border-color 0.14s var(--ease);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
+
 .version-patch-chip:hover,
-.version-patch-chip.is-open { border-color: rgba(255, 255, 255, 0.34); }
+.version-patch-chip.is-open {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.version-patch-chevron {
+  transition: transform 0.2s var(--ease);
+}
+
+/* ---------- Patch Menu Popover ---------- */
 
 .version-patch-menu {
   position: absolute;
-  top: 32px;
+  top: 29px;
   left: 0;
-  min-width: 148px;
-  max-height: 216px;
+  width: 76px;
+  min-width: 76px;
+  max-height: 124px;
   overflow-y: auto;
-  padding: 5px;
+  background: rgba(12, 11, 15, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85);
+  padding: 3px 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  background: #0a0a0b;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
   z-index: 50;
 }
-.version-patch-menu.is-up { top: auto; bottom: 32px; }
 
 .version-patch-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 9px;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 8px;
+  border: none;
   background: none;
+  width: 100%;
   font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--fg-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-secondary, rgba(255, 255, 255, 0.7));
   cursor: pointer;
   text-align: left;
-}
-.version-patch-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
-.version-patch-item.is-active { color: #fff; font-weight: 600; }
-.version-patch-name { flex: 1; }
-.version-patch-item > svg { flex: none; color: #fff; }
-
-.version-patch-tag {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--fg-muted);
+  transition: background 0.12s, color 0.12s;
 }
 
-.version-patch-menu::-webkit-scrollbar { width: 4px; }
-.version-patch-menu::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 999px; }
+.version-patch-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
 
-/* ---------- Footer bar ---------- */
+.version-patch-item.is-active {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.version-patch-menu::-webkit-scrollbar {
+  width: 4px;
+}
+.version-patch-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full, 9999px);
+}
+
+/* ---------- Bottom Action Footer ---------- */
 
 .version-card-footer {
   position: absolute;
+  bottom: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: var(--vc-footer);
+  height: 40px;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 12px;
-  background: #0a0a0b;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 0 0 17px 17px;
+  padding: 0 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 42%,
+    rgba(0, 0, 0, 0.92) 100%
+  );
 }
 
-.version-footer-left { display: flex; align-items: center; }
+.version-footer-left {
+  display: flex;
+  align-items: center;
+}
 
 .version-loader-btn {
-  height: 28px;
-  padding: 0 12px 0 9px;
-  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.version-loader-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+}
+
+.version-loader-img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.version-footer-right {
+  display: flex;
   align-items: center;
   gap: 7px;
-  border-radius: 999px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--fg-secondary);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color 0.14s var(--ease), color 0.14s var(--ease);
 }
-.version-loader-btn:hover { border-color: rgba(255, 255, 255, 0.24); color: #fff; }
-
-.version-loader-img { width: 14px; height: 14px; object-fit: contain; border-radius: 3px; }
-
-.version-footer-right { display: flex; align-items: center; gap: 6px; }
 
 .version-gear-btn {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: 50%;
-  background: transparent;
-  border: 0;
-  color: var(--fg-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+  padding: 0;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
 }
-.version-gear-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+.version-gear-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px) rotate(18deg);
+}
 
 .version-launch-btn {
-  height: 30px;
-  padding: 0 16px;
-  border-radius: 999px;
+  height: 26px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm, 6px);
+  font-family: "Poppins", var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.14s var(--ease), border-color 0.14s var(--ease), color 0.14s var(--ease), filter 0.14s var(--ease);
+  transition: background 0.16s var(--ease-out), border-color 0.16s var(--ease-out), color 0.16s var(--ease-out), transform 0.16s var(--ease-out), filter 0.16s var(--ease-out);
 }
 
-/* Selected card gets the solid white action; the rest stay outlined. */
+/* Active / selected card: solid launcher action, without a colour gradient. */
 .version-card.is-selected .version-launch-btn {
-  background: #fff;
-  border: 1px solid #fff;
-  color: #000;
+  background: var(--brand);
+  box-shadow: 0 4px 14px var(--launch-shadow, rgba(58, 168, 159, 0.5));
+  color: var(--fg-on-brand, #ffffff);
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
-.version-card.is-selected .version-launch-btn:hover { filter: brightness(0.9); }
 
+.version-card.is-selected .version-launch-btn:hover {
+  background: var(--brand-hover);
+  filter: none;
+  transform: translateY(-1px);
+}
+
+.version-launch-icon {
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+}
+
+/* Inactive cards: subtle ghost button */
 .version-card:not(.is-selected) .version-launch-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: var(--fg-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.78);
 }
-.version-card:not(.is-selected) .version-launch-btn:hover { background: rgba(255, 255, 255, 0.08); }
 
-.version-launch-icon { width: 12px; height: 12px; display: grid; place-items: center; }
-.version-launch-btn.is-busy { cursor: progress; opacity: 0.9; }
+.version-card:not(.is-selected) .version-launch-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.version-launch-btn.is-busy {
+  cursor: progress;
+  opacity: 0.9;
+}
 
 /* ---------- Smooth Themed Scrollbar ---------- */
 
@@ -446,3 +571,20 @@
     animation: none;
   }
 }
+
+/* ---------- Patch menu additions ---------- */
+
+.version-patch-menu {
+  width: auto;
+  min-width: 112px;
+}
+.version-patch-menu.is-up { top: auto; bottom: 29px; }
+.version-patch-name { flex: 1; }
+.version-patch-tag {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-muted, rgba(255, 255, 255, 0.5));
+}
+.version-patch-item.is-active { color: #ffffff; }
+.version-patch-item > svg { flex: none; color: #ffffff; }
