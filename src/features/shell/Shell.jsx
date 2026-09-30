@@ -19,6 +19,8 @@ import CreateInstanceModal from '../instances/CreateInstanceModal.jsx';
 import useLauncher from '../launcher/useLauncher.js';
 import useInstances from '../instances/useInstances.js';
 import usePlaytimeTracker from '../instances/usePlaytimeTracker.js';
+import CrashReportModal from '../crash/CrashReportModal.jsx';
+import useCrashReports from '../crash/useCrashReports.js';
 import NoctraAccountGate from '../../components/ui/NoctraAccountGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
 import WelcomeTour from './WelcomeTour.jsx';
@@ -118,6 +120,9 @@ export default function Shell({
   const launcher = useLauncher();
   usePlaytimeTracker(instancesManager.recordSession, { launcherState: launcher });
   const social = useSocial(isNoctra ? account : null);
+  const crash = useCrashReports();
+  const instancesRef = useRef(instancesManager.instances);
+  instancesRef.current = instancesManager.instances;
 
   useEffect(() => {
     if (!hasValidAccount || accountSwitcherOpen || settingsOpen || notificationsOpen || createInstanceOpen || instanceManagerOpen) return undefined;
@@ -272,6 +277,53 @@ export default function Shell({
             version: `${cluster.mc_version || cluster.version} ${cluster.mc_loader || cluster.loader}`
           })
     );
+  };
+
+  /* Crash-report fixes that change the instance itself (memory, Java, JVM args, loader). */
+  const applyCrashInstanceFix = async (record, fix) => {
+    const target = instancesRef.current.find((item) => item.id === record?.instance?.id);
+    if (!target) return { ok: false, message: 'That instance no longer exists.' };
+    const ov = target.overrides || {};
+    const save = async (patch) => {
+      await instancesManager.saveOverrides(target.id, { overrides: { ...ov, ...patch } });
+    };
+    switch (fix.kind) {
+      case 'memory': {
+        const max = Number(fix.maxGb);
+        const min = Math.min(Number(ov.memory?.min) || 1, max);
+        await save({ memory: { ...(ov.memory || {}), enabled: true, min, max } });
+        return { ok: true, message: `This instance now gets ${max} GB` };
+      }
+      case 'java-auto':
+        await save({ java: { enabled: false, path: '' } });
+        return { ok: true, message: 'Noctra picks the right Java on the next launch' };
+      case 'jvm-reset':
+        await save({ jvmArgs: '' });
+        return { ok: true, message: 'Custom JVM arguments removed' };
+      case 'jvm-add': {
+        const current = String(ov.jvmArgs || '').trim();
+        const next = current.split(/\s+/).includes(fix.args) ? current : `${current} ${fix.args}`.trim();
+        await save({ jvmArgs: next, jvmEnabled: true });
+        return { ok: true, message: `Added ${fix.args}` };
+      }
+      case 'loader-latest':
+        instancesManager.update(target.id, { loaderVersion: '', mc_loader_version: '' });
+        return { ok: true, message: `The newest ${target.loader || 'loader'} version is used on the next launch` };
+      case 'patch':
+        await save({ ...fix.patch, jvmEnabled: fix.patch?.java?.enabled ? true : ov.jvmEnabled });
+        return { ok: true };
+      default:
+        return { ok: false, message: 'Unknown fix' };
+    }
+  };
+
+  const relaunchAfterCrash = (record) => {
+    crash.close();
+    // Let the override save settle so the launch reads the fixed instance.
+    window.setTimeout(() => {
+      const target = instancesRef.current.find((item) => item.id === record?.instance?.id);
+      if (target) handleLaunch(target);
+    }, 60);
   };
 
   /* Accepts a friend object or a raw server address. */
@@ -524,6 +576,7 @@ export default function Shell({
             onKill={launcher.kill}
             launcherState={launcher}
             onUpdateCluster={instancesManager.saveOverrides}
+            onAnalyzeCrash={crash.analyzeInstance}
             onNavigateBrowse={handleNavigateBrowse}
             social={social}
             account={account}
@@ -536,6 +589,17 @@ export default function Shell({
         onClose={() => setNotificationsOpen(false)}
         notifications={notifications}
         onClear={() => setNotifications([])}
+      />
+
+      <CrashReportModal
+        open={crash.open}
+        analyzing={crash.analyzing}
+        record={crash.record}
+        error={crash.error}
+        onClose={crash.close}
+        onOpenReport={crash.openReport}
+        onApplyInstanceFix={applyCrashInstanceFix}
+        onRelaunch={relaunchAfterCrash}
       />
 
       <SettingsModal

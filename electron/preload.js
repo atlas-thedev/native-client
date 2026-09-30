@@ -99,6 +99,20 @@ const api = {
     onProgress: (callback) => subscribe('launcher:progress', callback),
     onLog: (callback) => subscribe('launcher:log', callback)
   },
+
+  crash: {
+    list: (instanceId) => ipcRenderer.invoke('crash:list', instanceId),
+    get: (id) => ipcRenderer.invoke('crash:get', id),
+    log: (id) => ipcRenderer.invoke('crash:log', id),
+    applyFix: (id, fix) => ipcRenderer.invoke('crash:applyFix', id, fix),
+    share: (id) => ipcRenderer.invoke('crash:share', id),
+    text: (id) => ipcRenderer.invoke('crash:text', id),
+    open: (id, target) => ipcRenderer.invoke('crash:open', id, target),
+    remove: (id) => ipcRenderer.invoke('crash:delete', id),
+    analyzeInstance: (instance) => ipcRenderer.invoke('crash:analyzeInstance', instance),
+    onAnalyzing: (callback) => subscribe('crash:analyzing', callback),
+    onDetected: (callback) => subscribe('crash:detected', callback)
+  },
   updater: {
     status: () => ipcRenderer.invoke('updater:status'),
     check: () => ipcRenderer.invoke('updater:check'),

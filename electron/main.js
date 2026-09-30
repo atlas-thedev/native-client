@@ -16,6 +16,7 @@ const socialMod = require('./social');
 const relayMod = require('./relay');
 const adminMod = require('./admin');
 const discordRpcMod = require('./discordRpc');
+const crashReporterMod = require('./crashReporter');
 
 let win;
 const appIcon = path.join(__dirname, '..', 'src', 'assets', 'noctra-icon.png');
@@ -154,6 +155,7 @@ ipcMain.handle('app:showNotification', (_event, payload = {}) => {
 });
 
 gameLauncher.init({ app, getWin: () => win }, ipcMain);
+crashReporterMod.init({ app, getWin: () => win }, ipcMain);
 mods.init({ app, getWin: () => win }, ipcMain);
 authMod.init({ app, getWin: () => win }, ipcMain);
 settingsMod.init({ app }, ipcMain);

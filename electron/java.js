@@ -220,4 +220,11 @@ function init(dependencies, ipcMain) {
   });
 }
 
-module.exports = { init, ensureJava, SLOTS };
+/** A managed runtime for `major`: reuses an existing download, otherwise fetches Temurin. */
+async function runtimeFor(major, onProgress) {
+  const existing = findJavaBinary(path.join(runtimesDir(), String(major)));
+  if (existing) return existing;
+  return downloadRuntime(major, onProgress);
+}
+
+module.exports = { init, ensureJava, runtimeFor, SLOTS };

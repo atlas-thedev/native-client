@@ -33,6 +33,7 @@ export default function ClusterDetailView({
   social,
   account,
   onNavigateBrowse,
+  onAnalyzeCrash,
   initialTab = 'overview'
 }) {
   const loader = cluster.mc_loader || cluster.loader || 'Vanilla';
@@ -282,6 +283,16 @@ export default function ClusterDetailView({
               <NativeIcon name="sliders" size={16} className="im-nav-icon" />
               <span className="im-nav-text">Advanced</span>
             </button>
+            {onAnalyzeCrash && (
+              <button
+                className="im-nav im-nav-crash"
+                onClick={() => onAnalyzeCrash(cluster)}
+                title="Diagnose the last crash of this instance"
+              >
+                <NativeIcon name="bug" size={16} className="im-nav-icon" />
+                <span className="im-nav-text">Crash analyzer</span>
+              </button>
+            )}
           </div>
         </aside>
 

@@ -12,6 +12,7 @@ const wardrobeMod = require('./wardrobe');
 const socialMod = require('./social');
 const discordRpcMod = require('./discordRpc');
 const playHistory = require('./playHistory');
+const crashReporter = require('./crashReporter');
 
 /**
  * Game launch pipeline (main process).
@@ -628,6 +629,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     rememberInstall(instance, opts);
     activeChild = child;
     activeInstance = instance;
+    crashReporter.beginSession({ instance, memoryMaxGb: Number(memory.max) || 4, javaPath });
     setState('launching', 'Starting Minecraft…');
     socialMod.setPresence({
       status: 'in-game',
@@ -651,6 +653,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     let outputTail = '';
     const captureOutput = (data) => {
       outputTail = `${outputTail}${String(data)}`.slice(-12000);
+      crashReporter.capture(data);
     };
     const markRunning = () => {
       if (!sawOutput) {
@@ -685,8 +688,9 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
       discordRpcMod.clearGameActivity();
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       clearTimeout(runningFallback);
+      crashReporter.endSession(code, signal).catch(() => {});
       activeChild = null;
       activeInstance = null;
       socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
@@ -697,7 +701,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         } else if (outputTail.includes('org/spongepowered/asm/launch/MixinBootstrap')) {
           setState('error', 'Fabric Mixin failed to load after repair. Check the logs and try launching again.');
         } else {
-          setState('error', `Minecraft exited with code ${code}. Check the logs for the cause.`);
+          setState('error', `Minecraft crashed (exit code ${code}). Analyzing the crash\u2026`);
         }
       }
       const win = deps.getWin();
@@ -855,6 +859,7 @@ function init(dependencies, ipcMain) {
   });
 
   ipcMain.on('launcher:kill', () => {
+    crashReporter.markKilled();
     if (activeChild) {
       activeChild.kill();
       activeChild = null;
