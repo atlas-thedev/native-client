@@ -37,6 +37,11 @@ const api = {
     getPremiumLink:       (id)      => ipcRenderer.invoke('accounts:getPremiumLink', id),
     linkPremium:          (payload) => ipcRenderer.invoke('accounts:linkPremium', payload),
     unlinkPremium:        (id)      => ipcRenderer.invoke('accounts:unlinkPremium', id),
+    // Premium ↔ Noctra: a connected Microsoft account signs into Noctra on its own.
+    premiumStatus:        (id)      => ipcRenderer.invoke('accounts:premiumStatus', id),
+    ensureNoctra:         (id, options) => ipcRenderer.invoke('accounts:ensureNoctra', id, options || {}),
+    connectNoctra:        (payload) => ipcRenderer.invoke('accounts:connectNoctra', payload),
+    disconnectNoctra:     (id)      => ipcRenderer.invoke('accounts:disconnectNoctra', id),
     setActive:            (id)      => ipcRenderer.invoke('accounts:setActive', id),
     remove:               (id)      => ipcRenderer.invoke('accounts:remove', id),
     getAvatar:            (uuid)    => ipcRenderer.invoke('accounts:getAvatar', uuid)

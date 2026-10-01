@@ -27,7 +27,7 @@ const legacyPath  = (dir = userDataDir()) => path.join(dir, 'account.json');
 
 // Secrets at rest: Microsoft refresh data and Noctra session tokens are
 // encrypted with the OS keychain (safeStorage) whenever it is available.
-const SECRET_FIELDS = ['token', 'sessionToken'];
+const SECRET_FIELDS = ['token', 'sessionToken', 'noctraToken'];
 
 /** `dir` lets other main-process modules read accounts before auth.init(). */
 function readAccounts(dir) {
@@ -207,8 +207,17 @@ async function performMicrosoftLogin() {
 
   const data = readAccounts();
   // Replace if same uuid already exists (re-auth)
+  const previous = data.accounts.find(a => a.id === id);
   data.accounts = data.accounts.filter(a => a.id !== id);
-  data.accounts.push({ id, name: profile.name, uuid: profile.uuid, type: 'microsoft', refresh: xbox.save() });
+  data.accounts.push({
+    id,
+    name: profile.name,
+    uuid: profile.uuid,
+    type: 'microsoft',
+    refresh: xbox.save(),
+    // Re-signing into Microsoft keeps the connected Noctra account.
+    ...(previous?.noctraToken ? { noctraToken: previous.noctraToken, noctraLink: previous.noctraLink } : {})
+  });
   data.activeId = id;
   saveAccounts(data);
 
@@ -324,6 +333,221 @@ function apiRoots() {
   return require('./social').API_ROOTS;
 }
 
+// ── Premium ↔ Noctra connection ───────────────────────────────────────────
+// A Microsoft account can carry a Noctra session (`noctraToken`, encrypted at
+// rest) for the Noctra account it is connected to. While that premium account
+// is active, Relay, friends and every other Noctra feature use that session,
+// so the player never has to switch accounts. The server only hands such a
+// session out to someone who proves they own the premium account (a live
+// Minecraft access token), so connecting once works on every device.
+
+const NOT_LINKED_RECHECK_MS = 6 * 60 * 60 * 1000;
+
+const cleanUuid = (value) => String(value || '').replace(/-/g, '').toLowerCase();
+
+async function apiRequest(endpoint, { method = 'POST', body, token } = {}) {
+  let last = { status: 0, data: { ok: false, error: 'Could not connect to Noctra. Check your connection and try again.' } };
+  for (const root of apiRoots()) {
+    try {
+      const response = await fetch(`${root}${endpoint}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(20_000)
+      });
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : {}; } catch { data = null; }
+      last = { status: response.status, data: data || { ok: false, error: `Noctra returned HTTP ${response.status}.` } };
+      if (response.status < 500) return last;
+    } catch { /* try the next configured root */ }
+  }
+  return last;
+}
+
+/** What the renderer may know about a connection (never the token). */
+function publicLink(account) {
+  if (!account || account.type !== 'microsoft' || !account.noctraToken || !account.noctraLink?.userId) return null;
+  const { userId, name, email, uuid, model, linkedAt } = account.noctraLink;
+  return { connected: true, userId, name, email: email || null, uuid: uuid || null, model: model || 'classic', linkedAt: linkedAt || null };
+}
+
+/** The Noctra identity a connected premium account acts as. */
+function linkedIdentity(account) {
+  const link = publicLink(account);
+  if (!link) return null;
+  return {
+    id: link.userId,
+    name: link.name,
+    email: link.email,
+    uuid: link.uuid,
+    model: link.model,
+    type: 'noctra',
+    token: account.noctraToken,
+    linkedFrom: account.id
+  };
+}
+
+function updateMicrosoftAccount(microsoftId, patch) {
+  const data = readAccounts();
+  const index = data.accounts.findIndex((a) => a.id === microsoftId && a.type === 'microsoft');
+  if (index < 0) return null;
+  const next = { ...data.accounts[index], ...patch };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) delete next[key];
+  }
+  data.accounts[index] = next;
+  saveAccounts(data);
+  return next;
+}
+
+function storeLink(microsoftId, noctraAccount, token) {
+  const updated = updateMicrosoftAccount(microsoftId, {
+    noctraToken: token,
+    noctraLink: {
+      userId: noctraAccount.id,
+      name: noctraAccount.name,
+      email: noctraAccount.email || null,
+      uuid: noctraAccount.uuid || null,
+      model: noctraAccount.model || 'classic',
+      linkedAt: Date.now()
+    },
+    noctraNotLinkedAt: undefined
+  });
+  return publicLink(updated);
+}
+
+function clearLink(microsoftId, { notLinked = false } = {}) {
+  updateMicrosoftAccount(microsoftId, {
+    noctraToken: undefined,
+    noctraLink: undefined,
+    noctraNotLinkedAt: notLinked ? Date.now() : undefined
+  });
+}
+
+/** Sign into the Noctra account connected to this premium account. */
+async function premiumSignIn(microsoftId) {
+  let minecraftAccessToken = await getMinecraftAccessToken(microsoftId);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!minecraftAccessToken) {
+      minecraftAccessToken = await getMinecraftAccessToken(microsoftId, { forceRefresh: true });
+    }
+    if (!minecraftAccessToken) {
+      return { ok: false, code: 'microsoft_expired', error: 'Your Microsoft sign-in expired. Sign in with Microsoft again.' };
+    }
+    const { status, data } = await apiRequest('/v1/auth/minecraft', { body: { minecraftAccessToken } });
+    if (data?.ok && data.token && data.account) {
+      return { ok: true, link: storeLink(microsoftId, data.account, data.token) };
+    }
+    if (status === 404 && data?.code === 'not_linked') {
+      clearLink(microsoftId, { notLinked: true });
+      return { ok: false, code: 'not_linked', error: data.error };
+    }
+    if (status === 401 && attempt === 0) {
+      // A cached Minecraft token can expire early; refresh it once.
+      minecraftAccessToken = null;
+      continue;
+    }
+    return { ok: false, code: status === 0 ? 'offline' : 'error', error: data?.error || 'Could not connect to Noctra.' };
+  }
+  return { ok: false, code: 'error', error: 'Could not connect to Noctra.' };
+}
+
+/**
+ * Makes sure a premium account is signed into its connected Noctra account:
+ * keeps a working session, renews an expired one, and picks up a connection
+ * made on another device. `force` skips the "not connected" back-off.
+ */
+async function ensurePremiumLink(microsoftId, { force = false } = {}) {
+  const account = readAccounts().accounts.find((a) => a.id === microsoftId);
+  if (!account || account.type !== 'microsoft') return { ok: false, code: 'not_microsoft' };
+
+  if (account.noctraToken) {
+    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: account.noctraToken });
+    if (status === 0 || status >= 500) {
+      // Offline: keep the saved connection, it is checked again later.
+      return { ok: true, link: publicLink(account), offline: true };
+    }
+    if (status === 200 && data?.ok) {
+      if (data.profile?.uuid && cleanUuid(data.profile.uuid) === cleanUuid(account.uuid)) {
+        return { ok: true, link: publicLink(account) };
+      }
+      // Disconnected (or moved) on another device.
+      clearLink(microsoftId);
+    } else {
+      clearLink(microsoftId);
+    }
+    return premiumSignIn(microsoftId);
+  }
+
+  if (!force && account.noctraNotLinkedAt && Date.now() - account.noctraNotLinkedAt < NOT_LINKED_RECHECK_MS) {
+    return { ok: false, code: 'not_linked' };
+  }
+  return premiumSignIn(microsoftId);
+}
+
+/** Connect a premium account to a Noctra account (saved, or by password). */
+async function connectNoctra({ microsoftAccountId, noctraAccountId, login, password } = {}) {
+  const accounts = readAccounts().accounts;
+  const microsoftAccount = accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
+  if (!microsoftAccount) return { ok: false, error: 'Choose a Microsoft account to connect.' };
+
+  let noctraToken = null;
+  let noctraAccount = null;
+  let ownSession = false;
+  if (noctraAccountId) {
+    const saved = accounts.find((a) => a.id === noctraAccountId && a.type === 'noctra');
+    noctraToken = saved?.token || saved?.sessionToken || null;
+    noctraAccount = saved || null;
+    if (!noctraToken) return { ok: false, error: 'Sign in to that Noctra account again, then connect.' };
+  } else {
+    if (!String(login || '').trim() || !password) {
+      return { ok: false, error: 'Enter your Noctra username or email and password.' };
+    }
+    const { data } = await apiRequest('/v1/auth/login', { body: { login: String(login).trim(), password: String(password) } });
+    if (!data?.ok || !data.token || !data.account) return { ok: false, error: data?.error || 'Could not sign in to Noctra.' };
+    noctraToken = data.token;
+    noctraAccount = data.account;
+    ownSession = true;
+  }
+
+  const minecraftAccessToken = await getMinecraftAccessToken(microsoftAccountId, { forceRefresh: true });
+  if (!minecraftAccessToken) {
+    return { ok: false, error: 'Your Microsoft sign-in expired. Sign in with Microsoft again to prove you own Minecraft.' };
+  }
+  const { data: linked } = await apiRequest('/v1/account/minecraft', {
+    method: 'POST',
+    token: noctraToken,
+    body: { minecraftAccessToken }
+  });
+  if (!linked?.ok) return { ok: false, error: linked?.error || 'Could not connect the accounts.' };
+
+  if (ownSession) {
+    return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
+  }
+  // A saved Noctra account: give the premium account its own session so
+  // signing out of one never signs out the other.
+  const signedIn = await premiumSignIn(microsoftAccountId);
+  if (signedIn.ok) return { ...signedIn, profile: linked.profile };
+  return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
+}
+
+async function disconnectNoctra(microsoftAccountId) {
+  const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
+  if (!account) return { ok: false, error: 'Microsoft account not found.' };
+  if (account.noctraToken) {
+    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'DELETE', token: account.noctraToken });
+    if (status === 0 || status >= 500) {
+      return { ok: false, error: data?.error || 'Could not reach Noctra. Try again when you are online.' };
+    }
+  }
+  clearLink(microsoftAccountId, { notLinked: true });
+  return { ok: true, link: null };
+}
+
 function init(dependencies, ipcMain) {
   deps = dependencies;
 
@@ -342,7 +566,9 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('auth:login', async () => {
     try {
       const profile = await loginMicrosoft();
-      return { ok: true, profile };
+      // Premium accounts connected to Noctra (on any device) sign in automatically.
+      const link = await ensurePremiumLink(profile.id, { force: true }).catch(() => null);
+      return { ok: true, profile, link: link?.ok ? link.link : null };
     } catch (err) {
       return { ok: false, error: String(err?.message ?? err) };
     }
@@ -373,7 +599,9 @@ function init(dependencies, ipcMain) {
     return {
       activeId,
       // never send refresh tokens to the renderer
-      accounts: accounts.map(({ refresh: _r, ...rest }) => rest)
+      accounts: accounts.map(({ refresh: _r, noctraToken: _n, noctraNotLinkedAt: _l, noctraLink: _k, ...rest }, index) => (
+        rest.type === 'microsoft' ? { ...rest, noctraLink: publicLink(accounts[index]) } : rest
+      ))
     };
   });
 
@@ -542,6 +770,15 @@ function generateOfflinePlayerUuid(username) {
     return noctraAccountFetch(noctraAccount, '/v1/account/minecraft', { method: 'DELETE' });
   });
 
+  ipcMain.handle('accounts:premiumStatus', async (_event, microsoftAccountId) => {
+    const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
+    return { ok: Boolean(account), link: publicLink(account) };
+  });
+  ipcMain.handle('accounts:ensureNoctra', async (_event, microsoftAccountId, options = {}) =>
+    ensurePremiumLink(microsoftAccountId, { force: Boolean(options?.force) }));
+  ipcMain.handle('accounts:connectNoctra', async (_event, payload = {}) => connectNoctra(payload));
+  ipcMain.handle('accounts:disconnectNoctra', async (_event, microsoftAccountId) => disconnectNoctra(microsoftAccountId));
+
   ipcMain.handle('accounts:getAvatar', async (_event, uuid) => {
     const avatarUuid = uuid || 'MHF_Steve';
     const avatarsDir = path.join(deps.app.getPath('userData'), 'avatars');
@@ -591,6 +828,12 @@ function generateOfflinePlayerUuid(username) {
 
 module.exports = {
   readAccounts,
+  linkedIdentity,
+  publicLink,
+  ensurePremiumLink,
+  connectNoctra,
+  disconnectNoctra,
+  premiumSignIn,
   init,
   getMclcAuth,
   getMinecraftAccessToken,

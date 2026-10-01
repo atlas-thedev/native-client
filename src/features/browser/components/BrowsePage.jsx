@@ -138,7 +138,8 @@ export default function BrowsePage({
     if (initialIntent.query) {
       setQueryImmediate(initialIntent.query);
     }
-    setSelectedProject(null);
+    // Quick search can open a project straight away.
+    setSelectedProject(initialIntent.project && typeof initialIntent.project === 'object' ? initialIntent.project : null);
   }, [initialIntent?.nonce, availableContentTypes, setQueryImmediate]);
 
   const handleContentTypeChange = (type) => {

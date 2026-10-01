@@ -166,6 +166,13 @@ Object.assign(es, {
   'settings.gameSettings':'AJUSTES GLOBALES DEL JUEGO','settings.javaAuto':'Java detectado automáticamente','account.pose.walk':'Caminar','account.pose.run':'Correr','account.pose.idle':'Quieto','account.pose.fly':'Volar','account.noAccount':'Aún no hay cuenta','account.signedOut':'Sesión cerrada','account.offlineLong':'Cuenta sin conexión','account.microsoftLong':'Cuenta de Microsoft','account.addToPlay':'Añade una cuenta para jugar','account.pause':'Pausar','account.rotate':'Girar','account.yours':'Tus cuentas','account.count':'{count} cuentas','account.emptyLong':'Inicia sesión con Microsoft para jugar en línea o crea un perfil sin conexión para mundos individuales y LAN.','account.active':'Activa','account.removeNamed':'Quitar {name}','storage.versionManifest':'Manifiesto de versiones','storage.versionArtwork':'Imágenes de versiones','storage.instanceLibrary':'Biblioteca de instancias','storage.preferences':'Preferencias'
 });
 
+Object.assign(en, { 'nav.guides': 'How to', 'nav.search': 'Search', 'nav.searchHint': 'Search anything…' });
+Object.assign(es, { 'nav.guides': 'Guías', 'nav.search': 'Buscar', 'nav.searchHint': 'Busca lo que sea…' });
+Object.assign(de, { 'nav.guides': 'Anleitungen', 'nav.search': 'Suchen', 'nav.searchHint': 'Alles durchsuchen…' });
+Object.assign(fr, { 'nav.guides': 'Guides', 'nav.search': 'Rechercher', 'nav.searchHint': 'Rechercher…' });
+Object.assign(ptBR, { 'nav.guides': 'Guias', 'nav.search': 'Pesquisar', 'nav.searchHint': 'Pesquise qualquer coisa…' });
+Object.assign(tr, { 'nav.guides': 'Rehberler', 'nav.search': 'Ara', 'nav.searchHint': 'Her şeyi ara…' });
+
 export const CATALOGS = {
   en: { ...en, 'storage.empty': 'No instances yet, so nothing is using disk space.', 'changelog.beta': 'Beta', ...FEATURE_CATALOGS.en },
   es: { ...en, ...FEATURE_CATALOGS.en, ...es, 'appearance.accent': 'Color de acento', 'changelog.beta': 'Beta', ...FEATURE_CATALOGS.es },

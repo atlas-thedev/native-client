@@ -196,6 +196,19 @@ function linkMinecraftAccount(db, userId, { uuid, name }) {
   return { uuid: cleanUuid, name: cleanName, linkedAt };
 }
 
+function getUserByMinecraftUuid(db, uuid) {
+  const cleanUuid = String(uuid || '').replace(/-/g, '').toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(cleanUuid)) return null;
+  return db.prepare('SELECT * FROM users WHERE minecraft_uuid = ?').get(cleanUuid) || null;
+}
+
+/** Keeps the stored premium name current (players can rename on minecraft.net). */
+function refreshMinecraftName(db, userId, name) {
+  const cleanName = String(name || '').trim();
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(cleanName)) return;
+  db.prepare('UPDATE users SET minecraft_username = ? WHERE id = ? AND minecraft_username IS NOT ?').run(cleanName, userId, cleanName);
+}
+
 function unlinkMinecraftAccount(db, userId) {
   db.prepare(`
     UPDATE users
@@ -231,5 +244,7 @@ module.exports = {
   getMinecraftLink,
   linkMinecraftAccount,
   unlinkMinecraftAccount,
+  getUserByMinecraftUuid,
+  refreshMinecraftName,
   deleteSession
 };

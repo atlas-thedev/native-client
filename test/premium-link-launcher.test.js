@@ -1,0 +1,132 @@
+'use strict';
+/**
+ * Launcher side of "premium ↔ Noctra": drives the real IPC handlers in
+ * electron/auth.js + electron/social.js against the real backend, with
+ * Microsoft (msmc) and Minecraft Services replaced by local fakes.
+ */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
+const Module = require('node:module');
+
+const MC_TOKEN = 'mc_access_'.padEnd(64, 'z');
+const PROFILE = { id: '7d3f0a4c9b1e4c2a8f6e5d4c3b2a1908', name: 'PremiumPlayer' };
+
+const mojang = http.createServer((req, res) => {
+  const ok = String(req.headers.authorization || '') === `Bearer ${MC_TOKEN}`;
+  res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(ok ? PROFILE : { error: 'UNAUTHORIZED' }));
+});
+
+// Fake msmc: refreshing the saved Microsoft session yields a Minecraft token.
+const fakeMc = { profile: { id: PROFILE.id, name: PROFILE.name }, mclc: () => ({ access_token: MC_TOKEN }), validate: () => true };
+const originalLoad = Module._load;
+Module._load = function load(request, ...rest) {
+  if (request === 'msmc') {
+    return { Auth: class { async refresh() { return { getMinecraft: async () => fakeMc, save: () => 'refresh-blob' }; } } };
+  }
+  return originalLoad.call(this, request, ...rest);
+};
+
+const serverData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-premium-srv-'));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-premium-ud-'));
+process.env.NOCTRA_DATA_DIR = serverData;
+process.env.NOCTRA_TEST_USER_DATA = userData;
+
+const stub = require('./electron-stub.js');
+const handlers = new Map();
+stub.ipcMain.handle = (channel, fn) => handlers.set(channel, fn);
+const invoke = (channel, ...args) => handlers.get(channel)({}, ...args);
+const accountsFile = path.join(userData, 'accounts.json');
+const writeAccounts = (data) => fs.writeFileSync(accountsFile, JSON.stringify(data));
+const readAccountsFile = () => JSON.parse(fs.readFileSync(accountsFile, 'utf8'));
+
+let server;
+let db;
+let auth;
+let social;
+
+test.before(async () => {
+  await new Promise((resolve) => mojang.listen(0, '127.0.0.1', resolve));
+  process.env.NOCTRA_MC_PROFILE_URL = `http://127.0.0.1:${mojang.address().port}/minecraft/profile`;
+  db = require('../server/db');
+  server = await require('../server/server').listen(0, '127.0.0.1');
+  process.env.NATIVE_WARDROBE_API = `http://127.0.0.1:${server.address().port}`;
+  auth = require('../electron/auth.js');
+  social = require('../electron/social.js');
+  const deps = { app: stub.app, getWin: () => null };
+  auth.init(deps, stub.ipcMain);
+  social.init(deps, stub.ipcMain);
+  db.createUser({ email: 'player@test.local', username: 'NoctraPlayer', password: 'password123' });
+});
+
+test.after(() => {
+  social.stopStream();
+  server?.closeAllConnections?.();
+  server?.close();
+  mojang.close();
+  // social.js keeps a presence heartbeat running, like in the app.
+  setTimeout(() => process.exit(0), 50).unref();
+});
+
+const MS = { id: PROFILE.id, name: PROFILE.name, uuid: PROFILE.id, type: 'microsoft', refresh: 'refresh-blob' };
+
+test('connect once with a Noctra password, then the premium account is the Noctra identity', async () => {
+  writeAccounts({ activeId: MS.id, accounts: [MS] });
+
+  const before = await invoke('accounts:ensureNoctra', MS.id, { force: true });
+  assert.equal(before.ok, false);
+  assert.equal(before.code, 'not_linked');
+
+  const wrong = await invoke('accounts:connectNoctra', { microsoftAccountId: MS.id, login: 'NoctraPlayer', password: 'nope' });
+  assert.equal(wrong.ok, false);
+
+  const connected = await invoke('accounts:connectNoctra', { microsoftAccountId: MS.id, login: 'NoctraPlayer', password: 'password123' });
+  assert.equal(connected.ok, true, connected.error);
+  assert.equal(connected.link.name, 'NoctraPlayer');
+
+  // The renderer sees the connection, never the session token.
+  const list = await invoke('accounts:list');
+  const listed = list.accounts.find((a) => a.id === MS.id);
+  assert.equal(listed.noctraLink.connected, true);
+  assert.equal(listed.noctraLink.name, 'NoctraPlayer');
+  assert.equal(listed.noctraToken, undefined);
+  assert.ok(!JSON.stringify(list).includes('noc_'), 'no Noctra session token reaches the renderer');
+
+  // Social features act as the Noctra account while the premium account is active.
+  const identity = social.getActiveNoctraAccount();
+  assert.equal(identity.name, 'NoctraPlayer');
+  assert.equal(identity.linkedFrom, MS.id);
+  const friends = await invoke('social:getFriends');
+  assert.equal(friends.ok, true);
+});
+
+test('a new device (no saved session) connects automatically from the Microsoft sign-in', async () => {
+  writeAccounts({ activeId: MS.id, accounts: [MS] });
+  assert.equal(social.getActiveNoctraAccount(), null);
+
+  const result = await invoke('accounts:ensureNoctra', MS.id);
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.link.name, 'NoctraPlayer');
+  assert.ok(readAccountsFile().accounts[0].noctraToken, 'session saved for the premium account');
+  assert.equal(social.getActiveNoctraAccount().name, 'NoctraPlayer');
+});
+
+test('an expired Noctra session renews itself on the next request', async () => {
+  const data = readAccountsFile();
+  db.getDb().prepare('DELETE FROM sessions WHERE token = ?').run(auth.readAccounts(userData).accounts[0].noctraToken);
+  writeAccounts(data);
+  const friends = await invoke('social:getFriends');
+  assert.equal(friends.ok, true, friends.error);
+});
+
+test('disconnecting stops automatic sign-in everywhere', async () => {
+  const result = await invoke('accounts:disconnectNoctra', MS.id);
+  assert.equal(result.ok, true, result.error);
+  assert.equal(social.getActiveNoctraAccount(), null);
+  const again = await invoke('accounts:ensureNoctra', MS.id, { force: true });
+  assert.equal(again.code, 'not_linked');
+});

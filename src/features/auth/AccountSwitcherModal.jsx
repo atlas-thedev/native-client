@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Eye, EyeOff, Minus, Square, X } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Link2, Minus, Square, Unlink, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import BrandIcon from '../../components/ui/BrandIcon.jsx';
@@ -38,7 +38,10 @@ export default function AccountSwitcherModal({
   onNoctraResendCode,
   onNoctraVerifyRegister,
   onNoctraLogin,
-  onRemoveAccount
+  onRemoveAccount,
+  onConnectNoctra,
+  onDisconnectNoctra,
+  connectRequest = null
 }) {
   const { t } = useI18n();
 
@@ -59,6 +62,10 @@ export default function AccountSwitcherModal({
   const [regModel, setRegModel] = useState('classic');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Premium ↔ Noctra connection
+  const [connectTargetId, setConnectTargetId] = useState(null);
+  const [connectDone, setConnectDone] = useState(false);
+
   // OTP 6-digit verification state
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
@@ -67,6 +74,14 @@ export default function AccountSwitcherModal({
   useEffect(() => {
     if (open) preloadAccountAvatars(accounts, 128);
   }, [open, accounts]);
+
+  useEffect(() => {
+    if (!open || !connectRequest?.id) return;
+    setConnectTargetId(connectRequest.id);
+    setConnectDone(false);
+    setError('');
+    setView('noctra-connect');
+  }, [open, connectRequest?.nonce]);
 
   useEffect(() => {
     window.native?.onMaximizedChange?.(setIsMaximized);
@@ -113,6 +128,55 @@ export default function AccountSwitcherModal({
   if (!open) return null;
 
   const openExternal = (url) => window.native?.openExternal?.(url);
+
+  const connectTarget = accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft') || null;
+  const savedNoctraAccounts = accounts.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
+
+  const openConnect = (microsoftAccountId) => {
+    setConnectTargetId(microsoftAccountId);
+    setConnectDone(false);
+    setError('');
+    setLoginInput('');
+    setPasswordInput('');
+    setView('noctra-connect');
+  };
+
+  const runConnect = async (payload) => {
+    if (!connectTarget || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await onConnectNoctra?.({ microsoftAccountId: connectTarget.id, ...payload });
+      if (!result?.ok) throw new Error(result?.error || 'Could not connect the accounts.');
+      setPasswordInput('');
+      setConnectDone(true);
+    } catch (err) {
+      setError(err?.message || 'Could not connect the accounts.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConnectSubmit = (event) => {
+    event.preventDefault();
+    if (!loginInput.trim() || !passwordInput) return;
+    runConnect({ login: loginInput.trim(), password: passwordInput });
+  };
+
+  const handleDisconnect = async () => {
+    if (!connectTarget || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await onDisconnectNoctra?.(connectTarget.id);
+      if (!result?.ok) throw new Error(result?.error || 'Could not disconnect.');
+      setConnectDone(false);
+    } catch (err) {
+      setError(err?.message || 'Could not disconnect.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleAddMicrosoft = async () => {
     setBusy(true);
@@ -382,8 +446,28 @@ export default function AccountSwitcherModal({
                                 <strong>{acc.name}</strong>
                                 <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-noctra is-native'}>
                                   {acc.type === 'microsoft' ? t('account.microsoft') : (t('account.noctra') || t('account.native'))}
+                                  {acc.type === 'microsoft' && acc.noctraLink?.connected && (
+                                    <span className="account-login-item-link" title={`Signs into Noctra as ${acc.noctraLink.name}`}>
+                                      <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.noctraLink.name}
+                                    </span>
+                                  )}
                                 </small>
                               </div>
+                              {acc.type === 'microsoft' && onConnectNoctra && (
+                                <button
+                                  type="button"
+                                  className={`account-login-item-connect${acc.noctraLink?.connected ? ' is-connected' : ''}`}
+                                  title={acc.noctraLink?.connected ? 'Noctra connection' : 'Connect a Noctra account'}
+                                  aria-label={acc.noctraLink?.connected ? `Noctra connection for ${acc.name}` : `Connect a Noctra account to ${acc.name}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openConnect(acc.id);
+                                  }}
+                                >
+                                  <Link2 size={12} strokeWidth={2.2} aria-hidden="true" />
+                                  {!acc.noctraLink?.connected && <span>Connect</span>}
+                                </button>
+                              )}
                               {active && <span className="account-login-item-active">Active</span>}
                               <button
                                 type="button"
@@ -444,6 +528,157 @@ export default function AccountSwitcherModal({
                     Support
                   </button>
                 </footer>
+              </div>
+            ) : view === 'noctra-connect' ? (
+              <div className="noctra-auth-container noctra-connect">
+                <div className="noctra-auth-top">
+                  <button
+                    type="button"
+                    className="noctra-auth-back-btn"
+                    onClick={() => { setView('main'); setError(''); setConnectDone(false); }}
+                    aria-label={t('common.back')}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>{t('common.back')}</span>
+                  </button>
+                </div>
+
+                {!connectTarget ? (
+                  <div className="noctra-auth-header">
+                    <h2 className="noctra-auth-title">Connect Noctra</h2>
+                    <p className="noctra-auth-sub">Sign in with Microsoft first, then connect your Noctra account to it.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className={`noctra-connect-hero${connectTarget.noctraLink?.connected ? ' is-linked' : ''}${connectDone ? ' is-done' : ''}`} aria-hidden="true">
+                      <span className="noctra-connect-node">
+                        <PlayerAvatar account={connectTarget} kind="avatar" size={44} />
+                      </span>
+                      <span className="noctra-connect-wire">
+                        <i /><i /><i />
+                        <b className="noctra-connect-badge">
+                          {connectTarget.noctraLink?.connected ? <Check size={13} strokeWidth={3} /> : <Link2 size={13} strokeWidth={2.4} />}
+                        </b>
+                      </span>
+                      <span className="noctra-connect-node is-noctra">
+                        <Logo height={26} variant="mark" />
+                      </span>
+                    </div>
+
+                    {connectTarget.noctraLink?.connected ? (
+                      <div className="noctra-connect-body">
+                        <div className="noctra-auth-header">
+                          <h2 className="noctra-auth-title">{connectDone ? 'Connected' : 'Noctra is connected'}</h2>
+                          <p className="noctra-auth-sub">
+                            <strong>{connectTarget.name}</strong> signs into Noctra as <strong>{connectTarget.noctraLink.name}</strong> automatically,
+                            on this PC and any other where you use this premium account. Relay, friends and chat just work.
+                          </p>
+                        </div>
+                        {error && <div className="account-login-error" role="alert">{error}</div>}
+                        <div className="noctra-connect-actions">
+                          <button type="button" className="noctra-auth-primary-btn" onClick={() => { setView('main'); setConnectDone(false); }}>
+                            Done
+                          </button>
+                          <button type="button" className="noctra-connect-disconnect" onClick={handleDisconnect} disabled={busy}>
+                            <Unlink size={13} aria-hidden="true" />
+                            <span>{busy ? 'Disconnecting…' : 'Disconnect'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="noctra-connect-body">
+                        <div className="noctra-auth-header">
+                          <h2 className="noctra-auth-title">Connect Noctra to {connectTarget.name}</h2>
+                          <p className="noctra-auth-sub">
+                            Do it once. Every time you sign in with this premium account, Noctra signs you in too.
+                          </p>
+                        </div>
+
+                        {savedNoctraAccounts.length > 0 && (
+                          <div className="noctra-connect-saved">
+                            <span className="noctra-form-label">Use a signed-in Noctra account</span>
+                            {savedNoctraAccounts.map((acc) => (
+                              <button
+                                key={acc.id}
+                                type="button"
+                                className="account-login-item noctra-connect-choice"
+                                disabled={busy}
+                                onClick={() => runConnect({ noctraAccountId: acc.id })}
+                              >
+                                <PlayerAvatar account={acc} kind="avatar" size={26} />
+                                <span className="account-login-item-text">
+                                  <strong>{acc.name}</strong>
+                                  <small className="is-noctra">Noctra</small>
+                                </span>
+                                <span className="noctra-connect-choice-cta">Connect</span>
+                              </button>
+                            ))}
+                            <span className="noctra-connect-or"><i />or sign in<i /></span>
+                          </div>
+                        )}
+
+                        <form className="noctra-auth-form" onSubmit={handleConnectSubmit}>
+                          <div className="noctra-form-group">
+                            <label className="noctra-form-label" htmlFor="noctra-connect-login">{t('account.loginOrEmail')}</label>
+                            <input
+                              id="noctra-connect-login"
+                              type="text"
+                              className="noctra-form-input"
+                              placeholder={t('account.loginOrEmail')}
+                              value={loginInput}
+                              autoComplete="username"
+                              autoFocus={savedNoctraAccounts.length === 0}
+                              onChange={(e) => { setLoginInput(e.target.value); setError(''); }}
+                            />
+                          </div>
+                          <div className="noctra-form-group">
+                            <label className="noctra-form-label" htmlFor="noctra-connect-password">{t('account.password')}</label>
+                            <div className="noctra-input-wrap">
+                              <input
+                                id="noctra-connect-password"
+                                type={showPassword ? 'text' : 'password'}
+                                className="noctra-form-input has-toggle"
+                                placeholder="••••••••"
+                                value={passwordInput}
+                                autoComplete="current-password"
+                                onChange={(e) => { setPasswordInput(e.target.value); setError(''); }}
+                              />
+                              <button
+                                type="button"
+                                className="noctra-input-toggle"
+                                onClick={() => setShowPassword((v) => !v)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                aria-pressed={showPassword}
+                              >
+                                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {error && <div className="account-login-error" role="alert">{error}</div>}
+
+                          <button
+                            type="submit"
+                            className="noctra-auth-primary-btn"
+                            disabled={busy || !loginInput.trim() || !passwordInput}
+                          >
+                            {busy ? (
+                              <span className="noctra-btn-spinner">
+                                <NativeIcon name="refresh" size={16} className="is-spinning" />
+                                <span>Connecting…</span>
+                              </span>
+                            ) : (
+                              'Connect accounts'
+                            )}
+                          </button>
+                          <p className="noctra-connect-fine">
+                            Noctra checks with Microsoft that you own this Minecraft account. Your Microsoft password never reaches Noctra.
+                          </p>
+                        </form>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             ) : view === 'noctra-login' ? (
               <div className="noctra-auth-container">

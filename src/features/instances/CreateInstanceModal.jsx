@@ -38,7 +38,7 @@ function artFor(versionId) {
   );
 }
 
-export default function CreateInstanceModal({ open, instances = [], onClose, onCreate }) {
+export default function CreateInstanceModal({ open, instances = [], onClose, onCreate, initialVersion = null, initialLoader = null }) {
   const { t, formatDate } = useI18n();
   const [manifest, setManifest] = useState(null);
   const [fabricSet, setFabricSet] = useState(null);
@@ -59,9 +59,25 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
     setNameTouched(false);
     setSearch('');
     setShowSnapshots(false);
-    setLoader('Fabric');
+    setLoader(initialLoader || 'Fabric');
     setMemoryMb(4096);
+    // Quick search can open the modal with a version already picked.
+    if (initialVersion) {
+      setVersion(initialVersion);
+      if (!/^\d+\.\d+(?:\.\d+)?$/.test(initialVersion)) setShowSnapshots(true);
+    }
   }, [open]);
+
+  /* Bring a version picked from quick search into view once the list exists. */
+  useEffect(() => {
+    if (!open || !initialVersion || loading) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const rows = document.querySelectorAll('.ci-version-row[data-version]');
+      const row = Array.from(rows).find((el) => el.getAttribute('data-version') === initialVersion);
+      row?.scrollIntoView?.({ block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, initialVersion, loading]);
 
   useEffect(() => {
     if (!open) return;
@@ -236,6 +252,7 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
                     key={entry.id}
                     type="button"
                     className={`ci-version-row ${version === entry.id ? 'active' : ''}`}
+                    data-version={entry.id}
                     onClick={() => setVersion(entry.id)}
                   >
                     <span className="ci-version-id">{entry.id}</span>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppNavbar from './AppNavbar.jsx';
 import HomeView from '../home/HomeView.jsx';
 import InstancesView from '../instances/InstancesView.jsx';
@@ -25,6 +25,8 @@ import useCrashReports from '../crash/useCrashReports.js';
 import NoctraAccountGate from '../../components/ui/NoctraAccountGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
 import WelcomeTour from './WelcomeTour.jsx';
+import QuickSearch from '../search/QuickSearch.jsx';
+import GuidesView from '../guides/GuidesView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
@@ -67,6 +69,8 @@ export default function Shell({
   onNoctraLogin,
   onSwitchAccount,
   onRemoveAccount,
+  onConnectNoctra,
+  onDisconnectNoctra,
   onWardrobeChanged,
   onOpenUpdater,
   updateStatus,
@@ -94,6 +98,9 @@ export default function Shell({
   const [createInstanceOpen, setCreateInstanceOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [guideRequest, setGuideRequest] = useState(null);
+  const [createInitialVersion, setCreateInitialVersion] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [relayActiveThreadId, setRelayActiveThreadId] = useState(null);
@@ -117,6 +124,32 @@ export default function Shell({
     (account.type === 'noctra' || account.type === 'native')
   );
 
+  // A premium account connected to Noctra acts as that Noctra account for
+  // Relay, friends and the other online features.
+  const premiumLink = hasValidAccount && account.type === 'microsoft' && account.noctraLink?.connected
+    ? account.noctraLink
+    : null;
+  const socialAccount = useMemo(() => {
+    if (isNoctra) return account;
+    if (!premiumLink) return null;
+    return {
+      id: premiumLink.userId,
+      name: premiumLink.name,
+      email: premiumLink.email,
+      uuid: premiumLink.uuid,
+      model: premiumLink.model,
+      type: 'noctra',
+      linkedPremium: true,
+      linkedFrom: account.id
+    };
+  }, [isNoctra, account, premiumLink?.userId, premiumLink?.name, premiumLink?.uuid]);
+  const hasNoctra = Boolean(socialAccount);
+  const [connectRequest, setConnectRequest] = useState(null);
+  const openConnectNoctra = useCallback((microsoftAccountId) => {
+    setConnectRequest({ id: microsoftAccountId, nonce: Date.now() });
+    setAccountSwitcherOpen(true);
+  }, []);
+
   const instancesManager = useInstances(initialInstances);
   const launcher = useLauncher();
   const [gameSince, setGameSince] = useState(null);
@@ -136,7 +169,7 @@ export default function Shell({
       }
     : null;
   usePlaytimeTracker(instancesManager.recordSession, { launcherState: launcher });
-  const social = useSocial(isNoctra ? account : null);
+  const social = useSocial(socialAccount);
   const crash = useCrashReports();
   const instancesRef = useRef(instancesManager.instances);
   instancesRef.current = instancesManager.instances;
@@ -168,9 +201,31 @@ export default function Shell({
     } catch {}
   }, []);
 
+  /* Ctrl/Cmd + K (and "/" outside text fields) opens quick search. */
+  useEffect(() => {
+    if (!hasValidAccount) return undefined;
+    const onKey = (event) => {
+      const key = String(event.key || '').toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'k') {
+        event.preventDefault();
+        setSearchOpen((value) => !value);
+        return;
+      }
+      if (key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const target = event.target;
+        const typing = target && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName || ''));
+        if (typing || document.querySelector('[aria-modal="true"]')) return;
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hasValidAccount]);
+
   useEffect(() => {
     let cancelled = false;
-    if (!isNoctra) {
+    if (!hasNoctra) {
       setIsAdmin(false);
       return undefined;
     }
@@ -178,7 +233,7 @@ export default function Shell({
       .then((result) => { if (!cancelled) setIsAdmin(Boolean(result?.ok && result?.isAdmin)); })
       .catch(() => { if (!cancelled) setIsAdmin(false); });
     return () => { cancelled = true; };
-  }, [account?.id, isNoctra]);
+  }, [account?.id, socialAccount?.id, hasNoctra]);
 
   useEffect(() => {
     if (currentTab === 'admin' && !isAdmin) setCurrentTab('home');
@@ -227,7 +282,7 @@ export default function Shell({
 
 
   useEffect(() => {
-    if (!isNoctra) return undefined;
+    if (!hasNoctra) return undefined;
     return social.subscribe((event) => {
       const state = relayNotificationRef.current;
       const note = describeRelayEvent(event, state);
@@ -246,7 +301,7 @@ export default function Shell({
       // Real OS notification (Windows toast). Clicking it brings the launcher forward.
       if (prefs.desktop) window.native?.showNotification?.(note.title, note.body);
     });
-  }, [isNoctra, notify, social.subscribe]);
+  }, [hasNoctra, notify, social.subscribe]);
 
   const handleLaunch = (cluster, options = {}) => {
     if (!cluster) return;
@@ -412,6 +467,115 @@ export default function Shell({
     setCurrentTab('settings');
   };
 
+  const openCreateInstance = (version = null) => {
+    setCreateInitialVersion(version);
+    setCreateInstanceOpen(true);
+  };
+
+  const openDiscover = (intent) => {
+    setBrowseTargetId(null);
+    setBrowseBack(null);
+    setInstanceManagerOpen(false);
+    setBrowseIntent({ ...intent, nonce: Date.now() });
+    handleSelectTab('discover');
+  };
+
+  const closeOverlays = () => {
+    setInstanceManagerOpen(false);
+    setNotificationsOpen(false);
+    setSettingsOpen(false);
+  };
+
+  /* Commands from quick search and the How-to page. */
+  const runCommand = (command) => {
+    if (!command) return;
+    switch (command.type) {
+      case 'tab':
+        closeOverlays();
+        if (command.tab === 'settings') handleOpenSettings('launcher');
+        else handleSelectTab(command.tab);
+        break;
+      case 'settings':
+        closeOverlays();
+        handleOpenSettings(command.tab || 'launcher');
+        break;
+      case 'instance':
+        if (command.instance?.id) handleOpenCluster(command.instance);
+        break;
+      case 'launch':
+        if (command.instance?.id) {
+          instancesManager.select(command.instance.id);
+          handleLaunch(command.instance);
+        }
+        break;
+      case 'friend':
+        if (!hasNoctra || !command.friend) break;
+        closeOverlays();
+        social.setActiveChatFriend?.(command.friend);
+        setCurrentTab('relay');
+        break;
+      case 'join':
+        if (command.friend) handleJoinServer(command.friend);
+        break;
+      case 'guide':
+        closeOverlays();
+        setGuideRequest({ id: command.id, nonce: Date.now() });
+        handleSelectTab('guides');
+        break;
+      case 'version':
+        openCreateInstance(command.version || null);
+        break;
+      case 'project':
+        openDiscover({ contentType: command.contentType || 'mod', project: command.project });
+        break;
+      case 'discover-query':
+        openDiscover({ contentType: command.contentType || 'mod', query: command.query });
+        break;
+      case 'discover':
+        openDiscover({ contentType: command.contentType || 'mod' });
+        break;
+      case 'action':
+        switch (command.id) {
+          case 'new-instance': openCreateInstance(null); break;
+          case 'discover-mods': openDiscover({ contentType: 'mod' }); break;
+          case 'discover-modpacks': openDiscover({ contentType: 'modpack' }); break;
+          case 'discover-shaders': openDiscover({ contentType: 'shader' }); break;
+          case 'tour': openTutorial(); break;
+          case 'accounts': setAccountSwitcherOpen(true); break;
+          case 'connect-noctra':
+            if (account?.type === 'microsoft') openConnectNoctra(account.id);
+            else setAccountSwitcherOpen(true);
+            break;
+          case 'notifications': setNotificationsOpen(true); break;
+          case 'updates': openUpdater(); break;
+          case 'open-folder': window.native?.settings?.openDataDir?.(); break;
+          case 'search': setSearchOpen(true); break;
+          default: break;
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  /* How-to page "do it now" buttons. */
+  const runGuideAction = (action) => {
+    if (!action) return;
+    switch (action.kind) {
+      case 'tour': runCommand({ type: 'action', id: 'tour' }); break;
+      case 'create-instance': runCommand({ type: 'action', id: 'new-instance' }); break;
+      case 'tab': runCommand({ type: 'tab', tab: action.tab }); break;
+      case 'discover': runCommand({ type: 'discover', contentType: action.contentType }); break;
+      case 'accounts':
+        if (account?.type === 'microsoft' && action.connect) openConnectNoctra(account.id);
+        else setAccountSwitcherOpen(true);
+        break;
+      case 'settings': runCommand({ type: 'settings', tab: action.tab }); break;
+      case 'search': setSearchOpen(true); break;
+      default: break;
+    }
+  };
+
   return (
     <DownloadManagerProvider>
       <div className="app-shell">
@@ -422,7 +586,8 @@ export default function Shell({
           onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
           isAccountOpen={!hasValidAccount || accountSwitcherOpen}
           account={account}
-          isNoctra={isNoctra}
+          isNoctra={hasNoctra}
+          canUseLocker={isNoctra}
           notifications={notifications.length}
           onOpenNotifications={() => setNotificationsOpen(true)}
           isMaximized={isMaximized}
@@ -434,7 +599,9 @@ export default function Shell({
           onOpenUpdater={openUpdater}
           onOpenTutorial={openTutorial}
           isTutorialOpen={tourOpen}
-          friendsBadge={isNoctra ? social.badgeTotal : 0}
+          onOpenSearch={hasValidAccount ? () => setSearchOpen(true) : undefined}
+          isSearchOpen={searchOpen}
+          friendsBadge={hasNoctra ? social.badgeTotal : 0}
           liveUserCount={social.liveUserCount}
           isAdmin={isAdmin}
           runningGame={runningGame}
@@ -451,7 +618,7 @@ export default function Shell({
               onOpenCluster={handleOpenCluster}
               onOpenInstances={() => setCurrentTab('instances')}
               onOpenVersions={() => setCurrentTab('versions')}
-              onCreateInstance={() => setCreateInstanceOpen(true)}
+              onCreateInstance={() => openCreateInstance(null)}
               account={account}
               launcherState={launcher}
               onLaunch={handleLaunch}
@@ -476,9 +643,9 @@ export default function Shell({
         )}
 
         {currentTab === 'relay' && (
-          isNoctra ? (
+          hasNoctra ? (
             <RelayPage
-              account={account}
+              account={socialAccount}
               social={social}
               onJoinServer={handleJoinServer}
               onNotify={notifyRelay}
@@ -487,6 +654,8 @@ export default function Shell({
           ) : (
             <NoctraAccountGate
               feature="relay"
+              premium={account?.type === 'microsoft'}
+              onConnectPremium={() => openConnectNoctra(account.id)}
               onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
               onBackHome={() => setCurrentTab('home')}
             />
@@ -503,7 +672,7 @@ export default function Shell({
             onLaunch={handleLaunch}
             onKill={launcher.kill}
             launcherState={launcher}
-            onOpenCreateModal={() => setCreateInstanceOpen(true)}
+            onOpenCreateModal={() => openCreateInstance(null)}
             onUpdate={instancesManager.update}
             onDuplicate={handleDuplicate}
             onRemove={handleRemoveInstance}
@@ -520,7 +689,7 @@ export default function Shell({
             onOpenCluster={handleOpenCluster}
             onLaunch={handleLaunch}
             onKill={launcher.kill}
-            onOpenNewInstanceModal={() => setCreateInstanceOpen(true)}
+            onOpenNewInstanceModal={() => openCreateInstance(null)}
             onCreateInstance={handleCreateInstance}
             onNotify={notify}
             launcherState={launcher}
@@ -540,6 +709,14 @@ export default function Shell({
             onOpenCluster={handleOpenCluster}
             onNotify={notify}
             pageTitle="Discover"
+          />
+        )}
+
+        {currentTab === 'guides' && (
+          <GuidesView
+            key={guideRequest?.nonce || 'guides'}
+            initialGuideId={guideRequest?.id || null}
+            onAction={runGuideAction}
           />
         )}
 
@@ -624,18 +801,22 @@ export default function Shell({
         onNoctraVerifyRegister={onNoctraVerifyRegister}
         onNoctraLogin={onNoctraLogin}
         onRemoveAccount={onRemoveAccount}
+        onConnectNoctra={onConnectNoctra}
+        onDisconnectNoctra={onDisconnectNoctra}
+        connectRequest={connectRequest}
       />
 
       <CreateInstanceModal
         open={createInstanceOpen}
         instances={instancesManager.instances}
-        onClose={() => setCreateInstanceOpen(false)}
+        initialVersion={createInitialVersion}
+        onClose={() => { setCreateInstanceOpen(false); setCreateInitialVersion(null); }}
         onCreate={(values) => handleCreateInstance(values)}
       />
 
 
 
-      {isNoctra && social.contextMenu && (
+      {hasNoctra && social.contextMenu && (
         <FriendContextMenu
           context={social.contextMenu}
           onClose={() => social.setContextMenu(null)}
@@ -653,13 +834,25 @@ export default function Shell({
         />
       )}
 
-      {isNoctra && social.nicknameModalFriend && (
+      {hasNoctra && social.nicknameModalFriend && (
         <NicknameModal
           friend={social.nicknameModalFriend}
           onClose={() => social.setNicknameModalFriend(null)}
           onSave={(friendId, nickname) => social.updateFriend(friendId, { nickname })}
         />
       )}
+
+      <QuickSearch
+        open={searchOpen && hasValidAccount}
+        onClose={() => setSearchOpen(false)}
+        onCommand={runCommand}
+        instances={instancesManager.instances}
+        friends={hasNoctra ? social.friends : []}
+        hasNoctra={hasNoctra}
+        isAdmin={isAdmin}
+        account={account}
+        runningInstanceId={launcher.status === 'running' ? launcher.instanceId : null}
+      />
 
       <WelcomeTour open={tourOpen} onClose={closeTutorial} />
     </div>

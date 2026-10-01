@@ -109,6 +109,8 @@ module.exports = {
   getMinecraftLink: (userId) => usersMod.getMinecraftLink(getDb(), userId),
   linkMinecraftAccount: (userId, profile) => usersMod.linkMinecraftAccount(getDb(), userId, profile),
   unlinkMinecraftAccount: (userId) => usersMod.unlinkMinecraftAccount(getDb(), userId),
+  getUserByMinecraftUuid: (uuid) => usersMod.getUserByMinecraftUuid(getDb(), uuid),
+  refreshMinecraftName: (userId, name) => usersMod.refreshMinecraftName(getDb(), userId, name),
   deleteSession: (token) => usersMod.deleteSession(getDb(), token),
 
   // Server-protected administration (sanitized rows only)

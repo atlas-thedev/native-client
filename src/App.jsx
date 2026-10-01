@@ -230,6 +230,34 @@ export default function App() {
     }
   };
 
+  // Premium ↔ Noctra: connect, disconnect, and keep a connected premium
+  // account signed into its Noctra account in the background.
+  const handleConnectNoctra = async (payload) => {
+    const res = await window.native?.accounts?.connectNoctra?.(payload);
+    await refreshAccounts();
+    return res || { ok: false, error: 'Connecting accounts is not available in this build.' };
+  };
+
+  const handleDisconnectNoctra = async (microsoftAccountId) => {
+    const res = await window.native?.accounts?.disconnectNoctra?.(microsoftAccountId);
+    await refreshAccounts();
+    return res || { ok: false, error: 'Disconnecting accounts is not available in this build.' };
+  };
+
+  const ensuredPremiumRef = useRef(null);
+  useEffect(() => {
+    if (!activeAccount || activeAccount.type !== 'microsoft' || !window.native?.accounts?.ensureNoctra) return undefined;
+    if (ensuredPremiumRef.current === activeAccount.id) return undefined;
+    ensuredPremiumRef.current = activeAccount.id;
+    let cancelled = false;
+    const before = activeAccount.noctraLink?.userId || null;
+    window.native.accounts.ensureNoctra(activeAccount.id).then((res) => {
+      const after = res?.ok ? res.link?.userId || null : null;
+      if (!cancelled && after !== before) refreshAccounts();
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeAccount?.id, activeAccount?.type]);
+
   const handleRemoveAccount = async (id) => {
     await window.native?.accounts?.remove(id);
     await refreshAccounts();
@@ -300,6 +328,8 @@ export default function App() {
         onNoctraLogin={handleNoctraLogin}
         onSwitchAccount={handleSwitchAccount}
         onRemoveAccount={handleRemoveAccount}
+        onConnectNoctra={handleConnectNoctra}
+        onDisconnectNoctra={handleDisconnectNoctra}
         onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
         updateStatus={updater.status}
         networkStatus={network.status}

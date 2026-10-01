@@ -207,6 +207,50 @@ function customSkinProfile(profile, origin) {
   };
 }
 
+const MINECRAFT_PROFILE_URL = process.env.NOCTRA_MC_PROFILE_URL || 'https://api.minecraftservices.com/minecraft/profile';
+
+/**
+ * Proves premium ownership: asks Minecraft Services who owns this access
+ * token. Returns { uuid, name } or throws an Error carrying an HTTP status.
+ */
+async function verifyMinecraftToken(rawToken) {
+  const minecraftToken = String(rawToken || '').trim();
+  if (minecraftToken.length < 40 || minecraftToken.length > 4096) {
+    throw Object.assign(new Error('A valid Microsoft Minecraft session is required.'), { status: 400 });
+  }
+  let response;
+  try {
+    response = await fetch(MINECRAFT_PROFILE_URL, {
+      headers: { Authorization: `Bearer ${minecraftToken}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(12_000)
+    });
+  } catch {
+    throw Object.assign(new Error('Minecraft could not verify this account right now. Try again.'), { status: 502 });
+  }
+  if (!response.ok) {
+    throw Object.assign(new Error('This Microsoft session does not own Minecraft or has expired.'), { status: 401 });
+  }
+  const profile = await response.json().catch(() => null);
+  const uuid = String(profile?.id || '').replace(/-/g, '').toLowerCase();
+  const name = String(profile?.name || '').trim();
+  if (!/^[a-f0-9]{32}$/.test(uuid) || !/^[A-Za-z0-9_]{3,16}$/.test(name)) {
+    throw Object.assign(new Error('Microsoft returned an invalid Minecraft profile.'), { status: 502 });
+  }
+  return { uuid, name };
+}
+
+function noctraAccountPayload(user, token) {
+  return {
+    id: user.id,
+    name: user.username,
+    email: user.email,
+    uuid: user.uuid,
+    type: 'noctra',
+    model: user.model,
+    token
+  };
+}
+
 async function handler(req, res) {
   try {
     const url = new URL(req.url, 'http://localhost');
@@ -515,6 +559,38 @@ async function handler(req, res) {
       });
     }
 
+    // ── Premium sign-in: a Minecraft session for a linked premium account
+    //    signs straight into its Noctra account (no password on this device).
+    if (req.method === 'POST' && url.pathname === '/v1/auth/minecraft') {
+      if (!hit('mc-login-ip', ip, 30, 10 * 60_000)) {
+        return tooMany(res, 600, 'Too many sign-in attempts. Please wait a few minutes and try again.');
+      }
+      const body = await readJson(req);
+      let profile;
+      try {
+        profile = await verifyMinecraftToken(body.minecraftAccessToken);
+      } catch (error) {
+        return send(res, error.status || 401, { ok: false, error: error.message });
+      }
+      const user = db.getUserByMinecraftUuid(profile.uuid);
+      if (!user) {
+        return send(res, 404, {
+          ok: false,
+          code: 'not_linked',
+          error: 'This premium account is not connected to a Noctra account yet.',
+          profile
+        });
+      }
+      db.refreshMinecraftName(user.id, profile.name);
+      const session = db.createSession(user.id);
+      return send(res, 200, {
+        ok: true,
+        token: session.token,
+        account: noctraAccountPayload(user, session.token),
+        profile: { uuid: profile.uuid, name: profile.name }
+      });
+    }
+
     if (req.method === 'POST' && url.pathname === '/v1/auth/resend-code') {
       if (!hit('code-ip', ip, 6, 10 * 60_000)) return tooMany(res, 600, 'Too many verification emails. Please wait a few minutes.');
       const body = await readJson(req);
@@ -579,28 +655,15 @@ async function handler(req, res) {
 
       if (req.method === 'POST') {
         const body = await readJson(req);
-        const minecraftToken = String(body.minecraftAccessToken || '').trim();
-        if (minecraftToken.length < 40 || minecraftToken.length > 4096) {
-          return send(res, 400, { ok: false, error: 'A valid Microsoft Minecraft session is required.' });
-        }
-
-        let profileResponse;
+        let minecraftProfile;
         try {
-          profileResponse = await fetch('https://api.minecraftservices.com/minecraft/profile', {
-            headers: { Authorization: `Bearer ${minecraftToken}`, Accept: 'application/json' },
-            signal: AbortSignal.timeout(12_000)
-          });
-        } catch {
-          return send(res, 502, { ok: false, error: 'Minecraft could not verify this account right now. Try again.' });
+          minecraftProfile = await verifyMinecraftToken(body.minecraftAccessToken);
+        } catch (error) {
+          return send(res, error.status || 401, { ok: false, error: error.message });
         }
-        if (!profileResponse.ok) {
-          return send(res, 401, { ok: false, error: 'This Microsoft session does not own Minecraft or has expired.' });
-        }
-
-        const minecraftProfile = await profileResponse.json();
         try {
           const profile = db.linkMinecraftAccount(authUser.id, {
-            uuid: minecraftProfile.id,
+            uuid: minecraftProfile.uuid,
             name: minecraftProfile.name
           });
           return send(res, 200, { ok: true, profile }, { 'Cache-Control': 'no-store' });

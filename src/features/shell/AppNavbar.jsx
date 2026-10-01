@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUp, Blocks, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Settings, ShieldCheck, User, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Settings, ShieldCheck, User, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import DownloadManagerButton from './DownloadManagerButton.jsx';
 import RunningGamePill from './RunningGamePill.jsx';
 import packageInfo from '../../../package.json';
+import '../search/QuickSearch.css';
 import './AppNavbar.css';
 
 /** Launcher workflow first, personal tools second. */
@@ -108,6 +109,7 @@ export default function AppNavbar({
   onOpenNotifications,
   account,
   isNoctra = false,
+  canUseLocker = isNoctra,
   notifications = 0,
   isMaximized,
   onMinimize,
@@ -118,6 +120,8 @@ export default function AppNavbar({
   onOpenUpdater,
   onOpenTutorial,
   isTutorialOpen = false,
+  onOpenSearch,
+  isSearchOpen = false,
   friendsBadge = 0,
   liveUserCount = null,
   isAdmin = false,
@@ -129,6 +133,7 @@ export default function AppNavbar({
   const buildVersion = window.native?.version || packageInfo.version;
   const updatePill = deriveUpdatePill(updateStatus, t);
   const networkPill = deriveNetworkPill(networkStatus, t);
+  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '');
   const settingsStatus = updateStatus?.type === 'available' || updateStatus?.type === 'downloaded' ? 'brand' : null;
   return (
     <>
@@ -178,6 +183,22 @@ export default function AppNavbar({
           )}
         </div>
         <div className="titlebar-actions">
+          {onOpenSearch && (
+            <button
+              type="button"
+              className={`titlebar-search${isSearchOpen ? ' is-active' : ''}`}
+              onClick={onOpenSearch}
+              aria-label={`${t('nav.search')} (${isMac ? '⌘' : 'Ctrl'}+K)`}
+              aria-haspopup="dialog"
+              aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
+              title={`${t('nav.search')} · ${isMac ? '⌘' : 'Ctrl'}+K`}
+              data-tour="search"
+            >
+              <Search size={13} strokeWidth={2.2} aria-hidden="true" />
+              <span>{t('nav.searchHint')}</span>
+              <kbd aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd>
+            </button>
+          )}
           <RunningGamePill game={runningGame} onStop={onStopGame} onOpen={onOpenRunningGame} />
           <DownloadManagerButton />
           <button
@@ -230,7 +251,7 @@ export default function AppNavbar({
 
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
           {PERSONAL_NAV_ITEMS.map(({ id, labelKey, icon }) => {
-            const isRestricted = (id === 'skins' || id === 'relay') && !isNoctra;
+            const isRestricted = id === 'skins' ? !canUseLocker : id === 'relay' && !isNoctra;
             return (
               <RailButton
                 key={id}
@@ -260,6 +281,13 @@ export default function AppNavbar({
         <div className="rail-spacer" />
 
         <div className="rail-group rail-foot">
+          <RailButton
+            icon={BookOpen}
+            active={currentTab === 'guides'}
+            onClick={() => onSelectTab('guides')}
+            label={t('nav.guides')}
+            tourId="guides"
+          />
           <RailButton
             icon={Settings}
             active={currentTab === 'settings'}

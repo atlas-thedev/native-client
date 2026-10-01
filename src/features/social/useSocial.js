@@ -50,7 +50,8 @@ function mergeMessages(existing, incoming) {
 }
 
 export function useSocial(account) {
-  const isNoctra = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken));
+  // A connected premium account carries no token here: the main process holds it.
+  const isNoctra = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken || account?.linkedPremium));
   const selfId = account?.id || null;
 
   const [friends, setFriends] = useState([]);

@@ -97,6 +97,9 @@ function getActiveNoctraAccount() {
     if (active && active.type === 'noctra' && (active.token || active.sessionToken)) {
       return active;
     }
+    // A premium account connected to Noctra acts as that Noctra account.
+    const linked = active ? require('./auth').linkedIdentity(active) : null;
+    if (linked) return linked;
   } catch {}
   return null;
 }
@@ -105,7 +108,28 @@ function tokenOf(account) {
   return account?.token || account?.sessionToken || null;
 }
 
-async function socialFetch(endpoint, { method = 'GET', body = null, token = null } = {}) {
+async function socialFetch(endpoint, options = {}) {
+  const result = await socialFetchOnce(endpoint, options);
+  // A connected premium account renews its Noctra session on its own.
+  if (result && result.status === 401 && !options.token) {
+    const account = getActiveNoctraAccount();
+    if (account?.linkedFrom) {
+      const renewed = await require('./auth').ensurePremiumLink(account.linkedFrom, { force: true }).catch(() => null);
+      if (renewed?.ok) return stripStatus(await socialFetchOnce(endpoint, options));
+    }
+  }
+  return stripStatus(result);
+}
+
+function stripStatus(result) {
+  if (result && typeof result === 'object' && 'status' in result && result.__withStatus) {
+    const { status: _status, __withStatus: _flag, ...rest } = result;
+    return rest;
+  }
+  return result;
+}
+
+async function socialFetchOnce(endpoint, { method = 'GET', body = null, token = null } = {}) {
   const account = getActiveNoctraAccount();
   const authToken = token || tokenOf(account);
   if (!authToken) {
@@ -132,6 +156,7 @@ async function socialFetch(endpoint, { method = 'GET', body = null, token = null
       if (payload && typeof payload === 'object') {
         if (!res.ok && payload.ok === undefined) payload.ok = false;
         // Only server/transport failures try the next root.
+        if (res.status === 401 && !Array.isArray(payload)) return { ...payload, status: 401, __withStatus: true };
         if (res.status < 500) return payload;
         lastError = payload.error || `Noctra Social returned HTTP ${res.status}.`;
         continue;

@@ -19,6 +19,25 @@ server {
 
     include /etc/nginx/snippets/cloudflare-realip.conf;
 
+    # How-to videos (static files, streamed with range requests). The launcher
+    # loads them from its own origin, so they need a CORS header.
+    location = /guides/manifest.json {
+        alias /var/www/noctra-guides/manifest.json;
+        default_type application/json;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    location ^~ /guides/ {
+        alias /var/www/noctra-guides/;
+        limit_except GET HEAD { deny all; }
+        autoindex off;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "public, max-age=86400" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:3418;
         proxy_http_version 1.1;
