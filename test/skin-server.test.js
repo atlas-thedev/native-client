@@ -124,10 +124,23 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   assert.equal(served.length, skin.length);
   assert.ok(served.equals(skin));
 
-  // The proxy headers decide the origin when no explicit public URL is set.
-  const proxied = await fetch(`${base}/csl/Notch`, { headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api.nativelaunch.xyz' } });
+  // The local proxy's X-Forwarded-Proto is honoured; X-Forwarded-Host never is.
+  const proxied = await fetch(`${base}/csl/Notch`, { headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'evil.example' } });
   const proxiedProfile = await proxied.json();
-  assert.match(proxiedProfile.skins.slim, /^https:\/\/api\.nativelaunch\.xyz\/csl\/textures\//);
+  assert.match(proxiedProfile.skins.slim, /^https:\/\/127\.0\.0\.1:\d+\/csl\/textures\//);
+
+  // A spoofed Host header falls back to the public API origin.
+  const spoofed = await new Promise((resolve, reject) => {
+    const { port } = new URL(base);
+    const req = require('http').request({ host: '127.0.0.1', port, path: '/csl/Notch', headers: { Host: 'evil.example' } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve(JSON.parse(body)));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  assert.match(spoofed.skins.slim, /^https:\/\/api\.nativelaunch\.xyz\/csl\/textures\//);
 
   // A different key must not hijack the profile.
   const conflict = await fetch(`${base}/v1/wardrobe`, {

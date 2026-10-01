@@ -25,16 +25,38 @@ const KINDS = new Set(['image', 'audio', 'video', 'file']);
 // The launcher's built-in quick GIFs are served by Giphy's CDN.
 const GIPHY_GIF = /^https:\/\/(?:media\d?|i)\.giphy\.com\/media\/[A-Za-z0-9]{6,40}\/giphy\.gif$/;
 
-/** Public origin for generated URLs: explicit override, then proxy headers. */
+const DEFAULT_PUBLIC_URL = 'https://api.nativelaunch.xyz';
+const ALLOWED_HOSTS = new Set(
+  String(process.env.NOCTRA_ALLOWED_HOSTS || 'api.nativelaunch.xyz,localhost,127.0.0.1,[::1]')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+function isLoopback(address) {
+  const value = String(address || '');
+  return value === '::1' || value.startsWith('127.') || value.startsWith('::ffff:127.');
+}
+
+/**
+ * Public origin for generated URLs. An explicit NOCTRA_PUBLIC_URL wins;
+ * otherwise the Host header is used only when it names one of our hosts, so a
+ * spoofed Host can never make stored attachment URLs point somewhere else.
+ */
 function originOf(req) {
   if (PUBLIC_URL) return PUBLIC_URL;
-  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const headers = (req && req.headers) || {};
+  const rawHost = String(headers.host || '').split(',')[0].trim().toLowerCase();
+  const match = rawHost.match(/^(\[[0-9a-f:]+\]|[a-z0-9.-]+)(?::(\d{1,5}))?$/);
+  if (!match || !ALLOWED_HOSTS.has(match[1])) return DEFAULT_PUBLIC_URL;
+  const fromProxy = isLoopback(req.socket && req.socket.remoteAddress);
+  const forwardedProto = fromProxy
+    ? String(headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase()
+    : '';
   const proto = forwardedProto === 'https' || forwardedProto === 'http'
     ? forwardedProto
     : (req.socket && req.socket.encrypted ? 'https' : 'http');
-  const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || `127.0.0.1:${PORT}`).split(',')[0].trim();
-  const host = /^[A-Za-z0-9.-]+(?::\d{1,5})?$|^\[[0-9a-fA-F:]+\](?::\d{1,5})?$/.test(rawHost) ? rawHost : `127.0.0.1:${PORT}`;
-  return `${proto}://${host}`;
+  return `${proto}://${rawHost}`;
 }
 
 function mediaFileFromUrl(value) {

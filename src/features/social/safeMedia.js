@@ -6,6 +6,8 @@
  */
 const GIPHY_GIF = /^https:\/\/(?:media\d?|i)\.giphy\.com\/media\/[A-Za-z0-9]{6,40}\/giphy\.gif$/;
 const NOCTRA_MEDIA_PATH = /^\/v1\/social\/media\/[a-f0-9]{32}\.[a-z0-9]{2,4}$/;
+// Only our own API hosts (plus a local dev server) may serve attachments.
+const NOCTRA_MEDIA_HOSTS = new Set(['api.nativelaunch.xyz', 'localhost', '127.0.0.1', '[::1]']);
 
 export function safeMediaUrl(value) {
   const raw = String(value || '').trim();
@@ -17,6 +19,8 @@ export function safeMediaUrl(value) {
     const url = new URL(raw);
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
     if (url.username || url.password || url.search || url.hash) return null;
+    if (!NOCTRA_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
+    if (url.protocol === 'http:' && url.hostname === 'api.nativelaunch.xyz') return null;
     return NOCTRA_MEDIA_PATH.test(url.pathname) ? url.href : null;
   } catch {
     return null;
