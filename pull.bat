@@ -51,7 +51,7 @@ echo [OK] Working tree clean. Ready to pull.
 :START_PULL
 echo.
 echo [2/3] Fetching and pulling latest changes from GitHub (git pull origin main)...
-git pull origin main
+git -c gc.auto=0 -c maintenance.auto=false pull origin main
 set PULL_EXIT=!errorlevel!
 
 if defined STASHED (
