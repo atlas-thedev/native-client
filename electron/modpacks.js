@@ -37,10 +37,10 @@ function loaderFromDependencies(dependencies) {
     return { loader: 'Forge', loaderVersion: dependencies.forge };
   }
   if (dependencies.neoforge) {
-    throw new Error('This pack requires NeoForge, which is not supported yet.');
+    return { loader: 'NeoForge', loaderVersion: dependencies.neoforge };
   }
   if (dependencies['quilt-loader']) {
-    throw new Error('This pack requires Quilt, which is not supported yet.');
+    return { loader: 'Quilt', loaderVersion: dependencies['quilt-loader'] };
   }
   return { loader: 'Vanilla', loaderVersion: null };
 }

@@ -18,6 +18,7 @@ const adminMod = require('./admin');
 const discordRpcMod = require('./discordRpc');
 const crashReporterMod = require('./crashReporter');
 const gameConsoleMod = require('./gameConsole');
+const loadersMod = require('./loaders');
 
 let win;
 const appIcon = path.join(__dirname, '..', 'src', 'assets', 'noctra-icon.png');
@@ -162,6 +163,7 @@ mods.init({ app, getWin: () => win }, ipcMain);
 authMod.init({ app, getWin: () => win }, ipcMain);
 settingsMod.init({ app }, ipcMain);
 javaMod.init({ app, getWin: () => win }, ipcMain);
+loadersMod.init({ app, getWin: () => win }, ipcMain);
 modpacksMod.init({ app, getWin: () => win }, ipcMain);
 updaterMod.init({ app, getWin: () => win, getSettings: () => settingsMod.get() }, ipcMain);
 instanceMod.init({ app }, ipcMain);

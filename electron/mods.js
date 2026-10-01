@@ -128,7 +128,12 @@ function assertContentCompatible(instanceId, folder, metadata) {
   if (version && gameVersions.length > 0 && !gameVersions.includes(version)) {
     throw new Error(`This file is not compatible with Minecraft ${version}.`);
   }
-  if (folder === 'mods' && loaders.length > 0 && !loaders.includes(loader)) {
+  // Quilt runs Fabric mods; NeoForge for 1.20.1 still runs Forge mods.
+  const accepted = loader === 'quilt' ? ['quilt', 'fabric']
+    : loader === 'legacy fabric' ? ['legacy-fabric', 'fabric']
+      : loader === 'neoforge' && version === '1.20.1' ? ['neoforge', 'forge']
+        : [loader];
+  if (folder === 'mods' && loaders.length > 0 && !loaders.some((item) => accepted.includes(item))) {
     throw new Error(`This mod is not compatible with the ${instance.mc_loader || instance.loader} loader.`);
   }
 }
@@ -254,5 +259,7 @@ module.exports = {
   validateDestination,
   cleanMetadata,
   isVanillaInstance,
-  assertContentCompatible
+  assertContentCompatible,
+  readManifest,
+  writeManifest
 };

@@ -1104,12 +1104,15 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
     ? (loaderName.includes('neo') ? 'neoforge' : 'forge')
     : loaderName.includes('quilt')
       ? 'quilt'
-      : 'fabric';
+      : loaderName.includes('legacy')
+        ? 'legacy-fabric'
+        : 'fabric';
 
   const trackedPath = tracker.filename ? path.join(modsDir, path.basename(tracker.filename)) : null;
   const strayJars = () => (fs.existsSync(modsDir) ? fs.readdirSync(modsDir) : [])
     .filter((f) => /customskinloader/i.test(f) && f.toLowerCase().endsWith('.jar'));
-  if (tracker.mcVersion === mcVersion && tracker.schema === CSL_TRACKER_SCHEMA && trackedPath && fs.existsSync(trackedPath)) {
+  // Switching loaders (Fabric -> Forge, …) must swap the CustomSkinLoader build too.
+  if (tracker.mcVersion === mcVersion && (tracker.loader || 'fabric') === modLoader && tracker.schema === CSL_TRACKER_SCHEMA && trackedPath && fs.existsSync(trackedPath)) {
     removeStrayLoaders(modsDir, strayJars(), path.basename(trackedPath));
     return { installed: true, filename: path.basename(trackedPath), model: metadata.model };
   }
@@ -1131,8 +1134,9 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
       }
     } catch {}
 
-    // Fallback: if no builds matched the exact version tag, fetch the latest loader release (Universal build)
-    if (!versions?.length) {
+    // Fallback: if no builds matched the exact version tag, fetch the latest loader release (Universal build).
+    // Legacy Fabric targets old game versions, where a "latest" build would not load.
+    if (!versions?.length && modLoader !== 'legacy-fabric') {
       try {
         const params = new URLSearchParams({
           loaders: JSON.stringify([modLoader])

@@ -667,4 +667,4 @@ function init(dependencies, ipcMain) {
   });
 }
 
-module.exports = { init, beginSession, capture, markKilled, endSession, _internals: { applyFix, runAnalysis, setProperty } };
+module.exports = { init, beginSession, capture, markKilled, endSession, indexMods, _internals: { applyFix, runAnalysis, setProperty } };

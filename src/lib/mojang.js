@@ -16,7 +16,7 @@ const FABRIC_GAME_URL = 'https://meta.fabricmc.net/v2/versions/game';
 const CACHE_KEY = 'native.versionManifest';
 const CACHE_TTL = 60 * 60 * 1000;
 
-export const LOADERS = ['Vanilla', 'Fabric', 'Forge', 'NeoForge', 'Quilt'];
+export const LOADERS = ['Vanilla', 'Fabric', 'Forge', 'NeoForge', 'Quilt', 'Legacy Fabric'];
 
 export const VERSION_TYPES = [
   { id: 'release', label: 'Releases' },
@@ -190,6 +190,15 @@ export function loaderAvailability(loader, versionId, fabricSet) {
     return fabricSet.has(versionId)
       ? { available: true }
       : { available: false, reason: `Fabric has no build for ${versionId}`, reasonKey: 'versions.loaderNoBuild', reasonVars: { loader: 'Fabric', version: versionId } };
+  }
+
+  if (loader === 'Legacy Fabric') {
+    if (compareVersions(versionId, '1.14') >= 0) {
+      return { available: false, reason: 'Legacy Fabric covers 1.3 to 1.13.2. Use Fabric here', reasonKey: 'versions.loaderLegacyFabric', reasonVars: { loader, version: versionId } };
+    }
+    return compareVersions(versionId, '1.3') >= 0
+      ? { available: true }
+      : { available: false, reason: 'Legacy Fabric supports 1.3 and newer', reasonKey: 'versions.loaderMinimum', reasonVars: { loader, version: '1.3' } };
   }
 
   if (loader === 'Quilt') {

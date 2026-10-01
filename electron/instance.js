@@ -45,6 +45,7 @@ const instanceDir = (id) => resolveInside(instancesDir(), id);
 const LOADER_PREFIXES = {
   Fabric: 'fabric-loader-',
   Quilt: 'quilt-loader-',
+  'Legacy Fabric': 'fabric-loader-',
   NeoForge: 'neoforge-',
   Forge: 'forge-'
 };

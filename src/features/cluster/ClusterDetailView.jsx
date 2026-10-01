@@ -8,6 +8,7 @@ import SettingsTab from './SettingsTab.jsx';
 import InstanceContentTab from './InstanceContentTab.jsx';
 import ScreenshotManager from './ScreenshotManager.jsx';
 import ConsoleTab from './ConsoleTab.jsx';
+import LoaderTab from './LoaderTab.jsx';
 import { formatPlaytime } from '../instances/playtimeStats.js';
 import { getClusterArt } from '../../data/versionsData.js';
 import './ClusterDetailView.css';
@@ -20,6 +21,7 @@ const TAB_META = {
   worlds: { title: 'Worlds', icon: 'globe', folder: 'saves', search: 'Find a world…' },
   screenshots: { title: 'Screenshots', icon: 'camera', folder: 'screenshots', search: 'Find a screenshot…' },
   textures: { title: 'Resource packs', icon: 'type-resourcepack', folder: 'resourcepacks', search: 'Find a resource pack…' },
+  loader: { title: 'Mod loader', icon: 'layers', folder: '', search: 'Find a version…' },
   console: { title: 'Console', icon: 'code', folder: 'logs', search: 'Filter output…' },
   settings: { title: 'Advanced', icon: 'sliders', folder: '', search: 'Search settings…' }
 };
@@ -33,6 +35,7 @@ export default function ClusterDetailView({
   onKill,
   launcherState,
   onUpdateCluster,
+  onUpdateInstance,
   social,
   account,
   onNavigateBrowse,
@@ -157,7 +160,7 @@ export default function ClusterDetailView({
   const handleNavKeyDown = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    const order = [...contentTabs, 'console', 'settings'];
+    const order = [...contentTabs, 'loader', 'console', 'settings'];
     const index = order.indexOf(tab);
     const next = order[(index + (event.key === 'ArrowDown' ? 1 : -1) + order.length) % order.length];
     switchTab(next);
@@ -217,7 +220,7 @@ export default function ClusterDetailView({
               </h2>
               <div className="im-identity-badges">
                 <span className="im-badge-version">{cluster.mc_version || cluster.version}</span>
-                <span className={`im-badge-loader is-${loader.toLowerCase()}`}>{loader}</span>
+                <span className={`im-badge-loader is-${loader.toLowerCase().replace(/\s+/g, '-')}`}>{loader}</span>
                 <span className="im-identity-stat" title="Total playtime">
                   <NativeIcon name="clock" size={12} className="im-stat-icon" />
                   <span>{playtimeLabel}</span>
@@ -281,6 +284,14 @@ export default function ClusterDetailView({
           <div className="im-sidebar-footer">
             <span className="im-nav-group-label">Instance</span>
             <button
+              className={`im-nav im-nav-loader ${tab === 'loader' ? 'active' : ''}`}
+              aria-current={tab === 'loader' ? 'page' : undefined}
+              onClick={() => switchTab('loader')}
+            >
+              <NativeIcon name="layers" size={16} className="im-nav-icon" />
+              <span className="im-nav-text">Mod loader</span>
+            </button>
+            <button
               className={`im-nav im-nav-console ${tab === 'console' ? 'active' : ''}`}
               aria-current={tab === 'console' ? 'page' : undefined}
               onClick={() => switchTab('console')}
@@ -339,7 +350,7 @@ export default function ClusterDetailView({
             </label>
 
             <div className="im-toolbar-actions">
-              {tab !== 'mods' && tab !== 'console' && (
+              {tab !== 'mods' && tab !== 'console' && tab !== 'loader' && (
                 <button
                   className={`im-toolbar-btn ${filtered ? 'is-active' : ''}`}
                   title={filterLabel}
@@ -387,6 +398,16 @@ export default function ClusterDetailView({
               running={isThisRunning && ['running', 'launching', 'stopping'].includes(launcherState?.status)}
               onAnalyzeCrash={onAnalyzeCrash}
               onOpenCrashReport={onOpenCrashReport}
+              onNotify={showNotice}
+            />
+          )}
+
+          {tab === 'loader' && (
+            <LoaderTab
+              cluster={cluster}
+              query={query}
+              running={isThisRunning && ['running', 'launching', 'stopping', 'preparing', 'downloading'].includes(launcherState?.status)}
+              onUpdateInstance={onUpdateInstance}
               onNotify={showNotice}
             />
           )}

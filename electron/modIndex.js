@@ -17,7 +17,7 @@ const AdmZip = require('adm-zip');
  */
 
 const CACHE_FILE = '.noctra-crash-index.json';
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const MAX_PACKAGES = 24;
 const MAX_NESTED_BYTES = 48 * 1024 * 1024;
 // Packages that never identify a mod on their own.
@@ -141,6 +141,13 @@ function readJar(source, depth = 0, budget = { bytes: MAX_NESTED_BYTES }) {
   const quilt = safeJson(read('quilt.mod.json'));
   const toml = read('META-INF/mods.toml');
   const neo = read('META-INF/neoforge.mods.toml');
+  // Every loader this jar ships metadata for (multi-loader jars list several).
+  info.platforms = [
+    fabric && 'fabric',
+    quilt?.quilt_loader && 'quilt',
+    (toml || names.includes('mcmod.info')) && 'forge',
+    neo && 'neoforge'
+  ].filter(Boolean);
 
   if (fabric) {
     info.loader = 'fabric';
@@ -214,6 +221,7 @@ function readJar(source, depth = 0, budget = { bytes: MAX_NESTED_BYTES }) {
     info.loader = 'optifine';
     info.ids.push('optifine');
     info.name = 'OptiFine';
+    info.platforms = ['optifine'];
   } else if (depth > 0) {
     return null;
   }
@@ -260,7 +268,7 @@ function buildIndex(dir) {
     }
     const key = `${stat.size}:${Math.round(stat.mtimeMs)}`;
     let data = cache[file]?.key === key ? cache[file].data : null;
-    if (!data) data = readJar(path.join(dir, file)) || { ids: [], name: '', version: '', loader: 'unknown', depends: {}, breaks: {}, mixins: [], packages: [], roots: [] };
+    if (!data) data = readJar(path.join(dir, file)) || { ids: [], name: '', version: '', loader: 'unknown', platforms: [], depends: {}, breaks: {}, mixins: [], packages: [], roots: [] };
     next[file] = { key, data };
     mods.push({ file, size: stat.size, mtime: Math.round(stat.mtimeMs), ...data, name: data.name || file.replace(/\.jar$/i, '') });
   }

@@ -86,6 +86,16 @@ const api = {
     check: (payload) => ipcRenderer.invoke('java:check', payload),
     onProgress: (callback) => subscribe('java:progress', callback)
   },
+  loaders: {
+    // { kind, loader, mcVersion, versions: [{ version, stable, recommended, latest }], recommended, latest, unavailable }
+    versions: (loader, mcVersion) => ipcRenderer.invoke('loaders:versions', { loader, mcVersion }),
+    available: (mcVersion) => ipcRenderer.invoke('loaders:available', { mcVersion }),
+    install: (payload) => ipcRenderer.invoke('loaders:install', payload),
+    // { target, compatible, incompatible: [{ file, name, loader }], unknown }
+    check: (payload) => ipcRenderer.invoke('loaders:check', payload),
+    disableMods: (payload) => ipcRenderer.invoke('loaders:disableMods', payload),
+    onProgress: (callback) => subscribe('loaders:progress', callback)
+  },
   mods: {
     installed: (instanceId) => ipcRenderer.invoke('mods:installed', instanceId),
     toggle: (payload) => ipcRenderer.invoke('mods:toggle', payload),

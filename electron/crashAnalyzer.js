@@ -1306,13 +1306,16 @@ function ruleSystem(ctx) {
 function ruleStaticMods(ctx) {
   const loader = ctx.loader.toLowerCase();
   if (loader === 'vanilla' || !ctx.mods.mods.length) return;
-  const isFabricLike = loader === 'fabric' || loader === 'quilt';
   const isForgeLike = loader === 'forge' || loader === 'neoforge';
 
   // Mods for the wrong loader.
-  const wrong = ctx.mods.mods.filter((mod) => (isFabricLike && (mod.loader === 'forge' || mod.loader === 'neoforge'))
-    || (isForgeLike && (mod.loader === 'fabric' || mod.loader === 'quilt'))
-    || (loader === 'fabric' && mod.loader === 'quilt'));
+  // Multi-loader jars count as fine when any of their metadata fits.
+  const { loaderAccepts } = require('./loaders');
+  const wrong = ctx.mods.mods.filter((mod) => {
+    const platforms = Array.isArray(mod.platforms) && mod.platforms.length ? mod.platforms : [mod.loader];
+    if (platforms.every((platform) => !platform || platform === 'unknown' || platform === 'optifine')) return false;
+    return !platforms.some((platform) => loaderAccepts(loader, platform, ctx.mcVersion));
+  });
   if (wrong.length) {
     ctx.add({
       id: 'wrong-loader', category: 'mods', severity: isForgeLike ? 'critical' : 'warning', confidence: 72,
