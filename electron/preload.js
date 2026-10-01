@@ -108,6 +108,12 @@ const api = {
     remove: (payload) => ipcRenderer.invoke('mods:remove', payload),
     removeFile: (payload) => ipcRenderer.invoke('mods:removeFile', payload),
     enrich: (instanceId, folder) => ipcRenderer.invoke('mods:enrich', instanceId, folder),
+    // { checked, known, updates: [{ file, title, from, to, versionId, url, filename, sha1, ... }], dependencies, unknown }
+    checkUpdates: (payload) => ipcRenderer.invoke('mods:checkUpdates', payload),
+    // { updated, installed, failed }
+    applyUpdates: (payload) => ipcRenderer.invoke('mods:applyUpdates', payload),
+    // { problems: [{ id, kind, severity, title, detail, files, fix }], checked, offline }
+    problems: (payload) => ipcRenderer.invoke('mods:problems', payload),
     onProgress: (callback) => subscribe('mods:progress', callback)
   },
   modpacks: {

@@ -17,7 +17,7 @@ const AdmZip = require('adm-zip');
  */
 
 const CACHE_FILE = '.noctra-crash-index.json';
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const MAX_PACKAGES = 24;
 const MAX_NESTED_BYTES = 48 * 1024 * 1024;
 // Packages that never identify a mod on their own.
@@ -227,6 +227,8 @@ function readJar(source, depth = 0, budget = { bytes: MAX_NESTED_BYTES }) {
   }
 
   info.ids = [...new Set(info.ids.filter(Boolean).map(String))];
+  // The jar's own id (ids also lists bundled jar-in-jar modules).
+  info.id = info.ids[0] || '';
   info.mixins = [...new Set(info.mixins)];
   return info;
 }

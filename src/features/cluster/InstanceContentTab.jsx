@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
+import ContentHealth, { useContentHealth } from './ContentHealth.jsx';
 
 const formatSize = (bytes) => {
   if (!Number.isFinite(bytes)) return '';
@@ -48,6 +50,8 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const bump = useCallback(() => setRevision((value) => value + 1), []);
+  const health = useContentHealth({ cluster, type, revision, onChanged: bump });
 
   const load = useCallback(async () => {
     if (type === 'worlds') {
@@ -261,6 +265,8 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
           )}
         </div>
 
+        {!loading && rows.length > 0 && <ContentHealth health={health} noun={noun} />}
+
         {error && (
           <div className="im-error" role="alert">
             <span>{error}</span>
@@ -328,6 +334,17 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 <span className="im-file-meta">
                   {row.metadata?.version && (
                     <span className="im-file-version-tag">{row.metadata.version}</span>
+                  )}
+                  {health.updatesByFile[row.filename] && (
+                    <button
+                      type="button"
+                      className="im-update-pill"
+                      disabled={busy || !!health.applying}
+                      title={`Update to ${health.updatesByFile[row.filename].to}`}
+                      onClick={() => health.apply([health.updatesByFile[row.filename]], (health.updates.data?.dependencies || []).filter((dep) => !dep.unavailable && dep.requiredBy.includes(health.updatesByFile[row.filename].title)))}
+                    >
+                      <NativeIcon name="arrow-up-right" size={11} /> Update
+                    </button>
                   )}
                   {formatSize(row.size) && (
                     <span className="im-file-size-tag">{formatSize(row.size)}</span>
