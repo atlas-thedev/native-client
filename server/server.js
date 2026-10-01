@@ -71,25 +71,35 @@ function send(res, status, value, headers = {}) {
 let simulatedOnline = null;
 let lastDriftAt = 0;
 
+// Reference launch epoch for automatic daily growth (October 1, 2026 UTC)
+const LAUNCH_EPOCH = new Date(process.env.NOCTRA_LAUNCH_DATE || '2026-10-01T00:00:00Z').getTime();
+
 function getDynamicOnlineCount(realUsers = 0) {
   const boostEnabled = process.env.NOCTRA_BOOST_ENABLED !== 'false';
   if (!boostEnabled) return realUsers;
 
-  const minBase = Number(process.env.NOCTRA_BOOST_MIN) || 45;   // Late-night valley
-  const maxBase = Number(process.env.NOCTRA_BOOST_MAX) || 185;  // Evening peak
-
   const now = new Date();
+  const nowMs = now.getTime();
+
+  // Automatic daily growth: increases by ~50 players every 24 hours that pass
+  const daysElapsed = Math.max(0, (nowMs - LAUNCH_EPOCH) / 86_400_000);
+  const dailyGrowthRate = Number(process.env.NOCTRA_DAILY_GROWTH) || 50;
+  const growthBonus = Math.floor(daysElapsed * dailyGrowthRate);
+
+  // Baseline range: late night valley to evening peak (+ daily growth bonus)
+  const baseMin = (Number(process.env.NOCTRA_BOOST_MIN) || 140) + growthBonus;
+  const baseMax = (Number(process.env.NOCTRA_BOOST_MAX) || 420) + growthBonus;
+
   // Fractional UTC hour of the day (0.00 .. 23.99)
   const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
 
   // Diurnal curve: peak at ~18:30 UTC (EU/Asia gaming peak), lowest at ~05:00 UTC
   const diurnalFactor = (Math.cos(((hour - 18.5) * 2 * Math.PI) / 24) + 1) / 2; // 0.0 to 1.0
-  const targetBase = Math.round(minBase + (maxBase - minBase) * diurnalFactor);
+  const targetBase = Math.round(baseMin + (baseMax - baseMin) * diurnalFactor);
 
-  const nowMs = Date.now();
   if (simulatedOnline === null) {
-    const initialJitter = Math.floor(Math.random() * 7) - 3;
-    simulatedOnline = Math.max(minBase, targetBase + initialJitter);
+    const initialJitter = Math.floor(Math.random() * 9) - 4;
+    simulatedOnline = Math.max(baseMin, targetBase + initialJitter);
     lastDriftAt = nowMs;
   } else {
     const elapsed = nowMs - lastDriftAt;
@@ -98,16 +108,16 @@ function getDynamicOnlineCount(realUsers = 0) {
       const difference = targetBase - simulatedOnline;
 
       const rand = Math.random();
-      if (Math.abs(difference) > 6 && rand < 0.65) {
-        simulatedOnline += (difference > 0 ? 1 : -1);
+      if (Math.abs(difference) > 8 && rand < 0.70) {
+        simulatedOnline += (difference > 0 ? (Math.random() < 0.7 ? 2 : 1) : (Math.random() < 0.7 ? -2 : -1));
       } else if (rand < 0.40) {
         simulatedOnline += (difference > 0 ? 1 : -1);
       } else if (rand < 0.75) {
         simulatedOnline += (Math.random() < 0.5 ? 1 : -1);
       }
 
-      const floorLimit = Math.floor(minBase * 0.85);
-      const ceilLimit = Math.ceil(maxBase * 1.15);
+      const floorLimit = Math.floor(baseMin * 0.85);
+      const ceilLimit = Math.ceil(baseMax * 1.15);
       simulatedOnline = Math.max(floorLimit, Math.min(ceilLimit, simulatedOnline));
     }
   }
