@@ -1,5 +1,6 @@
 const db = require('./db');
 const events = require('./social-events');
+const media = require('./media');
 
 /**
  * Relay group + reply API.
@@ -28,7 +29,7 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 4 * 1024 * 1024) throw new Error('Request is too large.');
+    if (size > 4 * 1024 * 1024) throw Object.assign(new Error('Request is too large.'), { status: 413 });
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -97,7 +98,7 @@ async function handleRelayRoutes(req, res) {
         const body = await readJson(req);
         const { group, participants } = db.createGroup(me, {
           name: body.name,
-          iconUrl: body.iconUrl,
+          iconUrl: media.normalizeIconUrl(body.iconUrl, media.originOf(req)),
           description: body.description,
           memberIds: body.memberIds || body.members || []
         });
@@ -136,10 +137,7 @@ async function handleRelayRoutes(req, res) {
       if (req.method === 'POST' && action === 'messages') {
         const body = await readJson(req);
         const { message, participants } = db.sendGroupMessage(me, groupId, body.content, {
-          mediaUrl: body.mediaUrl || null,
-          mediaName: body.mediaName || null,
-          mediaKind: body.mediaKind || null,
-          isMedia: body.isMedia ?? Boolean(body.mediaUrl),
+          ...media.normalizeAttachment(body, media.originOf(req)),
           replyTo: body.replyTo || null
         });
         setGroupTyping(groupId, me, false, participants);
@@ -151,7 +149,9 @@ async function handleRelayRoutes(req, res) {
 
       if (req.method === 'POST' && action === 'update') {
         const body = await readJson(req);
-        const result = db.updateGroup(me, groupId, body);
+        const changes = { ...body };
+        if (typeof body.iconUrl !== 'undefined') changes.iconUrl = media.normalizeIconUrl(body.iconUrl, media.originOf(req));
+        const result = db.updateGroup(me, groupId, changes);
         broadcastGroup(result.participants, result.group);
         broadcastNotices(result.participants, groupId, result.notices);
         send(res, 200, { ok: true, group: result.group });
@@ -261,6 +261,7 @@ async function handleRelayRoutes(req, res) {
 
       if (action === 'delete') {
         const result = db.deleteGroupMessage(me, messageId);
+        if (result.releasedMediaUrl) media.releaseMedia(result.releasedMediaUrl, db.isMediaReferenced);
         publish(result.participants, 'group:message:updated', { groupId: result.message.groupId, message: result.message });
         send(res, 200, { ok: true, message: result.message });
         return true;
@@ -289,10 +290,7 @@ async function handleRelayRoutes(req, res) {
       if (req.method === 'POST' && action === 'messages') {
         const body = await readJson(req);
         const message = db.sendDirectMessage(me, friendId, body.content, {
-          mediaUrl: body.mediaUrl || null,
-          mediaName: body.mediaName || null,
-          mediaKind: body.mediaKind || null,
-          isMedia: body.isMedia ?? Boolean(body.mediaUrl),
+          ...media.normalizeAttachment(body, media.originOf(req)),
           replyTo: body.replyTo || null
         });
         events.setTyping(me, friendId, false);
@@ -317,6 +315,7 @@ async function handleRelayRoutes(req, res) {
 
       if (action === 'delete') {
         const result = db.deleteDirectMessage(me, messageId);
+        if (result.releasedMediaUrl) media.releaseMedia(result.releasedMediaUrl, db.isMediaReferenced);
         publish(result.participants, 'message:updated', { message: result.message });
         send(res, 200, { ok: true, message: result.message });
         return true;

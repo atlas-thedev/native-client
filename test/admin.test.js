@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-admin-test-'));
 process.env.NOCTRA_DATA_DIR = DATA_DIR;
+process.env.NOCTRA_ADMIN_EMAILS = 'owner@test.local';
 
 const db = require('../server/db');
 const { listen } = require('../server/server');
@@ -15,13 +16,18 @@ const authHeaders = (token, json = false) => ({
   ...(json ? { 'Content-Type': 'application/json' } : {})
 });
 
-test('admin API is role-protected and lets OhLlama manage sanitized user badges', async () => {
+test('admin API is role-protected and lets the configured admin manage sanitized user badges', async () => {
   const regular = db.createUser({ email: 'player@test.local', username: 'RegularPlayer', password: 'password123' });
   const owner = db.createUser({ email: 'owner@test.local', username: 'OhLlama', password: 'password123' });
+  assert.equal(Boolean(db.getUserByUsername('OhLlama').is_admin), true, 'NOCTRA_ADMIN_EMAILS grants admin at sign-up');
   db.getDb().prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(owner.id);
   db.closeDb();
   db.getDb();
-  assert.equal(Boolean(db.getUserByUsername('OhLlama').is_admin), true, 'schema migration restores the owner admin role');
+  assert.equal(Boolean(db.getUserByUsername('OhLlama').is_admin), true, 'schema migration restores the configured admin role');
+  // A username alone never grants admin.
+  const squatter = db.createUser({ email: 'someone@test.local', username: 'Ohllama_', password: 'password123' });
+  assert.equal(Boolean(db.getUserByUsername(squatter.username).is_admin), false);
+  db.getDb().prepare('DELETE FROM users WHERE id = ?').run(squatter.id);
   const regularSession = db.createSession(regular.id);
   const ownerSession = db.createSession(owner.id);
   const server = await listen(0, '127.0.0.1');

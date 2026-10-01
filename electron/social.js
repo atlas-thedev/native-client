@@ -1,5 +1,8 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { safeStorage } = require('electron');
+const safeFile = require('./safeFile');
 
 /**
  * Noctra Social & Friends System (Main Process).
@@ -15,7 +18,11 @@ const fs = require('fs');
  */
 
 const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
-const LOCAL_ROOT = 'http://127.0.0.1:3418';
+// A local/self-hosted API is only used when explicitly configured. Never send
+// the session token to whatever happens to listen on localhost.
+const LOCAL_ROOT = process.env.NOCTRA_LOCAL_API ? String(process.env.NOCTRA_LOCAL_API).replace(/\/+$/, '') : null;
+const API_ROOTS = [...new Set([REMOTE_ROOT, LOCAL_ROOT].filter(Boolean))];
+const REQUEST_TIMEOUT_MS = 15_000;
 const STREAM_SILENCE_MS = Number(process.env.NOCTRA_STREAM_SILENCE_MS) || 70_000;
 
 let deps = null;
@@ -34,30 +41,58 @@ let streamAttempt = 0;
 let streamAccountId = null;
 let streamStatus = 'idle';
 let reconnectTimer = null;
+let wakeReconnect = null;
+// Bumped by every stop/start, so a loop from a previous account exits instead
+// of running alongside the new one (duplicate events after a switch).
+let streamGeneration = 0;
 
-const cachePath = () => path.join(deps.app.getPath('userData'), 'social-cache.json');
+const EMPTY_CACHE = () => ({ friends: [], requests: { received: [], sent: [] }, messages: {}, conversations: {} });
+
+// One cache per account, so a failed fetch never shows the previous
+// account's friends or DMs. The file is encrypted when the OS keychain is.
+function cachePath(accountId) {
+  const key = crypto.createHash('sha256').update(String(accountId)).digest('hex').slice(0, 16);
+  return path.join(deps.app.getPath('userData'), 'social-cache', `${key}.json`);
+}
+
+function removeLegacyCache() {
+  try { fs.rmSync(path.join(deps.app.getPath('userData'), 'social-cache.json'), { force: true }); } catch {}
+}
 
 function readCache() {
+  const account = getActiveNoctraAccount();
+  if (!account?.id) return EMPTY_CACHE();
+  const stored = safeFile.readJson(cachePath(account.id), null);
+  if (!stored) return EMPTY_CACHE();
   try {
-    return JSON.parse(fs.readFileSync(cachePath(), 'utf8'));
-  } catch {
-    return { friends: [], requests: { received: [], sent: [] }, messages: {}, conversations: {} };
-  }
+    if (stored.enc === 'safe:v1') {
+      return { ...EMPTY_CACHE(), ...JSON.parse(safeStorage.decryptString(Buffer.from(stored.data, 'base64'))) };
+    }
+    if (stored.enc === 'none') return { ...EMPTY_CACHE(), ...stored.data };
+  } catch {}
+  return EMPTY_CACHE();
 }
 
 function writeCache(updater) {
   try {
+    const account = getActiveNoctraAccount();
+    if (!account?.id) return;
     const current = readCache();
     const updated = typeof updater === 'function' ? updater(current) : { ...current, ...updater };
-    fs.writeFileSync(cachePath(), JSON.stringify(updated, null, 2));
+    let record;
+    if (safeStorage?.isEncryptionAvailable?.()) {
+      record = { enc: 'safe:v1', data: safeStorage.encryptString(JSON.stringify(updated)).toString('base64') };
+    } else {
+      record = { enc: 'none', data: updated };
+    }
+    safeFile.writeJsonAtomic(cachePath(account.id), record, { backup: false });
   } catch {}
 }
 
 function getActiveNoctraAccount() {
   try {
-    const accountsPath = path.join(deps.app.getPath('userData'), 'accounts.json');
-    if (!fs.existsSync(accountsPath)) return null;
-    const data = JSON.parse(fs.readFileSync(accountsPath, 'utf8'));
+    // auth.js owns accounts.json (and decrypts the stored session token).
+    const data = require('./auth').readAccounts(deps.app.getPath('userData'));
     const active = (data.accounts || []).find(a => a.id === data.activeId);
     if (active && active.type === 'noctra' && (active.token || active.sessionToken)) {
       return active;
@@ -82,23 +117,34 @@ async function socialFetch(endpoint, { method = 'GET', body = null, token = null
     'Authorization': `Bearer ${authToken}`
   };
 
-  const reqOptions = {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  };
-
-  try {
-    const res = await fetch(`${REMOTE_ROOT}${endpoint}`, reqOptions);
-    return await res.json();
-  } catch (remoteErr) {
+  let lastError = 'Could not connect to Noctra Social service.';
+  for (const root of API_ROOTS) {
     try {
-      const localRes = await fetch(`${LOCAL_ROOT}${endpoint}`, reqOptions);
-      return await localRes.json();
-    } catch {
-      return { ok: false, error: 'Could not connect to Noctra Social service.' };
+      const res = await fetch(`${root}${endpoint}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      });
+      const text = await res.text();
+      let payload;
+      try { payload = text ? JSON.parse(text) : {}; } catch { payload = null; }
+      if (payload && typeof payload === 'object') {
+        if (!res.ok && payload.ok === undefined) payload.ok = false;
+        // Only server/transport failures try the next root.
+        if (res.status < 500) return payload;
+        lastError = payload.error || `Noctra Social returned HTTP ${res.status}.`;
+        continue;
+      }
+      lastError = `Noctra Social returned HTTP ${res.status}.`;
+      if (res.status < 500) return { ok: false, error: lastError };
+    } catch (err) {
+      lastError = err?.name === 'TimeoutError' || err?.name === 'AbortError'
+        ? 'Noctra Social took too long to respond.'
+        : 'Could not connect to Noctra Social service.';
     }
   }
+  return { ok: false, error: lastError };
 }
 
 function sendToWindow(channel, payload) {
@@ -132,7 +178,8 @@ function handleStreamFrame(block) {
   } catch {}
 }
 
-async function connectStreamOnce(root, token) {
+async function connectStreamOnce(root, token, generation) {
+  if (generation !== streamGeneration) return;
   const controller = new AbortController();
   streamController = controller;
 
@@ -170,6 +217,7 @@ async function connectStreamOnce(root, token) {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      if (generation !== streamGeneration) break;
       arm();
       buffer += decoder.decode(value, { stream: true });
 
@@ -186,12 +234,10 @@ async function connectStreamOnce(root, token) {
   }
 }
 
-async function streamLoop() {
-  if (streamRunning) return;
-  streamRunning = true;
-  streamStopped = false;
+async function streamLoop(generation) {
+  const alive = () => generation === streamGeneration;
 
-  while (!streamStopped) {
+  while (alive()) {
     const account = getActiveNoctraAccount();
     const token = tokenOf(account);
     if (!token) {
@@ -201,19 +247,19 @@ async function streamLoop() {
     streamAccountId = account.id;
 
     let connected = false;
-    for (const root of [REMOTE_ROOT, LOCAL_ROOT]) {
-      if (streamStopped) break;
+    for (const root of API_ROOTS) {
+      if (!alive()) break;
       try {
         setStreamStatus(streamAttempt === 0 ? 'connecting' : 'reconnecting', root);
-        await connectStreamOnce(root, token);
+        await connectStreamOnce(root, token, generation);
         connected = true;
         break; // stream ended cleanly; reconnect through the outer loop
       } catch (err) {
-        if (streamStopped || err?.name === 'AbortError') break;
+        if (!alive() || err?.name === 'AbortError') break;
       }
     }
 
-    if (streamStopped) break;
+    if (!alive()) break;
 
     streamAttempt = connected ? 1 : streamAttempt + 1;
     setStreamStatus('disconnected');
@@ -221,25 +267,36 @@ async function streamLoop() {
     // Exponential backoff, capped at 15s, with jitter.
     const delay = Math.min(15_000, 700 * Math.pow(1.7, Math.min(streamAttempt, 8))) + Math.random() * 400;
     await new Promise((resolve) => {
+      wakeReconnect = resolve;
       reconnectTimer = setTimeout(resolve, delay);
     });
+    wakeReconnect = null;
   }
 
-  streamRunning = false;
+  if (alive()) streamRunning = false;
 }
 
 function startStream() {
   if (streamRunning) return;
-  streamLoop().catch(() => { streamRunning = false; });
+  streamRunning = true;
+  streamStopped = false;
+  const generation = ++streamGeneration;
+  streamLoop(generation).catch(() => {
+    if (generation === streamGeneration) streamRunning = false;
+  });
 }
 
 function stopStream() {
   streamStopped = true;
+  streamGeneration += 1;
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
+  if (wakeReconnect) { const wake = wakeReconnect; wakeReconnect = null; wake(); }
   try { streamController?.abort(); } catch {}
   streamController = null;
   streamRunning = false;
+  streamAccountId = null;
+  streamAttempt = 0;
   setStreamStatus('idle');
 }
 
@@ -298,6 +355,7 @@ function getPresence() {
 
 function init(dependencies, ipcMain) {
   deps = dependencies;
+  removeLegacyCache();
 
   // Send initial presence immediately
   const initialToken = tokenOf(getActiveNoctraAccount());
@@ -467,6 +525,7 @@ function init(dependencies, ipcMain) {
 }
 
 module.exports = {
+  API_ROOTS,
   init,
   setPresence,
   getPresence,

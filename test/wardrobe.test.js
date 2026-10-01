@@ -208,13 +208,14 @@ test('prepareFabricInstance writes the CustomSkinLoader files for the active out
   }
 });
 
-test('deterministicSyncKey produces consistent keys for the same account identity', () => {
-  const account1 = { id: 'user-123', name: 'PlayerOne', email: 'test@example.com' };
-  const account2 = { id: 'different-local-id', name: 'PlayerOne', email: 'test@example.com' };
-  const key1 = wardrobe.deterministicSyncKey(account1);
-  const key2 = wardrobe.deterministicSyncKey(account2);
-  assert.equal(key1, key2);
-  assert.equal(key1.length, 48);
+test('new sync keys are random, and the old guessable key is recognised as legacy', () => {
+  const account = { id: 'user-123', name: 'PlayerOne', email: 'test@example.com' };
+  const a = wardrobe.newSyncKey();
+  const b = wardrobe.newSyncKey();
+  assert.notEqual(a, b);
+  assert.equal(a.length, 48);
+  assert.equal(wardrobe.isLegacySyncKey(account, wardrobe.deterministicSyncKey(account)), true);
+  assert.equal(wardrobe.isLegacySyncKey(account, a), false);
 });
 
 test('storing an item with an existing name overwrites the file instead of duplicating', () => {

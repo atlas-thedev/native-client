@@ -59,14 +59,30 @@ async function requiredMajor(mcVersion) {
   return versionJson.javaVersion?.majorVersion ?? 8;
 }
 
+/**
+ * Offline guess at the Java a version needs, used only when Mojang's version
+ * manifest is unreachable. Mirrors javaVersion.majorVersion:
+ *   <= 1.16 -> 8, 1.17 -> 16 (slot 17), 1.18 - 1.20.4 -> 17,
+ *   1.20.5 - 1.21.x -> 21, 26.x+ -> 25. Snapshots ("24w14a") go by year/week.
+ */
 function fallbackMajor(mcVersion) {
-  const [major = 0, minor = 0, patch = 0] = String(mcVersion)
+  const value = String(mcVersion || '').trim().toLowerCase();
+  const snapshot = value.match(/^(\d{2})w(\d{2})[a-z]?$/);
+  if (snapshot) {
+    const year = Number(snapshot[1]);
+    const week = Number(snapshot[2]);
+    if (year >= 26) return 25;
+    if (year > 24 || (year === 24 && week >= 14)) return 21;
+    if (year >= 21 || (year === 20 && week >= 45)) return 17;
+    return 8;
+  }
+  const [major = 0, minor = 0, patch = 0] = value
     .split(/[.-]/)
     .slice(0, 3)
-    .map(Number);
+    .map((part) => Number.parseInt(part, 10) || 0);
   if (major > 1 || minor >= 22) return 25;
   if (minor > 20 || (minor === 20 && patch >= 5)) return 21;
-  if (minor >= 18) return 17;
+  if (minor >= 17) return 17;
   return 8;
 }
 
@@ -86,41 +102,88 @@ function findJavaBinary(dir) {
   return null;
 }
 
-/** Download + extract a Temurin JRE for `major` from Adoptium. Returns the java binary path. */
-async function downloadRuntime(major, onProgress = () => {}) {
-  const osName =
-    process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
-  const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
-  const url = `https://api.adoptium.net/v3/binary/latest/${major}/ga/${osName}/${arch}/jre/hotspot/normal/eclipse`;
+/** Adoptium's published package (download link + SHA-256) for this OS/arch. */
+async function adoptiumPackage(major, osName, arch) {
+  const query = new URLSearchParams({ architecture: arch, image_type: 'jre', os: osName, vendor: 'eclipse' });
+  const assets = await fetchJson(`https://api.adoptium.net/v3/assets/latest/${major}/hotspot?${query}`);
+  const pkg = Array.isArray(assets) ? assets.find((a) => a?.binary?.package?.link)?.binary?.package : null;
+  if (!pkg || !/^[a-f0-9]{64}$/i.test(String(pkg.checksum || ''))) {
+    throw new Error(`No Java ${major} runtime is published for ${osName} ${arch}.`);
+  }
+  const link = new URL(pkg.link);
+  if (link.protocol !== 'https:' || !/(^|\.)github\.com$|(^|\.)adoptium\.net$/i.test(link.hostname)) {
+    throw new Error('Unexpected Java download location.');
+  }
+  return { url: pkg.link, sha256: String(pkg.checksum).toLowerCase(), name: String(pkg.name || '') };
+}
 
-  const dest = path.join(runtimesDir(), String(major));
-  fs.rmSync(dest, { recursive: true, force: true });
-  fs.mkdirSync(dest, { recursive: true });
-
-  const archivePath = path.join(dest, osName === 'windows' ? 'jre.zip' : 'jre.tar.gz');
-  await downloadFile(url, archivePath, {
-    retries: 3,
-    timeoutMs: 10 * 60 * 1000,
-    onProgress: ({ percent, received, total }) => {
-      if (percent !== null) onProgress({ percent, received, total });
-    }
-  });
-
-  await new Promise((resolve, reject) => {
-    const proc =
-      osName === 'windows'
-        ? spawn('powershell', [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -Path "${archivePath}" -DestinationPath "${dest}" -Force`
-          ])
-        : spawn('tar', ['-xzf', archivePath, '-C', dest]);
+function extractArchive(archivePath, dest, isZip) {
+  return new Promise((resolve, reject) => {
+    const proc = isZip
+      // Paths go in through environment variables, never interpolated into
+      // the script, so quotes or $ in the user folder can't break or inject.
+      ? spawn('powershell', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy', 'Bypass',
+          '-Command',
+          'Expand-Archive -LiteralPath $env:NOCTRA_ARCHIVE -DestinationPath $env:NOCTRA_DEST -Force'
+        ], { env: { ...process.env, NOCTRA_ARCHIVE: archivePath, NOCTRA_DEST: dest }, windowsHide: true })
+      : spawn('tar', ['-xzf', archivePath, '-C', dest]);
     proc.on('error', reject);
     proc.on('close', (code) =>
       code === 0 ? resolve() : reject(new Error(`Java archive extraction failed (${code})`))
     );
   });
-  fs.rmSync(archivePath, { force: true });
+}
+
+/**
+ * Download + extract a Temurin JRE for `major` from Adoptium. Returns the java
+ * binary path. Everything happens in a staging folder; the existing runtime is
+ * only replaced once the new one is verified and extracted, so a failed or
+ * interrupted download never leaves the player without Java.
+ */
+async function downloadRuntime(major, onProgress = () => {}) {
+  const osName =
+    process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
+  const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
+  const pkg = await adoptiumPackage(major, osName, arch);
+
+  const dest = path.join(runtimesDir(), String(major));
+  const staging = `${dest}.staging-${process.pid}-${Date.now()}`;
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+
+  try {
+    const isZip = osName === 'windows' || /\.zip$/i.test(pkg.name);
+    const archivePath = path.join(staging, isZip ? 'jre.zip' : 'jre.tar.gz');
+    await downloadFile(pkg.url, archivePath, {
+      retries: 3,
+      timeoutMs: 10 * 60 * 1000,
+      expectedHashes: { sha256: pkg.sha256 },
+      onProgress: ({ percent, received, total }) => {
+        if (percent !== null) onProgress({ percent, received, total });
+      }
+    });
+
+    await extractArchive(archivePath, staging, isZip);
+    fs.rmSync(archivePath, { force: true });
+    if (!findJavaBinary(staging)) throw new Error('Downloaded Java runtime is missing its java binary');
+
+    // Swap in the verified runtime.
+    const previous = `${dest}.old-${Date.now()}`;
+    if (fs.existsSync(dest)) fs.renameSync(dest, previous);
+    try {
+      fs.renameSync(staging, dest);
+    } catch (error) {
+      if (fs.existsSync(previous)) fs.renameSync(previous, dest);
+      throw error;
+    }
+    fs.rmSync(previous, { recursive: true, force: true });
+  } catch (error) {
+    fs.rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
 
   const binary = findJavaBinary(dest);
   if (!binary) throw new Error('Downloaded Java runtime is missing its java binary');

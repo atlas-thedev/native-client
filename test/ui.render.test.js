@@ -125,10 +125,11 @@ test('screenshot manager description is short and Stored locally badge is remove
  * Verifies the instance-settings browse page suppresses the installed toast
  * and BrowseView keeps its toast-control prop.
  */
-test('instance setting browse page suppresses installed toast and keeps toast control prop', () => {
-  const cdvCode = fs.readFileSync(path.join(ROOT, 'src/features/cluster/ClusterDetailView.jsx'), 'utf8');
-  assert.ok(cdvCode.includes('hideInstallToast={true}'), 'ClusterDetailView passes hideInstallToast');
-  assert.ok(cdvCode.includes('/installed/i.test'), 'ClusterDetailView suppresses installed toasts');
+test('browse keeps the hideInstallToast control prop wired to the installer', () => {
+  // The instance page no longer embeds BrowseView; the prop stays supported
+  // for embedders and must still gate the installed toast.
+  const installer = fs.readFileSync(path.join(ROOT, 'src/features/browser/hooks/useInstaller.js'), 'utf8');
+  assert.ok(installer.includes('if (!hideInstallToast)'), 'useInstaller gates the installed toast');
 
   const bvCode = fs.readFileSync(path.join(ROOT, 'src/features/browser/BrowseView.jsx'), 'utf8');
   assert.ok(bvCode.includes('hideInstallToast = false'), 'BrowseView supports hideInstallToast prop');

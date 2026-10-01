@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { dialog } = require('electron');
 const { downloadFile, writeFileAtomic } = require('./download');
+const safeFile = require('./safeFile');
 
 /**
  * Locker / wardrobe storage (main process).
@@ -71,13 +72,22 @@ function getOfficialCapeBuffer(nameOrId) {
   return null;
 }
 
+/**
+ * The v2 key derived from public account details. Anyone could compute it, so
+ * it is only kept to recognise (and rotate away from) legacy installs.
+ */
 function deterministicSyncKey(account) {
   const seed = String(account?.email || account?.uuid || account?.id || account?.name || 'guest').toLowerCase().trim();
   return crypto.createHash('sha256').update(`noctra-wardrobe-v2:${seed}`).digest('hex').slice(0, 48);
 }
 
-function newSyncKey(account) {
-  return deterministicSyncKey(account);
+function newSyncKey() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function isLegacySyncKey(account, key) {
+  if (!account || !key) return false;
+  return key === deterministicSyncKey(account);
 }
 
 function emptyMetadata(account) {
@@ -145,7 +155,7 @@ function sanitizeMetadata(raw, account) {
   if (Array.isArray(raw.slots) && !Array.isArray(raw.items)) return migrateLegacy(raw);
 
   const metadata = emptyMetadata(account);
-  metadata.syncKey = typeof raw.syncKey === 'string' && raw.syncKey.length >= 32 ? raw.syncKey : (account ? deterministicSyncKey(account) : metadata.syncKey);
+  metadata.syncKey = typeof raw.syncKey === 'string' && raw.syncKey.length >= 32 ? raw.syncKey : metadata.syncKey;
   metadata.model = normalizeModel(raw.model);
   metadata.items = (Array.isArray(raw.items) ? raw.items : [])
     .map((item, index) => normalizeItem(item, `item-${index}`))
@@ -159,16 +169,13 @@ function sanitizeMetadata(raw, account) {
 }
 
 function loadMetadata(account) {
-  let raw = null;
-  try {
-    raw = JSON.parse(fs.readFileSync(metadataPath(account), 'utf8'));
-  } catch {
-    raw = null;
-  }
+  const { value: raw, status } = safeFile.readJsonDetailed(metadataPath(account), null);
   const metadata = sanitizeMetadata(raw, account);
   if (!metadata.syncKey || metadata.syncKey.length < 32) {
-    metadata.syncKey = deterministicSyncKey(account);
+    metadata.syncKey = newSyncKey();
   }
+  // Unreadable file: work from memory, never overwrite the user's library.
+  if (status === 'corrupt') return metadata;
 
   // Automatic upgrade: verify that any cape items matching official presets use authentic textures
   let upgraded = false;
@@ -204,7 +211,7 @@ function loadMetadata(account) {
     }
   }
 
-  // Persist the migrated shape, deterministic sync key, or upgraded items on read.
+  // Persist the migrated shape, a new sync key, or upgraded items on read.
   if (!raw || raw.version !== 2 || upgraded || raw.syncKey !== metadata.syncKey) {
     saveMetadata(account, metadata);
   }
@@ -793,11 +800,17 @@ async function syncWardrobe(account) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   let response;
+  let rotatedKey = null;
   try {
     const headers = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${metadata.syncKey}`
     };
+    // Replace a guessable legacy key with a random one on the next upload.
+    if (isLegacySyncKey(account, metadata.syncKey)) {
+      rotatedKey = newSyncKey();
+      headers['X-Noctra-Rotate-Key'] = rotatedKey;
+    }
     if (account?.token) {
       headers['X-Noctra-Token'] = account.token;
     }
@@ -823,6 +836,7 @@ async function syncWardrobe(account) {
   }
 
   metadata.lastSyncedAt = Date.now();
+  if (rotatedKey) metadata.syncKey = rotatedKey;
   saveMetadata(account, metadata);
   const resData = await response.json();
   return { ...resData, ok: true, state: publicState(account) };
@@ -1286,6 +1300,8 @@ module.exports = {
   syncWardrobe,
   warmSkinCache,
   deterministicSyncKey,
+  isLegacySyncKey,
+  newSyncKey,
   OFFICIAL_CAPES,
   API_ROOT
 };

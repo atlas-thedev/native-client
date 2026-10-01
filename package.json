@@ -48,6 +48,7 @@
     "files": [
       "dist/**",
       "electron/**",
+      "icon.png",
       "src/assets/noctra-icon.png",
       "src/styles/theme.css",
       "package.json"

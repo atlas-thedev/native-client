@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import { ReplyQuote } from './ReplyPreview.jsx';
+import { safeMediaUrl } from './safeMedia.js';
 
 const countReactions = (reactions = []) => reactions.reduce((acc, item) => {
   if (!item?.reaction) return acc;
@@ -62,6 +63,9 @@ export function MessageRow({
   const isEditing = draft !== null;
   const groups = countReactions(msg.reactions);
   const canEdit = isMine && !msg.isDeleted && !msg.pending && Boolean(msg.content) && !msg.mediaUrl;
+  // Only Noctra uploads (and the built-in GIFs) are ever loaded.
+  const mediaUrl = safeMediaUrl(msg.mediaUrl);
+  const blockedMedia = Boolean(msg.mediaUrl) && !mediaUrl;
   const canDelete = (isMine || (isGroup && canModerate)) && !msg.isDeleted && !msg.pending && !msg.isUploading;
   const isRead = isGroup ? (readAt > 0 && (msg.createdAt || 0) <= readAt) : Boolean(msg.isRead);
   const continued = Boolean(msg.groupedWithPrevious);
@@ -207,7 +211,7 @@ export function MessageRow({
               </p>
             )}
 
-            {msg.isMedia && msg.mediaUrl && (
+            {msg.isMedia && mediaUrl && (
               <div className={`rm-media${msg.isUploading ? ' is-uploading' : ''}`}>
                 {msg.content && (
                   <p className="rm-text">
@@ -215,8 +219,8 @@ export function MessageRow({
                     {msg.editedAt && <span className="rm-edited"> (edited)</span>}
                   </p>
                 )}
-                <div className="rm-media-frame" onClick={() => !msg.isUploading && onOpenMedia?.(msg.mediaUrl)}>
-                  <img src={msg.mediaUrl} alt={msg.mediaName || 'Attachment'} />
+                <div className="rm-media-frame" onClick={() => !msg.isUploading && onOpenMedia?.(mediaUrl)}>
+                  <img src={mediaUrl} referrerPolicy="no-referrer" alt={msg.mediaName || 'Attachment'} />
                   {msg.isUploading ? (
                     <div className="rm-media-uploading">
                       <span className="relay-progress-track"><i className="relay-progress-indeterminate" /></span>
@@ -228,14 +232,14 @@ export function MessageRow({
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onOpenMedia?.(msg.mediaUrl);
+                          onOpenMedia?.(mediaUrl);
                         }}
                         title="Open full screen"
                       >
                         <Maximize2 size={14} />
                       </button>
                       <a
-                        href={msg.mediaUrl}
+                        href={mediaUrl}
                         download={msg.mediaName || 'image.png'}
                         onClick={(event) => event.stopPropagation()}
                         title="Download original"
@@ -249,19 +253,25 @@ export function MessageRow({
               </div>
             )}
 
-            {!msg.isMedia && !msg.isVoice && msg.mediaUrl && (
-              <a className="rm-file" href={msg.mediaUrl} download={msg.mediaName || 'attachment'}>
+            {!msg.isMedia && !msg.isVoice && mediaUrl && (
+              <a className="rm-file" href={mediaUrl} download={msg.mediaName || 'attachment'}>
                 <FileText size={16} />
                 <span>{msg.mediaName || 'Attachment'}</span>
                 <Download size={14} />
               </a>
             )}
 
-            {msg.isVoice && msg.mediaUrl && (
+            {msg.isVoice && mediaUrl && (
               <div className="rm-voice">
-                <audio controls src={msg.mediaUrl} preload="none" />
+                <audio controls src={mediaUrl} preload="none" />
                 <span>{msg.duration || ''}</span>
               </div>
+            )}
+            {blockedMedia && (
+              <span className="rm-file rm-file-blocked" title="This attachment points outside Noctra and was not loaded.">
+                <FileText size={16} />
+                <span>Attachment unavailable</span>
+              </span>
             )}
           </>
         )}

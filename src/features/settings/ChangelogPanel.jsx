@@ -23,10 +23,15 @@ function sanitizeHtml(dirtyHtml) {
     try {
       return DOMPurify(window).sanitize(dirtyHtml);
     } catch {
-      // fallback
+      // fall through to plain text
     }
   }
-  return dirtyHtml;
+  // Fail closed: without a sanitizer, show the notes as escaped text.
+  return String(dirtyHtml)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /** Rich markdown renderer for GitHub changelogs and release notes */

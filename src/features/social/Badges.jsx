@@ -40,18 +40,12 @@ export const BADGE_DEFS = {
 
 /**
  * Returns badge IDs for a given user entity.
- * Automatically gives Developer, Early Supporter, Bug Hunter to OhLlama.
+ * Badges are server-granted (admin panel); names never grant badges.
  */
 export function getUserBadges(user) {
-  const name = String(user?.name || user?.username || user?.nickname || '').toLowerCase().trim();
+  // Badges come only from the server (granted in the admin panel). Never
+  // award them by display name: anyone can register a lookalike name.
   const badgesSet = new Set();
-
-  // Core developers
-  if (name === 'ohllama' || name === 'ohllama0909' || name === 'atlas-thedev' || name === 'atlasthedev' || name === 'atlas') {
-    badgesSet.add('developer');
-    badgesSet.add('early_supporter');
-    badgesSet.add('bug_hunter');
-  }
 
   // Handle explicit badges from user data (array or JSON string)
   let rawBadges = user?.badges;

@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { BrowserWindow, safeStorage } = require('electron');
+const safeFile = require('./safeFile');
 const { Auth } = require('msmc');
 
 /**
@@ -20,25 +21,34 @@ let microsoftLoginPromise = null;
 
 const appIcon = path.join(__dirname, '..', 'icon.png');
 
-const accountsPath = () => path.join(deps.app.getPath('userData'), 'accounts.json');
-const legacyPath  = () => path.join(deps.app.getPath('userData'), 'account.json');
+const userDataDir = () => deps.app.getPath('userData');
+const accountsPath = (dir = userDataDir()) => path.join(dir, 'accounts.json');
+const legacyPath  = (dir = userDataDir()) => path.join(dir, 'account.json');
 
-function readAccounts() {
-  try {
-    const data = JSON.parse(fs.readFileSync(accountsPath(), 'utf8'));
-    if (Array.isArray(data.accounts)) return data;
-  } catch { /* not yet created */ }
+// Secrets at rest: Microsoft refresh data and Noctra session tokens are
+// encrypted with the OS keychain (safeStorage) whenever it is available.
+const SECRET_FIELDS = ['token', 'sessionToken'];
+
+/** `dir` lets other main-process modules read accounts before auth.init(). */
+function readAccounts(dir) {
+  const { value, status } = safeFile.readJsonDetailed(accountsPath(dir), null);
+  if (value && Array.isArray(value.accounts)) {
+    return { ...value, accounts: value.accounts.map(revealAccount) };
+  }
+  // The file exists but couldn't be read: don't migrate over it or treat the
+  // user as signed out permanently; the unreadable copy has been moved aside.
+  if (status === 'corrupt') return { activeId: null, accounts: [] };
 
   // Migrate legacy single-account file
   try {
-    const legacy = JSON.parse(fs.readFileSync(legacyPath(), 'utf8'));
+    const legacy = JSON.parse(fs.readFileSync(legacyPath(dir), 'utf8'));
     if (legacy?.name) {
       const id = legacy.uuid || `ms-${Date.now()}`;
       const migrated = {
         activeId: id,
         accounts: [{ id, name: legacy.name, uuid: legacy.uuid, type: 'microsoft', refresh: legacy.refresh }]
       };
-      saveAccounts(migrated);
+      saveAccounts(migrated, dir);
       return migrated;
     }
   } catch { /* no legacy either */ }
@@ -46,15 +56,34 @@ function readAccounts() {
   return { activeId: null, accounts: [] };
 }
 
-function saveAccounts(data) {
+function revealAccount(account) {
+  if (!account || typeof account !== 'object') return account;
+  const next = { ...account };
+  for (const field of SECRET_FIELDS) {
+    if (typeof next[field] === 'string' && next[field].startsWith('safe:v1:')) {
+      try {
+        next[field] = JSON.parse(safeStorage.decryptString(Buffer.from(next[field].slice(8), 'base64')));
+      } catch {
+        // Encrypted on another machine/user: the session must be renewed.
+        next[field] = null;
+      }
+    }
+  }
+  return next;
+}
+
+function saveAccounts(data, dir) {
   const protectedData = {
     ...data,
-    accounts: (data.accounts || []).map((account) => ({
-      ...account,
-      refresh: protectRefresh(account.refresh)
-    }))
+    accounts: (data.accounts || []).map((account) => {
+      const next = { ...account, refresh: protectRefresh(account.refresh) };
+      for (const field of SECRET_FIELDS) {
+        if (next[field]) next[field] = protectRefresh(next[field]);
+      }
+      return next;
+    })
   };
-  fs.writeFileSync(accountsPath(), JSON.stringify(protectedData, null, 2));
+  safeFile.writeJsonAtomic(accountsPath(dir), protectedData);
 }
 
 function protectRefresh(refresh) {
@@ -275,21 +304,24 @@ async function noctraAccountFetch(noctraAccount, endpoint, { method = 'GET', bod
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(20_000)
     });
     return response.json();
   };
 
-  const remoteRoot = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
-  try {
-    return await request(remoteRoot);
-  } catch {
+  for (const root of apiRoots()) {
     try {
-      return await request('http://127.0.0.1:3418');
-    } catch {
-      return { ok: false, error: 'Could not connect to the Noctra account service.' };
-    }
+      return await request(root);
+    } catch { /* try the next configured root */ }
   }
+  return { ok: false, error: 'Could not connect to the Noctra account service.' };
+}
+
+// Hosted API, plus a self-hosted one only when NOCTRA_LOCAL_API is set.
+// Credentials are never sent to whatever happens to listen on localhost.
+function apiRoots() {
+  return require('./social').API_ROOTS;
 }
 
 function init(dependencies, ipcMain) {
@@ -372,23 +404,19 @@ function generateOfflinePlayerUuid(username) {
   ipcMain.handle('accounts:addNative', handleAddNoctraAccount);
 
   const authFetch = async (endpoint, payload) => {
-    const root = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
     const options = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     };
-    try {
-      const res = await fetch(`${root}${endpoint}`, options);
-      return await res.json();
-    } catch (err) {
+    for (const root of apiRoots()) {
       try {
-        const localRes = await fetch(`http://127.0.0.1:3418${endpoint}`, options);
-        return await localRes.json();
-      } catch {
-        return { ok: false, error: 'Could not connect to Noctra Auth server.' };
-      }
+        const res = await fetch(`${root}${endpoint}`, { ...options, signal: AbortSignal.timeout(20_000) });
+        const text = await res.text();
+        try { return JSON.parse(text); } catch { return { ok: false, error: `Noctra Auth returned HTTP ${res.status}.` }; }
+      } catch { /* try the next configured root */ }
     }
+    return { ok: false, error: 'Could not connect to Noctra Auth server.' };
   };
 
   ipcMain.handle('accounts:noctraSendCode', async (_event, payload) => {
@@ -561,4 +589,10 @@ function generateOfflinePlayerUuid(username) {
   });
 }
 
-module.exports = { init, getMclcAuth, getMinecraftAccessToken, getMinecraftProfile };
+module.exports = {
+  readAccounts,
+  init,
+  getMclcAuth,
+  getMinecraftAccessToken,
+  getMinecraftProfile
+};

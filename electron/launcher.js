@@ -126,7 +126,8 @@ function reportProgress(stage, fraction, extra = {}) {
 }
 
 /** Lines Minecraft / the JVM print when the game dies on a fatal error. */
-const GAME_CRASH_MARKER = /#@!@# Game crashed!|---- Minecraft Crash Report ----|Minecraft ran into a problem|A fatal error has been detected by the Java Runtime/i;
+const gameLog = require('./gameLog');
+const { GAME_CRASH_MARKER } = gameLog;
 
 /**
  * Decide whether a finished game process counts as a crash. A non-zero exit,
@@ -602,10 +603,16 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
       discordRpcMod.clearGameActivity();
     };
+    // Chat shares stdout with the game's own diagnostics, so only trust
+    // complete, non-chat lines when looking for crash markers.
+    const classifyLine = gameLog.createLogClassifier();
+    const crashLineReader = gameLog.createLineReader((line) => {
+      if (!crashSeen && gameLog.isCrashLine(classifyLine(line))) onCrashMarker();
+    });
     const captureOutput = (data) => {
       outputTail = `${outputTail}${String(data)}`.slice(-12000);
       crashReporter.capture(data);
-      if (!crashSeen && GAME_CRASH_MARKER.test(outputTail.slice(-2500))) onCrashMarker();
+      crashLineReader(data);
     };
     // Minecraft prints a marker when it hits a fatal error. Some mods leave the
     // JVM alive after that, so don't keep telling everyone the game is "starting".
@@ -831,28 +838,12 @@ function init(dependencies, ipcMain) {
     logTimeout = null;
   };
 
-  const formatServerActivity = (host) => {
-    const lower = String(host || '').toLowerCase();
-    if (lower.includes('hypixel.net')) return 'Hypixel ⚡';
-    if (lower.includes('donut.smp') || lower.includes('donutsmp')) return 'Donut SMP ✓';
-    if (lower.includes('cubecraft')) return 'CubeCraft';
-    if (lower.includes('hive')) return 'The Hive';
-    if (lower.includes('pvp') || lower.includes('minemen')) return 'Minemen Club';
-    if (lower.includes('localhost') || lower === '127.0.0.1') return 'Local Server';
-    const parts = host.split('.');
-    if (parts.length >= 2) {
-      const main = parts[parts.length - 2];
-      return main.charAt(0).toUpperCase() + main.slice(1);
-    }
-    return host;
-  };
+  const formatServerActivity = gameLog.formatServerActivity;
 
-  const parseGameLogForPresence = (line) => {
-    const str = String(line || '');
-    const connMatch = str.match(/Connecting to ([a-zA-Z0-9.-]+)(?:,\s*|:)(\d+)/i);
-    if (connMatch) {
-      const host = connMatch[1];
-      const port = connMatch[2];
+  const applyPresence = (hint) => {
+    if (!hint) return;
+    if (hint.kind === 'server') {
+      const { host, port } = hint;
       const serverAddress = `${host}:${port}`;
       const activityName = formatServerActivity(host);
       playHistory.recordServer({
@@ -873,37 +864,27 @@ function init(dependencies, ipcMain) {
       });
       return;
     }
-
-    if (/(?:Starting integrated server|Loaded \d+ advancements)/i.test(str)) {
-      socialMod.setPresence({
-        status: 'in-game',
-        activity: 'In-game: Singleplayer',
-        serverAddress: null
-      });
-      discordRpcMod.setGameActivity({
-        instance: activeInstance,
-        status: 'singleplayer'
-      });
+    if (hint.kind === 'singleplayer') {
+      socialMod.setPresence({ status: 'in-game', activity: 'In-game: Singleplayer', serverAddress: null });
+      discordRpcMod.setGameActivity({ instance: activeInstance, status: 'singleplayer' });
       return;
     }
-
-    if (/(?:Disconnecting from|Stopping integrated server)/i.test(str)) {
-      socialMod.setPresence({
-        status: 'in-game',
-        activity: 'In-game: Menus',
-        serverAddress: null
-      });
-      discordRpcMod.setGameActivity({
-        instance: activeInstance,
-        status: 'in-menus'
-      });
-      return;
+    if (hint.kind === 'menus') {
+      socialMod.setPresence({ status: 'in-game', activity: 'In-game: Menus', serverAddress: null });
+      discordRpcMod.setGameActivity({ instance: activeInstance, status: 'in-menus' });
     }
   };
 
+  // Game output arrives in arbitrary chunks; re-assemble lines and skip chat
+  // so other players can't spoof what friends see in Relay or Discord.
+  const classifyPresenceLine = gameLog.createLogClassifier();
+  const presenceLineReader = gameLog.createLineReader((line) => {
+    if (!activeChild) return;
+    applyPresence(gameLog.presenceFromLine(classifyPresenceLine(line)));
+  });
+
   const queueLog = (line) => {
     const str = String(line);
-    parseGameLogForPresence(str);
     logBatch.push(str);
     if (!logTimeout) {
       logTimeout = setTimeout(flushLogs, 100);
@@ -915,7 +896,10 @@ function init(dependencies, ipcMain) {
     // Skip MCLC's per-file chatter; keep the milestones.
     if (!/\[MCLC\]: (?:Downloaded|Attempting to download|Failed to download asset)/.test(String(line))) gameConsole.pushLauncher(line);
   });
-  launcher.on('data', queueLog);
+  launcher.on('data', (data) => {
+    presenceLineReader(data);
+    queueLog(data);
+  });
 
   ipcMain.on('launcher:launch', (_event, payload) => {
     launch(payload).catch((err) => {
@@ -936,6 +920,7 @@ module.exports = {
   _internals: {
     classifyExit,
     GAME_CRASH_MARKER,
+    gameLog,
     mavenArtifact,
     fileMatches,
     ensureFabricLibraries,

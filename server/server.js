@@ -6,6 +6,7 @@ const db = require('./db');
 const events = require('./social-events');
 const { handleRelayRoutes } = require('./relay-routes');
 const { sendVerificationCodeEmail } = require('./mailer');
+const media = require('./media');
 
 /**
  * Noctra Backend & API Server
@@ -17,17 +18,13 @@ const { sendVerificationCodeEmail } = require('./mailer');
  *  - Wardrobe Sync & CustomSkinLoader API (/v1/wardrobe, /csl/*, /textures/*)
  */
 
-const PORT = Number(process.env.PORT || process.env.NATIVE_SKIN_PORT || 3418);
-const DATA_DIR = path.resolve(
-  process.env.NOCTRA_DATA_DIR ||
-  process.env.NATIVE_SKIN_DATA ||
-  path.join(__dirname, 'data')
-);
-const PUBLIC_URL = (process.env.NATIVE_SKIN_PUBLIC_URL || '').replace(/\/+$/, '');
+const PORT = media.PORT;
+const DATA_DIR = media.DATA_DIR;
 const profilesDir = path.join(DATA_DIR, 'profiles');
 const texturesDir = path.join(DATA_DIR, 'textures');
-const mediaDir = path.join(DATA_DIR, 'media');
+const mediaDir = media.MEDIA_DIR;
 const rateBuckets = new Map();
+const TRUST_PROXY = /^(1|true|yes)$/i.test(String(process.env.NOCTRA_TRUST_PROXY || ''));
 const MESSAGE_LIMIT = db.MESSAGE_LIMIT || 2000;
 
 function mimeTypeFor(filename) {
@@ -56,7 +53,8 @@ function send(res, status, value, headers = {}) {
   res.writeHead(status, {
     'Content-Type': Buffer.isBuffer(value) ? 'image/png' : 'application/json; charset=utf-8',
     'Content-Length': body.length,
-    'Cache-Control': status === 200 ? 'public, max-age=90' : 'no-store',
+    // API responses are per-user; only routes that opt in may be cached.
+    'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     ...headers
   });
@@ -85,35 +83,6 @@ function atomicWrite(filePath, data) {
   fs.renameSync(temporary, filePath);
 }
 
-function getBoostedOnlineUsers(realCount = 0, date = new Date()) {
-  const baseTimestamp = 1788220800000; // 2026-09-01T00:00:00Z
-  const elapsedMs = Math.max(0, date.getTime() - baseTimestamp);
-  const dayMs = 86400000;
-  const wholeDays = Math.floor(elapsedMs / dayMs);
-  const dayProgress = (elapsedMs % dayMs) / dayMs;
-
-  let accumulatedDaysBoost = 0;
-  for (let d = 0; d < wholeDays; d++) {
-    const dailyRate = 104 + ((d * 13 + 7) % 17); // generates rates from 104 to 120 per day
-    accumulatedDaysBoost += dailyRate;
-  }
-
-  const todayRate = 104 + ((wholeDays * 13 + 7) % 17);
-  const todayGrowth = Math.floor(dayProgress * todayRate);
-  const baseCount = 10482;
-
-  // Diurnal curve (±280 users wave based on time of day)
-  const hourOfDay = date.getUTCHours() + (date.getUTCMinutes() / 60);
-  const timeOfDayWave = Math.round(280 * Math.sin(((hourOfDay - 8) / 24) * 2 * Math.PI));
-
-  // Micro-fluctuation (±15 users) updated every 5 minutes so it feels alive
-  const fiveMinSlot = Math.floor(date.getTime() / (5 * 60 * 1000));
-  const microJitter = ((fiveMinSlot * 31 + 11) % 31) - 15;
-
-  const total = baseCount + accumulatedDaysBoost + todayGrowth + timeOfDayWave + microJitter + Number(realCount || 0);
-  return Math.max(10000, total);
-}
-
 function textureHash(buffer) {
   if (!buffer) return null;
   const hash = crypto.createHash('sha256').update(buffer).digest('hex');
@@ -130,13 +99,60 @@ function readProfile(username) {
   try { return JSON.parse(fs.readFileSync(profilePath(username), 'utf8')); } catch { return null; }
 }
 
-function allowed(ip) {
+/**
+ * Fixed-window rate limiter. `hit` counts an attempt, `blocked` only checks.
+ * Buckets are pruned so the map cannot grow without bound.
+ */
+function bucketFor(name, key, windowMs) {
+  const id = `${name}:${key}`;
   const now = Date.now();
-  const item = rateBuckets.get(ip) || { start: now, count: 0 };
-  if (now - item.start > 60_000) { item.start = now; item.count = 0; }
+  let item = rateBuckets.get(id);
+  if (!item || now - item.start > windowMs) {
+    item = { start: now, count: 0, windowMs };
+    rateBuckets.set(id, item);
+  }
+  return item;
+}
+
+function hit(name, key, limit, windowMs) {
+  const item = bucketFor(name, key, windowMs);
   item.count += 1;
-  rateBuckets.set(ip, item);
-  return item.count <= 240;
+  return item.count <= limit;
+}
+
+function blocked(name, key, limit, windowMs) {
+  return bucketFor(name, key, windowMs).count >= limit;
+}
+
+function allowed(ip) {
+  return hit('global', ip, 240, 60_000);
+}
+
+const pruneTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [id, item] of rateBuckets) {
+    if (now - item.start > item.windowMs) rateBuckets.delete(id);
+  }
+}, 60_000);
+if (pruneTimer.unref) pruneTimer.unref();
+
+/**
+ * The caller's address. Client-supplied headers are only trusted when the
+ * request came from the local reverse proxy (nginx sets X-Real-IP from its
+ * Cloudflare-aware real_ip config), never straight from the internet.
+ */
+function clientIp(req) {
+  const peer = String(req.socket?.remoteAddress || '');
+  const fromProxy = TRUST_PROXY || peer === '::1' || peer.startsWith('127.') || peer.startsWith('::ffff:127.');
+  if (fromProxy) {
+    const real = String(req.headers['x-real-ip'] || '').trim();
+    if (real && /^[0-9a-fA-F:.]{2,45}$/.test(real)) return real;
+  }
+  return peer || 'unknown';
+}
+
+function tooMany(res, seconds = 60, message = 'Too many requests. Please try again shortly.') {
+  return send(res, 429, { ok: false, error: message }, { 'Retry-After': String(Math.max(1, Math.ceil(seconds))) });
 }
 
 async function readJson(req) {
@@ -144,20 +160,14 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 36 * 1024 * 1024) throw new Error('Request is too large.');
+    if (size > 36 * 1024 * 1024) throw Object.assign(new Error('Request is too large.'), { status: 413 });
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** Public origin for texture URLs: explicit override, then proxy headers. */
-function originOf(req) {
-  if (PUBLIC_URL) return PUBLIC_URL;
-  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
-  const proto = forwardedProto || (req.socket.encrypted ? 'https' : 'http');
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || `127.0.0.1:${PORT}`).split(',')[0].trim();
-  return `${proto}://${host}`;
-}
+/** Public origin for generated URLs (shared with the relay routes). */
+const originOf = media.originOf;
 
 const textureUrl = (origin, hash) => (hash ? `${origin}/csl/textures/${hash}` : null);
 
@@ -200,8 +210,8 @@ function customSkinProfile(profile, origin) {
 async function handler(req, res) {
   try {
     const url = new URL(req.url, 'http://localhost');
-    const ip = req.headers['cf-connecting-ip'] || req.socket.remoteAddress || 'unknown';
-    if (!allowed(ip)) return send(res, 429, { error: 'Too many requests.' }, { 'Retry-After': '60' });
+    const ip = clientIp(req);
+    if (!allowed(ip)) return tooMany(res, 60);
 
     if (req.method === 'OPTIONS') {
       const requestOrigin = String(req.headers.origin || '');
@@ -242,7 +252,7 @@ async function handler(req, res) {
       if (!profile) return send(res, 404, { error: 'Profile not found.' });
       const etag = `W/"${profile.updatedAt || 'static'}"`;
       if (req.headers['if-none-match'] === etag) return send(res, 304, '', { ETag: etag });
-      return send(res, 200, customSkinProfile(profile, originOf(req)), { ETag: etag, 'Access-Control-Allow-Origin': '*' });
+      return send(res, 200, customSkinProfile(profile, originOf(req)), { ETag: etag, 'Cache-Control': 'public, max-age=60', 'Access-Control-Allow-Origin': '*' });
     }
 
     // Texture delivery. CustomSkinLoader builds texture URLs as
@@ -280,10 +290,14 @@ async function handler(req, res) {
       if (!fs.existsSync(target)) return send(res, 404, { error: 'Media not found.' });
       const stat = fs.statSync(target);
       const mime = mimeTypeFor(target);
+      const inline = /^(?:image\/(?:png|jpeg|gif|webp)|audio\/|video\/)/.test(mime);
       res.writeHead(200, {
-        'Content-Type': mime,
+        'Content-Type': mime === 'image/svg+xml' ? 'application/octet-stream' : mime,
         'Content-Length': stat.size,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': 'private, max-age=86400',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Content-Disposition': inline ? 'inline' : 'attachment',
         'Access-Control-Allow-Origin': '*'
       });
       return fs.createReadStream(target).pipe(res);
@@ -302,6 +316,7 @@ async function handler(req, res) {
       const authHash = crypto.createHash('sha256').update(token || noctraToken).digest('hex');
 
       let authorized = false;
+      let sessionAuthorized = false;
 
       // 1. Session token check
       const checkSessionToken = (noctraToken && noctraToken.length >= 32) ? noctraToken : (token.startsWith('noc_') ? token : null);
@@ -310,16 +325,19 @@ async function handler(req, res) {
           const sessionUser = db.getUserBySession(checkSessionToken);
           if (sessionUser && sessionUser.username.toLowerCase() === username.toLowerCase()) {
             authorized = true;
+            sessionAuthorized = true;
           }
         } catch {}
       }
 
-      // 2. Check if registered
+      // 2. Registered Noctra names can only be published with that account's session.
       let registeredUser = null;
       try { registeredUser = db.getUserByUsername(username); } catch {}
 
-      // 3. Match existing profile authHash
-      if (!authorized && existing?.authHash) {
+      // 3. Unregistered names: the key that first claimed the profile owns it.
+      // (The old deterministic sha256("noctra-wardrobe-v2:<name>") key was
+      // computable by anyone and is no longer accepted on its own.)
+      if (!authorized && !registeredUser && existing?.authHash) {
         try {
           if (crypto.timingSafeEqual(Buffer.from(existing.authHash, 'hex'), Buffer.from(authHash, 'hex'))) {
             authorized = true;
@@ -327,22 +345,22 @@ async function handler(req, res) {
         } catch {}
       }
 
-      // 4. Deterministic key check for offline / unregistered usernames
-      if (!authorized && !registeredUser) {
-        const expectedKey = crypto.createHash('sha256').update(`noctra-wardrobe-v2:${username.toLowerCase()}`).digest('hex').slice(0, 48);
-        const expectedHash = crypto.createHash('sha256').update(expectedKey).digest('hex');
-        if (authHash === expectedHash) {
-          authorized = true;
-        }
-      }
-
-      // 5. If no existing profile and either authorized or not registered
+      // 4. Unclaimed, unregistered name: first publisher claims it.
       if (!authorized && !existing && !registeredUser) {
         authorized = true;
       }
 
       if (!authorized) {
-        return send(res, 403, { error: 'This wardrobe belongs to another key.' });
+        return send(res, 403, { error: registeredUser ? 'Sign in to this Noctra account to change its wardrobe.' : 'This wardrobe belongs to another key.' });
+      }
+
+      // Clients replace a legacy (guessable) key with a random one.
+      const rotateKey = String(req.headers['x-noctra-rotate-key'] || '');
+      let nextAuthHash = authHash;
+      if (rotateKey.length >= 32 && rotateKey.length <= 256) {
+        nextAuthHash = crypto.createHash('sha256').update(rotateKey).digest('hex');
+      } else if (sessionAuthorized && existing?.authHash) {
+        nextAuthHash = existing.authHash;
       }
 
       const skin = body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
@@ -352,7 +370,7 @@ async function handler(req, res) {
         model: body.model === 'slim' ? 'slim' : 'default',
         skin,
         cape,
-        authHash: authorized && authHash ? authHash : (existing?.authHash || authHash),
+        authHash: nextAuthHash,
         updatedAt: new Date().toISOString()
       };
       atomicWrite(profilePath(username), JSON.stringify(profile, null, 2));
@@ -381,6 +399,7 @@ async function handler(req, res) {
 
     // ── Authentication APIs ─────────────────────────────────────────────
     if (req.method === 'POST' && url.pathname === '/v1/auth/register/send-code') {
+      if (!hit('code-ip', ip, 6, 10 * 60_000)) return tooMany(res, 600, 'Too many verification emails. Please wait a few minutes.');
       const body = await readJson(req);
       const email = String(body.email || '').trim().toLowerCase();
       const rawUsername = String(body.username || '').trim();
@@ -400,13 +419,17 @@ async function handler(req, res) {
         return send(res, 400, { ok: false, error: 'An account with this email already exists.' });
       }
 
+      const cooldown = db.verificationCooldown(email);
+      if (cooldown > 0) return tooMany(res, cooldown / 1000, 'A code was just sent. Please wait a moment before requesting another.');
+      if (!hit('code-email', email, 5, 60 * 60_000)) return tooMany(res, 3600, 'Too many codes requested for this email. Try again later.');
+
       const code = crypto.randomInt(100000, 1000000).toString();
       db.saveVerificationCode(email, code);
 
       try {
         await sendVerificationCodeEmail(email, code, rawUsername);
       } catch (err) {
-        console.error('SendGrid email error:', err);
+        console.error('Verification email error:', err);
         return send(res, 500, { ok: false, error: `Could not send verification email: ${err.message}` });
       }
 
@@ -414,6 +437,7 @@ async function handler(req, res) {
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/auth/register/verify') {
+      if (!hit('verify-ip', ip, 30, 10 * 60_000)) return tooMany(res, 600);
       const body = await readJson(req);
       const email = String(body.email || '').trim().toLowerCase();
       const code = String(body.code || '').trim();
@@ -464,8 +488,14 @@ async function handler(req, res) {
         return send(res, 400, { ok: false, error: 'Username/Email and password are required.' });
       }
 
+      const loginKey = login.toLowerCase();
+      if (!hit('login-ip', ip, 30, 15 * 60_000) || blocked('login-fail', loginKey, 10, 15 * 60_000)) {
+        return tooMany(res, 900, 'Too many sign-in attempts. Please wait 15 minutes and try again.');
+      }
+
       const user = db.getUserByLogin(login);
-      if (!user || !db.verifyPassword(password, user.password_hash, user.salt)) {
+      if (!user || !(await db.verifyPasswordAsync(password, user.password_hash, user.salt))) {
+        hit('login-fail', loginKey, 10, 15 * 60_000);
         return send(res, 401, { ok: false, error: 'Invalid username/email or password.' });
       }
 
@@ -486,6 +516,7 @@ async function handler(req, res) {
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/auth/resend-code') {
+      if (!hit('code-ip', ip, 6, 10 * 60_000)) return tooMany(res, 600, 'Too many verification emails. Please wait a few minutes.');
       const body = await readJson(req);
       const email = String(body.email || '').trim().toLowerCase();
       const username = String(body.username || '').trim();
@@ -493,6 +524,13 @@ async function handler(req, res) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return send(res, 400, { ok: false, error: 'Please enter a valid email address.' });
       }
+      // Only re-send for a sign-up that is actually in progress.
+      if (!db.getVerificationCode(email) || db.getUserByEmail(email)) {
+        return send(res, 400, { ok: false, error: 'No sign-up is waiting for this email. Please start again.' });
+      }
+      const cooldown = db.verificationCooldown(email);
+      if (cooldown > 0) return tooMany(res, cooldown / 1000, 'A code was just sent. Please wait a moment before requesting another.');
+      if (!hit('code-email', email, 5, 60 * 60_000)) return tooMany(res, 3600, 'Too many codes requested for this email. Try again later.');
 
       const code = crypto.randomInt(100000, 1000000).toString();
       db.saveVerificationCode(email, code);
@@ -631,7 +669,7 @@ async function handler(req, res) {
         const realCount = events.connectedUserCount();
         return send(res, 200, {
           ok: true,
-          onlineUsers: getBoostedOnlineUsers(realCount),
+          onlineUsers: realCount,
           realOnlineUsers: realCount,
           updatedAt: Date.now()
         }, { 'Cache-Control': 'no-store' });
@@ -748,6 +786,7 @@ async function handler(req, res) {
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/social/upload') {
+        if (!hit('upload-user', authUser.id, 60, 10 * 60_000)) return tooMany(res, 600, 'Too many uploads. Please wait a few minutes.');
         const body = await readJson(req);
         const rawData = body.data || body.dataUrl || body.base64;
         const originalName = String(body.name || body.filename || 'attachment.png').trim();
@@ -777,7 +816,7 @@ async function handler(req, res) {
         const targetPath = path.join(mediaDir, filename);
 
         if (!fs.existsSync(targetPath)) {
-          fs.writeFileSync(targetPath, buffer);
+          atomicWrite(targetPath, buffer);
         }
 
         return send(res, 200, {
@@ -868,19 +907,12 @@ async function handler(req, res) {
         if (req.method === 'POST') {
           const body = await readJson(req);
           const content = String(body.content || '').trim();
-          const mediaUrl = body.mediaUrl || body.media_url || null;
-          const mediaName = body.mediaName || body.media_name || null;
-          const mediaKind = body.mediaKind || body.media_kind || null;
-          const isMedia = body.isMedia ?? body.is_media ?? Boolean(mediaUrl);
           if (content.length > MESSAGE_LIMIT) {
             return send(res, 400, { ok: false, error: `Message is too long (maximum ${MESSAGE_LIMIT} characters).` });
           }
           try {
             const message = db.sendMessage(authUser.id, friendId, content, {
-              mediaUrl,
-              mediaName,
-              mediaKind,
-              isMedia: isMedia ? 1 : 0,
+              ...media.normalizeAttachment(body, origin),
               replyTo: body.replyTo || null
             });
             events.setTyping(authUser.id, friendId, false);
@@ -971,20 +1003,30 @@ async function handler(req, res) {
       try { res.end(); } catch {}
       return undefined;
     }
-    return send(res, 400, { error: error.message || 'Invalid request.' });
+    const status = Number(error && error.status) || 400;
+    return send(res, status, { ok: false, error: error.message || 'Invalid request.' });
   }
 }
 
-function createServer() {
-  const server = http.createServer(handler);
-  // SSE connections must never be culled by the default keep-alive timeout.
-  server.keepAliveTimeout = 0;
-  server.headersTimeout = 0;
-  server.requestTimeout = 0;
+/**
+ * Timeouts: headersTimeout/requestTimeout only bound how long a client may
+ * take to *send* its request (slowloris protection); they never cut off a
+ * long-lived SSE response, which is controlled by keepAliveTimeout/socket
+ * timeouts and is disabled per-connection in the stream route.
+ */
+function applyTimeouts(server) {
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 70_000;
+  server.requestTimeout = 5 * 60_000;
+  server.timeout = 0;
   return server;
 }
 
-function listen(port = PORT, host = '0.0.0.0') {
+function createServer() {
+  return applyTimeouts(http.createServer(handler));
+}
+
+function listen(port = PORT, host = '127.0.0.1') {
   fs.mkdirSync(profilesDir, { recursive: true });
   fs.mkdirSync(texturesDir, { recursive: true });
   fs.mkdirSync(mediaDir, { recursive: true });
@@ -1005,6 +1047,8 @@ if (require.main === module) {
 
 module.exports = {
   createServer,
+  applyTimeouts,
+  clientIp,
   handler,
   listen,
   usernameOf,

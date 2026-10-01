@@ -1,9 +1,7 @@
 const { ipcMain } = require('electron');
-const { getActiveNoctraAccount } = require('./social');
+const { getActiveNoctraAccount, API_ROOTS } = require('./social');
 
-const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
-const LOCAL_ROOT = 'http://127.0.0.1:3418';
-const ROOTS = [...new Set([REMOTE_ROOT, LOCAL_ROOT])];
+const ROOTS = API_ROOTS;
 
 async function adminFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
   const account = getActiveNoctraAccount();

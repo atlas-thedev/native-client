@@ -38,6 +38,12 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
   assert.ok(db.checkVerificationCode(email, '987654'));
   assert.equal(db.checkVerificationCode(email, '000000'), false);
   db.clearVerificationCode(email);
+
+  // Codes are burned after too many wrong guesses.
+  db.saveVerificationCode(email, '135790');
+  for (let i = 0; i < db.MAX_CODE_ATTEMPTS || i < 5; i += 1) db.checkVerificationCode(email, '000000');
+  assert.equal(db.checkVerificationCode(email, '135790'), false, 'brute force burns the code');
+  db.clearVerificationCode(email);
   assert.equal(db.checkVerificationCode(email, '987654'), false);
 
   const user = db.createUser({

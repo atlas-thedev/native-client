@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Users } from 'lucide-react';
+import { safeMediaUrl } from './safeMedia.js';
 import './relay-groups.css';
 
 /**
@@ -10,7 +11,8 @@ import './relay-groups.css';
  */
 export function GroupAvatarBadge({ group, name, iconUrl, size = 36, className = '' }) {
   const [broken, setBroken] = useState(null);
-  const requestedIcon = iconUrl !== undefined ? iconUrl : group?.iconUrl;
+  // Only Noctra-uploaded images; a group icon must not fetch third-party URLs.
+  const requestedIcon = safeMediaUrl(iconUrl !== undefined ? iconUrl : group?.iconUrl);
   // A dead image URL falls back to initials instead of an empty square.
   const effectiveIcon = requestedIcon && broken !== requestedIcon ? requestedIcon : null;
   const effectiveName = (name !== undefined ? name : (group?.name || group?.nickname || '')).trim();
@@ -18,7 +20,7 @@ export function GroupAvatarBadge({ group, name, iconUrl, size = 36, className = 
   if (effectiveIcon) {
     return (
       <div className={`relay-group-avatar-badge ${className}`} style={{ width: size, height: size }}>
-        <img src={effectiveIcon} alt="" onError={() => setBroken(requestedIcon)} />
+        <img src={effectiveIcon} alt="" referrerPolicy="no-referrer" onError={() => setBroken(requestedIcon)} />
       </div>
     );
   }

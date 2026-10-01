@@ -25,6 +25,20 @@ const LEGACY_FEED = {
   repo: 'native-launcher'
 };
 
+/** Numeric semver compare ("3.10.0" > "3.9.110"); pre-release tags sort first. */
+function compareVersions(a, b) {
+  const parse = (v) => String(v || '0').replace(/^v/i, '').split('-')[0].split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const x = parse(a);
+  const y = parse(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+    const diff = (x[i] || 0) - (y[i] || 0);
+    if (diff) return Math.sign(diff);
+  }
+  const preA = String(a || '').includes('-');
+  const preB = String(b || '').includes('-');
+  return preA === preB ? 0 : (preA ? -1 : 1);
+}
+
 let appRef = null;
 let mainWindow = null;
 let readSettings = null;
@@ -175,40 +189,31 @@ async function checkForUpdates({ silent = false } = {}) {
   checkPromise = (async () => {
     try {
       let result = null;
-      let primaryError = null;
+      // The primary feed is authoritative. The legacy (pre-rename) feed is only
+      // consulted when the primary one can't be reached, so it can never
+      // override a newer or equal primary release.
       try {
         autoUpdater.setFeedURL(PRIMARY_FEED);
         result = await autoUpdater.checkForUpdates();
-      } catch (err) {
-        primaryError = err;
-        log.warn('Primary update feed check (noctra-client) failed, trying legacy (native-launcher):', err);
-      }
-
-      // If primary feed had no update or failed, check legacy feed so clients in transition don't miss updates
-      const currentVer = appRef?.getVersion() || '0.0.0';
-      const hasUpdate = result?.updateInfo?.version && result.updateInfo.version !== (result?.currentVersion?.version ?? currentVer);
-      if (!hasUpdate) {
+      } catch (primaryError) {
+        log.warn('Primary update feed check (noctra-client) failed, trying legacy (native-launcher):', primaryError);
         try {
           autoUpdater.setFeedURL(LEGACY_FEED);
-          const legacyResult = await autoUpdater.checkForUpdates();
-          const hasLegacyUpdate = legacyResult?.updateInfo?.version && legacyResult.updateInfo.version !== (legacyResult?.currentVersion?.version ?? currentVer);
-          if (hasLegacyUpdate) {
-            result = legacyResult;
-          } else if (!result && primaryError) {
-            throw primaryError;
-          } else if (!result) {
-            result = legacyResult;
-          }
-        } catch (legacyErr) {
-          if (!result && primaryError) throw primaryError;
+          result = await autoUpdater.checkForUpdates();
+        } catch {
+          throw primaryError;
+        } finally {
+          autoUpdater.setFeedURL(PRIMARY_FEED);
         }
       }
 
+      const currentVer = result?.currentVersion?.version ?? appRef.getVersion();
+      const latestVer = result?.updateInfo?.version ?? currentVer;
       return {
         ok: true,
-        updateAvailable: result?.updateInfo?.version !== result?.currentVersion?.version,
-        currentVersion: result?.currentVersion?.version ?? appRef.getVersion(),
-        latestVersion: result?.updateInfo?.version ?? appRef.getVersion()
+        updateAvailable: compareVersions(latestVer, currentVer) > 0,
+        currentVersion: currentVer,
+        latestVersion: latestVer
       };
     } catch (error) {
       log.error('Check for updates error:', error);

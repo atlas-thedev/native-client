@@ -1,16 +1,14 @@
 const { ipcMain } = require('electron');
-const { getActiveNoctraAccount } = require('./social');
+const { getActiveNoctraAccount, API_ROOTS } = require('./social');
 
 /**
  * IPC bridge for the Relay group + reply API.
  *
- * Mirrors social.js: try the hosted API first, fall back to the bundled local
- * server so a self-hosted setup keeps working offline.
+ * Mirrors social.js: the hosted API, plus a self-hosted one only when
+ * NOCTRA_LOCAL_API is set explicitly.
  */
 
-const REMOTE_ROOT = process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz';
-const LOCAL_ROOT = 'http://127.0.0.1:3418';
-const ROOTS = [...new Set([REMOTE_ROOT, LOCAL_ROOT])];
+const ROOTS = API_ROOTS;
 
 async function relayFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
   const account = getActiveNoctraAccount();

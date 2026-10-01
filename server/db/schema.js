@@ -208,10 +208,16 @@ function initSchema(db) {
   safeAddColumn('users', 'minecraft_username TEXT DEFAULT NULL');
   safeAddColumn('users', 'minecraft_linked_at INTEGER DEFAULT NULL');
 
-  // The project owner must always retain access to the server-protected
-  // control room, including on databases created by older releases.
+  safeAddColumn('verification_codes', 'attempts INTEGER NOT NULL DEFAULT 0');
+
+  // Admins are configured by verified email (NOCTRA_ADMIN_EMAILS), never by
+  // username: a username can be registered by anyone once it is free.
+  // Existing is_admin flags are kept as-is.
   try {
-    db.prepare("UPDATE users SET is_admin = 1 WHERE lower(username) = 'ohllama'").run();
+    const admins = String(process.env.NOCTRA_ADMIN_EMAILS || '')
+      .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
+    const grant = db.prepare('UPDATE users SET is_admin = 1 WHERE lower(email) = ?');
+    for (const email of admins) grant.run(email);
   } catch {}
 
   // Query performance indexes (run after all columns exist)

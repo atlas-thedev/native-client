@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Loaded without blocking first paint: a slow or offline network used to
        hold the whole window blank until this stylesheet timed out. -->
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet" media="print" id="noctra-fonts">
   <style>
     /* Boot splash: painted from this file alone, before any JS or CSS
        bundle loads, then faded out once React has rendered the app. */
@@ -75,6 +75,13 @@
     <span class="boot-bar"></span>
   </div>
   <script>
+    // Fonts load as a non-blocking "print" stylesheet, then switch on.
+    (function () {
+      var fonts = document.getElementById('noctra-fonts');
+      if (!fonts) return;
+      var enable = function () { fonts.media = 'all'; };
+      if (fonts.sheet) enable(); else fonts.addEventListener('load', enable);
+    })();
     // Called by the app once its first real screen is on screen.
     window.__noctraBootDone = function () {
       var el = document.getElementById('boot-splash');

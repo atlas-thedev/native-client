@@ -102,15 +102,15 @@ process.stdout.write(browseHtml + '---SPLIT---' + settingsHtml);
   assert.ok(browseHtml.includes('browse-btn-install'), 'Install button is rendered');
 
   // Assert SettingsTab UI elements
-  assert.ok(settingsHtml.includes('im-settings-alert-banner'), 'Proceed with caution alert banner rendered');
-  assert.ok(settingsHtml.includes('im-settings-summary'), 'Summary chips rendered');
-  assert.ok(settingsHtml.includes('Display'), 'Display summary chip rendered');
-  assert.ok(settingsHtml.includes('Memory'), 'Memory summary chip rendered');
-  assert.ok(settingsHtml.includes('Java'), 'Java summary chip rendered');
+  // SettingsTab (per-instance overrides redesign)
+  assert.ok(settingsHtml.includes('nis-banner'), 'Override summary banner rendered');
+  assert.ok(settingsHtml.includes('of 4 overriding global'), 'Override count rendered');
   assert.ok(settingsHtml.includes('Game Resolution'), 'Game resolution card rendered');
-  assert.ok(settingsHtml.includes('Match native display'), 'Native display preset button rendered');
-  assert.ok(settingsHtml.includes('im-slider'), 'Allocated memory slider rendered');
-  assert.ok(settingsHtml.includes('im-save-btn'), 'Save changes button rendered');
+  assert.ok(settingsHtml.includes('Native display'), 'Native display preset button rendered');
+  assert.ok(settingsHtml.includes('Allocated Memory (RAM)'), 'Memory card rendered');
+  assert.ok(settingsHtml.includes('nis-mem-quick'), 'Memory quick picks rendered');
+  assert.ok(settingsHtml.includes('Java Runtime'), 'Java card rendered');
+  assert.ok(settingsHtml.includes('Save changes'), 'Save changes button rendered');
 
   fs.rmSync(workDir, { recursive: true, force: true });
 });

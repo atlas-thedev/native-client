@@ -18,35 +18,6 @@ const RECONCILE_INTERVAL = 20_000;
 const PER_FRIEND_PRELOAD = 40;
 const THREAD_PAGE_SIZE = 50;
 
-export function getBoostedOnlineUsers(realCount = 0, date = new Date()) {
-  const baseTimestamp = 1788220800000; // 2026-09-01T00:00:00Z
-  const elapsedMs = Math.max(0, date.getTime() - baseTimestamp);
-  const dayMs = 86400000;
-  const wholeDays = Math.floor(elapsedMs / dayMs);
-  const dayProgress = (elapsedMs % dayMs) / dayMs;
-
-  let accumulatedDaysBoost = 0;
-  for (let d = 0; d < wholeDays; d++) {
-    const dailyRate = 104 + ((d * 13 + 7) % 17); // generates rates from 104 to 120 per day
-    accumulatedDaysBoost += dailyRate;
-  }
-
-  const todayRate = 104 + ((wholeDays * 13 + 7) % 17);
-  const todayGrowth = Math.floor(dayProgress * todayRate);
-  const baseCount = 10482;
-
-  // Diurnal curve (±280 users wave based on time of day)
-  const hourOfDay = date.getUTCHours() + (date.getUTCMinutes() / 60);
-  const timeOfDayWave = Math.round(280 * Math.sin(((hourOfDay - 8) / 24) * 2 * Math.PI));
-
-  // Micro-fluctuation (±15 users) updated every 5 minutes so it feels alive
-  const fiveMinSlot = Math.floor(date.getTime() / (5 * 60 * 1000));
-  const microJitter = ((fiveMinSlot * 31 + 11) % 31) - 15;
-
-  const total = baseCount + accumulatedDaysBoost + todayGrowth + timeOfDayWave + microJitter + Number(realCount || 0);
-  return Math.max(10000, total);
-}
-
 function sortMessages(list) {
   return [...list].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
@@ -91,7 +62,7 @@ export function useSocial(account) {
   const [streamStatus, setStreamStatus] = useState('connecting');
   const [initialLoading, setInitialLoading] = useState(true);
   const [socialError, setSocialError] = useState(null);
-  const [liveUserCount, setLiveUserCount] = useState(() => getBoostedOnlineUsers(0));
+  const [liveUserCount, setLiveUserCount] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -137,13 +108,13 @@ export function useSocial(account) {
     try {
       const res = await api.getStats();
       if (res?.ok && Number.isFinite(Number(res.onlineUsers))) {
-        setLiveUserCount(Math.max(10000, Number(res.onlineUsers)));
+        setLiveUserCount(Math.max(0, Math.round(Number(res.onlineUsers))));
         return;
       }
     } catch {
       /* ignore */
     }
-    setLiveUserCount(getBoostedOnlineUsers(0));
+    setLiveUserCount(null);
   }, []);
 
   const loadRequests = useCallback(async () => {

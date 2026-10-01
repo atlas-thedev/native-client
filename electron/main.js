@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Notification, ipcMain, shell } = require('electron');
 const path = require('path');
+const safeFile = require('./safeFile');
 const fs = require('fs');
 const gameLauncher = require('./launcher');
 const mods = require('./mods');
@@ -99,25 +100,17 @@ function createWindow() {
 
 const instancesPath = () => path.join(app.getPath('userData'), 'instances.json');
 
-ipcMain.handle('instances:load', () => {
-  try {
-    return JSON.parse(fs.readFileSync(instancesPath(), 'utf8'));
-  } catch {
-    return null;
-  }
-});
+ipcMain.handle('instances:load', () => safeFile.readJson(instancesPath(), null));
 
 ipcMain.on('instances:loadSync', (event) => {
-  try {
-    event.returnValue = JSON.parse(fs.readFileSync(instancesPath(), 'utf8'));
-  } catch {
-    event.returnValue = null;
-  }
+  event.returnValue = safeFile.readJson(instancesPath(), null);
 });
 
 ipcMain.handle('instances:save', (_event, data) => {
-  fs.mkdirSync(path.dirname(instancesPath()), { recursive: true });
-  fs.writeFileSync(instancesPath(), JSON.stringify(data, null, 2));
+  // Never replace the user's instances with something that isn't a store.
+  if (!data || typeof data !== 'object') return false;
+  safeFile.writeJsonAtomic(instancesPath(), data);
+  return true;
 });
 
 ipcMain.on('window:minimize', () => win?.minimize());

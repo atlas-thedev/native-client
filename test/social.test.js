@@ -8,8 +8,8 @@ const path = require('node:path');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-social-test-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 
-const authDb = require('../skin-server/auth-db');
-const { listen } = require('../skin-server/server');
+const authDb = require('../server/db');
+const { listen } = require('../server/server');
 
 test('social db: creates users, manages friend requests, friendships, and presence', () => {
   // Create two Noctra users
@@ -177,82 +177,17 @@ test('social api: rejects unauthenticated requests and handles social endpoints 
 });
 
 test('server detection: correctly detects multiplayer connect, singleplayer, and disconnect logs', () => {
-  const formatServerActivity = (host) => {
-    const lower = String(host || '').toLowerCase();
-    if (lower.includes('hypixel.net')) return 'Hypixel ⚡';
-    if (lower.includes('donut.smp') || lower.includes('donutsmp')) return 'Donut SMP ✓';
-    if (lower.includes('cubecraft')) return 'CubeCraft';
-    if (lower.includes('hive')) return 'The Hive';
-    if (lower.includes('pvp') || lower.includes('minemen')) return 'Minemen Club';
-    if (lower.includes('localhost') || lower === '127.0.0.1') return 'Local Server';
-    const parts = host.split('.');
-    if (parts.length >= 2) {
-      const main = parts[parts.length - 2];
-      return main.charAt(0).toUpperCase() + main.slice(1);
-    }
-    return host;
-  };
+  const gameLog = require('../electron/gameLog');
+  const classify = gameLog.createLogClassifier();
+  const detect = (line) => gameLog.presenceFromLine(classify(line));
 
-  const detectLog = (line) => {
-    const str = String(line || '');
-    const connMatch = str.match(/Connecting to ([a-zA-Z0-9.-]+)(?:,\s*|:)(\d+)/i);
-    if (connMatch) {
-      return {
-        status: 'in-game',
-        activity: `In-game: ${formatServerActivity(connMatch[1])}`,
-        serverAddress: `${connMatch[1]}:${connMatch[2]}`
-      };
-    }
-    if (/(?:Starting integrated server|Loaded \d+ advancements)/i.test(str)) {
-      return {
-        status: 'in-game',
-        activity: 'In-game: Singleplayer',
-        serverAddress: null
-      };
-    }
-    if (/(?:Disconnecting from|Stopping integrated server)/i.test(str)) {
-      return {
-        status: 'in-game',
-        activity: 'In-game: Menus',
-        serverAddress: null
-      };
-    }
-    return null;
-  };
-
-  // Multiplayer test 1
-  const log1 = '[18:42:10] [Render thread/INFO]: Connecting to mc.hypixel.net, 25565';
-  const res1 = detectLog(log1);
-  assert.deepEqual(res1, {
-    status: 'in-game',
-    activity: 'In-game: Hypixel ⚡',
-    serverAddress: 'mc.hypixel.net:25565'
-  });
-
-  // Multiplayer test 2
-  const log2 = '[19:15:02] [Render thread/INFO]: Connecting to donut.smp:25565';
-  const res2 = detectLog(log2);
-  assert.deepEqual(res2, {
-    status: 'in-game',
-    activity: 'In-game: Donut SMP ✓',
-    serverAddress: 'donut.smp:25565'
-  });
-
-  // Singleplayer test
-  const log3 = '[19:20:00] [Render thread/INFO]: Starting integrated server...';
-  const res3 = detectLog(log3);
-  assert.deepEqual(res3, {
-    status: 'in-game',
-    activity: 'In-game: Singleplayer',
-    serverAddress: null
-  });
-
-  // Disconnect test
-  const log4 = '[19:35:12] [Render thread/INFO]: Disconnecting from mc.hypixel.net, 25565';
-  const res4 = detectLog(log4);
-  assert.deepEqual(res4, {
-    status: 'in-game',
-    activity: 'In-game: Menus',
-    serverAddress: null
-  });
+  assert.deepEqual(detect('[18:42:10] [Render thread/INFO]: Connecting to mc.hypixel.net, 25565'),
+    { kind: 'server', host: 'mc.hypixel.net', port: '25565' });
+  assert.equal(gameLog.formatServerActivity('mc.hypixel.net'), 'Hypixel');
+  assert.equal(gameLog.formatServerActivity('donutsmp.net'), 'Donut SMP');
+  assert.equal(gameLog.formatServerActivity('evilhypixel.net.example.com'), 'Example');
+  assert.equal(gameLog.formatServerActivity('localhost'), 'Local Server');
+  assert.deepEqual(detect('[19:20:00] [Render thread/INFO]: Starting integrated server...'), { kind: 'singleplayer' });
+  assert.deepEqual(detect('[19:35:12] [Render thread/INFO]: Disconnecting from mc.hypixel.net, 25565'), { kind: 'menus' });
+  assert.equal(detect('[19:36:00] [Render thread/INFO]: [System] [CHAT] Connecting to fake.net, 25565'), null);
 });

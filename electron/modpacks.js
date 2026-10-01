@@ -45,6 +45,30 @@ function loaderFromDependencies(dependencies) {
   return { loader: 'Vanilla', loaderVersion: null };
 }
 
+// Hosts the .mrpack format allows for file downloads (Modrinth spec).
+const ALLOWED_DOWNLOAD_HOSTS = new Set(['cdn.modrinth.com', 'github.com', 'raw.githubusercontent.com', 'gitlab.com']);
+const MODRINTH_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function allowedDownloads(urls) {
+  return (Array.isArray(urls) ? urls : [urls]).filter((value) => {
+    try {
+      const url = new URL(String(value));
+      return url.protocol === 'https:' && ALLOWED_DOWNLOAD_HOSTS.has(url.hostname.toLowerCase());
+    } catch {
+      return false;
+    }
+  });
+}
+
+function requireHashes(hashes, label) {
+  const sha512 = String(hashes?.sha512 || '');
+  const sha1 = String(hashes?.sha1 || '');
+  if (!/^[a-f0-9]{128}$/i.test(sha512) && !/^[a-f0-9]{40}$/i.test(sha1)) {
+    throw new Error(`Modpack file ${label} has no checksum, refusing to install it.`);
+  }
+  return { ...(sha512 ? { sha512 } : {}), ...(sha1 ? { sha1 } : {}) };
+}
+
 function resolveInside(base, relativePath) {
   const root = path.resolve(base);
   const target = path.resolve(root, String(relativePath ?? ''));
@@ -67,27 +91,31 @@ async function install({ projectId, versionId = null, name = null, title = null,
     });
   };
 
+  if (!MODRINTH_ID.test(String(projectId || ''))) throw new Error('Invalid modpack id.');
+  if (versionId != null && !MODRINTH_ID.test(String(versionId))) throw new Error('Invalid modpack version id.');
+
   emit(0, 'Fetching modpack info…');
   let project;
   try {
-    project = await fetchJson(`https://api.modrinth.com/v2/project/${projectId}`);
+    project = await fetchJson(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`);
     if (project?.title) packTitle = project.title;
     if (project?.icon_url) packIcon = project.icon_url;
   } catch (e) {
     // If info fetch fails, proceed or throw
   }
 
-  const versions = await fetchJson(`https://api.modrinth.com/v2/project/${projectId}/version`);
-  if (!versions.length) throw new Error('This modpack has no versions.');
+  const versions = await fetchJson(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`);
+  if (!Array.isArray(versions) || !versions.length) throw new Error('This modpack has no versions.');
   const version = (versionId && versions.find((v) => v.id === versionId)) ?? versions[0];
   const file =
     version.files.find((f) => f.primary && f.filename.endsWith('.mrpack')) ??
     version.files.find((f) => f.filename.endsWith('.mrpack'));
   if (!file) throw new Error('No .mrpack file found in the latest version.');
+  if (!allowedDownloads(file.url).length) throw new Error('The modpack download is not hosted on Modrinth.');
 
   emit(3, `Downloading ${packTitle}…`);
   const packPath = path.join(rootDir(), '.downloads', `${crypto.randomUUID()}.mrpack`);
-  await downloadFile(file.url, packPath, {
+  await downloadFile(allowedDownloads(file.url), packPath, {
     retries: 3,
     expectedHashes: file.hashes,
     onProgress: ({ percent, retrying, attempt }) => {
@@ -119,27 +147,39 @@ async function install({ projectId, versionId = null, name = null, title = null,
   try {
     // --- pack files (mods, resource packs, shaders, …) ---
     const files = (index.files ?? []).filter((f) => f.env?.client !== 'unsupported');
+    // Validate the whole index before downloading anything.
+    const plan = files.map((f) => {
+      const downloads = allowedDownloads(f.downloads);
+      if (!downloads.length) throw new Error(`Modpack file ${f.path} is not hosted on an allowed site.`);
+      return { file: f, target: resolveInside(dir, f.path), downloads, hashes: requireHashes(f.hashes, f.path) };
+    });
     const totalWeight = files.reduce((sum, f) => sum + (f.fileSize || 1), 0) || 1;
     let doneWeight = 0;
     let doneCount = 0;
 
     const CONCURRENCY = 8;
-    const queue = [...files];
+    const queue = [...plan];
+    // One failure stops every worker, and we wait for in-flight downloads to
+    // settle before cleaning up, so nothing writes into a deleted folder.
+    let failure = null;
     const workers = Array.from({ length: CONCURRENCY }, async () => {
-      while (queue.length) {
-        const f = queue.shift();
-        const target = resolveInside(dir, f.path);
-        await downloadFile(f.downloads, target, {
-          retries: 3,
-          expectedHashes: f.hashes
-        });
+      while (queue.length && !failure) {
+        const { file: f, target, downloads, hashes } = queue.shift();
+        try {
+          await downloadFile(downloads, target, { retries: 3, expectedHashes: hashes });
+        } catch (error) {
+          failure = failure || error;
+          return;
+        }
+        if (failure) return;
         doneWeight += f.fileSize || 1;
         doneCount += 1;
         const pct = 5 + Math.round((doneWeight / totalWeight) * 85);
         emit(pct, `Downloading content — ${doneCount}/${files.length}`);
       }
     });
-    await Promise.all(workers);
+    await Promise.allSettled(workers);
+    if (failure) throw failure;
 
     // --- overrides (configs, options, …) ---
     emit(92, 'Applying pack configs…');
@@ -194,4 +234,4 @@ function init(dependencies, ipcMain) {
   );
 }
 
-module.exports = { init, install, loaderFromDependencies };
+module.exports = { init, install, loaderFromDependencies, allowedDownloads, requireHashes };

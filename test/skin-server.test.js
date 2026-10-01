@@ -12,7 +12,7 @@ const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-skin-api-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 delete process.env.NATIVE_SKIN_PUBLIC_URL;
 
-const { pngBuffer, usernameOf, listen, customSkinProfile } = require('../skin-server/server');
+const { pngBuffer, usernameOf, listen, customSkinProfile } = require('../server/server');
 
 /* ---------- tiny PNG helper ---------- */
 
@@ -142,55 +142,52 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   assert.equal((await fetch(`${base}/health`)).status, 200);
 });
 
-test('multi-device sync succeeds when using Noctra session token or deterministic key', async (t) => {
-  const authDb = require('../skin-server/auth-db');
+test('multi-device sync succeeds with a Noctra session token', async (t) => {
+  const authDb = require('../server/db');
   const server = await listen(0, '127.0.0.1');
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  // 1. Create a Noctra user in authDb
-  const testUser = authDb.createUser({
-    email: 'steve@example.com',
-    username: 'SteveTest',
-    password: 'password123',
-    model: 'classic'
-  });
+  const testUser = authDb.createUser({ email: 'steve@example.com', username: 'SteveTest', password: 'password123', model: 'classic' });
   const sessionDevice1 = authDb.createSession(testUser.id);
   const sessionDevice2 = authDb.createSession(testUser.id);
-
   const skinA = makePng(0x33);
   const skinB = makePng(0x44);
 
-  // Device 1 uploads with its session token
-  const dev1Res = await fetch(`${base}/v1/wardrobe`, {
+  const upload = (token, skin, key = crypto.randomBytes(24).toString('hex')) => fetch(`${base}/v1/wardrobe`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Noctra-Token': sessionDevice1.token,
-      Authorization: `Bearer ${crypto.randomBytes(24).toString('hex')}`
-    },
-    body: JSON.stringify({ username: 'SteveTest', skin: skinA.toString('base64') })
+    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Noctra-Token': token } : {}), Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ username: 'SteveTest', skin: skin.toString('base64') })
   });
-  assert.equal(dev1Res.status, 200);
 
-  // Device 2 logs in on another device and uploads with Device 2's session token and different key
-  const dev2Res = await fetch(`${base}/v1/wardrobe`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Noctra-Token': sessionDevice2.token,
-      Authorization: `Bearer ${crypto.randomBytes(24).toString('hex')}`
-    },
-    body: JSON.stringify({ username: 'SteveTest', skin: skinB.toString('base64') })
-  });
-  assert.equal(dev2Res.status, 200);
+  assert.equal((await upload(sessionDevice1.token, skinA)).status, 200);
+  assert.equal((await upload(sessionDevice2.token, skinB)).status, 200);
 
-  // Verify the profile was updated to skinB
-  const profileRes = await fetch(`${base}/csl/SteveTest.json`);
-  assert.equal(profileRes.status, 200);
-  const profile = await profileRes.json();
-  const textureRes = await fetch(profile.skins.default);
-  const served = Buffer.from(await textureRes.arrayBuffer());
+  // A registered name can't be changed without that account's session.
+  assert.equal((await upload(null, skinA)).status, 403);
+
+  const profile = await (await fetch(`${base}/csl/SteveTest.json`)).json();
+  const served = Buffer.from(await (await fetch(profile.skins.default)).arrayBuffer());
   assert.ok(served.equals(skinB));
 });
 
+test('the old guessable wardrobe key cannot take over an offline profile', async (t) => {
+  const server = await listen(0, '127.0.0.1');
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const owner = crypto.randomBytes(24).toString('hex');
+  const guessable = crypto.createHash('sha256').update('noctra-wardrobe-v2:alexoffline').digest('hex').slice(0, 48);
+  const post = (key, extra = {}) => fetch(`${base}/v1/wardrobe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...extra },
+    body: JSON.stringify({ username: 'AlexOffline', skin: makePng(0x55).toString('base64') })
+  });
+  assert.equal((await post(owner)).status, 200, 'first publisher claims the name');
+  assert.equal((await post(guessable)).status, 403, 'deterministic key is not accepted');
+
+  // Rotating a key: the old key authorises, the new key owns the profile afterwards.
+  const rotated = crypto.randomBytes(24).toString('hex');
+  assert.equal((await post(owner, { 'X-Noctra-Rotate-Key': rotated })).status, 200);
+  assert.equal((await post(owner)).status, 403);
+  assert.equal((await post(rotated)).status, 200);
+});

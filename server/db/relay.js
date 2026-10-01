@@ -35,8 +35,8 @@ function cleanIcon(value) {
   if (value == null || value === '') return null;
   const url = String(value).trim();
   if (url.length > 600) throw new Error('Group image URL is too long.');
-  if (!/^https?:\/\//i.test(url)) throw new Error('Group image must be an uploaded image URL.');
-  return url;
+  // Only images uploaded through Noctra; never arbitrary third-party URLs.
+  return require('../media').normalizeIconUrl(url);
 }
 
 function membership(db, groupId, userId) {
@@ -625,11 +625,12 @@ function deleteGroupMessage(db, userId, messageId) {
     throw new Error('Only the author or a group admin can delete this message.');
   }
 
-  db.prepare('UPDATE group_messages SET deleted_at = ? WHERE id = ?').run(Date.now(), messageId);
+  db.prepare('UPDATE group_messages SET deleted_at = ?, media_url = NULL, media_name = NULL WHERE id = ?').run(Date.now(), messageId);
   db.prepare('DELETE FROM group_message_reactions WHERE message_id = ?').run(messageId);
   return {
     message: mapMessageRow(db.prepare(`${GROUP_MESSAGE_SELECT} WHERE gm.id = ?`).get(messageId)),
-    participants: memberIds(db, message.group_id)
+    participants: memberIds(db, message.group_id),
+    releasedMediaUrl: message.media_url || null
   };
 }
 
@@ -709,20 +710,35 @@ function editDirectMessage(db, userId, messageId, content) {
   };
 }
 
+/** True while any message (direct or group) or group icon still points at this media file. */
+function isMediaReferenced(db, filename) {
+  const like = `%/v1/social/media/${String(filename)}`;
+  const direct = db.prepare('SELECT 1 FROM messages WHERE media_url LIKE ? LIMIT 1').get(like);
+  if (direct) return true;
+  const group = db.prepare('SELECT 1 FROM group_messages WHERE media_url LIKE ? LIMIT 1').get(like);
+  if (group) return true;
+  try {
+    if (db.prepare('SELECT 1 FROM groups WHERE icon_url LIKE ? LIMIT 1').get(like)) return true;
+  } catch {}
+  return false;
+}
+
 function deleteDirectMessage(db, userId, messageId) {
   const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
   if (!message) throw new Error('Message not found.');
   if (message.sender_id !== userId) throw new Error('You can only delete your own messages.');
 
-  db.prepare('UPDATE messages SET deleted_at = ? WHERE id = ?').run(Date.now(), messageId);
+  db.prepare('UPDATE messages SET deleted_at = ?, media_url = NULL, media_name = NULL WHERE id = ?').run(Date.now(), messageId);
   db.prepare('DELETE FROM message_reactions WHERE message_id = ?').run(messageId);
   return {
     message: mapMessageRow(db.prepare(`${DIRECT_MESSAGE_SELECT} WHERE m.id = ?`).get(messageId)),
-    participants: [message.sender_id, message.receiver_id]
+    participants: [message.sender_id, message.receiver_id],
+    releasedMediaUrl: message.media_url || null
   };
 }
 
 module.exports = {
+  isMediaReferenced,
   MESSAGE_LIMIT,
   MAX_MEMBERS,
   ROLES,

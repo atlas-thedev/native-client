@@ -8,7 +8,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/nativelauncher
 Environment=NATIVE_SKIN_PORT=3418
 Environment=NATIVE_SKIN_DATA=/home/ubuntu/.local/share/native-skin-api
-ExecStart=/usr/bin/node /home/ubuntu/nativelauncher/server/server.js
+ExecStart=/usr/bin/node /home/ubuntu/nativelauncher/server/index.js
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true

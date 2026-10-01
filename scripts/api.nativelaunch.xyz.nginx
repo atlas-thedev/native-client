@@ -1,19 +1,37 @@
+# Noctra API reverse proxy (matches the production box).
+# Install scripts/cloudflare-realip.conf as /etc/nginx/snippets/cloudflare-realip.conf.
 server {
     listen 80;
     listen [::]:80;
-    server_name api.nativelaunch.xyz;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
 
-    client_max_body_size 12M;
+    server_name api.nativelaunch.xyz 158.178.247.161 _;
+    ssl_certificate /etc/letsencrypt/live/api.nativelaunch.xyz/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/api.nativelaunch.xyz/privkey.pem; # managed by Certbot
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # 25 MB attachments are sent base64-encoded in JSON (~34 MB on the wire).
+    client_max_body_size 50M;
+    client_body_timeout 60s;
+    client_header_timeout 20s;
+
+    include /etc/nginx/snippets/cloudflare-realip.conf;
 
     location / {
         proxy_pass http://127.0.0.1:3418;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
+        # $remote_addr is the real client after the Cloudflare real_ip config.
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
-        proxy_read_timeout 30s;
-        proxy_send_timeout 30s;
+        # Never forward a client-supplied value.
+        proxy_set_header CF-Connecting-IP "";
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 90s;
     }
 }

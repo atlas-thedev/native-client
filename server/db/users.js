@@ -13,6 +13,31 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   return { hash, salt };
 }
 
+function scryptAsync(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, key) => (err ? reject(err) : resolve(key)));
+  });
+}
+
+/** Non-blocking variant for request handlers: scrypt must not stall the event loop. */
+async function verifyPasswordAsync(password, hash, salt) {
+  try {
+    const check = await scryptAsync(String(password), String(salt));
+    const expected = Buffer.from(String(hash), 'hex');
+    return expected.length === check.length && crypto.timingSafeEqual(check, expected);
+  } catch {
+    return false;
+  }
+}
+
+/** Comma-separated, verified email addresses that are granted admin access. */
+function adminEmails() {
+  return String(process.env.NOCTRA_ADMIN_EMAILS || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function verifyPassword(password, hash, salt) {
   try {
     const check = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -22,28 +47,57 @@ function verifyPassword(password, hash, salt) {
   }
 }
 
+const MAX_CODE_ATTEMPTS = 5;
+const CODE_RESEND_COOLDOWN_MS = 60 * 1000;
+
 function saveVerificationCode(db, email, code) {
   const now = Date.now();
   const expiresAt = now + 10 * 60 * 1000; // 10 minutes
   const stmt = db.prepare(`
-    INSERT INTO verification_codes (email, code, created_at, expires_at)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO verification_codes (email, code, created_at, expires_at, attempts)
+    VALUES (?, ?, ?, ?, 0)
     ON CONFLICT(email) DO UPDATE SET
       code = excluded.code,
       created_at = excluded.created_at,
-      expires_at = excluded.expires_at
+      expires_at = excluded.expires_at,
+      attempts = 0
   `);
   stmt.run(email.toLowerCase().trim(), String(code).trim(), now, expiresAt);
   return { code, expiresAt };
 }
 
+function getVerificationCode(db, email) {
+  return db.prepare('SELECT * FROM verification_codes WHERE email = ?').get(String(email || '').toLowerCase().trim()) || null;
+}
+
+/** Milliseconds until another code may be sent to this address (0 = now). */
+function verificationCooldown(db, email, now = Date.now()) {
+  const row = getVerificationCode(db, email);
+  if (!row) return 0;
+  return Math.max(0, Number(row.created_at || 0) + CODE_RESEND_COOLDOWN_MS - now);
+}
+
+/**
+ * Codes are 6 digits, so each one gets a small number of guesses: after
+ * MAX_CODE_ATTEMPTS wrong answers it is burned and a new one must be sent.
+ */
 function checkVerificationCode(db, email, code) {
-  const stmt = db.prepare(`
-    SELECT * FROM verification_codes
-    WHERE email = ? AND code = ? AND expires_at > ?
-  `);
-  const row = stmt.get(email.toLowerCase().trim(), String(code).trim(), Date.now());
-  return Boolean(row);
+  const key = String(email || '').toLowerCase().trim();
+  const row = getVerificationCode(db, key);
+  if (!row || Number(row.expires_at) <= Date.now()) return false;
+  if (Number(row.attempts || 0) >= MAX_CODE_ATTEMPTS) {
+    clearVerificationCode(db, key);
+    return false;
+  }
+  const supplied = Buffer.from(String(code || '').trim().padEnd(6, ' ').slice(0, 16));
+  const expected = Buffer.from(String(row.code).trim().padEnd(6, ' ').slice(0, 16));
+  const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+  if (!ok) {
+    const attempts = Number(row.attempts || 0) + 1;
+    if (attempts >= MAX_CODE_ATTEMPTS) clearVerificationCode(db, key);
+    else db.prepare('UPDATE verification_codes SET attempts = ? WHERE email = ?').run(attempts, key);
+  }
+  return ok;
 }
 
 function clearVerificationCode(db, email) {
@@ -71,7 +125,7 @@ function createUser(db, { email, username, password, model = 'classic' }) {
   const uuid = generateOfflinePlayerUuid(username);
   const { hash, salt } = hashPassword(password);
   const now = Date.now();
-  const isAdmin = username.trim().toLowerCase() === 'ohllama' ? 1 : 0;
+  const isAdmin = adminEmails().includes(email.toLowerCase().trim()) ? 1 : 0;
 
   const stmt = db.prepare(`
     INSERT INTO users (id, email, username, password_hash, salt, uuid, model, created_at, is_admin)
@@ -160,7 +214,12 @@ module.exports = {
   generateOfflinePlayerUuid,
   hashPassword,
   verifyPassword,
+  verifyPasswordAsync,
+  adminEmails,
+  MAX_CODE_ATTEMPTS,
   saveVerificationCode,
+  getVerificationCode,
+  verificationCooldown,
   checkVerificationCode,
   clearVerificationCode,
   getUserByEmail,
