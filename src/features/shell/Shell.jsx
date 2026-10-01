@@ -569,6 +569,7 @@ export default function Shell({
             launcherState={launcher}
             onUpdateCluster={instancesManager.saveOverrides}
             onAnalyzeCrash={crash.analyzeInstance}
+            onOpenCrashReport={crash.openReport}
             onNavigateBrowse={handleNavigateBrowse}
             social={social}
             account={account}

@@ -34,7 +34,7 @@
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
   width: min(1040px, calc(100vw - 48px));
-  height: min(660px, calc(100vh - 56px));
+  height: min(720px, calc(100vh - 56px));
   background: var(--page);
   border: 1px solid var(--component-border-hover);
   border-radius: var(--radius-xl);
@@ -118,7 +118,7 @@
   flex-direction: column;
   min-height: 0;
   padding: 14px 12px 12px;
-  gap: 14px;
+  gap: 12px;
   border-right: 1px solid var(--hairline);
   background: var(--page-elevated);
   overflow-y: auto;
@@ -920,4 +920,14 @@
 @media (max-width: 860px) {
   .instance-manager { grid-template-columns: 210px minmax(0, 1fr); }
   .im-file-meta { display: none; }
+}
+
+/* Console nav: live dot while the game runs */
+.im-nav-live {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
 }

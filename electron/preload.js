@@ -94,12 +94,22 @@ const api = {
   launcher: {
     launch: (instance, account, options = {}) =>
       ipcRenderer.send('launcher:launch', { instance, account, ...options }),
-    kill: () => ipcRenderer.send('launcher:kill'),
+    kill: (options) => ipcRenderer.send('launcher:kill', options || {}),
+    // Resolves { ok, forced } — `force` skips the graceful close request.
+    stop: (options) => ipcRenderer.invoke('launcher:stop', options || {}),
     onState: (callback) => subscribe('launcher:state', callback),
     onProgress: (callback) => subscribe('launcher:progress', callback),
     onLog: (callback) => subscribe('launcher:log', callback)
   },
 
+  console: {
+    get: (instanceId) => ipcRenderer.invoke('console:get', instanceId),
+    clear: (instanceId) => ipcRenderer.invoke('console:clear', instanceId),
+    upload: (instanceId, service) => ipcRenderer.invoke('console:upload', instanceId, service),
+    save: (instanceId) => ipcRenderer.invoke('console:save', instanceId),
+    onLines: (callback) => subscribe('console:lines', callback),
+    onSession: (callback) => subscribe('console:session', callback)
+  },
   crash: {
     list: (instanceId) => ipcRenderer.invoke('crash:list', instanceId),
     get: (id) => ipcRenderer.invoke('crash:get', id),

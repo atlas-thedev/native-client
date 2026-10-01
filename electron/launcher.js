@@ -13,6 +13,8 @@ const socialMod = require('./social');
 const discordRpcMod = require('./discordRpc');
 const playHistory = require('./playHistory');
 const crashReporter = require('./crashReporter');
+const gameConsole = require('./gameConsole');
+const { execFile } = require('child_process');
 
 /**
  * Game launch pipeline (main process).
@@ -33,6 +35,8 @@ let deps = null; // { app, getWin }
 let activeChild = null;
 let activeInstance = null;
 let launchInProgress = false;
+let activeFinish = null; // finish(code, signal) of the running game
+let stopState = null; // { child, timer, fallback, forced }
 const fabricLoadersCache = new Map();
 let forgePromosCache = null;
 
@@ -153,7 +157,15 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
-const setState = (status, detail = '') => send('launcher:state', { status, detail });
+let lastConsoleNote = '';
+const setState = (status, detail = '') => {
+  send('launcher:state', { status, detail });
+  // Mirror launch milestones into the live console (download % ticks are noise).
+  if (detail && ['preparing', 'launching', 'error', 'stopping'].includes(status) && detail !== lastConsoleNote) {
+    lastConsoleNote = detail;
+    gameConsole.pushLauncher(status === 'error' ? `Error: ${detail}` : detail);
+  }
+};
 
 const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
@@ -514,11 +526,15 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     loader,
     loaderVersion
   };
+  lastConsoleNote = '';
+  gameConsole.begin(instance);
+  gameConsole.pushLauncher(`Launching ${instance.name || mcVersion} · Minecraft ${mcVersion} · ${loader}${loaderVersion ? ` ${loaderVersion}` : ''}`);
 
   const quarantined = quarantineIncompatibleMods(instanceDir(instance.id), mcVersion);
   if (quarantined.length > 0) {
     const names = quarantined.map((item) => item.filename).join(', ');
     setState('error', `Disabled incompatible mod${quarantined.length === 1 ? '' : 's'}: ${names}. Click Launch again to continue.`);
+    gameConsole.end(instance.id, { note: 'Launch stopped before Minecraft started' });
     return;
   }
 
@@ -724,8 +740,9 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         }
       }
     };
-    child.stdout?.on('data', captureOutput);
-    child.stderr?.on('data', captureOutput);
+    gameConsole.pushLauncher(`Minecraft started (PID ${child.pid ?? '?'}) with Java ${javaPath || 'auto'}`);
+    child.stdout?.on('data', (data) => { captureOutput(data); gameConsole.pushGame(data, 'stdout', instance.id); });
+    child.stderr?.on('data', (data) => { captureOutput(data); gameConsole.pushGame(data, 'stderr', instance.id); });
     child.stdout?.on('data', markRunning);
     child.stderr?.on('data', markRunning);
     const runningFallback = setTimeout(() => {
@@ -743,6 +760,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       }
       setState('error', `Minecraft process failed: ${err.message}`);
       resetPresence();
+      gameConsole.end(instance.id, { note: `Minecraft process failed: ${err.message}` });
     });
     const finish = async (code, signal) => {
       if (finished) return;
@@ -750,13 +768,23 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       clearTimeout(runningFallback);
       clearTimeout(crashKillTimer);
       const startedAgo = Date.now() - launchedAt;
+      const killed = Boolean(stopState && stopState.child === child);
+      if (stopState?.child === child) {
+        clearTimeout(stopState.timer);
+        clearTimeout(stopState.fallback);
+        stopState = null;
+      }
       if (activeChild === child) {
         activeChild = null;
         activeInstance = null;
+        activeFinish = null;
       }
+      gameConsole.end(instance.id, { code, signal, killed });
       resetPresence();
       const record = await crashReporter.endSession(code, signal).catch(() => null);
-      const verdict = classifyExit({ code, signal, crashSeen, hasCrashRecord: Boolean(record), startedAgo, sawOutput });
+      const verdict = killed
+        ? { crashed: false, detail: '' }
+        : classifyExit({ code, signal, crashSeen, hasCrashRecord: Boolean(record), startedAgo, sawOutput });
       if (verdict.crashed) {
         if (outputTail.includes('org/spongepowered/asm/launch/MixinBootstrap')) {
           setState('error', 'Fabric Mixin failed to load after repair. Check the logs and try launching again.');
@@ -781,13 +809,77 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       setTimeout(() => finish(code, signal), 1500);
     });
     child.on('close', (code, signal) => { finish(code, signal); });
+    activeFinish = finish;
   } catch (err) {
     activeChild = null;
     setState('error', err.message);
   }
   } finally {
     launchInProgress = false;
+    // The launch bailed out before a game process existed.
+    if (!activeChild && gameConsole.isActive(instance.id)) {
+      gameConsole.end(instance.id, { note: 'Launch stopped before Minecraft started' });
+    }
   }
+}
+
+/* ------------------------------------------------------------------ stop */
+
+/**
+ * Ends a process (and on Windows its whole tree). Graceful first: Windows gets
+ * a close request (taskkill without /F → WM_CLOSE), others SIGTERM so the JVM
+ * runs its shutdown hooks. `force` kills outright.
+ */
+function terminate(child, force) {
+  const pid = child?.pid;
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    const args = ['/PID', String(pid), '/T'];
+    if (force) args.push('/F');
+    execFile('taskkill', args, { windowsHide: true }, (error) => {
+      if (error && force) {
+        try { child.kill('SIGKILL'); } catch { /* already gone */ }
+      }
+    });
+    return;
+  }
+  try {
+    process.kill(pid, force ? 'SIGKILL' : 'SIGTERM');
+  } catch {
+    try { child.kill(force ? 'SIGKILL' : 'SIGTERM'); } catch { /* already gone */ }
+  }
+}
+
+const STOP_GRACE_MS = 8000;
+
+function stopGame({ force = false } = {}) {
+  const child = activeChild;
+  if (!child) return { ok: false, reason: 'not-running' };
+  crashReporter.markKilled();
+  if (!stopState || stopState.child !== child) {
+    stopState = { child, timer: null, fallback: null, forced: false };
+  }
+  const forceKill = () => {
+    if (activeChild !== child || stopState?.forced) return;
+    stopState.forced = true;
+    clearTimeout(stopState.timer);
+    gameConsole.pushLauncher('Force-stopping Minecraft and its child processes');
+    setState('stopping', 'Force-stopping Minecraft…');
+    terminate(child, true);
+    // A JVM stuck in the kernel can outlive SIGKILL for a moment, and a child
+    // it spawned can hold the pipes open; don't leave the UI stuck on "Stopping".
+    stopState.fallback = setTimeout(() => {
+      if (activeChild === child && activeFinish) activeFinish(null, 'SIGKILL');
+    }, 4000);
+  };
+  if (force || stopState.timer) {
+    forceKill();
+    return { ok: true, forced: true };
+  }
+  setState('stopping', 'Stopping Minecraft…');
+  terminate(child, false);
+  stopState.timer = setTimeout(forceKill, STOP_GRACE_MS);
+  return { ok: true, forced: false };
 }
 
 function init(dependencies, ipcMain) {
@@ -918,7 +1010,11 @@ function init(dependencies, ipcMain) {
     }
   };
 
-  launcher.on('debug', queueLog);
+  launcher.on('debug', (line) => {
+    queueLog(line);
+    // Skip MCLC's per-file chatter; keep the milestones.
+    if (!/\[MCLC\]: (?:Downloaded|Attempting to download|Failed to download asset)/.test(String(line))) gameConsole.pushLauncher(line);
+  });
   launcher.on('data', queueLog);
 
   ipcMain.on('launcher:launch', (_event, payload) => {
@@ -928,14 +1024,10 @@ function init(dependencies, ipcMain) {
     });
   });
 
-  ipcMain.on('launcher:kill', () => {
-    crashReporter.markKilled();
-    if (activeChild) {
-      activeChild.kill();
-      activeChild = null;
-      setState('idle', '');
-    }
+  ipcMain.on('launcher:kill', (_event, options) => {
+    stopGame({ force: Boolean(options?.force) });
   });
+  ipcMain.handle('launcher:stop', (_event, options) => stopGame({ force: Boolean(options?.force) }));
 }
 
 module.exports = {
@@ -951,6 +1043,8 @@ module.exports = {
     ensureCanonicalAssetIndex,
     rememberInstall,
     usesPost1216Rendering,
+    stopGame,
+    terminate,
     quarantineIncompatibleMods,
     launch
   }

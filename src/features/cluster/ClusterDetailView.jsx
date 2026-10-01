@@ -7,6 +7,7 @@ import useIsInstalled from '../instances/useIsInstalled.js';
 import SettingsTab from './SettingsTab.jsx';
 import InstanceContentTab from './InstanceContentTab.jsx';
 import ScreenshotManager from './ScreenshotManager.jsx';
+import ConsoleTab from './ConsoleTab.jsx';
 import { formatPlaytime } from '../instances/playtimeStats.js';
 import { getClusterArt } from '../../data/versionsData.js';
 import './ClusterDetailView.css';
@@ -19,6 +20,7 @@ const TAB_META = {
   worlds: { title: 'Worlds', icon: 'globe', folder: 'saves', search: 'Find a world…' },
   screenshots: { title: 'Screenshots', icon: 'camera', folder: 'screenshots', search: 'Find a screenshot…' },
   textures: { title: 'Resource packs', icon: 'type-resourcepack', folder: 'resourcepacks', search: 'Find a resource pack…' },
+  console: { title: 'Console', icon: 'code', folder: 'logs', search: 'Filter output…' },
   settings: { title: 'Advanced', icon: 'sliders', folder: '', search: 'Search settings…' }
 };
 
@@ -35,6 +37,7 @@ export default function ClusterDetailView({
   account,
   onNavigateBrowse,
   onAnalyzeCrash,
+  onOpenCrashReport,
   initialTab = 'overview'
 }) {
   useVersionBanners();
@@ -154,7 +157,7 @@ export default function ClusterDetailView({
   const handleNavKeyDown = (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    const order = [...contentTabs, 'settings'];
+    const order = [...contentTabs, 'console', 'settings'];
     const index = order.indexOf(tab);
     const next = order[(index + (event.key === 'ArrowDown' ? 1 : -1) + order.length) % order.length];
     switchTab(next);
@@ -278,6 +281,15 @@ export default function ClusterDetailView({
           <div className="im-sidebar-footer">
             <span className="im-nav-group-label">Instance</span>
             <button
+              className={`im-nav im-nav-console ${tab === 'console' ? 'active' : ''}`}
+              aria-current={tab === 'console' ? 'page' : undefined}
+              onClick={() => switchTab('console')}
+            >
+              <NativeIcon name="code" size={16} className="im-nav-icon" />
+              <span className="im-nav-text">Console</span>
+              {isThisRunning && launcherState?.status === 'running' && <span className="im-nav-live" aria-label="Live" />}
+            </button>
+            <button
               className={`im-nav im-nav-settings ${tab === 'settings' ? 'active' : ''}`}
               aria-current={tab === 'settings' ? 'page' : undefined}
               onClick={() => switchTab('settings')}
@@ -327,7 +339,7 @@ export default function ClusterDetailView({
             </label>
 
             <div className="im-toolbar-actions">
-              {tab !== 'mods' && (
+              {tab !== 'mods' && tab !== 'console' && (
                 <button
                   className={`im-toolbar-btn ${filtered ? 'is-active' : ''}`}
                   title={filterLabel}
@@ -365,6 +377,17 @@ export default function ClusterDetailView({
                     }
                   : undefined
               }
+            />
+          )}
+
+          {tab === 'console' && (
+            <ConsoleTab
+              cluster={cluster}
+              query={query}
+              running={isThisRunning && ['running', 'launching', 'stopping'].includes(launcherState?.status)}
+              onAnalyzeCrash={onAnalyzeCrash}
+              onOpenCrashReport={onOpenCrashReport}
+              onNotify={showNotice}
             />
           )}
 
