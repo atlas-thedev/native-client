@@ -4,7 +4,7 @@ const snippet = (message) => {
   if (!message) return '';
   if (message.deleted) return 'Original message was deleted';
   if (message.content) return message.content;
-  if (message.mediaName) return message.mediaName;
+  if (message.mediaName) return /\.gif$/i.test(message.mediaName) ? 'GIF' : /\.(png|jpe?g|webp)$/i.test(message.mediaName) ? 'Photo' : message.mediaName;
   return 'Attachment';
 };
 

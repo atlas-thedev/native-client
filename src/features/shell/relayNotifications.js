@@ -4,7 +4,7 @@
  */
 
 export const NOTIFY_PREFS_KEY = 'noctra.relay.notifications';
-const DEFAULT_PREFS = { desktop: true, sound: true, inApp: true };
+const DEFAULT_PREFS = { desktop: true, sound: true };
 
 export function readNotifyPrefs(storage = globalThis.localStorage) {
   try {

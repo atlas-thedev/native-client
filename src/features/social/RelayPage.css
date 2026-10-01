@@ -1904,3 +1904,37 @@
 .relay-convo-search-bar:focus-within .relay-convo-search-input,
 .relay-convo-search-bar:has(.relay-convo-search-input:not(:placeholder-shown)) .relay-convo-search-input { flex: 1; width: auto; opacity: 1; }
 .relay-convo-search-bar:hover .relay-search-icon { color: var(--fg-primary); }
+
+/* ── Calm pass: media, reactions, meta, deleted ───────────────────── */
+.relay-media-card {
+  width: min(300px, 60vw);
+  border: 0;
+  border-radius: 16px;
+  background: none;
+}
+.relay-media-frame { border-radius: 16px; overflow: hidden; }
+.relay-media-img { max-height: 280px; }
+.relay-media-caption { padding: 6px 2px 0; }
+.relay-media-meta:not(:has(.relay-media-failed)) { display: none; }
+.relay-media-filename { display: none; }
+.relay-media-meta { padding: 4px 2px 0; }
+
+.relay-msg-reactions-row { gap: 5px; margin-top: 3px; }
+.relay-msg-reaction-badge {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 12px;
+}
+.relay-msg-reaction-badge:hover { background: rgba(255, 255, 255, 0.11); border-color: transparent; }
+.relay-msg-reaction-badge.is-mine {
+  background: color-mix(in srgb, var(--accent-text, #d9a6da) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent-text, #d9a6da) 45%, transparent);
+}
+
+.relay-msg-time { font-family: inherit; font-size: 11px; opacity: 0.65; }
+.relay-msg-edited { font-size: 11px; opacity: 0.65; }
+
+.relay-message-bubble.is-tombstone { padding: 2px 0; border: 0; background: none; }
+.relay-message-bubble.is-tombstone .relay-message-text { font-size: 13px; }

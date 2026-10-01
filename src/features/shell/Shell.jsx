@@ -9,7 +9,6 @@ import ClusterDetailView from '../cluster/ClusterDetailView.jsx';
 import LockerView from '../skins/LockerView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
-import RelayToasts from './RelayToasts.jsx';
 import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
 import FriendContextMenu from '../social/FriendContextMenu.jsx';
 import NicknameModal from '../social/NicknameModal.jsx';
@@ -226,16 +225,6 @@ export default function Shell({
     activeThreadId: relayActiveThreadId
   };
 
-  const [relayToasts, setRelayToasts] = useState([]);
-  const [openThreadRequest, setOpenThreadRequest] = useState(null);
-
-  const dismissToast = useCallback((id) => setRelayToasts((prev) => prev.filter((toast) => toast.id !== id)), []);
-  const openRelayThread = useCallback((note) => {
-    if (note?.threadId && ['dm', 'group', 'friend', 'group-added'].includes(note.kind)) {
-      setOpenThreadRequest({ id: note.threadId, kind: note.kind === 'group' || note.kind === 'group-added' ? 'group' : 'dm', nonce: Date.now() });
-    }
-    setCurrentTab('relay');
-  }, []);
 
   useEffect(() => {
     if (!isNoctra) return undefined;
@@ -254,17 +243,10 @@ export default function Shell({
       const prefs = readNotifyPrefs();
       notify(note.title, note.body);
       if (prefs.sound) playRelayChime();
-      if (focused) {
-        if (prefs.inApp) {
-          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          setRelayToasts((prev) => [...prev.slice(-2), { id, ...note }]);
-          setTimeout(() => dismissToast(id), 6500);
-        }
-      } else if (prefs.desktop) {
-        window.native?.showNotification?.(note.title, note.body);
-      }
+      // Real OS notification (Windows toast). Clicking it brings the launcher forward.
+      if (prefs.desktop) window.native?.showNotification?.(note.title, note.body);
     });
-  }, [isNoctra, notify, social.subscribe, dismissToast]);
+  }, [isNoctra, notify, social.subscribe]);
 
   const handleLaunch = (cluster, options = {}) => {
     if (!cluster) return;
@@ -500,7 +482,6 @@ export default function Shell({
               onJoinServer={handleJoinServer}
               onNotify={notifyRelay}
               onActiveThreadChange={setRelayActiveThreadId}
-              openThreadRequest={openThreadRequest}
             />
           ) : (
             <NoctraAccountGate
@@ -595,7 +576,6 @@ export default function Shell({
         )}
       </div>
 
-      <RelayToasts toasts={relayToasts} onOpen={(toast) => { dismissToast(toast.id); openRelayThread(toast); }} onDismiss={dismissToast} />
       <NotificationDrawer
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}

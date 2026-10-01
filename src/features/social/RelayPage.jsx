@@ -106,7 +106,7 @@ function loadPersistedState() {
   }
 }
 
-export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange, openThreadRequest }) {
+export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange }) {
   const persisted = useMemo(() => loadPersistedState(), []);
   const selfId = social?.selfId || account?.id || null;
 
@@ -509,15 +509,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
     }
   };
 
-  // A notification asked us to open a conversation.
-  const handledOpenRequest = useRef(null);
-  useEffect(() => {
-    if (!openThreadRequest?.id || handledOpenRequest.current === openThreadRequest.nonce) return;
-    if (Date.now() - (openThreadRequest.nonce || 0) > 5000) return; // stale: from an earlier visit
-    handledOpenRequest.current = openThreadRequest.nonce;
-    handleSelectThread({ id: openThreadRequest.id, kind: openThreadRequest.kind || 'dm' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openThreadRequest?.nonce]);
 
   const handleDeselectChat = useCallback(() => {
     setSelectedId(null);

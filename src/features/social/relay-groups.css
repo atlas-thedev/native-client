@@ -815,3 +815,31 @@
 :root[data-glow='off'] .relay-btn--primary,
 :root[data-glow='off'] .relay-input:focus,
 :root[data-glow='off'] .relay-group-icon-picker:hover:not(:disabled) { box-shadow: none; }
+
+/* ── Calm pass: replies read as a quiet line above the bubble ─────── */
+.relay-reply-quote {
+  max-width: min(100%, 360px);
+  margin: 4px 0 3px;
+  padding: 0 2px;
+  gap: 7px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+}
+.relay-reply-quote:hover { border-color: transparent; }
+.relay-reply-quote__spine { width: 2px; height: 15px; background: rgba(255, 255, 255, 0.22); }
+.relay-reply-quote:hover .relay-reply-quote__spine { background: var(--accent-text, #d9a6da); }
+.relay-reply-quote__author { color: var(--fg-secondary); font-weight: 600; }
+.relay-reply-quote__text { opacity: 0.75; }
+
+.relay-reply-bar {
+  padding: 2px 4px 2px 12px;
+  border: 0;
+  border-left: 2px solid var(--accent-text, #d9a6da);
+  border-radius: 0;
+  background: none;
+}
+.relay-reply-bar__label { font-size: 12px; color: var(--fg-muted); }
+.relay-reply-bar__label strong { color: var(--fg-secondary); font-weight: 600; }
+.relay-reply-bar__text { font-size: 12.5px; }

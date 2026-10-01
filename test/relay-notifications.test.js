@@ -57,7 +57,7 @@ test('notification preferences default on and persist', async () => {
   const { readNotifyPrefs, writeNotifyPrefs } = await load();
   const mem = new Map();
   const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
-  assert.deepEqual(readNotifyPrefs(storage), { desktop: true, sound: true, inApp: true });
+  assert.deepEqual(readNotifyPrefs(storage), { desktop: true, sound: true });
   writeNotifyPrefs({ sound: false }, storage);
   assert.equal(readNotifyPrefs(storage).sound, false);
   assert.equal(readNotifyPrefs(storage).desktop, true);
