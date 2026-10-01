@@ -76,6 +76,14 @@ const api = {
     detectFor: (major) => ipcRenderer.invoke('java:detectFor', major),
     install: (major) => ipcRenderer.invoke('java:install', major),
     browse: () => ipcRenderer.invoke('java:browse'),
+    scan: (options) => ipcRenderer.invoke('java:scan', options || {}),
+    probe: (javaPath) => ipcRenderer.invoke('java:probe', javaPath),
+    host: () => ipcRenderer.invoke('java:host'),
+    presets: () => ipcRenderer.invoke('java:presets'),
+    slots: () => ipcRenderer.invoke('java:slots'),
+    setSlot: (slot, javaPath) => ipcRenderer.invoke('java:setSlot', slot, javaPath),
+    // { requiredMajor, slot, path, source, runtime, flags, status, issues }
+    check: (payload) => ipcRenderer.invoke('java:check', payload),
     onProgress: (callback) => subscribe('java:progress', callback)
   },
   mods: {

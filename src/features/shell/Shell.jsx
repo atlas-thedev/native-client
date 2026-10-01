@@ -287,7 +287,8 @@ export default function Shell({
         await save({ java: { enabled: false, path: '' } });
         return { ok: true, message: 'Noctra picks the right Java on the next launch' };
       case 'jvm-reset':
-        await save({ jvmArgs: '' });
+        // Launch with no extra flags at all (not even the launcher-wide ones).
+        await save({ jvmArgs: '', jvmPreset: 'none', jvmEnabled: true });
         return { ok: true, message: 'Custom JVM arguments removed' };
       case 'jvm-add': {
         const current = String(ov.jvmArgs || '').trim();
@@ -299,7 +300,7 @@ export default function Shell({
         instancesManager.update(target.id, { loaderVersion: '', mc_loader_version: '' });
         return { ok: true, message: `The newest ${target.loader || 'loader'} version is used on the next launch` };
       case 'patch':
-        await save({ ...fix.patch, jvmEnabled: fix.patch?.java?.enabled ? true : ov.jvmEnabled });
+        await save({ ...fix.patch });
         return { ok: true };
       default:
         return { ok: false, message: 'Unknown fix' };

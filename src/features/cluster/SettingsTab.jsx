@@ -5,6 +5,7 @@ import {
   Check,
   Cloud,
   Code2,
+  Coffee,
   Cpu,
   Maximize2,
   Minus,
@@ -15,6 +16,9 @@ import {
   SquareDashed,
   Square
 } from 'lucide-react';
+import MemoryRange from '../settings/MemoryRange.jsx';
+import { CompatNote, JavaPicker, useJavaCheck, useJavaRuntimes } from '../settings/javaUi.jsx';
+import { GC_PRESETS, buildJvmArgs } from '../../lib/jvmFlags.js';
 import './SettingsTab.css';
 
 /* ============================================================
@@ -178,8 +182,9 @@ const DISPLAY_MODES = [
 /* Search haystacks so the toolbar search box can filter sections. */
 const SECTION_TERMS = {
   display: 'game resolution display fullscreen borderless window size aspect ratio',
-  memory: 'allocated memory ram heap gigabytes',
-  java: 'java jvm arguments runtime executable garbage collection performance flags'
+  memory: 'allocated memory ram heap gigabytes xms xmx minimum maximum',
+  java: 'java runtime executable version jdk jre architecture x64 x86 arm64 compatibility path',
+  jvm: 'jvm arguments flags garbage collection gc zgc shenandoah aikar g1 performance'
 };
 
 function safeRatio(width, height) {
@@ -202,8 +207,10 @@ function initialDraft(cluster, global) {
       ...ov.memory,
       enabled: !!ov.memory?.enabled
     },
-    jvmEnabled: ov.jvmEnabled ?? !!(ov.jvmArgs || ov.java?.enabled),
+    javaEnabled: !!ov.java?.enabled,
     javaPath: ov.java?.path || '',
+    jvmEnabled: ov.jvmEnabled ?? !!ov.jvmArgs,
+    jvmPreset: ov.jvmPreset || 'none',
     jvmArgs: ov.jvmArgs || ''
   };
 }
@@ -212,6 +219,8 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
   const [draft, setDraft] = useState(() => initialDraft(cluster, {}));
   const [baseline, setBaseline] = useState(() => JSON.stringify(initialDraft(cluster, {})));
   const [systemRam, setSystemRam] = useState(32);
+  const [systemRamExact, setSystemRamExact] = useState(32);
+  const runtimes = useJavaRuntimes();
   const [globals, setGlobals] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -228,6 +237,7 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
         const next = initialDraft(cluster, global);
         setGlobals(global);
         setSystemRam(Math.max(1, Math.floor(memory.totalGb)));
+        setSystemRamExact(Math.max(1, memory.totalGb));
         setDraft(next);
         setBaseline(JSON.stringify(next));
         ratio.current = safeRatio(next.resolution.width, next.resolution.height);
@@ -253,8 +263,10 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
   const memory = (values) => {
     const next = { ...draft.memory, ...values };
     // A global default above this machine's RAM must not be carried into an override.
-    if (next.max > systemRam) next.max = systemRam;
-    if (!(next.max >= 1)) next.max = 1;
+    if (next.max > systemRamExact) next.max = Math.floor(systemRamExact * 2) / 2;
+    if (!(next.max >= 0.5)) next.max = 0.5;
+    if (!(next.min >= 0.5)) next.min = 0.5;
+    if (next.min > next.max) next.min = next.max;
     change('memory', next);
   };
 
@@ -282,6 +294,7 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
       ...cur,
       resolution: { ...cur.resolution, enabled: false },
       memory: { ...cur.memory, enabled: false },
+      javaEnabled: false,
       jvmEnabled: false
     }));
   };
@@ -324,8 +337,9 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
           ...cluster.overrides,
           resolution: next.resolution,
           memory: { ...next.memory, min: Math.min(next.memory.min || 1, next.memory.max) },
+          java: { enabled: next.javaEnabled && !!next.javaPath.trim(), path: next.javaPath.trim() },
           jvmEnabled: next.jvmEnabled,
-          java: { enabled: next.jvmEnabled && !!next.javaPath.trim(), path: next.javaPath.trim() },
+          jvmPreset: next.jvmPreset,
           jvmArgs: next.jvmArgs.trim()
         }
       });
@@ -338,6 +352,19 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
       setSaving(false);
     }
   };
+
+  // What this instance would launch with right now, checked live.
+  const effMemoryMax = draft.memory?.enabled ? Number(draft.memory.max) : Number(globals.memory?.max) || 4;
+  const effPreset = draft.jvmEnabled ? draft.jvmPreset : globals.jvm?.preset || 'none';
+  const effArgs = draft.jvmEnabled ? draft.jvmArgs : globals.jvm?.args || '';
+  const javaCheck = useJavaCheck({
+    javaPath: draft.javaEnabled && draft.javaPath.trim() ? draft.javaPath.trim() : null,
+    mcVersion: cluster.version || cluster.mc_version,
+    loader: cluster.loader || cluster.mc_loader || 'vanilla',
+    memoryMaxGb: effMemoryMax,
+    preset: effPreset,
+    args: effArgs
+  });
 
   if (!draft) {
     return (
@@ -364,10 +391,13 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
   const m = draft.memory;
   const displayMode = r.fullscreen ? 'fullscreen' : r.borderless ? 'borderless' : 'windowed';
   const sizeLocked = displayMode === 'fullscreen';
-  const memWarn = m.enabled && m.max > systemRam;
-  const activeOverrides = [r.enabled, m.enabled, draft.jvmEnabled].filter(Boolean).length;
-  const memPresets = [2, 4, 8, 16].filter((g) => g <= systemRam);
-  const anyVisible = show('display', r.enabled) || show('memory', m.enabled) || show('java', draft.jvmEnabled);
+  const memWarn = m.enabled && m.max > systemRamExact;
+  const activeOverrides = [r.enabled, m.enabled, draft.javaEnabled, draft.jvmEnabled].filter(Boolean).length;
+  const anyVisible = show('display', r.enabled) || show('memory', m.enabled) || show('java', draft.javaEnabled) || show('jvm', draft.jvmEnabled);
+  const mcVersion = cluster.version || cluster.mc_version;
+  const presetInfo = GC_PRESETS.find((p) => p.id === draft.jvmPreset) || GC_PRESETS[0];
+  const flagPreview = javaCheck.result?.flags
+    || buildJvmArgs({ preset: effPreset, args: effArgs, major: null, memoryMaxGb: effMemoryMax });
 
   return (
     <form className="nis" onSubmit={save} noValidate>
@@ -382,7 +412,7 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
           </div>
           <div className="nis-banner-status">
             <Cloud size={12} />
-            <span>{activeOverrides} of 3 overriding global</span>
+            <span>{activeOverrides} of 4 overriding global</span>
           </div>
         </div>
 
@@ -488,57 +518,61 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
             </header>
 
             <fieldset className="nis-card-body" disabled={!m.enabled || saving}>
-              <div className="nis-mem-head">
-                <NisStepper
-                  value={m.max}
-                  min={1}
-                  max={systemRam}
-                  step={1}
-                  suffix="GB"
-                  disabled={!m.enabled || saving}
-                  onChange={(max) => memory({ max })}
-                />
-                <div className="nis-mem-quick">
-                  {memPresets.map((g) => (
-                    <NisPill key={g} active={m.max === g} onClick={() => memory({ max: g })}>
-                      {g} GB
-                    </NisPill>
-                  ))}
-                  <button
-                    type="button"
-                    className="nis-reset"
-                    title="Reset to recommended memory"
-                    aria-label="Reset to recommended memory"
-                    onClick={() => memory({ max: Math.min(globals.memory?.max || 4, systemRam) })}
-                  >
-                    <RotateCcw size={14} />
-                    <span>Recommended</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="nis-slider-wrap">
-                <NisSlider value={m.max} min={1} max={systemRam} step={1} disabled={!m.enabled || saving} label="Allocated memory" onChange={(max) => memory({ max })} />
-                <div className="nis-ticks">
-                  <span>1 GB</span>
-                  <span>{Math.max(2, Math.round(systemRam * 0.25))} GB</span>
-                  <span>{Math.max(4, Math.round(systemRam * 0.5))} GB</span>
-                  <span>{Math.max(6, Math.round(systemRam * 0.75))} GB</span>
-                  <span>{systemRam} GB</span>
-                </div>
-              </div>
-
-              {memWarn && (
-                <p className="nis-note is-warn">
-                  <AlertCircle size={13} /> This allocation exceeds your physical system memory.
+              <MemoryRange
+                min={Number(m.min) || 1}
+                max={Number(m.max) || 4}
+                total={systemRamExact}
+                presets={[2, 4, 6, 8, 12, 16]}
+                disabled={!m.enabled || saving}
+                onChange={(next) => memory(next)}
+              />
+              {!m.enabled && (
+                <p className="nis-field-hint">
+                  Using the launcher default: {globals.memory?.min ?? 1}–{globals.memory?.max ?? 4} GB.
                 </p>
               )}
             </fieldset>
           </section>
         )}
 
-        {/* Section 3 — Java & JVM */}
-        {show('java', draft.jvmEnabled) && (
+        {/* Section 3 — Java runtime */}
+        {show('java', draft.javaEnabled) && (
+          <section className={`nis-card ${draft.javaEnabled ? 'is-active' : ''}`}>
+            <header className="nis-card-head">
+              <div className="nis-card-id">
+                <div className="nis-card-icon">
+                  <Coffee size={18} />
+                </div>
+                <div>
+                  <h3 className="nis-card-title">Java Runtime</h3>
+                  <p className="nis-card-desc">Pin a specific Java for this instance instead of the automatic choice.</p>
+                </div>
+              </div>
+              <NisToggle checked={draft.javaEnabled} onChange={(value) => change('javaEnabled', value)} label="Override Java" />
+            </header>
+
+            <div className="nis-card-body">
+              {draft.javaEnabled && (
+                <div className="nis-field">
+                  <span className="nis-field-label">Java executable</span>
+                  <JavaPicker
+                    value={draft.javaPath}
+                    onChange={(value) => change('javaPath', value)}
+                    runtimes={runtimes.list}
+                    scanning={runtimes.scanning}
+                    onRescan={runtimes.rescan}
+                    autoLabel="Choose a Java…"
+                    disabled={saving}
+                  />
+                </div>
+              )}
+              <CompatNote check={javaCheck.result} loading={javaCheck.loading} mcVersion={mcVersion} />
+            </div>
+          </section>
+        )}
+
+        {/* Section 4 — JVM arguments */}
+        {show('jvm', draft.jvmEnabled) && (
           <section className={`nis-card ${draft.jvmEnabled ? 'is-active' : ''}`}>
             <header className="nis-card-head">
               <div className="nis-card-id">
@@ -546,37 +580,47 @@ export default function SettingsTab({ cluster, onUpdateCluster, query = '', enab
                   <Code2 size={18} />
                 </div>
                 <div>
-                  <h3 className="nis-card-title">Java &amp; JVM Arguments</h3>
-                  <p className="nis-card-desc">Point to a custom Java runtime and pass launch flags for GC and performance tuning.</p>
+                  <h3 className="nis-card-title">JVM Arguments</h3>
+                  <p className="nis-card-desc">Garbage collector preset and extra flags for this instance.</p>
                 </div>
               </div>
-              <NisToggle checked={draft.jvmEnabled} onChange={(value) => change('jvmEnabled', value)} label="Override Java" />
+              <NisToggle checked={draft.jvmEnabled} onChange={(value) => change('jvmEnabled', value)} label="Override JVM arguments" />
             </header>
 
             <fieldset className="nis-card-body" disabled={!draft.jvmEnabled || saving}>
-              <label className="nis-field">
-                <span className="nis-field-label">Java executable path</span>
-                <input
-                  className="nis-input"
-                  value={draft.javaPath}
-                  onChange={(event) => change('javaPath', event.target.value)}
-                  placeholder="Leave empty to use the bundled Java runtime"
-                />
-              </label>
+              <div className="nis-field">
+                <span className="nis-field-label">Garbage collector</span>
+                <div className="nis-mem-quick">
+                  {GC_PRESETS.map((preset) => (
+                    <NisPill key={preset.id} active={draft.jvmPreset === preset.id} onClick={() => change('jvmPreset', preset.id)}>
+                      {preset.label}
+                    </NisPill>
+                  ))}
+                </div>
+                <span className="nis-field-hint">{presetInfo.description}</span>
+              </div>
 
               <label className="nis-field">
-                <span className="nis-field-label">Launch arguments</span>
+                <span className="nis-field-label">Custom arguments</span>
                 <textarea
                   className="nis-textarea"
                   rows={2}
                   value={draft.jvmArgs}
                   onChange={(event) => change('jvmArgs', event.target.value)}
-                  placeholder="-XX:+UseG1GC -XX:+ParallelRefProcEnabled"
+                  placeholder="-Dsodium.checks.issue2561=false -Xss2M"
                   spellCheck={false}
                 />
-                <span className="nis-field-hint">Separate flags with spaces. Applies on the next launch.</span>
+                <span className="nis-field-hint">
+                  Separate flags with spaces; quote values that contain spaces. Memory is set above, so -Xmx/-Xms here are ignored.
+                </span>
               </label>
             </fieldset>
+            {flagPreview.length > 0 && (
+              <div className="nis-flags">
+                <span>{draft.jvmEnabled ? 'Passed to Java' : 'Passed to Java (launcher default)'}</span>
+                <code>{flagPreview.join(' ')}</code>
+              </div>
+            )}
           </section>
         )}
 

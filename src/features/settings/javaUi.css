@@ -1,0 +1,61 @@
+.jx-picker { display: flex; align-items: center; gap: 8px; width: 100%; }
+.jx-picker .dropdown { flex: 1; min-width: 0; }
+
+.jx-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--component-border);
+  background: var(--component-bg);
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+
+.jx-icon:hover:not(:disabled) { color: var(--fg-primary-hover); border-color: var(--component-border-hover); }
+.jx-icon:disabled { opacity: 0.5; cursor: default; }
+.jx-spin { animation: jx-spin 0.9s linear infinite; }
+@keyframes jx-spin { to { transform: rotate(360deg); } }
+
+.jx-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--component-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+.jx-badge.is-warn { color: #e8b04b; border-color: rgba(232, 176, 75, 0.3); }
+
+.jx-compat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+  font-size: 12.5px;
+  color: var(--fg-secondary);
+  transition: opacity 0.15s;
+}
+
+.jx-compat.is-loading { opacity: 0.6; }
+.jx-compat.is-pending { margin: 0; color: var(--fg-muted); border: 0; padding: 0; }
+.jx-compat-head { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--fg-primary-hover); }
+.jx-compat-head em { font-style: normal; font-weight: 500; color: var(--fg-muted); }
+.jx-compat.is-ok .jx-compat-head svg { color: var(--success); }
+.jx-compat.is-warn .jx-compat-head svg { color: #e8b04b; }
+.jx-compat.is-error { border-color: rgba(241, 122, 122, 0.35); background: rgba(241, 122, 122, 0.05); }
+.jx-compat.is-error .jx-compat-head svg { color: #f17a7a; }
+.jx-compat-runtime { padding-left: 23px; color: var(--fg-muted); }
+.jx-compat-list { margin: 2px 0 0; padding-left: 37px; display: flex; flex-direction: column; gap: 2px; }
+.jx-compat-list li.is-error { color: #f3a0a0; }
+.jx-compat-list li.is-warn { color: #e8c27a; }
+.jx-badge.is-bad { color: #f17a7a; border-color: rgba(241, 122, 122, 0.32); }

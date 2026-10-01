@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn } = require('child_process');
+const javaRuntime = require('./javaRuntime');
 
 const DEFAULTS = {
   onboarding: {
@@ -17,11 +17,13 @@ const DEFAULTS = {
     reducedMotion: false,
     compactDensity: false
   },
-  memory: { min: 1, max: 4 }, // GB
+  memory: { min: 1, max: 4 }, // GB (0.5 GB steps)
   java: {
     // one configured path per Java major "slot" — resolved per MC version at launch
     paths: { 8: '', 17: '', 21: '', 25: '' }
   },
+  // Launcher-wide JVM flags; an instance can override them.
+  jvm: { preset: 'none', args: '' },
   resolution: { width: 854, height: 480, fullscreen: false },
   behavior: {
     startPage: 'play',
@@ -95,61 +97,18 @@ function save(next) {
   return cache;
 }
 
-/** Probe one java binary for its version string. */
+/** Probe one java binary: { path, version, major, arch, bits, vendor, home } or null. */
 function probeJava(javaPath) {
-  return new Promise((resolve) => {
-    let output = '';
-    const proc = spawn(javaPath, ['-version']);
-    proc.stderr.on('data', (d) => (output += d));
-    proc.stdout.on('data', (d) => (output += d));
-    proc.on('error', () => resolve(null));
-    proc.on('close', (code) => {
-      if (code !== 0) return resolve(null);
-      const match = output.match(/version "([^"]+)"/);
-      resolve({ path: javaPath, version: match ? match[1] : 'unknown' });
-    });
-  });
+  return javaRuntime.probe(javaPath);
 }
 
-/** Scan PATH + well-known install directories for Java runtimes. */
-async function detectJava() {
-  const candidates = new Set(['java']);
-  const globDirs = [];
-
-  if (process.platform === 'win32') {
-    for (const base of [
-      'C:\\Program Files\\Java',
-      'C:\\Program Files (x86)\\Java',
-      'C:\\Program Files\\Eclipse Adoptium',
-      'C:\\Program Files\\Microsoft'
-    ]) {
-      globDirs.push({ base, suffix: 'bin\\java.exe' });
-    }
-  } else if (process.platform === 'darwin') {
-    globDirs.push({
-      base: '/Library/Java/JavaVirtualMachines',
-      suffix: 'Contents/Home/bin/java'
-    });
-  } else {
-    globDirs.push({ base: '/usr/lib/jvm', suffix: 'bin/java' });
-  }
-  globDirs.push({ base: path.join(os.homedir(), '.jdks'), suffix: 'bin/java' });
-
-  for (const { base, suffix } of globDirs) {
-    try {
-      for (const entry of fs.readdirSync(base)) {
-        const candidate = path.join(base, entry, suffix);
-        if (fs.existsSync(candidate)) candidates.add(candidate);
-      }
-    } catch {
-      // directory doesn't exist — skip
-    }
-  }
-
-  const results = await Promise.all([...candidates].map(probeJava));
-  const found = results.filter(Boolean);
-  // label the PATH entry
-  return found.map((j) => (j.path === 'java' ? { ...j, label: 'System PATH' } : j));
+/**
+ * Every Java runtime on this machine (PATH, JAVA_HOME, registry, all drives,
+ * other launchers' runtimes…), each verified by running it.
+ */
+async function detectJava(options = {}) {
+  const list = await javaRuntime.scan(options);
+  return list.map((j) => ({ ...j, label: j.source }));
 }
 
 /** Recursively sum a directory's size in bytes. Returns 0 for missing dirs. */
@@ -187,6 +146,7 @@ function getStorageInfo(userDataPath) {
 
 function init(dependencies, ipcMain) {
   deps = dependencies;
+  try { javaRuntime.setUserData(deps.app.getPath('userData')); } catch { /* tests */ }
 
   ipcMain.handle('settings:load', () => load());
   ipcMain.handle('settings:systemMemory', () => ({ totalGb: os.totalmem() / 1024 ** 3 }));

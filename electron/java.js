@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const settingsMod = require('./settings');
+const javaRuntime = require('./javaRuntime');
 const { downloadFile, fetchJson } = require('./download');
 
 /**
@@ -137,6 +138,55 @@ function rememberPath(slot, javaPath) {
   });
 }
 
+/**
+ * Best detected runtime for a slot: an acceptable version, native to this
+ * CPU and 64-bit first, then the closest major (Java 17 for a 17 slot rather
+ * than 25, which some older mods dislike).
+ */
+function pickRuntime(list, slot) {
+  const host = javaRuntime.hostArch();
+  return list
+    .filter((j) => j.major !== null && acceptable(slot, j.major))
+    .filter((j) => !(host === 'x64' && j.arch === 'arm64'))
+    .sort((a, b) =>
+      Number(b.arch === host) - Number(a.arch === host)
+      || Number(b.bits !== 32) - Number(a.bits !== 32)
+      || (a.major - slot) - (b.major - slot)
+      || Number(b.source === 'Noctra') - Number(a.source === 'Noctra'))[0] || null;
+}
+
+/** A runtime that is fine to reuse for `slot` (right version, can run here). */
+function usable(info, slot) {
+  if (!info || info.major === null) return Boolean(info);
+  if (!acceptable(slot, info.major)) return false;
+  return !(javaRuntime.hostArch() === 'x64' && info.arch === 'arm64');
+}
+
+/**
+ * Work out which Java a launch would use without downloading anything.
+ * Returns { requiredMajor, slot, path, runtime, source } — path is null when
+ * Noctra would have to download one.
+ */
+async function resolveAuto(mcVersion, { scan = true } = {}) {
+  const major = await requiredMajor(mcVersion).catch(() => fallbackMajor(mcVersion));
+  const slot = slotFor(major);
+  const configured = settingsMod.get().java?.paths?.[String(slot)];
+  if (configured) {
+    const info = await javaRuntime.probe(configured);
+    if (usable(info, slot)) return { requiredMajor: major, slot, path: configured, runtime: info, source: 'configured' };
+  }
+  const managed = findJavaBinary(path.join(runtimesDir(), String(slot)));
+  if (managed) {
+    const info = await javaRuntime.probe(managed);
+    if (usable(info, slot)) return { requiredMajor: major, slot, path: managed, runtime: info, source: 'managed' };
+  }
+  if (scan) {
+    const match = pickRuntime(await javaRuntime.scan(), slot);
+    if (match) return { requiredMajor: major, slot, path: match.path, runtime: match, source: 'detected' };
+  }
+  return { requiredMajor: major, slot, path: null, runtime: null, source: 'download' };
+}
+
 /** Resolve (and if needed install) the right Java for a Minecraft version. */
 async function ensureJava(mcVersion, { setState = () => {}, sendProgress = () => {} } = {}) {
   setState('preparing', 'Resolving Java requirement…');
@@ -145,22 +195,18 @@ async function ensureJava(mcVersion, { setState = () => {}, sendProgress = () =>
 
   // 1. configured path for this slot
   const configured = settingsMod.get().java?.paths?.[String(slot)];
-  if (configured && (await settingsMod.probeJava(configured))) return configured;
+  if (configured && usable(await javaRuntime.probe(configured), slot)) return configured;
 
   // 2. managed runtime from an earlier download
   const managed = findJavaBinary(path.join(runtimesDir(), String(slot)));
-  if (managed && (await settingsMod.probeJava(managed))) {
+  if (managed && usable(await javaRuntime.probe(managed), slot)) {
     rememberPath(slot, managed);
     return managed;
   }
 
   // 3. system installation with an acceptable version
   setState('preparing', `Looking for Java ${slot}…`);
-  const detected = await settingsMod.detectJava();
-  const match = detected.find((j) => {
-    const m = majorOf(j.version);
-    return m !== null && acceptable(slot, m);
-  });
+  const match = pickRuntime(await javaRuntime.scan(), slot);
   if (match) {
     rememberPath(slot, match.path);
     return match.path;
@@ -192,15 +238,70 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('java:test', (_e, javaPath) => settingsMod.probeJava(javaPath));
 
   ipcMain.handle('java:detectFor', async (_e, major) => {
-    const detected = await settingsMod.detectJava();
-    const match = detected.find((j) => {
-      const m = majorOf(j.version);
-      return m !== null && acceptable(major, m);
-    });
+    const match = pickRuntime(await javaRuntime.scan({ force: true }), Number(major));
     if (!match) return null;
     rememberPath(major, match.path);
     return match.path;
   });
+
+  // Every Java on this machine, verified: [{ path, version, major, arch, bits, vendor, source, native }]
+  ipcMain.handle('java:scan', (_e, options) => javaRuntime.scan({ force: Boolean(options?.force) }));
+  ipcMain.handle('java:probe', (_e, javaPath) => javaRuntime.probe(javaPath));
+  ipcMain.handle('java:host', () => ({ arch: javaRuntime.hostArch(), platform: process.platform }));
+  ipcMain.handle('java:presets', () => javaRuntime.GC_PRESETS);
+
+  // The Java each slot resolves to right now (configured, Noctra-managed or detected).
+  ipcMain.handle('java:slots', async () => {
+    const configured = settingsMod.get().java?.paths || {};
+    return Promise.all(SLOTS.map(async (slot) => {
+      const chosen = configured[String(slot)] || findJavaBinary(path.join(runtimesDir(), String(slot)));
+      const info = chosen ? await javaRuntime.probe(chosen) : null;
+      return { slot, path: chosen || '', runtime: info, ok: usable(info, slot) && Boolean(info) };
+    }));
+  });
+
+  ipcMain.handle('java:setSlot', (_e, slot, javaPath) => {
+    rememberPath(Number(slot), javaPath || '');
+    return true;
+  });
+
+  /**
+   * Pre-launch check for the UI: which Java an instance would use and whether
+   * it can run it with these memory / JVM settings.
+   */
+  ipcMain.handle('java:check', (_e, payload) => checkLaunch(payload || {}));
+}
+
+async function checkLaunch({ javaPath = null, mcVersion, loader = 'vanilla', memoryMaxGb = 4, preset = 'none', args = '' } = {}) {
+  let requirement;
+  let runtime = null;
+  let resolvedPath = javaPath || null;
+  let source = 'custom';
+  if (javaPath) {
+    const major = await requiredMajor(mcVersion).catch(() => fallbackMajor(mcVersion));
+    requirement = { requiredMajor: major, slot: slotFor(major) };
+    runtime = await javaRuntime.probe(javaPath);
+  } else {
+    const auto = await resolveAuto(mcVersion);
+    requirement = auto;
+    runtime = auto.runtime;
+    resolvedPath = auto.path;
+    source = auto.source;
+  }
+  const flags = javaRuntime.buildJvmArgs({ preset, args, major: runtime?.major ?? requirement.slot, memoryMaxGb });
+  const compat = source === 'download'
+    ? { status: 'ok', issues: [{ level: 'info', code: 'will-download', message: `Noctra will download Java ${requirement.slot} on first launch.` }] }
+    : javaRuntime.checkCompat({ runtime, requiredMajor: requirement.requiredMajor, mcVersion, loader, memoryMaxGb, jvmArgs: flags.join(' '), preset });
+  return {
+    requiredMajor: requirement.requiredMajor,
+    slot: requirement.slot,
+    path: resolvedPath,
+    source,
+    runtime,
+    flags,
+    host: javaRuntime.hostArch(),
+    ...compat
+  };
 
   ipcMain.handle('java:install', async (_e, major) => {
     const binary = await downloadRuntime(major, (percent) =>
@@ -227,4 +328,4 @@ async function runtimeFor(major, onProgress) {
   return downloadRuntime(major, onProgress);
 }
 
-module.exports = { init, ensureJava, runtimeFor, SLOTS };
+module.exports = { init, ensureJava, runtimeFor, resolveAuto, checkLaunch, requiredMajor, fallbackMajor, slotFor, acceptable, SLOTS, _internals: { pickRuntime, usable } };

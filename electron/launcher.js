@@ -6,6 +6,7 @@ const { Client, Authenticator } = require('minecraft-launcher-core');
 const auth = require('./auth');
 const settingsMod = require('./settings');
 const javaMod = require('./java');
+const javaRuntime = require('./javaRuntime');
 const { downloadFile, fetchJson, writeFileAtomic } = require('./download');
 const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
@@ -563,9 +564,13 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     const ov = instance.overrides || {};
     const memory = ov.memory?.enabled ? ov.memory : settings.memory;
     const resolution = ov.resolution?.enabled ? ov.resolution : settings.resolution;
-    const jvmArgs = ov.jvmEnabled !== false && typeof ov.jvmArgs === 'string' && ov.jvmArgs.trim()
-      ? ov.jvmArgs.trim().split(/\s+/)
-      : null;
+    // JVM flags: the instance's own when it overrides them, else the launcher-wide ones.
+    const instanceJvm = ov.jvmEnabled === true || (ov.jvmEnabled !== false && typeof ov.jvmArgs === 'string' && ov.jvmArgs.trim());
+    const jvmChoice = instanceJvm
+      ? { preset: ov.jvmPreset || 'none', args: ov.jvmArgs || '', scope: 'instance' }
+      : { preset: settings.jvm?.preset || 'none', args: settings.jvm?.args || '', scope: 'global' };
+    const memMaxGb = Math.max(0.5, Number(memory.max) || 4);
+    const memMinGb = Math.max(0.5, Math.min(Number(memory.min) || 1, memMaxGb));
 
     // resolve the right Java for this MC version (auto-download if needed),
     // unless the instance pins its own Java binary.
@@ -588,6 +593,35 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       }
     }
 
+    // Java compatibility check: version, CPU architecture, memory and GC flags.
+    setState('preparing', 'Checking Java compatibility…');
+    const runtime = await javaRuntime.probe(javaPath);
+    const requiredJava = await javaMod.requiredMajor(mcVersion).catch(() => javaMod.fallbackMajor(mcVersion));
+    const jvmArgs = javaRuntime.buildJvmArgs({ preset: jvmChoice.preset, args: jvmChoice.args, major: runtime?.major, memoryMaxGb: memMaxGb });
+    if (runtime) {
+      gameConsole.pushLauncher(`Java ${runtime.version} · ${runtime.vendor} · ${runtime.arch}${runtime.bits ? ` (${runtime.bits}-bit)` : ''} · needs Java ${requiredJava}+`);
+    }
+    if (jvmChoice.preset !== 'none' && !javaRuntime.gcPreset(jvmChoice.preset, runtime?.major, memMaxGb).length) {
+      gameConsole.pushLauncher(`The ${jvmChoice.preset} GC preset is not available on Java ${runtime?.major ?? '?'}; using Java's default collector`);
+    }
+    const compat = javaRuntime.checkCompat({
+      runtime,
+      requiredMajor: requiredJava,
+      mcVersion,
+      loader,
+      memoryMaxGb: memMaxGb,
+      jvmArgs: jvmArgs.join(' '),
+      preset: jvmChoice.preset
+    });
+    for (const issue of compat.issues.filter((i) => i.level === 'warn')) gameConsole.pushLauncher(`Warning: ${issue.message}`);
+    if (compat.status === 'error') {
+      const first = compat.issues.find((i) => i.level === 'error');
+      const where = overrideJava ? ' Change the Java in this instance\'s Advanced settings.' : jvmChoice.scope === 'instance' ? ' Check this instance\'s JVM arguments.' : ' Check Settings → Java & Arguments.';
+      for (const issue of compat.issues.filter((i) => i.level === 'error')) gameConsole.pushLauncher(`Blocked: ${issue.message}`);
+      setState('error', `${first.message}${where}`);
+      return;
+    }
+
     // Microsoft account when signed in, offline auth otherwise
     let authorization = null;
     if (account?.useMicrosoft) {
@@ -604,10 +638,11 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     const opts = {
       root: rootDir(),
       version: { number: mcVersion, type: 'release' },
+      // Megabytes (MCLC appends "M"), so half-GB steps work. The minimum never
+      // exceeds the maximum: the JVM refuses to start otherwise.
       memory: {
-        // Never ask the JVM for a minimum heap above its maximum (it refuses to start).
-        min: `${Math.min(Number(memory.min) || 1, Number(memory.max) || 4)}G`,
-        max: `${Number(memory.max) || 4}G`
+        min: Math.round(memMinGb * 1024),
+        max: Math.round(memMaxGb * 1024)
       },
       window: {
         width: resolution.width,
@@ -618,7 +653,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       authorization: authResult,
       javaPath
     };
-    if (jvmArgs) opts.customArgs = jvmArgs;
+    if (jvmArgs.length) opts.customArgs = jvmArgs;
 
     const isModern = (() => {
       const parts = String(mcVersion || '').split('.').map(Number);
@@ -673,7 +708,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     activeChild = child;
     activeInstance = instance;
     const launchedAt = Date.now();
-    crashReporter.beginSession({ instance, memoryMaxGb: Number(memory.max) || 4, javaPath });
+    crashReporter.beginSession({ instance, memoryMaxGb: memMaxGb, javaPath });
     setState('launching', 'Starting Minecraft…');
     socialMod.setPresence({
       status: 'in-game',

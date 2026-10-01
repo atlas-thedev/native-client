@@ -26,6 +26,7 @@ import {
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import Logo from '../../components/ui/Logo.jsx';
 import StoragePanel from './StoragePanel.jsx';
+import JavaPanel, { GlobalMemory } from './JavaPanel.jsx';
 import ChangelogPanel from './ChangelogPanel.jsx';
 import { SUPPORTED_LOCALES } from '../../i18n/catalogs.js';
 import { readNotifyPrefs, writeNotifyPrefs } from '../shell/relayNotifications.js';
@@ -103,14 +104,6 @@ const LANGUAGE_NAMES = {
   tr: 'Türkçe'
 };
 
-const RAM_PRESETS = [
-  { val: 2, label: '2 GB', hint: 'Light / Vanilla' },
-  { val: 4, label: '4 GB', hint: 'Standard Default' },
-  { val: 6, label: '6 GB', hint: 'Recommended' },
-  { val: 8, label: '8 GB', hint: 'Heavy Mods' },
-  { val: 12, label: '12 GB', hint: 'Shaders / 4K' },
-  { val: 16, label: '16 GB', hint: 'Extreme' }
-];
 
 const RESOLUTION_PRESETS = [
   { w: 1280, h: 720, label: '1280 × 720', sub: 'HD' },
@@ -119,29 +112,6 @@ const RESOLUTION_PRESETS = [
   { w: 3840, h: 2160, label: '3840 × 2160', sub: '4K UHD' }
 ];
 
-const JVM_FLAG_PRESETS = [
-  {
-    id: 'default',
-    name: 'G1GC Default',
-    flags: '-XX:+UseG1GC'
-  },
-  {
-    id: 'aikar',
-    name: "Aikar's Optimized (Low Lag)",
-    flags:
-      '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1'
-  },
-  {
-    id: 'shenandoah',
-    name: 'Shenandoah Low-Pause',
-    flags: '-XX:+UseShenandoahGC -XX:+AlwaysPreTouch'
-  },
-  {
-    id: 'clear',
-    name: 'Clear Flags',
-    flags: ''
-  }
-];
 
 function readPrefs() {
   try {
@@ -211,11 +181,20 @@ export default function SettingsView({
     let cancelled = false;
     window.native?.settings?.load?.().then((stored) => {
       const b = stored?.behavior;
-      if (cancelled || !b) return;
+      const res = stored?.resolution;
+      if (cancelled || (!b && !res)) return;
       setPrefs((prev) => ({
         ...prev,
-        launcherAction: b.launcherAction === 'keep' || !b.launcherAction ? 'keep' : 'minimize',
-        reopenOnExit: b.reopenOnExit !== false
+        ...(b ? {
+          launcherAction: b.launcherAction === 'keep' || !b.launcherAction ? 'keep' : 'minimize',
+          reopenOnExit: b.reopenOnExit !== false
+        } : {}),
+        // The launcher reads resolution from the settings store; mirror it here.
+        ...(res ? {
+          fullscreen: Boolean(res.fullscreen),
+          resolutionWidth: Number(res.width) || prev.resolutionWidth,
+          resolutionHeight: Number(res.height) || prev.resolutionHeight
+        } : {})
       }));
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -243,9 +222,14 @@ export default function SettingsView({
       window.native.settings
         .load()
         .then((current) => {
+          const res = {};
+          if ('fullscreen' in patch) res.fullscreen = patch.fullscreen;
+          if ('resolutionWidth' in patch) res.width = patch.resolutionWidth;
+          if ('resolutionHeight' in patch) res.height = patch.resolutionHeight;
           window.native.settings.save({
             ...current,
-            behavior: { ...(current?.behavior ?? {}), ...patch }
+            behavior: { ...(current?.behavior ?? {}), ...patch },
+            ...(Object.keys(res).length ? { resolution: { ...(current?.resolution ?? {}), ...res } } : {})
           });
         })
         .catch(() => {});
@@ -911,32 +895,7 @@ export default function SettingsView({
                     </div>
 
                     <div className="ram-widget-container">
-                      <div className="ram-slider-row">
-                        <input
-                          type="range"
-                          min="2"
-                          max="16"
-                          step="1"
-                          value={prefs.ram}
-                          onChange={(e) => updatePref({ ram: Number(e.target.value) })}
-                          className="ram-range-input"
-                        />
-                        <span className="ram-badge-large">{prefs.ram} GB</span>
-                      </div>
-
-                      <div className="ram-presets-row">
-                        {RAM_PRESETS.map((preset) => (
-                          <button
-                            key={preset.val}
-                            type="button"
-                            className={`preset-chip-btn ${prefs.ram === preset.val ? 'is-active' : ''}`}
-                            onClick={() => updatePref({ ram: preset.val })}
-                          >
-                            <span>{preset.label}</span>
-                            <small>({preset.hint})</small>
-                          </button>
-                        ))}
-                      </div>
+                      <GlobalMemory />
                     </div>
                   </div>
                 </div>
@@ -945,102 +904,7 @@ export default function SettingsView({
           )}
 
           {/* ════ TAB: JAVA & RUNTIME ════ */}
-          {!searchResults && activeTab === 'java' && (
-            <>
-              <div className="settings-section-block">
-                <div className="settings-section-title-wrap">
-                  <span className="settings-section-title">{t('settings.javaRuntime')}</span>
-                  <div className="settings-section-line" />
-                </div>
-                <div className="settings-cards-stack">
-                  {/* Bundled / Custom Java Path */}
-                  <div className="noctra-setting-card is-vertical">
-                    <div className="setting-card-left">
-                      <div className="setting-card-icon-wrap">
-                        <Terminal size={18} />
-                      </div>
-                      <div className="setting-card-text">
-                        <span className="setting-card-name">{t('settings.javaExecutable')}</span>
-                        <span className="setting-card-desc">
-                          {t('settings.javaExecutableDesc')}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="noctra-code-input-wrap">
-                      <input
-                        type="text"
-                        className="noctra-code-input"
-                        placeholder={t('settings.javaAuto')}
-                        value={prefs.javaPath}
-                        onChange={(e) => updatePref({ javaPath: e.target.value })}
-                      />
-                      {prefs.javaPath && (
-                        <button
-                          type="button"
-                          className="noctra-btn-secondary"
-                          onClick={() => updatePref({ javaPath: '' })}
-                          title="Reset to automatically detected Java"
-                        >
-                          <X size={14} />
-                          <span>Reset</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* JVM Flags & Presets */}
-                  <div className="noctra-setting-card is-vertical">
-                    <div className="setting-card-left">
-                      <div className="setting-card-icon-wrap">
-                        <Zap size={18} />
-                      </div>
-                      <div className="setting-card-text">
-                        <span className="setting-card-name">{t('settings.jvmArgs')}</span>
-                        <span className="setting-card-desc">
-                          {t('settings.jvmArgsDesc')}. Select a quick optimization preset or type
-                          custom arguments.
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="ram-presets-row">
-                      {JVM_FLAG_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          className={`preset-chip-btn ${prefs.javaArgs === preset.flags ? 'is-active' : ''}`}
-                          onClick={() => updatePref({ javaArgs: preset.flags })}
-                        >
-                          <span>{preset.name}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="noctra-code-input-wrap">
-                      <input
-                        type="text"
-                        className="noctra-code-input"
-                        placeholder="-XX:+UseG1GC"
-                        value={prefs.javaArgs}
-                        onChange={(e) => updatePref({ javaArgs: e.target.value })}
-                      />
-                      {prefs.javaArgs && (
-                        <button
-                          type="button"
-                          className="noctra-btn-secondary"
-                          onClick={() => updatePref({ javaArgs: '' })}
-                          title="Clear JVM arguments"
-                        >
-                          <X size={14} />
-                          <span>Clear</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          {!searchResults && activeTab === 'java' && <JavaPanel />}
 
           {/* ════ TAB: STORAGE ════ */}
           {!searchResults && activeTab === 'storage' && (
