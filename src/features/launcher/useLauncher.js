@@ -73,11 +73,14 @@ export default function useLauncher() {
         }
       }
       setState((prev) => {
+        // A late progress event must never pull a finished, crashed or running
+        // game back into a "starting" state.
+        if (prev.status === 'idle' || prev.status === 'error' || prev.status === 'running') return prev;
         let nextStatus = prev.status;
         if (phase === 'verifying') nextStatus = 'verifying';
         else if (phase === 'launching') nextStatus = 'launching';
         else if (phase === 'downloading') nextStatus = 'downloading';
-        else if (prev.status === 'idle' || prev.status === 'preparing') nextStatus = 'downloading';
+        else if (prev.status === 'preparing') nextStatus = 'downloading';
 
         return {
           ...prev,

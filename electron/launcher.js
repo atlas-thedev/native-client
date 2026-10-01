@@ -121,6 +121,33 @@ function reportProgress(stage, fraction, extra = {}) {
   });
 }
 
+/** Lines Minecraft / the JVM print when the game dies on a fatal error. */
+const GAME_CRASH_MARKER = /#@!@# Game crashed!|---- Minecraft Crash Report ----|Minecraft ran into a problem|A fatal error has been detected by the Java Runtime/i;
+
+/**
+ * Decide whether a finished game process counts as a crash. A non-zero exit,
+ * a crash marker in the output or a crash report on disk all say yes, and a
+ * "clean" exit within seconds of launching without ever printing anything is
+ * a failed start rather than a normal quit.
+ */
+function classifyExit({ code, signal, crashSeen = false, hasCrashRecord = false, startedAgo = Infinity, sawOutput = true }) {
+  const userStopped = code === null && (signal === 'SIGTERM' || signal === 'SIGINT') && !crashSeen && !hasCrashRecord;
+  if (userStopped) return { crashed: false, detail: '' };
+  if (typeof code === 'number' && code !== 0) {
+    return { crashed: true, detail: `Minecraft crashed (exit code ${code}). Analyzing the crash\u2026` };
+  }
+  if (crashSeen || hasCrashRecord) {
+    return { crashed: true, detail: 'Minecraft crashed. Analyzing the crash\u2026' };
+  }
+  if (code === null && signal) {
+    return { crashed: true, detail: `Minecraft was stopped unexpectedly (${signal}).` };
+  }
+  if (startedAgo < 6000 && !sawOutput) {
+    return { crashed: true, detail: 'Minecraft closed right after starting. Check the logs.' };
+  }
+  return { crashed: false, detail: '' };
+}
+
 function send(channel, payload) {
   const win = deps?.getWin();
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -629,6 +656,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     rememberInstall(instance, opts);
     activeChild = child;
     activeInstance = instance;
+    const launchedAt = Date.now();
     crashReporter.beginSession({ instance, memoryMaxGb: Number(memory.max) || 4, javaPath });
     setState('launching', 'Starting Minecraft…');
     socialMod.setPresence({
@@ -650,15 +678,39 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
 
     let sawOutput = false;
     let childFailed = false;
+    let finished = false;
+    let crashSeen = false;
+    let crashKillTimer = null;
     let outputTail = '';
+    const resetPresence = () => {
+      socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
+      discordRpcMod.clearGameActivity();
+    };
     const captureOutput = (data) => {
       outputTail = `${outputTail}${String(data)}`.slice(-12000);
       crashReporter.capture(data);
+      if (!crashSeen && GAME_CRASH_MARKER.test(outputTail.slice(-2500))) onCrashMarker();
+    };
+    // Minecraft prints a marker when it hits a fatal error. Some mods leave the
+    // JVM alive after that, so don't keep telling everyone the game is "starting".
+    const onCrashMarker = () => {
+      crashSeen = true;
+      if (finished || activeChild !== child) return;
+      setState('error', 'Minecraft crashed. Analyzing the crash\u2026');
+      resetPresence();
+      crashKillTimer = setTimeout(() => {
+        try { child.kill(); } catch { /* already gone */ }
+      }, 4000);
     };
     const markRunning = () => {
       if (!sawOutput) {
         sawOutput = true;
+        if (finished || crashSeen) return;
         setState('running', 'Minecraft is running');
+        // The splash screen is up: stop advertising "Starting…" to friends.
+        if (!payload?.quickJoinServer) {
+          socialMod.setPresence({ status: 'in-menus', activity: 'In Menus', serverAddress: null });
+        }
         discordRpcMod.setGameActivity({
           instance: activeInstance,
           status: 'running'
@@ -680,40 +732,55 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       if (activeChild === child) markRunning();
     }, 2500);
     child.on('error', (err) => {
+      if (finished) return;
+      finished = true;
       childFailed = true;
       clearTimeout(runningFallback);
-      activeChild = null;
-      activeInstance = null;
+      clearTimeout(crashKillTimer);
+      if (activeChild === child) {
+        activeChild = null;
+        activeInstance = null;
+      }
       setState('error', `Minecraft process failed: ${err.message}`);
-      socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
-      discordRpcMod.clearGameActivity();
+      resetPresence();
     });
-    child.on('close', (code, signal) => {
+    const finish = async (code, signal) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(runningFallback);
-      crashReporter.endSession(code, signal).catch(() => {});
-      activeChild = null;
-      activeInstance = null;
-      socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
-      discordRpcMod.clearGameActivity();
-      if (!childFailed) {
-        if (code === 0 || code === null) {
-          setState('idle', '');
-        } else if (outputTail.includes('org/spongepowered/asm/launch/MixinBootstrap')) {
+      clearTimeout(crashKillTimer);
+      const startedAgo = Date.now() - launchedAt;
+      if (activeChild === child) {
+        activeChild = null;
+        activeInstance = null;
+      }
+      resetPresence();
+      const record = await crashReporter.endSession(code, signal).catch(() => null);
+      const verdict = classifyExit({ code, signal, crashSeen, hasCrashRecord: Boolean(record), startedAgo, sawOutput });
+      if (verdict.crashed) {
+        if (outputTail.includes('org/spongepowered/asm/launch/MixinBootstrap')) {
           setState('error', 'Fabric Mixin failed to load after repair. Check the logs and try launching again.');
         } else {
-          setState('error', `Minecraft crashed (exit code ${code}). Analyzing the crash\u2026`);
+          setState('error', verdict.detail);
         }
+      } else {
+        setState('idle', '');
       }
       const win = deps.getWin();
       const { launcherAction, reopenOnExit } = settingsMod.get().behavior;
       // Always bring the launcher back after a crash so the report is visible.
-      const crashed = !childFailed && code !== 0 && code !== null;
-      if (win && !win.isDestroyed() && launcherAction !== 'keep' && (reopenOnExit || crashed)) {
+      if (win && !win.isDestroyed() && launcherAction !== 'keep' && (reopenOnExit || verdict.crashed)) {
         win.show();
         if (win.isMinimized()) win.restore();
-        if (crashed) win.focus();
+        if (verdict.crashed) win.focus();
       }
+    };
+    // 'exit' fires as soon as the process dies; 'close' waits for its pipes,
+    // which a lingering child process can hold open. Use whichever comes first.
+    child.on('exit', (code, signal) => {
+      setTimeout(() => finish(code, signal), 1500);
     });
+    child.on('close', (code, signal) => { finish(code, signal); });
   } catch (err) {
     activeChild = null;
     setState('error', err.message);
@@ -875,6 +942,8 @@ module.exports = {
   init,
   // Exported for focused launch-pipeline regression tests.
   _internals: {
+    classifyExit,
+    GAME_CRASH_MARKER,
     mavenArtifact,
     fileMatches,
     ensureFabricLibraries,

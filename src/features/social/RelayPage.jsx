@@ -862,6 +862,9 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   ];
 
   const hasProfilePanel = Boolean(activeEntity && showProfilePanel);
+  const settingsGroupEntity = relayGroups.activeGroup
+    ? formattedGroups.find((group) => group.id === relayGroups.activeGroup.id) || null
+    : null;
   const openGroupSettings = (initialTab = 'overview') => {
     setSettingsInitialTab(initialTab);
     setSettingsOpen(true);
@@ -1524,6 +1527,8 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
         open={settingsOpen}
         group={relayGroups.activeGroup}
         initialTab={settingsInitialTab}
+        muted={Boolean(settingsGroupEntity?.muted)}
+        onToggleMute={() => settingsGroupEntity && handleToggleMute(settingsGroupEntity)}
         selfId={selfId}
         friends={social?.friends || []}
         uploadMedia={social?.uploadMedia}

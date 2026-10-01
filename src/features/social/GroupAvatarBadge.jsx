@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Users } from 'lucide-react';
 import './relay-groups.css';
 
@@ -9,13 +9,16 @@ import './relay-groups.css';
  * Never renders pixelated Steve heads.
  */
 export function GroupAvatarBadge({ group, name, iconUrl, size = 36, className = '' }) {
-  const effectiveIcon = iconUrl !== undefined ? iconUrl : group?.iconUrl;
+  const [broken, setBroken] = useState(null);
+  const requestedIcon = iconUrl !== undefined ? iconUrl : group?.iconUrl;
+  // A dead image URL falls back to initials instead of an empty square.
+  const effectiveIcon = requestedIcon && broken !== requestedIcon ? requestedIcon : null;
   const effectiveName = (name !== undefined ? name : (group?.name || group?.nickname || '')).trim();
 
   if (effectiveIcon) {
     return (
       <div className={`relay-group-avatar-badge ${className}`} style={{ width: size, height: size }}>
-        <img src={effectiveIcon} alt="" />
+        <img src={effectiveIcon} alt="" onError={() => setBroken(requestedIcon)} />
       </div>
     );
   }
