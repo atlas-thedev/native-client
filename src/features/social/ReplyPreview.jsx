@@ -1,3 +1,4 @@
+import RelayAvatar from './RelayAvatar.jsx';
 import './relay-groups.css';
 
 const snippet = (message) => {
@@ -8,16 +9,16 @@ const snippet = (message) => {
   return 'Attachment';
 };
 
-/** The quoted line rendered above a reply bubble. Click to jump to the source. */
-export function ReplyQuote({ reply, selfId, onJump }) {
+/** The quoted line above a reply: a curved spine from the avatar, mini avatar, name, snippet. */
+export function ReplyQuote({ reply, selfId, selfName = 'You', onJump }) {
   if (!reply) return null;
+  const mine = reply.senderId === selfId;
+  const name = mine ? selfName : reply.senderName || 'Unknown';
   return (
-    <button type="button" className="relay-reply-quote" onClick={() => onJump?.(reply.id)}>
-      <span className="relay-reply-quote__spine" aria-hidden="true" />
-      <span className="relay-reply-quote__author">
-        {reply.senderId === selfId ? 'You' : reply.senderName || 'Unknown'}
-      </span>
-      <span className="relay-reply-quote__text">{snippet(reply)}</span>
+    <button type="button" className="rm-reply" onClick={() => onJump?.(reply.id)}>
+      <RelayAvatar name={name} size={16} className="rm-reply-avatar" />
+      <span className="rm-reply-author">{name}</span>
+      <span className="rm-reply-text">{snippet(reply)}</span>
     </button>
   );
 }

@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Smile,
   Trash2,
-  X
 } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import { ReplyQuote } from './ReplyPreview.jsx';
@@ -21,11 +20,30 @@ const countReactions = (reactions = []) => reactions.reduce((acc, item) => {
   return acc;
 }, {});
 
-/** One message row: bubble, media, reactions, hover tools and inline editing. */
+const clock = (stamp) => new Date(stamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+/** "Today at 10:13 PM", "Yesterday at 10:13 PM", or a short date. */
+export function stampLabel(stamp, fallback = '') {
+  if (!stamp) return fallback;
+  const date = new Date(stamp);
+  if (Number.isNaN(date.getTime())) return fallback;
+  const dayStart = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const diffDays = Math.round((dayStart(new Date()) - dayStart(date)) / 86_400_000);
+  if (diffDays === 0) return `Today at ${clock(date)}`;
+  if (diffDays === 1) return `Yesterday at ${clock(date)}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: diffDays > 300 ? 'numeric' : undefined })} at ${clock(date)}`;
+}
+
+/**
+ * One message, chat-log style: avatar + name + time on the first line of a run,
+ * plain text underneath, no bubbles. Consecutive messages from one person
+ * collapse into the same block and show their time on hover.
+ */
 export function MessageRow({
   msg,
   isGroup,
   selfId,
+  selfName = 'You',
   palette = [],
   canModerate = false,
   readAt = 0,
@@ -46,10 +64,11 @@ export function MessageRow({
   const canEdit = isMine && !msg.isDeleted && !msg.pending && Boolean(msg.content) && !msg.mediaUrl;
   const canDelete = (isMine || (isGroup && canModerate)) && !msg.isDeleted && !msg.pending && !msg.isUploading;
   const isRead = isGroup ? (readAt > 0 && (msg.createdAt || 0) <= readAt) : Boolean(msg.isRead);
-  const groupedWithPrevious = Boolean(msg.groupedWithPrevious);
-  const groupedWithNext = Boolean(msg.groupedWithNext);
-  const showGroupAuthor = !isMine && isGroup && !groupedWithPrevious;
-  const showMeta = !groupedWithNext || msg.pending || msg.failed || msg.uploadFailed || msg.editedAt;
+  const continued = Boolean(msg.groupedWithPrevious);
+  const authorName = isMine ? selfName : (msg.senderName || msg.senderId || 'Member');
+  const hasReceipt = isMine && !msg.pending && !msg.failed && !msg.isDeleted;
+  const Receipt = isRead ? CheckCheck : Check;
+  const receipt = hasReceipt && <Receipt size={12} className={`rm-receipt${isRead ? ' is-read' : ''}`} title={isRead ? 'Read' : 'Delivered'} />;
 
   const submitEdit = () => {
     const next = String(draft || '').trim();
@@ -62,77 +81,91 @@ export function MessageRow({
       id={`msg-${msg.id}`}
       data-testid={`relay-message-${msg.id}`}
       className={[
-        'relay-message-row',
-        isMine ? 'is-outgoing' : 'is-incoming',
+        'rm',
+        isMine ? 'is-mine' : '',
+        continued ? 'is-continued' : 'is-first',
         pickerOpen ? 'has-picker-open' : '',
-        showGroupAuthor ? 'has-author' : '',
+        msg.reply ? 'has-reply' : '',
         msg.pending ? 'is-pending' : '',
         msg.failed || msg.uploadFailed ? 'is-failed' : '',
-        msg.isDeleted ? 'is-deleted' : '',
-        groupedWithPrevious ? 'is-grouped-prev' : '',
-        groupedWithNext ? 'is-grouped-next' : ''
+        msg.isDeleted ? 'is-deleted' : ''
       ].filter(Boolean).join(' ')}
     >
-      {showGroupAuthor && (
-        <RelayAvatar name={msg.senderName || msg.senderId} size={28} className="relay-msg-author-avatar" />
+      {msg.reply && (
+        <ReplyQuote reply={msg.reply} selfId={selfId} selfName={selfName} onJump={onJump} />
       )}
-      {!isMine && isGroup && groupedWithPrevious && <span className="relay-msg-author-spacer" aria-hidden="true" />}
 
-      <div className="relay-message-content-col">
-        {showGroupAuthor && <span className="relay-msg-author-name">{msg.senderName || msg.senderId}</span>}
+      <div className="rm-gutter">
+        {continued ? (
+          <span className="rm-hover-time" title={stampLabel(msg.createdAt, msg.time)}>
+            {msg.createdAt ? clock(msg.createdAt) : msg.time}
+          </span>
+        ) : (
+          <RelayAvatar name={authorName} size={38} className="rm-avatar" />
+        )}
+      </div>
+
+      <div className="rm-main">
+        {!continued && (
+          <div className="rm-head">
+            <span className="rm-author">{authorName}</span>
+            <span className="rm-time">{stampLabel(msg.createdAt, msg.time)}</span>
+            {receipt}
+            {isMine && msg.pending && <span className="rm-state">Sending…</span>}
+          </div>
+        )}
 
         {!msg.isDeleted && !isEditing && (
-          <div className="relay-msg-tools">
+          <div className="rm-tools">
             <button
               type="button"
-              className="relay-msg-tool"
+              className="rm-tool"
               data-testid={`relay-message-react-${msg.id}`}
               onClick={() => setPickerOpen((open) => !open)}
               title="Add reaction"
             >
-              <Smile size={14} />
+              <Smile size={15} />
             </button>
             <button
               type="button"
-              className="relay-msg-tool"
+              className="rm-tool"
               data-testid={`relay-message-reply-${msg.id}`}
               onClick={() => onReply?.(msg)}
               title="Reply"
             >
-              <CornerUpLeft size={14} />
+              <CornerUpLeft size={15} />
             </button>
             {canEdit && (
               <button
                 type="button"
-                className="relay-msg-tool"
+                className="rm-tool"
                 data-testid={`relay-message-edit-${msg.id}`}
                 onClick={() => setDraft(msg.content || '')}
                 title="Edit message"
               >
-                <Pencil size={13} />
+                <Pencil size={14} />
               </button>
             )}
             {canDelete && (
               <button
                 type="button"
-                className="relay-msg-tool is-danger"
+                className="rm-tool is-danger"
                 data-testid={`relay-message-delete-${msg.id}`}
                 onClick={() => onDelete?.(msg.id)}
                 title="Delete message"
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
               </button>
             )}
           </div>
         )}
 
         {pickerOpen && (
-          <div className="relay-msg-reaction-picker" data-testid={`relay-reaction-picker-${msg.id}`}>
+          <div className="rm-picker" data-testid={`relay-reaction-picker-${msg.id}`}>
             {palette.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
-                className="relay-msg-reaction-btn"
                 onClick={() => {
                   setPickerOpen(false);
                   onReact?.(msg.id, emoji);
@@ -144,16 +177,11 @@ export function MessageRow({
           </div>
         )}
 
-        {msg.reply && <ReplyQuote reply={msg.reply} selfId={selfId} onJump={onJump} />}
-
         {msg.isDeleted ? (
-          <div className="relay-message-bubble is-tombstone">
-            <p className="relay-message-text">This message was deleted</p>
-          </div>
+          <p className="rm-text is-tombstone">This message was deleted</p>
         ) : isEditing ? (
-          <div className="relay-message-edit" data-testid={`relay-message-editor-${msg.id}`}>
+          <div className="rm-edit" data-testid={`relay-message-editor-${msg.id}`}>
             <textarea
-              className="relay-message-edit-input"
               value={draft}
               autoFocus
               rows={2}
@@ -166,95 +194,80 @@ export function MessageRow({
                 if (event.key === 'Escape') setDraft(null);
               }}
             />
-            <div className="relay-message-edit-actions">
-              <button type="button" className="relay-edit-cancel" onClick={() => setDraft(null)}>
-                <X size={12} />
-                <span>Cancel</span>
-              </button>
-              <button
-                type="button"
-                className="relay-edit-save"
-                data-testid={`relay-message-edit-save-${msg.id}`}
-                onClick={submitEdit}
-              >
-                <Check size={12} />
-                <span>Save</span>
-              </button>
+            <div className="rm-edit-actions">
+              <span>escape to <button type="button" onClick={() => setDraft(null)}>cancel</button> · enter to <button type="button" data-testid={`relay-message-edit-save-${msg.id}`} onClick={submitEdit}>save</button></span>
             </div>
           </div>
         ) : (
           <>
             {msg.content && !msg.isVoice && !msg.isMedia && (
-              <div className="relay-message-bubble">
-                <p className="relay-message-text">{msg.content}</p>
-              </div>
+              <p className="rm-text">
+                {msg.content}
+                {msg.editedAt && <span className="rm-edited"> (edited)</span>}
+              </p>
             )}
 
             {msg.isMedia && msg.mediaUrl && (
-              <div className={`relay-media-card ${msg.isUploading ? 'is-uploading' : ''}`}>
-                <div className="relay-media-frame" onClick={() => !msg.isUploading && onOpenMedia?.(msg.mediaUrl)}>
-                  <img src={msg.mediaUrl} alt={msg.mediaName || 'Attachment'} className="relay-media-img" />
+              <div className={`rm-media${msg.isUploading ? ' is-uploading' : ''}`}>
+                {msg.content && (
+                  <p className="rm-text">
+                    {msg.content}
+                    {msg.editedAt && <span className="rm-edited"> (edited)</span>}
+                  </p>
+                )}
+                <div className="rm-media-frame" onClick={() => !msg.isUploading && onOpenMedia?.(msg.mediaUrl)}>
+                  <img src={msg.mediaUrl} alt={msg.mediaName || 'Attachment'} />
                   {msg.isUploading ? (
-                    <div className="relay-media-uploading">
+                    <div className="rm-media-uploading">
                       <span className="relay-progress-track"><i className="relay-progress-indeterminate" /></span>
-                      <span className="relay-media-uploading-text">Uploading full resolution…</span>
+                      <span>Uploading full resolution…</span>
                     </div>
                   ) : (
-                    <div className="relay-media-overlay">
+                    <div className="rm-media-actions">
                       <button
                         type="button"
-                        className="relay-media-overlay-btn"
                         onClick={(event) => {
                           event.stopPropagation();
                           onOpenMedia?.(msg.mediaUrl);
                         }}
                         title="Open full screen"
                       >
-                        <Maximize2 size={13} />
+                        <Maximize2 size={14} />
                       </button>
                       <a
                         href={msg.mediaUrl}
                         download={msg.mediaName || 'image.png'}
-                        className="relay-media-overlay-btn"
                         onClick={(event) => event.stopPropagation()}
                         title="Download original"
                       >
-                        <Download size={13} />
+                        <Download size={14} />
                       </a>
                     </div>
                   )}
                 </div>
-                {msg.content && (
-                  <div className="relay-media-caption">
-                    <p className="relay-message-text">{msg.content}</p>
-                  </div>
-                )}
-                <div className="relay-media-meta">
-                  <span className="relay-media-filename">{msg.mediaName || 'Image'}</span>
-                  {msg.uploadFailed && <span className="relay-media-failed">Upload failed</span>}
-                </div>
+                {msg.uploadFailed && <span className="rm-failed">Upload failed</span>}
               </div>
             )}
 
             {!msg.isMedia && !msg.isVoice && msg.mediaUrl && (
-              <a className="relay-file-card" href={msg.mediaUrl} download={msg.mediaName || 'attachment'}>
-                <span className="relay-file-glyph"><FileText size={15} /></span>
-                <span className="relay-file-name">{msg.mediaName || 'Attachment'}</span>
-                <Download size={13} />
+              <a className="rm-file" href={msg.mediaUrl} download={msg.mediaName || 'attachment'}>
+                <FileText size={16} />
+                <span>{msg.mediaName || 'Attachment'}</span>
+                <Download size={14} />
               </a>
             )}
 
             {msg.isVoice && msg.mediaUrl && (
-              <div className="relay-voice-card">
-                <audio className="relay-voice-audio" controls src={msg.mediaUrl} preload="none" />
-                <span className="relay-voice-duration">{msg.duration || ''}</span>
+              <div className="rm-voice">
+                <audio controls src={msg.mediaUrl} preload="none" />
+                <span>{msg.duration || ''}</span>
               </div>
             )}
           </>
         )}
 
         {Object.keys(groups).length > 0 && (
-          <div className="relay-msg-reactions-row">
+          <div className="rm-reactions">
             {Object.entries(groups).map(([emoji, count]) => {
               const mine = (msg.reactions || []).some(
                 (item) => item.reaction === emoji && (item.userId === selfId || item.userId === 'me')
@@ -263,7 +276,7 @@ export function MessageRow({
                 <button
                   key={emoji}
                   type="button"
-                  className={`relay-msg-reaction-badge ${mine ? 'is-mine' : ''}`}
+                  className={`rm-reaction${mine ? ' is-mine' : ''}`}
                   onClick={() => onReact?.(msg.id, emoji)}
                   title="Toggle reaction"
                 >
@@ -275,28 +288,19 @@ export function MessageRow({
           </div>
         )}
 
-        {showMeta && <div className="relay-msg-meta-row">
-          <span className="relay-msg-time">{msg.time}</span>
-          {msg.editedAt && !msg.isDeleted && <span className="relay-msg-edited">edited</span>}
-          {isMine && !msg.pending && !msg.failed && !msg.isDeleted && (
-            isRead
-              ? <CheckCheck size={13} className="relay-read-receipt is-read" title="Read" />
-              : <Check size={13} className="relay-read-receipt" title="Delivered" />
-          )}
-          {isMine && msg.pending && <span className="relay-msg-state">Sending…</span>}
-          {isMine && (msg.failed || msg.uploadFailed) && (
-            <button
-              type="button"
-              className="relay-msg-retry"
-              data-testid={`relay-message-retry-${msg.id}`}
-              onClick={() => onRetry?.(msg)}
-            >
-              <RotateCcw size={11} />
-              <span>Retry</span>
-            </button>
-          )}
-        </div>}
+        {isMine && (msg.failed || msg.uploadFailed) && (
+          <button
+            type="button"
+            className="rm-retry"
+            data-testid={`relay-message-retry-${msg.id}`}
+            onClick={() => onRetry?.(msg)}
+          >
+            <RotateCcw size={11} />
+            <span>Not sent. Retry</span>
+          </button>
+        )}
       </div>
+      {continued && receipt && <span className="rm-receipt-gutter">{receipt}</span>}
     </div>
   );
 }

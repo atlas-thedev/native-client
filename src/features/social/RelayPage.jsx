@@ -40,6 +40,7 @@ import GroupMembersPanel from './GroupMembersPanel.jsx';
 import FriendsHome from './FriendsHome.jsx';
 import './RelayPage.css';
 import './relay-groups.css';
+import './RelayMessages.css';
 
 const RELAY_STORAGE_KEY = 'noctra_relay_store_v5';
 const MESSAGE_MAX = 2000;
@@ -122,7 +123,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   const [uploads, setUploads] = useState({});
 
   const [inboxQuery, setInboxQuery] = useState('');
-  const [messageQuery, setMessageQuery] = useState('');
   const [composerText, setComposerText] = useState('');
   const [stagedFile, setStagedFile] = useState(null);
   const [collapsed, setCollapsed] = useState({ pinned: false, groups: false, direct: false });
@@ -421,15 +421,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
     return [...list, ...pendingUploads];
   }, [activeEntity, isGroupThread, uploads, social?.conversations, selfId, relayGroups.messages]);
 
-  const filteredMessages = useMemo(() => {
-    const query = messageQuery.trim().toLowerCase();
-    if (!query) return currentMessages;
-    return currentMessages.filter((message) => {
-      const text = message.content && String(message.content).toLowerCase().includes(query);
-      const media = message.mediaName && String(message.mediaName).toLowerCase().includes(query);
-      return text || media;
-    });
-  }, [currentMessages, messageQuery]);
+  const filteredMessages = currentMessages;
 
   const renderedItems = useMemo(() => {
     const items = [];
@@ -447,7 +439,9 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
         !first.isSystem && !second.isSystem &&
         first.senderId === second.senderId &&
         dayKeyOf(first.createdAt) === dayKeyOf(second.createdAt) &&
-        Math.abs((second.createdAt || 0) - (first.createdAt || 0)) <= 60_000
+        Math.abs((second.createdAt || 0) - (first.createdAt || 0)) <= 5 * 60_000 &&
+        !second.reply &&
+        !first.isDeleted
       );
       items.push({
         ...message,
@@ -495,7 +489,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   const handleSelectThread = (thread) => {
     if (thread.id === selectedId) return;
     setSelectedId(thread.id);
-    setMessageQuery('');
     setStagedFile(null);
     closePopovers();
     relayGroups.clearReply();
@@ -512,7 +505,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
 
   const handleDeselectChat = useCallback(() => {
     setSelectedId(null);
-    setMessageQuery('');
     setStagedFile(null);
     closePopovers();
     relayGroups.clearReply();
@@ -1041,23 +1033,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
                 </div>
               </div>
 
-              <div className="relay-convo-search-bar">
-                <Search size={13} className="relay-search-icon" aria-hidden="true" />
-                <input
-                  type="text"
-                  value={messageQuery}
-                  onChange={(event) => setMessageQuery(event.target.value)}
-                  placeholder="Search in conversation"
-                  className="relay-convo-search-input"
-                  data-testid="relay-conversation-search"
-                />
-                {messageQuery && (
-                  <button type="button" className="relay-search-clear" onClick={() => setMessageQuery('')} title="Clear">
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-
               <div className="relay-header-actions">
                 {isGroupThread && (
                   <button
@@ -1279,6 +1254,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
                       msg={item}
                       isGroup={isGroupThread}
                       selfId={selfId}
+                      selfName={account?.name || 'You'}
                       palette={REACTION_PALETTE}
                       canModerate={Boolean(relayGroups.canModerate)}
                       readAt={isGroupThread ? relayGroups.activeReadAt : 0}
