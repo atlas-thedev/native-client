@@ -108,9 +108,9 @@ export default function RelayAvatar({
   }, [initialSkinUrl, key]);
 
   const resolvedSkin = skinUrl && !hasError ? skinUrl : fallbackSkin;
-  const statusColor = status === 'in-game'
+  const statusColor = (status === 'in-game' || status === 'in-menus')
     ? '#d9a6da'
-    : (status === 'in-launcher' || status === 'online' || status === 'in-menus')
+    : (status === 'in-launcher' || status === 'online')
       ? '#23a55a'
       : '#80848e';
 

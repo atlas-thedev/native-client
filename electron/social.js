@@ -262,15 +262,34 @@ function setPresence({ status, activity, serverAddress = null }) {
   };
 
   sendToWindow('social:presenceUpdated', currentPresence);
+  pushPresence();
+}
 
-  const token = tokenOf(getActiveNoctraAccount());
-  if (token) {
-    socialFetch('/v1/social/presence', {
-      method: 'POST',
-      body: currentPresence,
-      token
-    }).catch(() => {});
-  }
+// Presence updates fire in quick bursts (Starting… → In Menus → Singleplayer
+// within a second). Sent in parallel they can land out of order and leave the
+// server on a stale "Starting…". Send one at a time and always the latest.
+let presenceInFlight = null;
+let presenceDirty = false;
+function pushPresence() {
+  presenceDirty = true;
+  if (presenceInFlight) return presenceInFlight;
+  presenceInFlight = (async () => {
+    try {
+      while (presenceDirty) {
+        presenceDirty = false;
+        const token = tokenOf(getActiveNoctraAccount());
+        if (!token) break;
+        await socialFetch('/v1/social/presence', {
+          method: 'POST',
+          body: { ...currentPresence },
+          token
+        }).catch(() => {});
+      }
+    } finally {
+      presenceInFlight = null;
+    }
+  })();
+  return presenceInFlight;
 }
 
 function getPresence() {
@@ -296,14 +315,7 @@ function init(dependencies, ipcMain) {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   heartbeatInterval = setInterval(() => {
     syncStreamWithAccount();
-    const token = tokenOf(getActiveNoctraAccount());
-    if (token) {
-      socialFetch('/v1/social/presence', {
-        method: 'POST',
-        body: currentPresence,
-        token
-      }).catch(() => {});
-    }
+    pushPresence();
   }, 10_000);
 
   ipcMain.handle('social:getFriends', async () => {

@@ -107,11 +107,52 @@ function loadPersistedState() {
   }
 }
 
+/**
+ * Group member lists come from a one-off fetch, but presence changes every few
+ * seconds. Overlay what we know live: friends from the realtime friend list and
+ * ourselves from the launcher's own presence.
+ */
+export function withLivePresence(group, friends, selfId, selfPresence) {
+  if (!group?.members?.length) return group;
+  const byId = new Map((friends || []).map((friend) => [friend.id, friend]));
+  let changed = false;
+  const members = group.members.map((member) => {
+    let live = null;
+    if (member.id === selfId && selfPresence?.status) live = selfPresence;
+    else if (byId.has(member.id)) live = byId.get(member.id);
+    if (!live || !live.status) return member;
+    const status = live.status;
+    const offline = status === 'offline';
+    const next = {
+      ...member,
+      status,
+      activity: offline ? null : (live.activity || null),
+      serverAddress: offline ? null : (live.serverAddress || null)
+    };
+    if (next.status !== member.status || next.activity !== member.activity || next.serverAddress !== member.serverAddress) changed = true;
+    return next;
+  });
+  return changed ? { ...group, members } : group;
+}
+
 export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange }) {
   const persisted = useMemo(() => loadPersistedState(), []);
   const selfId = social?.selfId || account?.id || null;
 
   const relayGroups = useRelayGroups({ selfId, selfName: account?.name || 'You' });
+
+  // The launcher's own presence (In Launcher / In-game: …), straight from the
+  // main process. Group member lists are fetched snapshots, so without this
+  // your own row would stay on whatever the server had at fetch time.
+  const [selfPresence, setSelfPresence] = useState(null);
+  useEffect(() => {
+    const api = window.native?.social;
+    if (!api) return undefined;
+    let alive = true;
+    api.getPresence?.().then((value) => { if (alive && value) setSelfPresence(value); }).catch(() => {});
+    const off = api.onPresenceUpdated?.((value) => { if (value) setSelfPresence(value); });
+    return () => { alive = false; off?.(); };
+  }, []);
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('overview');
@@ -340,14 +381,14 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
     if (entity.isTyping) return { status: 'in-launcher', text: 'typing…', color: '#23a55a' };
 
     const status = String(entity.status || 'offline').toLowerCase();
-    if (status === 'in-game') {
+    if (status === 'in-game' || status === 'in-menus') {
       return {
         status: 'in-game',
         text: entity.activity || (entity.serverAddress ? `Playing on ${entity.serverAddress}` : 'Playing Minecraft'),
         color: '#d9a6da'
       };
     }
-    if (status === 'online' || status === 'in-launcher' || status === 'in-menus') {
+    if (status === 'online' || status === 'in-launcher') {
       return { status: 'in-launcher', text: entity.activity || 'In Launcher', color: '#23a55a' };
     }
     return {
@@ -854,6 +895,10 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   ];
 
   const hasProfilePanel = Boolean(activeEntity && showProfilePanel);
+  const liveActiveGroup = useMemo(
+    () => withLivePresence(relayGroups.activeGroup, social?.friends || [], selfId, selfPresence),
+    [relayGroups.activeGroup, social?.friends, selfId, selfPresence]
+  );
   const settingsGroupEntity = relayGroups.activeGroup
     ? formattedGroups.find((group) => group.id === relayGroups.activeGroup.id) || null
     : null;
@@ -1457,7 +1502,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
 
       {activeEntity && isGroupThread && showProfilePanel ? (
         <GroupMembersPanel
-          group={relayGroups.activeGroup || activeEntity}
+          group={liveActiveGroup || activeEntity}
           selfId={selfId}
           onClose={() => setShowProfilePanel(false)}
           onOpenSettings={() => openGroupSettings()}
@@ -1501,7 +1546,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
 
       <GroupSettingsModal
         open={settingsOpen}
-        group={relayGroups.activeGroup}
+        group={liveActiveGroup}
         initialTab={settingsInitialTab}
         muted={Boolean(settingsGroupEntity?.muted)}
         onToggleMute={() => settingsGroupEntity && handleToggleMute(settingsGroupEntity)}

@@ -1007,6 +1007,65 @@ async function exportItem(account, id = null) {
   return { ok: true, path: result.filePath, name: item.name };
 }
 
+// Bump when the install logic changes so existing instances re-resolve the jar.
+const CSL_TRACKER_SCHEMA = 2;
+const CSL_SITE_NAME = 'Noctra Client Wardrobe';
+
+function removeStrayLoaders(modsDir, jars, keep) {
+  for (const jar of jars) {
+    if (jar === keep) continue;
+    try { fs.rmSync(path.join(modsDir, jar), { force: true }); } catch {}
+  }
+}
+
+/**
+ * CustomSkinLoader asks each site in its load list in order and stops at the
+ * first one that knows the player. Its defaults put Mojang ahead of LocalSkin,
+ * so an offline/Noctra name that also exists on Mojang (or a stale profile on
+ * any site) wins over the outfit picked in the Locker. Keep the order:
+ *   1. LocalSkin   – the active Locker outfit, written right before launch
+ *   2. Noctra API  – everyone else's Noctra outfit
+ *   3. whatever CSL had (Mojang, OptiFine capes, …)
+ * On the very first run CSL has no config yet; the ExtraList entry adds the
+ * Noctra API and the next launch settles the full order.
+ */
+function configureSkinLoader(cslDir, model) {
+  const configPath = path.join(cslDir, 'CustomSkinLoader.json');
+  const extraDir = path.join(cslDir, 'ExtraList');
+  const root = `${apiRoot()}/csl/`;
+  const apiSite = { name: CSL_SITE_NAME, type: 'CustomSkinAPI', root };
+  const localSite = {
+    name: 'LocalSkin',
+    type: 'Legacy',
+    checkPNG: false,
+    skin: 'LocalSkin/skins/{USERNAME}.png',
+    model: model === 'slim' ? 'slim' : 'default',
+    cape: 'LocalSkin/capes/{USERNAME}.png',
+    elytra: 'LocalSkin/elytras/{USERNAME}.png'
+  };
+  const isOurApi = (site) => String(site?.type || '').toLowerCase() === 'customskinapi' &&
+    (site?.name === CSL_SITE_NAME || site?.name === 'Native Client Wardrobe' || /nativelaunch\.xyz\/csl\/?$/i.test(String(site?.root || '')) || String(site?.root || '') === root);
+
+  let config = null;
+  try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+
+  if (config && typeof config === 'object' && Array.isArray(config.loadlist)) {
+    const existingLocal = config.loadlist.find((site) => site?.name === 'LocalSkin');
+    const rest = config.loadlist.filter((site) => site && site.name !== 'LocalSkin' && !isOurApi(site));
+    config.loadlist = [{ ...(existingLocal || {}), ...localSite }, apiSite, ...rest];
+    writeFileAtomic(configPath, JSON.stringify(config, null, 2));
+    for (const file of ['NoctraWardrobe.json', 'NativeWardrobe.json']) {
+      fs.rmSync(path.join(extraDir, file), { force: true });
+    }
+    return { managed: true };
+  }
+
+  const payload = JSON.stringify(apiSite, null, 2);
+  writeFileAtomic(path.join(extraDir, 'NoctraWardrobe.json'), payload);
+  fs.rmSync(path.join(extraDir, 'NativeWardrobe.json'), { force: true });
+  return { managed: false };
+}
+
 /**
  * Prepare an instance's CustomSkinLoader folder:
  *  - the active skin/cape as LocalSkin textures,
@@ -1029,17 +1088,7 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
   if (cape) writeFileAtomic(localCape, cape);
   else fs.rmSync(localCape, { force: true });
 
-  // CSL reads LocalSkin first; the API entry keeps the outfit in sync when the
-  // player joins from another machine.
-  const noctraCsl = path.join(cslDir, 'ExtraList', 'NoctraWardrobe.json');
-  const legacyCsl = path.join(cslDir, 'ExtraList', 'NativeWardrobe.json');
-  const cslPayload = JSON.stringify({
-    name: 'Noctra Client Wardrobe',
-    type: 'CustomSkinAPI',
-    root: `${apiRoot()}/csl/`
-  }, null, 2);
-  writeFileAtomic(noctraCsl, cslPayload);
-  writeFileAtomic(legacyCsl, cslPayload);
+  configureSkinLoader(cslDir, metadata.model);
 
   const trackerPath = path.join(cslDir, '.noctra-loader.json');
   const legacyTrackerPath = path.join(cslDir, '.native-loader.json');
@@ -1058,16 +1107,11 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
       : 'fabric';
 
   const trackedPath = tracker.filename ? path.join(modsDir, path.basename(tracker.filename)) : null;
-  if (tracker.mcVersion === mcVersion && trackedPath && fs.existsSync(trackedPath)) {
+  const strayJars = () => (fs.existsSync(modsDir) ? fs.readdirSync(modsDir) : [])
+    .filter((f) => /customskinloader/i.test(f) && f.toLowerCase().endsWith('.jar'));
+  if (tracker.mcVersion === mcVersion && tracker.schema === CSL_TRACKER_SCHEMA && trackedPath && fs.existsSync(trackedPath)) {
+    removeStrayLoaders(modsDir, strayJars(), path.basename(trackedPath));
     return { installed: true, filename: path.basename(trackedPath), model: metadata.model };
-  }
-
-  // If ANY CustomSkinLoader jar is already present in mods directory, reuse it
-  if (fs.existsSync(modsDir)) {
-    const existingJar = fs.readdirSync(modsDir).find((f) => /customskinloader/i.test(f) && f.endsWith('.jar'));
-    if (existingJar) {
-      return { installed: true, filename: existingJar, model: metadata.model };
-    }
   }
 
   try {
@@ -1114,18 +1158,17 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
       });
     }
 
-    if (tracker.filename && tracker.filename !== path.basename(target)) {
-      const oldPath = path.join(modsDir, path.basename(tracker.filename));
-      if (oldPath !== target && fs.existsSync(oldPath)) fs.rmSync(oldPath, { force: true });
-    }
-    writeFileAtomic(trackerPath, JSON.stringify({ filename: path.basename(target), version: versions[0].version_number, mcVersion, loader: modLoader }, null, 2));
+    // Exactly one CustomSkinLoader: an older or loader-specific copy left in
+    // mods/ would either fail to patch this version or fight the new one.
+    removeStrayLoaders(modsDir, strayJars(), path.basename(target));
+    writeFileAtomic(trackerPath, JSON.stringify({ schema: CSL_TRACKER_SCHEMA, filename: path.basename(target), version: versions[0].version_number, mcVersion, loader: modLoader }, null, 2));
     if (fs.existsSync(legacyTrackerPath)) fs.rmSync(legacyTrackerPath, { force: true });
     return { installed: true, filename: path.basename(target), model: metadata.model };
   } catch (error) {
     // A wardrobe integration failure must never stop the game itself. Reuse a
     // previously installed copy when possible and expose the reason in logs.
     return {
-      installed: Boolean(tracker.filename && fs.existsSync(path.join(modsDir, path.basename(tracker.filename)))),
+      installed: Boolean(trackedPath && fs.existsSync(trackedPath)) || strayJars().length > 0,
       warning: error.message,
       model: metadata.model
     };
@@ -1233,6 +1276,7 @@ module.exports = {
   setModel,
   exportItem,
   prepareFabricInstance,
+  configureSkinLoader,
   migrateLegacy,
   pullRemoteWardrobe,
   syncWardrobe,

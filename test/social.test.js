@@ -212,8 +212,8 @@ test('server detection: correctly detects multiplayer connect, singleplayer, and
     }
     if (/(?:Disconnecting from|Stopping integrated server)/i.test(str)) {
       return {
-        status: 'in-menus',
-        activity: 'In Menus',
+        status: 'in-game',
+        activity: 'In-game: Menus',
         serverAddress: null
       };
     }
@@ -251,8 +251,8 @@ test('server detection: correctly detects multiplayer connect, singleplayer, and
   const log4 = '[19:35:12] [Render thread/INFO]: Disconnecting from mc.hypixel.net, 25565';
   const res4 = detectLog(log4);
   assert.deepEqual(res4, {
-    status: 'in-menus',
-    activity: 'In Menus',
+    status: 'in-game',
+    activity: 'In-game: Menus',
     serverAddress: null
   });
 });

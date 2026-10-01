@@ -709,7 +709,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         setState('running', 'Minecraft is running');
         // The splash screen is up: stop advertising "Starting…" to friends.
         if (!payload?.quickJoinServer) {
-          socialMod.setPresence({ status: 'in-menus', activity: 'In Menus', serverAddress: null });
+          socialMod.setPresence({ status: 'in-game', activity: 'In-game: Menus', serverAddress: null });
         }
         discordRpcMod.setGameActivity({
           instance: activeInstance,
@@ -897,8 +897,8 @@ function init(dependencies, ipcMain) {
 
     if (/(?:Disconnecting from|Stopping integrated server)/i.test(str)) {
       socialMod.setPresence({
-        status: 'in-menus',
-        activity: 'In Menus',
+        status: 'in-game',
+        activity: 'In-game: Menus',
         serverAddress: null
       });
       discordRpcMod.setGameActivity({

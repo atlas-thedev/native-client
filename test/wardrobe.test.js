@@ -281,3 +281,49 @@ test('warmSkinCache does not query Mojang or mc-heads for local Noctra/offline a
 });
 
 
+
+test('an existing CustomSkinLoader config gets LocalSkin first, then the Noctra API, keeping other sites', () => {
+  const { userData } = makeAccount();
+  try {
+    const csl = path.join(userData, 'csl');
+    fs.mkdirSync(path.join(csl, 'ExtraList'), { recursive: true });
+    fs.writeFileSync(path.join(csl, 'CustomSkinLoader.json'), JSON.stringify({
+      version: '15.0.1',
+      enable: true,
+      loadlist: [
+        { name: 'Noctra Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.nativelaunch.xyz/csl/' },
+        { name: 'Mojang', type: 'MojangAPI' },
+        { name: 'LocalSkin', type: 'Legacy', checkPNG: false, skin: 'LocalSkin/skins/{USERNAME}.png', model: 'auto' },
+        { name: 'Native Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.nativelaunch.xyz/csl/' },
+        { name: 'OptiFine', type: 'Legacy', cape: 'https://optifine.net/capes/{USERNAME}.png' }
+      ]
+    }));
+    fs.writeFileSync(path.join(csl, 'ExtraList', 'NativeWardrobe.json'), '{}');
+
+    const result = wardrobe.configureSkinLoader(csl, 'slim');
+    assert.equal(result.managed, true);
+    const config = JSON.parse(fs.readFileSync(path.join(csl, 'CustomSkinLoader.json'), 'utf8'));
+    assert.deepEqual(config.loadlist.map((site) => site.name), ['LocalSkin', 'Noctra Client Wardrobe', 'Mojang', 'OptiFine']);
+    assert.equal(config.loadlist[0].model, 'slim');
+    assert.equal(config.loadlist[0].cape, 'LocalSkin/capes/{USERNAME}.png');
+    assert.equal(config.version, '15.0.1');
+    assert.equal(config.enable, true);
+    assert.equal(fs.existsSync(path.join(csl, 'ExtraList', 'NativeWardrobe.json')), false);
+  } finally {
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+});
+
+test('without a CustomSkinLoader config the Noctra API is added through ExtraList', () => {
+  const { userData } = makeAccount();
+  try {
+    const csl = path.join(userData, 'csl');
+    const result = wardrobe.configureSkinLoader(csl, 'classic');
+    assert.equal(result.managed, false);
+    const extra = JSON.parse(fs.readFileSync(path.join(csl, 'ExtraList', 'NoctraWardrobe.json'), 'utf8'));
+    assert.equal(extra.type, 'CustomSkinAPI');
+    assert.equal(extra.root, `${wardrobe.API_ROOT}/csl/`);
+  } finally {
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+});

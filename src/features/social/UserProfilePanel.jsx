@@ -27,7 +27,7 @@ export default function UserProfilePanel({
   if (!user) return null;
 
   const status = presence?.status || 'offline';
-  const isPlaying = status === 'in-game';
+  const isPlaying = status === 'in-game' || status === 'in-menus';
   const isOnline = status === 'in-launcher' || status === 'online';
   const statusColor = presence?.color || (isPlaying ? '#d9a6da' : isOnline ? '#23a55a' : '#80848e');
   const bio = user.bio || user.about || '';

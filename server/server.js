@@ -245,8 +245,12 @@ async function handler(req, res) {
       return send(res, 200, customSkinProfile(profile, originOf(req)), { ETag: etag, 'Access-Control-Allow-Origin': '*' });
     }
 
-    // Texture delivery
-    const textureMatch = url.pathname.match(/^\/(?:csl\/)?textures\/([a-f0-9]{64})$/);
+    // Texture delivery. CustomSkinLoader builds texture URLs as
+    // root + "textures/" + value, and our profile values are already absolute
+    // URLs, so it asks for /csl/textures/https://…/csl/textures/<hash> (or with
+    // the double slash merged by nginx). Older clients read those values as
+    // URLs, so keep them and accept the nested form: the hash is what counts.
+    const textureMatch = url.pathname.match(/^\/(?:csl\/)?textures\/(?:.*\/)?([a-f0-9]{64})(?:\.png)?$/);
     if (req.method === 'GET' && textureMatch) {
       const target = path.join(texturesDir, textureMatch[1]);
       if (!fs.existsSync(target)) return send(res, 404, { error: 'Texture not found.' });

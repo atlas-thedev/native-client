@@ -322,7 +322,7 @@ export default function FriendsHome({
             ) : (
               filteredFriends.map((friend) => {
                 const status = String(friend.status || 'offline').toLowerCase();
-                const isPlaying = status === 'in-game';
+                const isPlaying = status === 'in-game' || status === 'in-menus';
                 return (
                   <div
                     key={friend.id}
