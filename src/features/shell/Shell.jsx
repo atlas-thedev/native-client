@@ -9,6 +9,8 @@ import ClusterDetailView from '../cluster/ClusterDetailView.jsx';
 import LockerView from '../skins/LockerView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
+import RelayToasts from './RelayToasts.jsx';
+import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
 import FriendContextMenu from '../social/FriendContextMenu.jsx';
 import NicknameModal from '../social/NicknameModal.jsx';
 import useSocial from '../social/useSocial.js';
@@ -224,56 +226,45 @@ export default function Shell({
     activeThreadId: relayActiveThreadId
   };
 
+  const [relayToasts, setRelayToasts] = useState([]);
+  const [openThreadRequest, setOpenThreadRequest] = useState(null);
+
+  const dismissToast = useCallback((id) => setRelayToasts((prev) => prev.filter((toast) => toast.id !== id)), []);
+  const openRelayThread = useCallback((note) => {
+    if (note?.threadId && ['dm', 'group', 'friend', 'group-added'].includes(note.kind)) {
+      setOpenThreadRequest({ id: note.threadId, kind: note.kind === 'group' || note.kind === 'group-added' ? 'group' : 'dm', nonce: Date.now() });
+    }
+    setCurrentTab('relay');
+  }, []);
+
   useEffect(() => {
     if (!isNoctra) return undefined;
     return social.subscribe((event) => {
       const state = relayNotificationRef.current;
-      let title = '';
-      let body = '';
-      let threadId = null;
+      const note = describeRelayEvent(event, state);
+      if (!note) return;
+      let mutedIds = {};
+      try {
+        mutedIds = JSON.parse(localStorage.getItem('noctra_relay_store_v5') || '{}').mutedIds || {};
+      } catch { /* no saved mutes */ }
+      const focused = document.hasFocus();
+      const viewing = Boolean(note.threadId) && state.currentTab === 'relay' && state.activeThreadId === note.threadId && focused;
+      if (!shouldSurface(note, { mutedIds, viewing })) return;
 
-      if (event?.type === 'message:new' && event.message?.senderId !== state.selfId) {
-        threadId = event.message.senderId;
-        const friend = state.friends.find((item) => item.id === threadId);
-        title = friend?.nickname || friend?.name || event.message.senderName || 'Direct Message';
-        body = event.message.content || (event.message.mediaName ? `Sent an attachment: ${event.message.mediaName}` : 'Sent an attachment');
-      } else if (event?.type === 'group:message') {
-        const message = event.data?.message ?? event.message;
-        threadId = event.data?.groupId ?? event.groupId;
-        if (!message || message.senderId === state.selfId || message.isSystem) return;
-        const sender = message.senderName || 'Member';
-        const group = event.data?.groupName || event.groupName || 'Group';
-        title = `${sender} (${group})`;
-        body = message.content || (message.mediaName ? `Sent an attachment: ${message.mediaName}` : 'Sent an attachment');
-      } else if (event?.type === 'request:changed' && event.actorId !== state.selfId) {
-        const actor = event.actorName || 'A player';
-        if (event.action === 'accepted') {
-          title = 'Friend Request Accepted';
-          body = `${actor} accepted your friend request.`;
-        } else if (!event.action || event.action === 'sent') {
-          title = 'Friend Request';
-          body = `${actor} sent you a friend request.`;
+      const prefs = readNotifyPrefs();
+      notify(note.title, note.body);
+      if (prefs.sound) playRelayChime();
+      if (focused) {
+        if (prefs.inApp) {
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          setRelayToasts((prev) => [...prev.slice(-2), { id, ...note }]);
+          setTimeout(() => dismissToast(id), 6500);
         }
+      } else if (prefs.desktop) {
+        window.native?.showNotification?.(note.title, note.body);
       }
-
-      if (!title) return;
-      if (threadId) {
-        let mutedIds = {};
-        try {
-          mutedIds = JSON.parse(localStorage.getItem('noctra_relay_store_v5') || '{}').mutedIds || {};
-        } catch {}
-        const friend = state.friends.find((item) => item.id === threadId);
-        if (mutedIds[threadId] ?? friend?.muted) return;
-      }
-      const viewingThread = threadId && state.currentTab === 'relay' &&
-        state.activeThreadId === threadId && document.hasFocus();
-      if (viewingThread) return;
-
-      notify(title, body);
-      playRelayChime();
-      window.native?.showNotification?.(title, body);
     });
-  }, [isNoctra, notify, social.subscribe]);
+  }, [isNoctra, notify, social.subscribe, dismissToast]);
 
   const handleLaunch = (cluster, options = {}) => {
     if (!cluster) return;
@@ -509,6 +500,7 @@ export default function Shell({
               onJoinServer={handleJoinServer}
               onNotify={notifyRelay}
               onActiveThreadChange={setRelayActiveThreadId}
+              openThreadRequest={openThreadRequest}
             />
           ) : (
             <NoctraAccountGate
@@ -603,6 +595,7 @@ export default function Shell({
         )}
       </div>
 
+      <RelayToasts toasts={relayToasts} onOpen={(toast) => { dismissToast(toast.id); openRelayThread(toast); }} onDismiss={dismissToast} />
       <NotificationDrawer
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}

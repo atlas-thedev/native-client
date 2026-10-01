@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Bell,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -27,6 +28,7 @@ import Logo from '../../components/ui/Logo.jsx';
 import StoragePanel from './StoragePanel.jsx';
 import ChangelogPanel from './ChangelogPanel.jsx';
 import { SUPPORTED_LOCALES } from '../../i18n/catalogs.js';
+import { readNotifyPrefs, writeNotifyPrefs } from '../shell/relayNotifications.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import packageInfo from '../../../package.json';
 import './SettingsView.css';
@@ -160,6 +162,9 @@ export default function SettingsView({
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [prefs, setPrefs] = useState(readPrefs);
+  const [notifyPrefs, setNotifyPrefs] = useState(() => readNotifyPrefs());
+  const setNotify = (patch) => setNotifyPrefs(writeNotifyPrefs(patch));
+  const sendTestNotification = () => window.native?.showNotification?.('Noctra Relay', 'Notifications are working.');
   const [dataDir, setDataDir] = useState('');
   const [copiedPath, setCopiedPath] = useState(false);
   const [updates, setUpdates] = useState({
@@ -501,6 +506,62 @@ export default function SettingsView({
                           <span className="noctra-switch-thumb" />
                         </span>
                       </label>
+                    </div>
+                  </div>
+
+                  {/* Relay notifications */}
+                  <div className="noctra-setting-card">
+                    <div className="setting-card-left">
+                      <div className="setting-card-icon-wrap">
+                        <Bell size={18} />
+                      </div>
+                      <div className="setting-card-text">
+                        <span className="setting-card-name">{t('settings.notifyDesktop')}</span>
+                        <span className="setting-card-desc">{t('settings.notifyDesktopDesc')}</span>
+                      </div>
+                    </div>
+                    <div className="setting-card-control">
+                      <label className="noctra-switch">
+                        <input type="checkbox" checked={notifyPrefs.desktop} onChange={(e) => setNotify({ desktop: e.target.checked })} />
+                        <span className="noctra-switch-track">
+                          <span className="noctra-switch-thumb" />
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="noctra-setting-card">
+                    <div className="setting-card-left">
+                      <div className="setting-card-icon-wrap">
+                        <Bell size={18} />
+                      </div>
+                      <div className="setting-card-text">
+                        <span className="setting-card-name">{t('settings.notifySound')}</span>
+                        <span className="setting-card-desc">{t('settings.notifySoundDesc')}</span>
+                      </div>
+                    </div>
+                    <div className="setting-card-control">
+                      <label className="noctra-switch">
+                        <input type="checkbox" checked={notifyPrefs.sound} onChange={(e) => setNotify({ sound: e.target.checked })} />
+                        <span className="noctra-switch-track">
+                          <span className="noctra-switch-thumb" />
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="noctra-setting-card">
+                    <div className="setting-card-left">
+                      <div className="setting-card-icon-wrap">
+                        <Bell size={18} />
+                      </div>
+                      <div className="setting-card-text">
+                        <span className="setting-card-name">{t('settings.notifyTest')}</span>
+                        <span className="setting-card-desc">{t('settings.notifyTestDesc')}</span>
+                      </div>
+                    </div>
+                    <div className="setting-card-control">
+                      <button type="button" className="instances-ghost-btn" onClick={sendTestNotification}>{t('settings.notifyTestBtn')}</button>
                     </div>
                   </div>
 

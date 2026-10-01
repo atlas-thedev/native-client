@@ -31,7 +31,6 @@ import GroupAvatarBadge from './GroupAvatarBadge.jsx';
 import useRelayGroups from './useRelayGroups.js';
 import GroupCreateModal from './GroupCreateModal.jsx';
 import GroupSettingsModal from './GroupSettingsModal.jsx';
-import FriendCenterModal from './FriendCenterModal.jsx';
 import MessageRow from './MessageRow.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import { ReplyComposerBar } from './ReplyPreview.jsx';
@@ -107,7 +106,7 @@ function loadPersistedState() {
   }
 }
 
-export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange }) {
+export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange, openThreadRequest }) {
   const persisted = useMemo(() => loadPersistedState(), []);
   const selfId = social?.selfId || account?.id || null;
 
@@ -115,7 +114,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('overview');
-  const [friendCenterOpen, setFriendCenterOpen] = useState(false);
+  const [friendsHomeRequest, setFriendsHomeRequest] = useState({ tab: 'online', nonce: 0 });
 
   const [selectedId, setSelectedId] = useState(null);
   const [mutedIds, setMutedIds] = useState(() => persisted?.mutedIds || {});
@@ -369,8 +368,9 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   }, [inboxQuery]);
 
   const pinnedList = filterList(allThreads.filter((thread) => thread.pinned));
-  const groupList = filterList(formattedGroups);
+  const groupList = filterList(formattedGroups.filter((group) => !group.pinned));
   const directList = filterList(mergedFriends
+    .filter((friend) => !friend.pinned)
     .sort((a, b) => (b.lastStamp || 0) - (a.lastStamp || 0)));
 
   // ── Messages ────────────────────────────────────────────────────────
@@ -508,6 +508,16 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
       relayGroups.closeGroup();
     }
   };
+
+  // A notification asked us to open a conversation.
+  const handledOpenRequest = useRef(null);
+  useEffect(() => {
+    if (!openThreadRequest?.id || handledOpenRequest.current === openThreadRequest.nonce) return;
+    if (Date.now() - (openThreadRequest.nonce || 0) > 5000) return; // stale: from an earlier visit
+    handledOpenRequest.current = openThreadRequest.nonce;
+    handleSelectThread({ id: openThreadRequest.id, kind: openThreadRequest.kind || 'dm' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openThreadRequest?.nonce]);
 
   const handleDeselectChat = useCallback(() => {
     setSelectedId(null);
@@ -908,7 +918,10 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
               <div className="relay-empty-desc">
                 Add friends by Minecraft username, or start a group to get the crew together.
               </div>
-              <button type="button" className="relay-empty-btn" onClick={() => setFriendCenterOpen(true)}>
+              <button type="button" className="relay-empty-btn" onClick={() => {
+                setSelectedId(null);
+                setFriendsHomeRequest((previous) => ({ tab: 'add', nonce: previous.nonce + 1 }));
+              }}>
                 <UserPlus size={13} />
                 <span>Add friend</span>
               </button>
@@ -1462,6 +1475,8 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
           </>
         ) : (
           <FriendsHome
+            key={friendsHomeRequest.nonce}
+            initialTab={friendsHomeRequest.tab}
             social={social}
             selfId={selfId}
             onOpenChat={(friendId) => handleSelectThread({ id: friendId, kind: 'dm' })}
@@ -1511,16 +1526,6 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
             setCreateOpen(false);
           }
           return result;
-        }}
-      />
-
-      <FriendCenterModal
-        open={friendCenterOpen}
-        social={social}
-        onClose={() => setFriendCenterOpen(false)}
-        onOpenFriend={(friendId) => {
-          setSelectedId(friendId);
-          setFriendCenterOpen(false);
         }}
       />
 

@@ -26,6 +26,9 @@ const en = {
   'error.offlineName': 'Use 3–16 letters, numbers, or underscores.', 'error.microsoftLogin': 'Microsoft sign-in was not completed.',
   'error.offlineAccount': 'Could not create the offline account.', 'error.saveSetup': 'Could not save your setup. Please try again.',
   'game.running': 'Game running', 'game.status': 'Status', 'game.uptime': 'Uptime', 'game.openInstance': 'Open instance', 'game.stop': 'Stop',
+  'settings.notifyDesktop': 'Desktop notifications', 'settings.notifyDesktopDesc': 'Show a system notification for Relay messages while the launcher is in the background.',
+  'settings.notifySound': 'Notification sound', 'settings.notifySoundDesc': 'Play a short chime when a Relay message arrives.',
+  'settings.notifyTest': 'Test notification', 'settings.notifyTestDesc': 'Send yourself a notification to check that it shows up.', 'settings.notifyTestBtn': 'Send test',
   'settings.launchAction': 'Minimize when the game starts', 'settings.launchActionDesc': 'Gets the launcher out of your way while you play.',
   'settings.reopenOnExit': 'Bring it back when the game closes', 'settings.reopenOnExitDesc': 'Restores the launcher after you quit Minecraft. It always comes back if the game crashes.',
 };

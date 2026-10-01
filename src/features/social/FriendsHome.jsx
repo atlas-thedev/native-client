@@ -21,10 +21,11 @@ import './FriendsHome.css';
 export default function FriendsHome({
   social,
   selfId,
+  initialTab = 'online',
   onOpenChat,
   onNotify
 }) {
-  const [activeTab, setActiveTab] = useState('online'); // 'online' | 'all' | 'pending' | 'blocked' | 'add'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'online' | 'all' | 'pending' | 'blocked' | 'add'
   const [searchQuery, setSearchQuery] = useState('');
   const [addUsername, setAddUsername] = useState('');
   const [busyId, setBusyId] = useState(null);

@@ -30,13 +30,14 @@ export function GroupAvatarBadge({ group, name, iconUrl, size = 36, className = 
     initials = words[0].toUpperCase();
   }
 
+  const hue = [...effectiveName].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
   const fontSize = Math.max(10, Math.round(size * 0.38));
   const iconSize = Math.max(14, Math.round(size * 0.48));
 
   return (
     <div
       className={`relay-group-avatar-badge ${className}`}
-      style={{ width: size, height: size, fontSize }}
+      style={{ width: size, height: size, fontSize, '--gb-hue': hue }}
       title={effectiveName || 'Group'}
       aria-label={effectiveName || 'Group'}
     >

@@ -192,6 +192,7 @@ export function applyAppearance(appearance) {
   style.setProperty('--brand-soft', isDarkAccent ? '#27272a' : mix(accent, '#ffffff', 0.55));
   style.setProperty('--fg-on-brand', onAccentText(accent));
   style.setProperty('--accent-text', isDarkAccent ? '#e4e4e7' : mix(accent, '#ffffff', 0.42));
+  style.setProperty('--accent-ink', onAccentText(isDarkAccent ? '#e4e4e7' : mix(accent, '#ffffff', 0.42)));
   style.setProperty(
     '--brand-gradient',
     isDarkAccent

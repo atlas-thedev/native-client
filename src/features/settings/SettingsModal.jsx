@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { readNotifyPrefs, writeNotifyPrefs } from '../shell/relayNotifications.js';
 import Icon from '../../components/ui/Icon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import StoragePanel from './StoragePanel.jsx';
@@ -56,6 +57,9 @@ export default function SettingsModal({
   const { locale, setLocale, t } = useI18n();
   const [activeTab, setActiveTab] = useState('launcher');
   const [prefs, setPrefs] = useState(readPrefs);
+  const [notifyPrefs, setNotifyPrefs] = useState(() => readNotifyPrefs());
+  const setNotify = (patch) => setNotifyPrefs(writeNotifyPrefs(patch));
+  const sendTestNotification = () => window.native?.showNotification?.('Noctra Relay', 'Notifications are working.');
   const [dataDir, setDataDir] = useState('');
   const [updates, setUpdates] = useState({ checkOnStartup: true, backgroundChecks: true, autoDownload: false });
 
@@ -265,6 +269,36 @@ export default function SettingsModal({
                       />
                       <span className="slider" />
                     </label>
+                  </div>
+
+                  <div className="settings-row">
+                    <div className="settings-row-info">
+                      <span className="settings-row-title">{t('settings.notifyDesktop')}</span>
+                      <span className="settings-row-desc">{t('settings.notifyDesktopDesc')}</span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input type="checkbox" checked={notifyPrefs.desktop} onChange={(event) => setNotify({ desktop: event.target.checked })} />
+                      <span className="slider" />
+                    </label>
+                  </div>
+
+                  <div className="settings-row">
+                    <div className="settings-row-info">
+                      <span className="settings-row-title">{t('settings.notifySound')}</span>
+                      <span className="settings-row-desc">{t('settings.notifySoundDesc')}</span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input type="checkbox" checked={notifyPrefs.sound} onChange={(event) => setNotify({ sound: event.target.checked })} />
+                      <span className="slider" />
+                    </label>
+                  </div>
+
+                  <div className="settings-row">
+                    <div className="settings-row-info">
+                      <span className="settings-row-title">{t('settings.notifyTest')}</span>
+                      <span className="settings-row-desc">{t('settings.notifyTestDesc')}</span>
+                    </div>
+                    <button type="button" className="instances-ghost-btn" onClick={sendTestNotification}>{t('settings.notifyTestBtn')}</button>
                   </div>
 
                   <div className="settings-row">

@@ -31,9 +31,9 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm, 8px);
-  background: var(--brand-subtle);
-  border: 1px solid var(--brand-border);
-  color: var(--brand);
+  background: hsl(var(--gb-hue, 280) 22% 17%);
+  border: 0;
+  color: hsl(var(--gb-hue, 280) 52% 78%);
   font-weight: 700;
   letter-spacing: 0.03em;
   overflow: hidden;
