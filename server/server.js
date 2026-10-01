@@ -61,6 +61,60 @@ function send(res, status, value, headers = {}) {
   res.end(body);
 }
 
+/**
+ * Organic, time-aware player counter simulation:
+ * - Natural 24-hour diurnal curve (peak around afternoon/evening, trough at late night/morning).
+ * - Smooth random-walk drift (+/- 1-2 players every 10-15s) so numbers fluctuate gradually
+ *   like genuine human sessions rather than jumping erratically.
+ * - Adds actual real-time connected players on top.
+ */
+let simulatedOnline = null;
+let lastDriftAt = 0;
+
+function getDynamicOnlineCount(realUsers = 0) {
+  const boostEnabled = process.env.NOCTRA_BOOST_ENABLED !== 'false';
+  if (!boostEnabled) return realUsers;
+
+  const minBase = Number(process.env.NOCTRA_BOOST_MIN) || 45;   // Late-night valley
+  const maxBase = Number(process.env.NOCTRA_BOOST_MAX) || 185;  // Evening peak
+
+  const now = new Date();
+  // Fractional UTC hour of the day (0.00 .. 23.99)
+  const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
+
+  // Diurnal curve: peak at ~18:30 UTC (EU/Asia gaming peak), lowest at ~05:00 UTC
+  const diurnalFactor = (Math.cos(((hour - 18.5) * 2 * Math.PI) / 24) + 1) / 2; // 0.0 to 1.0
+  const targetBase = Math.round(minBase + (maxBase - minBase) * diurnalFactor);
+
+  const nowMs = Date.now();
+  if (simulatedOnline === null) {
+    const initialJitter = Math.floor(Math.random() * 7) - 3;
+    simulatedOnline = Math.max(minBase, targetBase + initialJitter);
+    lastDriftAt = nowMs;
+  } else {
+    const elapsed = nowMs - lastDriftAt;
+    if (elapsed >= 10_000) {
+      lastDriftAt = nowMs;
+      const difference = targetBase - simulatedOnline;
+
+      const rand = Math.random();
+      if (Math.abs(difference) > 6 && rand < 0.65) {
+        simulatedOnline += (difference > 0 ? 1 : -1);
+      } else if (rand < 0.40) {
+        simulatedOnline += (difference > 0 ? 1 : -1);
+      } else if (rand < 0.75) {
+        simulatedOnline += (Math.random() < 0.5 ? 1 : -1);
+      }
+
+      const floorLimit = Math.floor(minBase * 0.85);
+      const ceilLimit = Math.ceil(maxBase * 1.15);
+      simulatedOnline = Math.max(floorLimit, Math.min(ceilLimit, simulatedOnline));
+    }
+  }
+
+  return simulatedOnline + (Number(realUsers) || 0);
+}
+
 function usernameOf(value) {
   const name = String(value || '').trim();
   if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) throw new Error('Invalid Minecraft username.');
@@ -730,9 +784,10 @@ async function handler(req, res) {
       const headerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
       if (req.method === 'GET' && url.pathname === '/v1/social/stats') {
         const realCount = events.connectedUserCount();
+        const displayCount = getDynamicOnlineCount(realCount);
         return send(res, 200, {
           ok: true,
-          onlineUsers: realCount,
+          onlineUsers: displayCount,
           realOnlineUsers: realCount,
           updatedAt: Date.now()
         }, { 'Cache-Control': 'no-store' });
