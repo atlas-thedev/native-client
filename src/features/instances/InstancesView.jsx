@@ -10,6 +10,7 @@ import vanillaIcon from '../../assets/icons/vanilla.png';
 
 import './InstancesView.css';
 
+import useVersionBanners from '../../lib/useVersionBanners.js';
 const SORTS = [
   { id: 'recent', key: 'instances.sortRecent' },
   { id: 'name', key: 'instances.sortName' },
@@ -90,6 +91,7 @@ export default function InstancesView({
   onNavigateBrowse,
   onNotify
 }) {
+  useVersionBanners();
   const { t, formatDuration, formatNumber, formatRelativeTime } = useI18n();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('recent');

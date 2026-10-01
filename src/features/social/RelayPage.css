@@ -772,7 +772,7 @@
 
 .relay-join-inline:hover { background: var(--brand); color: var(--fg-on-brand); }
 
-.relay-header-actions { display: flex; align-items: center; gap: 3px; flex: none; }
+.relay-header-actions { display: flex; align-items: center; gap: 3px; flex: none; margin-left: auto; }
 
 .relay-action-btn {
   width: 30px;

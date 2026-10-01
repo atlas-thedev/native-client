@@ -10,6 +10,7 @@ import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
 import './HomeView.css';
 
+import useVersionBanners from '../../lib/useVersionBanners.js';
 const loadersOf = (instance) => instance?.mc_loader || instance?.loader || 'Vanilla';
 const versionOf = (instance) => instance?.mc_version || instance?.version || '';
 
@@ -34,6 +35,7 @@ export default function HomeView({
   onLaunch,
   onKill
 }) {
+  useVersionBanners();
   const { t } = useI18n();
   const [contextMenu, setContextMenu] = useState(null);
   const railRef = useRef(null);

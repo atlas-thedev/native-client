@@ -6,6 +6,7 @@ import fabricIcon from '../../assets/icons/fabric.png';
 import forgeIcon from '../../assets/icons/forge.jpg';
 import './InstancePickerModal.css';
 
+import useVersionBanners from '../../lib/useVersionBanners.js';
 const LOADER_ICONS = {
   vanilla: vanillaIcon,
   fabric: fabricIcon,
@@ -74,6 +75,7 @@ export default function InstancePickerModal({
   onSelect,
   onCreateNew
 }) {
+  useVersionBanners();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'compatible'
   const searchRef = useRef(null);
@@ -281,7 +283,7 @@ export default function InstancePickerModal({
             </div>
           ) : (
             visible.map(({ inst, compat }) => {
-              const art = inst.art || getClusterArt(inst);
+              const art = getClusterArt(inst);
               const loaderName = instLoader(inst);
               const loaderIcon = LOADER_ICONS[String(loaderName).toLowerCase()];
               const ram = formatRam(inst.memoryMb);

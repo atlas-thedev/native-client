@@ -1,3 +1,4 @@
+import { peekBanners } from '../lib/patchNotes.js';
 import ChaosCubedArt from '../assets/backgrounds/Chaos_Cubed.jpg';
 import TinyTakeoverArt from '../assets/backgrounds/Tiny_Takeover.jpg';
 import MountsMayhemArt from '../assets/backgrounds/Mounts_Mayhem.jpg';
@@ -340,15 +341,41 @@ export function formatDuration(seconds) {
 
 const MOJANG_BANNER = /^https:\/\/launchercontent\.mojang\.com\//;
 
-/** Versions newer than the bundled artwork (26.3, 26.4 ...) use Mojang's own banner. */
+/** Versions newer than the bundled artwork (26.3, 26.4, 27.x ...) use Mojang's own banner. */
 function lacksBundledArt(ver) {
-  return /^26\./.test(ver) && !ver.startsWith('26.1') && !ver.startsWith('26.2');
+  const match = /^(\d+)\.(\d+)/.exec(String(ver || ''));
+  if (!match) return false;
+  const major = Number(match[1]);
+  return major > 26 || (major === 26 && Number(match[2]) >= 3);
+}
+
+const BUNDLED_ART_URLS = () => new Set(Object.values(ART_ASSETS));
+
+/** Mojang's banner for a version that has no bundled artwork, or null while it loads. */
+function mojangBannerFor(ver) {
+  const banners = peekBanners();
+  if (!banners) return null;
+  const base = String(ver).replace(/-(snapshot|pre|rc)-?\d*$/i, '');
+  return (banners.get(ver) || banners.get(base))?.image || null;
 }
 
 export function getClusterArt(cluster) {
   if (!cluster) return ART_ASSETS.default;
 
   const savedArt = String(cluster.art || '');
+  const wantedVersion = String(cluster.mc_version || cluster.version || '').trim();
+
+  // 26.3 and newer have no bundled picture. Never show an older release's image
+  // for them: use Mojang's banner, or a neutral picture while it loads.
+  if (lacksBundledArt(wantedVersion)) {
+    if (MOJANG_BANNER.test(savedArt)) return savedArt;
+    const banner = mojangBannerFor(wantedVersion);
+    if (banner) return banner;
+    const isCustom = savedArt && !BUNDLED_ART_URLS().has(savedArt) && !/^file:/i.test(savedArt) &&
+      !savedArt.startsWith('/src/assets/') && !/(^|\/)assets\/[^?]+\.(jpe?g|png|webp)/i.test(savedArt);
+    return isCustom ? cluster.art : SnapshotArt;
+  }
+
   const staleBundledArt =
     /^file:/i.test(savedArt) ||
     savedArt.startsWith('/src/assets/') ||
@@ -362,11 +389,6 @@ export function getClusterArt(cluster) {
     return cluster.art;
   }
 
-  const rawVersion = String(cluster.mc_version || cluster.version || '').trim();
-  if (MOJANG_BANNER.test(savedArt) && lacksBundledArt(rawVersion)) {
-    return cluster.art;
-  }
-
   if (cluster.artKey && ART_ASSETS[cluster.artKey]) {
     return ART_ASSETS[cluster.artKey];
   }
@@ -375,8 +397,7 @@ export function getClusterArt(cluster) {
   if (!ver) return ART_ASSETS.default;
 
   if (ver.startsWith('26.1')) return TinyTakeoverArt;
-  // 26.2 and anything newer (26.3, ...) reuses the latest bundled artwork.
-  if (ver.startsWith('26')) return ChaosCubedArt;
+  if (ver.startsWith('26.2')) return ChaosCubedArt;
   if (ver.startsWith('1.21.11') || ver.includes('Mounts')) return MountsMayhemArt;
   if (ver.startsWith('1.21.10') || ver.includes('Copper')) return CopperAgeArt;
   if (ver.startsWith('1.21')) return TrickyTrialsArt;

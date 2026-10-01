@@ -3,6 +3,7 @@ import { Check, ChevronDown, Layers, Plus, Settings2, SlidersHorizontal } from '
 import { getClusterArt } from '../../../data/versionsData.js';
 import { isVanilla, loaderOf, versionOf } from '../api/modrinthApi.js';
 
+import useVersionBanners from '../../../lib/useVersionBanners.js';
 export default function InstanceSwitcher({
   instances = [],
   target = null,
@@ -10,6 +11,7 @@ export default function InstanceSwitcher({
   onManage,
   onCreate
 }) {
+  useVersionBanners();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -48,7 +50,7 @@ export default function InstanceSwitcher({
       >
         {target ? (
           <>
-            <img className="browse-switcher-thumb" src={target.art || getClusterArt(target)} alt="" />
+            <img className="browse-switcher-thumb" src={getClusterArt(target)} alt="" />
             <span className="browse-switcher-text">
               <span className="browse-switcher-name">{target.name}</span>
               <span className="browse-switcher-meta">
@@ -116,7 +118,7 @@ export default function InstanceSwitcher({
                   className={`browse-switcher-item ${selected ? 'is-selected' : ''}`}
                   onClick={() => pick(inst)}
                 >
-                  <img className="browse-switcher-thumb" src={inst.art || getClusterArt(inst)} alt="" loading="lazy" />
+                  <img className="browse-switcher-thumb" src={getClusterArt(inst)} alt="" loading="lazy" />
                   <span className="browse-switcher-text">
                     <span className="browse-switcher-name">{inst.name}</span>
                     <span className={`browse-switcher-meta ${isVanilla(inst) ? 'is-vanilla' : ''}`}>

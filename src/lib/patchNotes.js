@@ -14,6 +14,37 @@ const CACHE_TTL = 3 * 60 * 60 * 1000;
 
 let inflight = null;
 let memory = null;
+let derived = { source: null, map: null };
+const listeners = new Set();
+
+function publish() {
+  listeners.forEach((listener) => {
+    try { listener(); } catch { /* a bad subscriber must not break the rest */ }
+  });
+}
+
+/** Synchronous view of the banners already fetched or cached (null until known). */
+export function peekBanners() {
+  if (!memory) {
+    const cached = readCache();
+    if (cached) memory = cached.entries;
+  }
+  if (!memory) return null;
+  if (derived.source !== memory) {
+    const map = new Map();
+    memory.forEach((entry) => {
+      if (!map.has(entry.version)) map.set(entry.version, entry);
+    });
+    derived = { source: memory, map };
+  }
+  return derived.map;
+}
+
+/** Called whenever fresh banners arrive. Returns an unsubscribe function. */
+export function subscribeBanners(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 function absoluteUrl(path) {
   if (!path) return null;
@@ -78,6 +109,7 @@ export async function getPatchNotes({ force = false } = {}) {
       if (entries.length) {
         writeCache(entries);
         memory = entries;
+        publish();
       }
       return memory || cached?.entries || [];
     })

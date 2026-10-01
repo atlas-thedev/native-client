@@ -12,6 +12,7 @@ import { getClusterArt } from '../../data/versionsData.js';
 import './ClusterDetailView.css';
 import './InstanceManager.css';
 
+import useVersionBanners from '../../lib/useVersionBanners.js';
 const TAB_META = {
   mods: { title: 'Mods', icon: 'type-mod', folder: 'mods', search: 'Find a mod…' },
   shaders: { title: 'Shaders', icon: 'type-shader', folder: 'shaderpacks', search: 'Find a shader…' },
@@ -36,6 +37,7 @@ export default function ClusterDetailView({
   onAnalyzeCrash,
   initialTab = 'overview'
 }) {
+  useVersionBanners();
   const loader = cluster.mc_loader || cluster.loader || 'Vanilla';
   const vanilla = loader.toLowerCase() === 'vanilla';
 
