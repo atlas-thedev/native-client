@@ -1,0 +1,13 @@
+.guide-video-frame { position: relative; }
+.guide-video-skeleton {
+  position: absolute; inset: 0; z-index: 2; border-radius: inherit;
+  background: linear-gradient(100deg, #101012 30%, #1d1d21 50%, #101012 70%);
+  background-size: 200% 100%;
+  animation: guide-video-shimmer 1.3s linear infinite;
+}
+@keyframes guide-video-shimmer { to { background-position: -200% 0; } }
+.guide-video-404 {
+  font-size: 34px; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
+  color: var(--fg-primary-hover, #fff); opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) { .guide-video-skeleton { animation: none; } }
