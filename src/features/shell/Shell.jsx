@@ -22,6 +22,7 @@ import useInstances from '../instances/useInstances.js';
 import usePlaytimeTracker from '../instances/usePlaytimeTracker.js';
 import { getPreset, installPreset } from '../instances/presets.js';
 import { installImageSkeletons } from '../../lib/imageSkeleton.js';
+import '../../lib/cartoonButtons.css';
 import CrashReportModal from '../crash/CrashReportModal.jsx';
 import useCrashReports from '../crash/useCrashReports.js';
 import NoctraAccountGate from '../../components/ui/NoctraAccountGate.jsx';

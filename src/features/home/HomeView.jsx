@@ -44,7 +44,8 @@ export default function HomeView({
   const railRef = useRef(null);
   const cardRefs = useRef({});
 
-  const isStarterMode = !instances || instances.length === 0;
+  // No premade "Create & Play" instances: with nothing created, Home shows an empty state.
+  const isStarterMode = false;
   const [selectedStarterId, setSelectedStarterId] = useState(() => INITIAL_CLUSTERS[0]?.id || 'cluster-26-2-fabric');
 
   const cluster = useMemo(() => {
@@ -274,8 +275,8 @@ export default function HomeView({
           </>
         ) : (
           <div className="home-empty-state">
-            <h2 className="home-cluster-title">{t('home.empty')}</h2>
-            <p className="home-cluster-subtitle">{t('home.emptyBody')}</p>
+            <h2 className="home-cluster-title">No instances yet</h2>
+            <p className="home-cluster-subtitle">Create your first instance to pick a version, a mod loader and start playing.</p>
             <div className="home-actions-row">
               <button type="button" className="home-quick-btn is-primary" onClick={onCreateInstance}>
                 <Plus size={16} strokeWidth={2.2} />
@@ -297,6 +298,8 @@ export default function HomeView({
       )}
       </div>
 
+      {instances.length > 0 && (
+        <>
       {/* Instance switcher rail */}
       <div className={`home-recents-container ${isStarterMode ? 'is-starter-rail' : ''}`}>
         <div className="recents-head">
@@ -405,6 +408,8 @@ export default function HomeView({
           </button>
         </div>
       </div>
+        </>
+      )}
 
       {contextMenu && (
         <ContextMenu
