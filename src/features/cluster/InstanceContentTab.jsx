@@ -3,6 +3,7 @@ import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 import ContentHealth, { useContentHealth } from './ContentHealth.jsx';
+import { GlyphBump } from './HealthGlyphs.jsx';
 
 const formatSize = (bytes) => {
   if (!Number.isFinite(bytes)) return '';
@@ -343,7 +344,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                       title={`Update to ${health.updatesByFile[row.filename].to}`}
                       onClick={() => health.apply([health.updatesByFile[row.filename]], (health.updates.data?.dependencies || []).filter((dep) => !dep.unavailable && dep.requiredBy.includes(health.updatesByFile[row.filename].title)))}
                     >
-                      <NativeIcon name="arrow-up-right" size={11} /> Update
+                      <GlyphBump size={12} /> Update
                     </button>
                   )}
                   {formatSize(row.size) && (

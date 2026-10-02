@@ -60,7 +60,10 @@
 }
 
 .mr-chip:hover:not(:disabled) { color: var(--fg-primary-hover); border-color: var(--component-border-hover); }
-.mr-chip.is-on {
+/* :hover above has higher specificity, so the selected chip restates its ink
+   colour for hover too; otherwise the label turns white on the light fill. */
+.mr-chip.is-on,
+.mr-chip.is-on:hover:not(:disabled) {
   color: var(--accent-ink, #1a0f1a);
   background: var(--accent-text, #d9a6da);
   border-color: transparent;
