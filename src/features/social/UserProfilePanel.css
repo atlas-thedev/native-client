@@ -393,3 +393,10 @@
 .np-action.is-danger:hover { background: none; color: var(--danger, #ef4444); opacity: .85; }
 .np-activity.is-playing { background: none; border: 0; }
 .np-detail-key { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+
+/* Mutual friends */
+.np-mutual { display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto; }
+.np-mutual-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; min-width: 0; }
+.np-mutual-row img, .np-mutual-row canvas { border-radius: 50%; flex: none; }
+.np-mutual-name { font-size: 12.5px; color: var(--fg-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-mutual-empty { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg-muted); }

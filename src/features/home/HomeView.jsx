@@ -283,10 +283,6 @@ export default function HomeView({
                 <Plus size={16} strokeWidth={2.2} />
                 <span>{t('home.newInstance')}</span>
               </button>
-              <button type="button" className="home-quick-btn" onClick={onOpenVersions}>
-                <NativeIcon name="download" size={15} />
-                <span>{t('home.allVersions')}</span>
-              </button>
             </div>
 
             <div className="home-empty-starts" role="group" aria-label="Quick start">

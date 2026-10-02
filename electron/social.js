@@ -505,6 +505,13 @@ function init(dependencies, ipcMain) {
     });
   });
 
+  ipcMain.handle('social:getMutualFriends', async (_event, friendId) => {
+    const res = await socialFetch(`/v1/social/friends/${encodeURIComponent(friendId)}/mutual`);
+    const list = Array.isArray(res) ? res : (res?.mutual || res?.mutualFriends || res?.friends);
+    if (res?.ok !== false && Array.isArray(list)) return { ok: true, mutual: list };
+    return { ok: false, mutual: [], error: res?.error };
+  });
+
   ipcMain.handle('social:unfriend', async (_event, friendId) => {
     return await socialFetch(`/v1/social/friends/${encodeURIComponent(friendId)}`, {
       method: 'DELETE'

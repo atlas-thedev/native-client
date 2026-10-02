@@ -69,32 +69,6 @@ export function ThreadRow({
             )}
           </div>
         </div>
-
-        {/* Hover quick action buttons */}
-        <div className="relay-thread-hover-actions" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className={`relay-thread-action-btn ${thread.pinned ? 'is-active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onTogglePin?.(e);
-            }}
-            title={thread.pinned ? 'Unpin conversation' : 'Pin conversation'}
-          >
-            <Pin size={12} />
-          </button>
-          <button
-            type="button"
-            className={`relay-thread-action-btn ${thread.muted ? 'is-active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleMute?.(e);
-            }}
-            title={thread.muted ? 'Unmute notifications' : 'Mute notifications'}
-          >
-            {thread.muted ? <BellOff size={12} /> : <Bell size={12} />}
-          </button>
-        </div>
       </button>
 
       {/* Context menu on right click */}

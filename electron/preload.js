@@ -200,6 +200,7 @@ const api = {
     markRead: (friendId) => ipcRenderer.invoke('social:markRead', friendId),
     setTyping: (friendId, isTyping) => ipcRenderer.invoke('social:setTyping', { friendId, isTyping }),
     updateFriend: (friendId, data) => ipcRenderer.invoke('social:updateFriend', { friendId, ...data }),
+    getMutualFriends: (friendId) => ipcRenderer.invoke('social:getMutualFriends', friendId),
     unfriend: (friendId) => ipcRenderer.invoke('social:unfriend', friendId),
     block: (targetId) => ipcRenderer.invoke('social:block', targetId),
     unblock: (targetId) => ipcRenderer.invoke('social:unblock', targetId),

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Ban, CalendarDays, Server, Trash2, UserMinus, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Ban, CalendarDays, Server, Users, Trash2, UserMinus, X } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import Badges, { getUserBadges } from './Badges.jsx';
 import './UserProfilePanel.css';
@@ -23,6 +23,22 @@ export default function UserProfilePanel({
   const [confirmUnfriend, setConfirmUnfriend] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  const [mutual, setMutual] = useState(Array.isArray(user?.mutualFriends) ? user.mutualFriends : []);
+  const userId = user?.id;
+
+  useEffect(() => {
+    setMutual(Array.isArray(user?.mutualFriends) ? user.mutualFriends : []);
+    if (!userId || isGroup) return undefined;
+    let cancelled = false;
+    const api = window.noctra?.social;
+    api?.getMutualFriends?.(userId)
+      .then((res) => {
+        if (!cancelled && res?.ok && Array.isArray(res.mutual)) setMutual(res.mutual);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [userId, isGroup]);
 
   if (!user) return null;
 
@@ -105,6 +121,25 @@ export default function UserProfilePanel({
             )}
           </div>
         </div>
+
+        {/* Mutual friends */}
+        {!isGroup && (
+          <div className="np-block">
+            <span className="np-label">Mutual friends{mutual.length ? ` — ${mutual.length}` : ''}</span>
+            <div className="np-card np-mutual">
+              {mutual.length === 0 ? (
+                <span className="np-mutual-empty"><Users size={13} /> No mutual friends</span>
+              ) : (
+                mutual.map((friend, i) => (
+                  <div className="np-mutual-row" key={friend.id || friend.name || i}>
+                    <RelayAvatar name={friend.name} skinUrl={friend.skinUrl} size={24} />
+                    <span className="np-mutual-name">{friend.nickname || friend.name}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         {!isGroup && (
