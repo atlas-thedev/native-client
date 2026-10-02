@@ -12,8 +12,12 @@ function contentSecurityPolicy() {
     name: 'noctra-csp',
     apply: 'build',
     transformIndexHtml(html) {
+      // Browsers normalise CRLF/CR to LF before hashing inline scripts, so
+      // hash the normalised text. Otherwise Windows (CRLF) checkouts produce
+      // a hash that never matches and the inline boot script is blocked.
       const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
-        .map((match) => `'sha256-${createHash('sha256').update(match[1]).digest('base64')}'`);
+        .map((match) => match[1].replace(/\r\n?/g, '\n'))
+        .map((body) => `'sha256-${createHash('sha256').update(body).digest('base64')}'`);
       const policy = [
         "default-src 'self'",
         `script-src 'self' ${hashes.join(' ')}`.trim(),
