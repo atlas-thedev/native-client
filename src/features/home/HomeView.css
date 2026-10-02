@@ -30,6 +30,38 @@
   animation: home-bg-in 0.6s var(--ease-out) both;
 }
 
+/* Small artwork: soft full-bleed backdrop + a sharp picture at (almost) its real size. */
+.home-bg-img.is-backdrop {
+  filter: blur(28px) saturate(1.15) brightness(0.8);
+  transform: scale(1.12);
+  animation: none;
+}
+
+.home-bg-sharp {
+  position: absolute;
+  top: 50%;
+  /* sits in the free space left of the 360px side panel */
+  right: calc(var(--home-padding, 32px) + 360px + 64px);
+  width: min(46vh, 30vw, 600px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  transform: translateY(-58%);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  image-rendering: auto;
+  animation: home-bg-sharp-in 0.5s var(--ease-out) both;
+}
+
+@media (max-width: 900px) {
+  .home-bg-sharp { right: 24px; }
+}
+
+@keyframes home-bg-sharp-in {
+  from { opacity: 0; transform: translateY(-56%) scale(0.98); }
+  to { opacity: 1; transform: translateY(-58%); }
+}
+
 @keyframes home-bg-in {
   from {
     opacity: 0;
