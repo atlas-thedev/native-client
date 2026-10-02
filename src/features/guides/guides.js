@@ -293,14 +293,25 @@ function cleanVideo(id, entry) {
 /** { [videoId]: video } with manifest data merged in once it loads. */
 export function useGuideVideos() {
   const [manifest, setManifest] = useState(null);
+  // 'loading' until the hosted manifest answers; built-in defaults are only used
+  // if it fails, so the player never flashes an outdated poster or video first.
+  const [state, setState] = useState('loading');
   useEffect(() => {
     let cancelled = false;
-    loadGuideManifest().then((json) => { if (!cancelled && json) setManifest(json); });
+    loadGuideManifest().then((json) => {
+      if (cancelled) return;
+      if (json) setManifest(json);
+      setState(json ? 'ready' : 'failed');
+    });
     return () => { cancelled = true; };
   }, []);
   const videos = {};
   for (const guide of GUIDES) {
-    if (guide.video && !videos[guide.video]) videos[guide.video] = cleanVideo(guide.video, manifest?.videos?.[guide.video]);
+    if (guide.video && !videos[guide.video]) {
+      videos[guide.video] = state === 'loading'
+        ? { id: guide.video, pending: true, src: null, poster: null, duration: null, chapters: [] }
+        : cleanVideo(guide.video, manifest?.videos?.[guide.video]);
+    }
   }
   return videos;
 }

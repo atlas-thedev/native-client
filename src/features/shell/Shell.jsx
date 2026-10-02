@@ -136,6 +136,9 @@ export default function Shell({
     hasValidAccount &&
     (account.type === 'noctra' || account.type === 'native')
   );
+  // The Locker works for premium accounts too: LockerView switches to the
+  // account's real Minecraft capes (official profile API) for Microsoft.
+  const canUseLocker = Boolean(isNoctra || (hasValidAccount && account.type === 'microsoft'));
 
   // A premium account connected to Noctra acts as that Noctra account for
   // Relay, friends and the other online features.
@@ -646,7 +649,7 @@ export default function Shell({
           isAccountOpen={!hasValidAccount || accountSwitcherOpen}
           account={launchAccount}
           isNoctra={hasNoctra}
-          canUseLocker={isNoctra || canUseLocalLocker}
+          canUseLocker={canUseLocker || canUseLocalLocker}
           notifications={notifications.length}
           onOpenNotifications={() => setNotificationsOpen(true)}
           isMaximized={isMaximized}
@@ -693,7 +696,7 @@ export default function Shell({
           )}
 
         {currentTab === 'skins' && (
-          isNoctra || canUseLocalLocker ? (
+          canUseLocker || canUseLocalLocker ? (
             <LockerView
               account={account}
               onWardrobeChanged={onWardrobeChanged}

@@ -297,16 +297,34 @@
   border-radius: 14px;
   background: #050506;
 }
+.guide-video-frame.is-pending { animation: guide-pending 1.4s ease-in-out infinite alternate; }
+@keyframes guide-pending { from { background: #050506; } to { background: #0b0b0e; } }
+@media (prefers-reduced-motion: reduce) { .guide-video-frame.is-pending { animation: none; } }
 .guide-video-frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .guide-video-play {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  padding: 0;
   border: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55));
+  background: #050506;
   cursor: pointer;
 }
+/* Thumbnail shown until playback starts (the <video> poster disappears as soon
+   as the element seeks, so it isn't reliable for chapter guides). */
+.guide-video-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transition: transform 0.4s var(--g-ease), filter 0.4s var(--g-ease);
+}
+.guide-video-play:hover .guide-video-poster { transform: scale(1.015); filter: brightness(1.06); }
+.guide-video-play-btn { position: relative; z-index: 1; }
+.guide-video-length { z-index: 1; }
 .guide-video-play-btn {
   width: 62px;
   height: 62px;
@@ -396,3 +414,17 @@
   .guides-page * { animation: none !important; transition: none !important; }
 }
 :root[data-motion='reduced'] .guides-page * { animation: none !important; transition: none !important; }
+
+/* Video guides lead with their thumbnail. */
+.guide-card-thumb {
+  display: block;
+  aspect-ratio: 16 / 9;
+  align-self: stretch;
+  margin: -6px -6px 4px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #050506;
+}
+.guide-card-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s var(--g-ease); }
+.guide-card:hover .guide-card-thumb img { transform: scale(1.03); }

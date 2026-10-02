@@ -129,7 +129,12 @@ function GuideCard({ guide, video, index, onOpen }) {
   const Icon = CATEGORY_ICON[guide.category] || BookOpen;
   const length = formatDuration(video?.duration);
   return (
-    <button type="button" className="guide-card" style={{ '--i': index }} onClick={onOpen}>
+    <button type="button" className={`guide-card${video ? ' has-thumb' : ''}`} style={{ '--i': index }} onClick={onOpen}>
+      {video && (
+        <span className="guide-card-thumb" aria-hidden="true">
+          {video.poster && <img src={video.poster} alt="" loading="lazy" draggable={false} onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
+        </span>
+      )}
       <span className="guide-card-top">
         <span className="guide-card-icon"><Icon size={15} aria-hidden="true" /></span>
         {video && (

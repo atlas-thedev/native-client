@@ -35,6 +35,7 @@ export default function GuideVideo({ video, title, autoPlay = false, compact = f
   const [current, setCurrent] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [duration, setDuration] = useState(video?.duration || null);
+  const [posterBroken, setPosterBroken] = useState(false);
 
   useEffect(() => {
     setStarted(autoPlay);
@@ -42,7 +43,8 @@ export default function GuideVideo({ video, title, autoPlay = false, compact = f
     setReady(false);
     setCurrent(0);
     setDuration(video?.duration || null);
-  }, [video?.src, autoPlay]);
+    setPosterBroken(false);
+  }, [video?.src, video?.poster, autoPlay]);
 
   /* Poster: show a skeleton until it has loaded. */
   useEffect(() => {
@@ -76,6 +78,13 @@ export default function GuideVideo({ video, title, autoPlay = false, compact = f
   }, [failed]);
 
   if (!video) return null;
+  if (video.pending) {
+    return (
+      <div className={`guide-video${compact ? ' is-compact' : ''}`}>
+        <div className="guide-video-frame is-pending" aria-busy="true" />
+      </div>
+    );
+  }
 
   // Guides that share one long walkthrough start at their own chapter.
   const startAt = Number(video.start) > 0 ? Number(video.start) : 0;
@@ -141,7 +150,9 @@ export default function GuideVideo({ video, title, autoPlay = false, compact = f
             onLoadedMetadata={(event) => {
               setReady(true);
               setDuration(event.currentTarget.duration || null);
-              if (startAt && event.currentTarget.currentTime < 0.5) event.currentTarget.currentTime = startAt;
+              // Seeking before playback replaces the poster with a video frame, so
+              // only jump to the guide's chapter once the user has pressed play.
+              if (started && startAt && event.currentTarget.currentTime < 0.5) event.currentTarget.currentTime = startAt;
             }}
             onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
             onPlay={() => setStarted(true)}
@@ -153,7 +164,10 @@ export default function GuideVideo({ video, title, autoPlay = false, compact = f
         )}
         {!started && !failed && (ready || posterReady) && (
           <button type="button" className="guide-video-play" onClick={play} aria-label={title ? `Play: ${title}` : 'Play video'}>
-            <span className="guide-video-play-btn"><Play size={22} fill="currentColor" strokeWidth={0} /></span>
+            {video.poster && !posterBroken && (
+              <img className="guide-video-poster" src={video.poster} alt="" draggable={false} onError={() => setPosterBroken(true)} />
+            )}
+            <span className="guide-video-play-btn"><Play size={20} fill="currentColor" strokeWidth={0} /></span>
             {length && <span className="guide-video-length">{length}</span>}
           </button>
         )}
