@@ -1,0 +1,124 @@
+name: Release
+
+# Builds Windows, macOS and Linux installers and publishes them as a GitHub Release.
+#
+# Trigger it by pushing a version tag (release.bat does this for you):
+#   git tag v3.10.1 && git push origin v3.10.1
+# or run it manually from the Actions tab (builds the version in package.json).
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Never try to code-sign on CI (builds are unsigned; mac config has identity: null).
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version and validate tag
+        id: v
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${TAG}" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION} (expected ${TAG}). Use release.bat so they stay in sync."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG}"
+
+      # One draft release up front so the three platform jobs all upload into the same
+      # release instead of each racing to create its own.
+      - name: Create draft release if missing
+        shell: bash
+        run: |
+          TAG="${{ steps.v.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, reusing it."
+          else
+            gh release create "$TAG" --draft --title "Noctra Client $TAG" --generate-notes --target "$GITHUB_SHA"
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            flag: --win
+          - name: macOS
+            os: macos-latest
+            flag: --mac
+          - name: Linux
+            os: ubuntu-latest
+            flag: --linux
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build UI
+        run: npx vite build
+
+      - name: Package and upload to the release
+        run: npx electron-builder ${{ matrix.flag }} --publish always
+
+  publish:
+    name: Publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all platforms uploaded, then publish
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          echo "$NAMES"
+          missing=0
+          for f in latest.yml latest-mac.yml latest-linux.yml; do
+            if ! grep -qx "$f" <<<"$NAMES"; then echo "::error::Missing $f"; missing=1; fi
+          done
+          grep -qE '\.exe$' <<<"$NAMES"      || { echo "::error::No Windows installer (.exe)"; missing=1; }
+          grep -qE '\.dmg$' <<<"$NAMES"      || { echo "::error::No macOS disk image (.dmg)"; missing=1; }
+          grep -qE '\.AppImage$' <<<"$NAMES" || { echo "::error::No Linux AppImage"; missing=1; }
+          if [[ $missing -ne 0 ]]; then
+            echo "::error::Release $TAG left as a draft because some platform builds are missing."
+            exit 1
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Published $TAG"
