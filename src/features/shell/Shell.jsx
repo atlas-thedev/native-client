@@ -698,6 +698,7 @@ export default function Shell({
               account={account}
               onWardrobeChanged={onWardrobeChanged}
               onNotify={notify}
+              online={networkStatus?.state === 'online'}
             />
           ) : (
             <NoctraAccountGate

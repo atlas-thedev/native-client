@@ -589,3 +589,46 @@
   .locker-import-modal { grid-template-columns: 1fr; padding: 18px; }
   .import-modal-preview { height: 200px; }
 }
+
+/* ── Loading skeletons + sync status ─────────────────────────── */
+.locker-skel {
+  display: block;
+  border-radius: 14px;
+  background: linear-gradient(100deg, var(--component-bg) 30%, rgba(255, 255, 255, 0.09) 50%, var(--component-bg) 70%);
+  background-size: 220% 100%;
+  border: 1px solid var(--hairline);
+  animation: locker-shimmer 1.4s infinite ease-in-out;
+}
+.locker-skel-model { width: 170px; height: 330px; border-radius: 26px; }
+.locker-skel-card { flex: 0 0 150px; width: 150px; height: 215px; }
+.locker-skel-cape { flex: 0 0 96px; width: 96px; height: 130px; }
+@keyframes locker-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+.locker-header-actions { display: flex; align-items: center; gap: 10px; }
+.locker-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--component-bg);
+  color: var(--text-secondary, inherit);
+  font-size: 12px;
+  font-weight: 600;
+}
+.locker-sync-pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.locker-sync-pill.is-syncing i { animation: locker-pulse 1s infinite ease-in-out; }
+.locker-sync-pill.is-offline { opacity: 0.8; }
+@keyframes locker-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .locker-skel, .locker-sync-pill i { animation: none; }
+}

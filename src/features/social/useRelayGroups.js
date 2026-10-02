@@ -12,6 +12,23 @@ const EMPTY_THREAD = Object.freeze({ messages: [], hasMore: false, oldestTime: n
 const THREAD_PAGE_SIZE = 50;
 const TYPING_TTL = 6_000;
 
+const GROUPS_CACHE_PREFIX = 'noctra.relay.groups.';
+const PRELOAD_CONCURRENCY = 3;
+const PRELOAD_MAX_GROUPS = 12;
+
+function readGroupsCache(selfId) {
+  if (!selfId) return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(GROUPS_CACHE_PREFIX + selfId) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function writeGroupsCache(selfId, groups) {
+  if (!selfId) return;
+  try { localStorage.setItem(GROUPS_CACHE_PREFIX + selfId, JSON.stringify(groups.slice(0, 60))); } catch { /* quota */ }
+}
+
 const relay = () => (typeof window !== 'undefined' ? window.native?.relay : null);
 const optimisticId = () => `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -36,16 +53,21 @@ function mergeMessages(existing = [], incoming = []) {
 }
 
 export function useRelayGroups({ selfId, selfName } = {}) {
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState(() => readGroupsCache(selfId));
   const [threads, setThreads] = useState({});
   const [activeGroupId, setActiveGroupId] = useState(null);
+  // Only "loading" while there is nothing saved to show yet.
   const [loadingGroups, setLoadingGroups] = useState(true);
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
   const [loadingThread, setLoadingThread] = useState(false);
   const [typingByGroup, setTypingByGroup] = useState({});
   const [readByGroup, setReadByGroup] = useState({});
   const [replyTarget, setReplyTarget] = useState(null);
   const [groupError, setGroupError] = useState(null);
 
+  const selfIdRef = useRef(selfId);
+  selfIdRef.current = selfId;
   const inFlightThreadsRef = useRef(new Set());
   const threadsRef = useRef({});
   threadsRef.current = threads;
@@ -59,41 +81,73 @@ export function useRelayGroups({ selfId, selfName } = {}) {
     return { ok: false, error: message };
   }, []);
 
+  // Warm the newest groups' threads a few at a time so the list itself is never held up.
+  const preloadThreads = useCallback(async (list) => {
+    const api = relay();
+    if (!api || !list.length) return;
+    const queue = list.slice(0, PRELOAD_MAX_GROUPS);
+    const worker = async () => {
+      while (queue.length) {
+        const group = queue.shift();
+        try {
+          const res = await api.getGroupMessages(group.id, { limit: 25 });
+          if (res?.ok) {
+            setThreads((previous) => ({
+              ...previous,
+              [group.id]: {
+                messages: mergeMessages(previous[group.id]?.messages, res.messages || []),
+                hasMore: Boolean(res.hasMore),
+                oldestTime: res.oldestTime,
+                loaded: true,
+                loading: false
+              }
+            }));
+          }
+        } catch { /* next one */ }
+      }
+    };
+    await Promise.all(Array.from({ length: PRELOAD_CONCURRENCY }, worker));
+  }, []);
+
   const refreshGroups = useCallback(async () => {
     const api = relay();
     if (!api) { setLoadingGroups(false); return; }
-    const result = await api.getGroups();
+    let result = null;
+    // One quick retry: the first request after sign-in sometimes races the session.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try { result = await api.getGroups(); } catch { result = null; }
+      if (result?.ok || result?.offline) break;
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
     if (result?.ok) {
       const list = result.groups || [];
       setGroups(list);
+      writeGroupsCache(selfIdRef.current, list);
       setGroupError(null);
-      // Preload recent group messages in background so opening any group is instantaneous
-      if (list.length > 0) {
-        Promise.allSettled(
-          list.map(async (group) => {
-            const res = await api.getGroupMessages(group.id, { limit: 25 });
-            if (res?.ok) {
-              setThreads((previous) => ({
-                ...previous,
-                [group.id]: {
-                  messages: mergeMessages(previous[group.id]?.messages, res.messages || []),
-                  hasMore: Boolean(res.hasMore),
-                  oldestTime: res.oldestTime,
-                  loaded: true,
-                  loading: false
-                }
-              }));
-            }
-          })
-        );
-      }
-    } else if (result?.error) {
-      setGroupError(result.error);
+      setLoadingGroups(false);
+      // Background: opening any group is instant, without hammering the server.
+      setTimeout(() => preloadThreads(list), 250);
+    } else {
+      // Offline / failed: keep showing the saved list instead of an empty inbox.
+      if (result?.error && !result?.offline && groupsRef.current.length === 0) setGroupError(result.error);
+      setLoadingGroups(false);
     }
-    setLoadingGroups(false);
-  }, []);
+  }, [preloadThreads]);
 
-  useEffect(() => { refreshGroups(); }, [refreshGroups]);
+  // Account switched/signed in: show that account's saved groups right away, then refresh.
+  useEffect(() => {
+    const saved = readGroupsCache(selfId);
+    if (saved.length) setGroups(saved);
+    setLoadingGroups(saved.length === 0);
+    refreshGroups();
+  }, [refreshGroups, selfId]);
+
+  // Connection came back: re-fetch quietly in the background.
+  useEffect(() => {
+    const onBack = () => { refreshGroups(); };
+    window.addEventListener('noctra:reconnected', onBack);
+    return () => window.removeEventListener('noctra:reconnected', onBack);
+  }, [refreshGroups]);
 
   const patchGroup = useCallback((group) => {
     if (!group?.id) return;

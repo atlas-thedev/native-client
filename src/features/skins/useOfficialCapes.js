@@ -66,6 +66,13 @@ export default function useOfficialCapes(account) {
     load('load');
   }, [load]);
 
+  // Back online: refresh the real cape list quietly (the saved one stays on screen).
+  useEffect(() => {
+    const onBack = () => { load('load'); };
+    window.addEventListener('noctra:reconnected', onBack);
+    return () => window.removeEventListener('noctra:reconnected', onBack);
+  }, [load]);
+
   const equip = useCallback(async (capeId) => {
     const acc = accountRef.current;
     const wardrobe = window.native?.wardrobe;

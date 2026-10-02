@@ -15,13 +15,15 @@ const SKINS_PER_PAGE = 5;
 // a bundled preset can be recognized as the same cape the account already owns.
 const normalizeCapeName = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/cape$/, '');
 
-export default function LockerView({ account, onWardrobeChanged, onNotify }) {
+export default function LockerView({ account, onWardrobeChanged, onNotify, online = true }) {
   const { t } = useI18n();
   // Offline accounts keep their skins on this PC only; nothing is sent to Noctra.
   const localOnly = account?.type === 'offline';
   const [wardrobe, setWardrobe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  // 'idle' | 'syncing' | 'offline' — the cloud copy is fetched in the background.
+  const [cloud, setCloud] = useState('idle');
   const [paused, setPaused] = useState(false);
   const [showCape, setShowCape] = useState(true);
   const [showLayers, setShowLayers] = useState(true);
@@ -39,21 +41,39 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
     return next;
   };
 
+  // Accounts whose locker lives in the Noctra cloud: Noctra accounts, and premium
+  // accounts connected to one. Everyone else only has this PC's copy.
+  const cloudAccount = !localOnly && (account?.type === 'noctra' || (account?.type === 'microsoft' && Boolean(account?.noctraLink?.connected)));
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  const syncRun = useRef(0);
+
+  // Pull the cloud copy / publish local edits without ever blocking the saved one.
+  const syncInBackground = async () => {
+    if (!account || !cloudAccount) { setCloud('idle'); return; }
+    if (!onlineRef.current) { setCloud('offline'); return; }
+    const run = ++syncRun.current;
+    setCloud('syncing');
+    try {
+      const res = await window.native?.wardrobe?.sync?.(account);
+      if (run !== syncRun.current) return;
+      if (res?.pulled && res?.state) publishState(res.state);
+      else if (res?.ok) window.native.wardrobe.get(account).then((next) => { if (run === syncRun.current) publishState(next); }).catch(() => {});
+      setCloud(res?.offline ? 'offline' : 'idle');
+    } catch {
+      if (run === syncRun.current) setCloud(onlineRef.current ? 'idle' : 'offline');
+    }
+  };
+
   const loadWardrobe = async () => {
     if (!account) return;
     setLoading(true);
     try {
       if (window.native?.wardrobe?.get) {
+        // The saved copy on this PC is shown straight away (instant when offline).
         const current = await window.native.wardrobe.get(account);
         publishState(current);
-        // Automatically sync with cloud in background so any remote changes are pulled
-        if (!localOnly) window.native.wardrobe.sync(account).then((res) => {
-          if (res?.pulled && res?.state) {
-            publishState(res.state);
-          } else if (res?.ok) {
-            window.native.wardrobe.get(account).then(publishState).catch(() => {});
-          }
-        }).catch(() => {});
+        syncInBackground();
       } else {
         const saved = localStorage.getItem(`noctra.wardrobe.${account.id || 'default'}`)
           || localStorage.getItem(`native.wardrobe.${account.id || 'default'}`);
@@ -67,6 +87,16 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
   };
 
   useEffect(() => { loadWardrobe(); }, [account?.id]);
+
+  // Connection lost -> keep working from the saved copy. Connection back -> sync again in the background.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    const before = wasOnline.current;
+    wasOnline.current = online;
+    if (!cloudAccount) return;
+    if (!online) setCloud('offline');
+    else if (!before) syncInBackground();
+  }, [online]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -82,6 +112,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
   // we fall back to the preset strip so the user is never left without capes.
   const officialMode = official.active;
   const showOfficialCards = officialMode && !official.loading && !official.error;
+
+  // Skeletons: shown while the first read is in flight, and (cloud accounts) while the
+  // cloud copy loads for the very first time. A saved copy is never hidden behind them.
+  const hasSavedContent = Boolean(wardrobe?.items?.length || wardrobe?.active?.skinUrl);
+  const skeleton = loading || (cloudAccount && online && cloud === 'syncing' && !hasSavedContent);
+  const capesSkeleton = skeleton || (officialMode && official.loading && !official.capes?.length);
 
   const currentModel = wardrobe?.model || account?.model || 'classic';
   // Official cape equips never touch the local wardrobe, so feed the active
@@ -276,6 +312,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
           </div>
         </div>
       ) : (
+      <div className="locker-header-actions">
+      {cloudAccount && cloud === 'syncing' && hasSavedContent && online && <span className="locker-sync-pill is-syncing" role="status"><i/>Syncing your locker…</span>}
+      {cloudAccount && (cloud === 'offline' || !online) && <span className="locker-sync-pill is-offline" role="status"><i/>Offline · showing your saved locker</span>}
       <button
         type="button"
         className="locker-sync-btn"
@@ -287,24 +326,26 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
         <RefreshCw size={13} className={syncing ? 'is-spinning' : ''}/>
         <span>{syncing ? t('locker.syncing') : t('locker.syncButton')}</span>
       </button>
+      </div>
       )}
     </header>
     <div className="locker-workspace">
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>
         <div className="locker-stage-heading"><h2>{t('locker.currentSkin')}</h2><div className="locker-stage-toggles"><button type="button" className={showCape ? 'active' : ''} onClick={() => setShowCape((value) => !value)} title={showCape ? 'Hide cape' : 'Show cape'}>{showCape ? <Eye size={15}/> : <EyeOff size={15}/>}</button><button type="button" className={showLayers ? 'active' : ''} onClick={() => setShowLayers((value) => !value)} title={showLayers ? 'Hide outer layer' : 'Show outer layer'}><Layers size={15}/></button></div></div>
-        <div className="locker-stage-model">{loading ? <span className="locker-loading"/> : <SkinViewer3D account={viewerAccount} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; }}/>}</div>
+        <div className="locker-stage-model">{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; }}/>}</div>
         <div className="locker-stage-actions"><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
         <section className="locker-row locker-skins-row"><div className="locker-row-header"><div><span className="locker-kicker">{t('locker.favorites')}</span><h2>{t('locker.latest')}</h2></div><CarouselControls page={skinPage} pages={skinPages} setPage={setSkinPage}/></div><div className="locker-skin-strip">
           <button type="button" className="locker-upload-card" onClick={() => fileInputRef.current?.click()}><span className="locker-upload-plus"><Plus size={18}/></span><strong>{t('locker.uploadSkin')}</strong><small>{t('locker.dragDrop')}</small></button>
-          {visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
-          {!visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
+          {skeleton && [0, 1, 2, 3].map((n) => <div key={`skel-${n}`} className="locker-skel locker-skel-card" style={{ animationDelay: `${n * 120}ms` }}/>)}
+          {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
+          {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
         </div></section>
         <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div>
-          {officialMode && official.loading && <div className="locker-cape-status"><span className="locker-loading"/><span>{t('locker.officialLoading')}</span></div>}
+          {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
-          {!(officialMode && official.loading) && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
+          {!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
           {showOfficialCards && <p className="locker-cape-hint">{t('locker.officialHint')}</p>}
         </section>
       </main>

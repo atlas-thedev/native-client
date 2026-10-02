@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { dialog } = require('electron');
+const { dialog, net } = require('electron');
 const { downloadFile, writeFileAtomic } = require('./download');
 const safeFile = require('./safeFile');
 
@@ -33,6 +33,12 @@ const MAX_PNG_BYTES = 5 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 let deps = null;
+
+/** Electron's own connectivity flag: instant, no request. Defaults to online when unknown. */
+function isOnline() {
+  try { return net?.isOnline ? net.isOnline() : true; } catch { return true; }
+}
+
 
 const wardrobeRoot = () => path.join(deps.app.getPath('userData'), 'wardrobe');
 const cacheDir = () => path.join(deps.app.getPath('userData'), 'cache', 'skins');
@@ -310,6 +316,7 @@ function warmSkinCache(account) {
   const target = skinCacheFile(account);
   const username = path.basename(target, '.png');
   if (fs.existsSync(target)) return Promise.resolve(true);
+  if (!isOnline()) return Promise.resolve(false);
   if (warmingSkins.has(username)) return warmingSkins.get(username);
 
   const task = (async () => {
@@ -588,6 +595,7 @@ async function pullRemoteWardrobe(account) {
   // The Noctra server resolves wardrobes by username: never pull another
   // account's cosmetics into a Microsoft profile that happens to share it.
   if (isMicrosoftAccount(account) || isLocalOnlyAccount(account)) return null;
+  if (!isOnline()) return null;
   const username = cleanName(account.name, 'Player');
 
   try {
@@ -769,6 +777,9 @@ async function syncWardrobe(account) {
   if (!account?.name || account.name === 'guest') return { ok: false };
   if (isLocalOnlyAccount(account)) return { ok: false, localOnly: true, state: publicState(account) };
   if (isMicrosoftAccount(account)) return { ok: false };
+  // Offline: the on-disk locker is the source of truth. Callers re-sync when the
+  // connection comes back, so nothing is lost.
+  if (!isOnline()) return { ok: false, offline: true, state: publicState(account) };
   const username = cleanName(account.name, 'Player');
   let metadata = loadMetadata(account);
 
@@ -906,7 +917,43 @@ async function minecraftRequest(account, pathname, options = {}, { forceRefresh 
  * Tries the cached profile from MSMC first, then api.minecraftservices.com,
  * and falls back to Mojang session server if required.
  */
-async function officialProfile(account, { forceRefresh = false } = {}) {
+function officialProfileCacheFile(account) {
+  const id = String(typeof account === 'string' ? account : (account?.id || account?.uuid || account?.name || 'guest')).replace(/[^a-zA-Z0-9_-]/g, '');
+  return path.join(cacheDir(), `official-${id || 'player'}.json`);
+}
+
+function readOfficialProfileCache(account) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(officialProfileCacheFile(account), 'utf8'));
+    return parsed && (parsed.capes || parsed.skins) ? { ...parsed, cached: true } : null;
+  } catch { return null; }
+}
+
+function writeOfficialProfileCache(account, profile) {
+  try {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    fs.writeFileSync(officialProfileCacheFile(account), JSON.stringify(profile));
+  } catch {}
+}
+
+/** Cached copy first when offline, fresh copy (and cache refresh) when online. */
+async function officialProfile(account, options = {}) {
+  if (!isOnline()) {
+    const cached = readOfficialProfileCache(account);
+    if (cached) return cached;
+  }
+  try {
+    const fresh = await fetchOfficialProfile(account, options);
+    if (fresh) writeOfficialProfileCache(account, fresh);
+    return fresh;
+  } catch (error) {
+    const cached = readOfficialProfileCache(account);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+async function fetchOfficialProfile(account, { forceRefresh = false } = {}) {
   const accountId = typeof account === 'string' ? account : account?.id;
   const isMicrosoft = account?.type === 'microsoft' || account?.isMicrosoft;
 

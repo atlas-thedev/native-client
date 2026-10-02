@@ -14,11 +14,8 @@ const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const COMMUNITY = {
-  discord: 'https://discord.gg/noctra',
-  x: 'https://x.com/noctraclient',
-  instagram: 'https://instagram.com/noctraclient',
-  youtube: 'https://youtube.com/@noctraclient',
-  patreon: 'https://patreon.com/noctraclient'
+  discord: 'https://discord.gg/Cb3DCf6G7a',
+  youtube: 'https://www.youtube.com/@noctra-client'
 };
 
 const LEGAL = 'https://noctra.client';
@@ -644,7 +641,7 @@ export default function AccountSwitcherModal({
 
                 {/* Social links row */}
                 <div className="account-login-social" role="group" aria-label={t('account.community') || 'Community'}>
-                  {['Discord', 'X', 'Instagram', 'YouTube', 'Patreon'].map((brand) => (
+                  {['Discord', 'YouTube'].map((brand) => (
                     <button
                       key={brand}
                       type="button"

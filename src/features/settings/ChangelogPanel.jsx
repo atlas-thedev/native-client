@@ -9,7 +9,14 @@ const PRIMARY_RELEASES_API =
   'https://api.github.com/repos/atlas-thedev/noctra-client/releases?per_page=12';
 const LEGACY_RELEASES_API =
   'https://api.github.com/repos/ohllama0909-alt/noctra-client/releases?per_page=12';
-const RELEASES_PAGE = 'https://github.com/atlas-thedev/noctra-client/releases';
+
+const CACHE_KEY = 'noctra.changelog.cache';
+function readCache() {
+  try {
+    const value = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
 
 function cleanVersion(tag) {
   return String(tag || '').replace(/^v/i, '');
@@ -71,7 +78,8 @@ export default function ChangelogPanel({ onOpenUpdater }) {
         }
         if (cancelled) return;
         if (!json || !Array.isArray(json)) {
-          setError(t('changelog.error'));
+          const cached = readCache();
+          if (cached.length) { setReleases(cached); setOpenId(cached[0]?.id ?? null); } else setError(t('changelog.error'));
           return;
         }
         const mapped = json
@@ -88,8 +96,13 @@ export default function ChangelogPanel({ onOpenUpdater }) {
           }));
         setReleases(mapped);
         setOpenId(mapped[0]?.id ?? null);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(mapped)); } catch { /* quota */ }
       } catch {
-        if (!cancelled) setError(t('changelog.error'));
+        // Offline: show the notes saved the last time we were online.
+        const cached = readCache();
+        if (cached.length) {
+          if (!cancelled) { setReleases(cached); setOpenId(cached[0]?.id ?? null); }
+        } else if (!cancelled) setError(t('changelog.error'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -153,14 +166,6 @@ export default function ChangelogPanel({ onOpenUpdater }) {
               <span>{t('settings.checkUpdates')}</span>
             </button>
           )}
-          <button
-            type="button"
-            className="sp-ghost-btn"
-            onClick={() => openExternal(RELEASES_PAGE)}
-          >
-            <NativeIcon name="external-link" size={13} />
-            <span>{t('changelog.allReleases')}</span>
-          </button>
         </div>
       </div>
 
@@ -208,17 +213,6 @@ export default function ChangelogPanel({ onOpenUpdater }) {
                   ) : (
                     <p className="cl-body-text">{t('changelog.noNotes')}</p>
                   )}
-
-                  <div className="cl-body-footer">
-                    <button
-                      type="button"
-                      className="sp-ghost-btn"
-                      onClick={() => openExternal(release.url)}
-                    >
-                      <NativeIcon name="external-link" size={13} />
-                      <span>{t('changelog.openGitHub')}</span>
-                    </button>
-                  </div>
                 </div>
               )}
             </article>

@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { safeStorage } = require('electron');
+const { safeStorage, net } = require('electron');
 const safeFile = require('./safeFile');
 
 /**
@@ -129,7 +129,14 @@ function stripStatus(result) {
   return result;
 }
 
+/** Electron's own connectivity flag: instant, no request. Defaults to online when unknown. */
+function isOnline() {
+  try { return net?.isOnline ? net.isOnline() : true; } catch { return true; }
+}
+
 async function socialFetchOnce(endpoint, { method = 'GET', body = null, token = null } = {}) {
+  // Offline: answer immediately so the UI falls back to its saved copy instead of waiting on a timeout.
+  if (!isOnline()) return { ok: false, offline: true, error: 'You are offline.' };
   const account = getActiveNoctraAccount();
   const authToken = token || tokenOf(account);
   if (!authToken) {
@@ -557,6 +564,7 @@ function init(dependencies, ipcMain) {
 }
 
 module.exports = {
+  isOnline,
   API_ROOTS,
   init,
   setPresence,

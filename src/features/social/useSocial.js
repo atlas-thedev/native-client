@@ -18,6 +18,39 @@ const RECONCILE_INTERVAL = 20_000;
 const PER_FRIEND_PRELOAD = 40;
 const THREAD_PAGE_SIZE = 50;
 
+const SOCIAL_CACHE_PREFIX = 'noctra.relay.social.';
+const CACHE_THREAD_MESSAGES = 20;
+const CACHE_MAX_THREADS = 40;
+
+function readSocialCache(selfId) {
+  if (!selfId) return null;
+  try {
+    const value = JSON.parse(localStorage.getItem(SOCIAL_CACHE_PREFIX + selfId) || 'null');
+    return value && Array.isArray(value.friends) ? value : null;
+  } catch { return null; }
+}
+
+function writeSocialCache(selfId, friends, conversations) {
+  if (!selfId) return;
+  try {
+    const trimmed = {};
+    Object.entries(conversations || {})
+      .filter(([, thread]) => thread?.messages?.length)
+      .sort((a, b) => (b[1].messages.at(-1)?.createdAt || 0) - (a[1].messages.at(-1)?.createdAt || 0))
+      .slice(0, CACHE_MAX_THREADS)
+      .forEach(([id, thread]) => {
+        trimmed[id] = {
+          messages: thread.messages.filter((m) => !String(m.id).startsWith('optimistic-')).slice(-CACHE_THREAD_MESSAGES),
+          hasMore: true,
+          oldestTime: thread.messages[0]?.createdAt ?? null,
+          loading: false,
+          loaded: true
+        };
+      });
+    localStorage.setItem(SOCIAL_CACHE_PREFIX + selfId, JSON.stringify({ friends, conversations: trimmed, at: Date.now() }));
+  } catch { /* quota */ }
+}
+
 function sortMessages(list) {
   return [...list].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
@@ -54,14 +87,15 @@ export function useSocial(account) {
   const isNoctra = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken || account?.linkedPremium));
   const selfId = account?.id || null;
 
-  const [friends, setFriends] = useState([]);
+  const initialCache = useMemo(() => (isNoctra ? readSocialCache(selfId) : null), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [friends, setFriends] = useState(() => initialCache?.friends || []);
   const [requests, setRequests] = useState({ received: [], sent: [] });
-  const [conversations, setConversations] = useState({});
+  const [conversations, setConversations] = useState(() => initialCache?.conversations || {});
   const [blocked, setBlocked] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [typingBy, setTypingBy] = useState({});
   const [streamStatus, setStreamStatus] = useState('connecting');
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(() => !initialCache);
   const [socialError, setSocialError] = useState(null);
   const [liveUserCount, setLiveUserCount] = useState(null);
 
@@ -214,6 +248,13 @@ export function useSocial(account) {
     }
   }, []);
 
+  // Keep a saved copy so the inbox opens instantly next time, and works offline.
+  useEffect(() => {
+    if (!isNoctra || !selfId || initialLoading) return undefined;
+    const timer = setTimeout(() => writeSocialCache(selfId, friends, conversations), 1500);
+    return () => clearTimeout(timer);
+  }, [isNoctra, selfId, initialLoading, friends, conversations]);
+
   const refresh = useCallback(async () => {
     loadStats();
     if (!isNoctra) {
@@ -228,9 +269,22 @@ export function useSocial(account) {
   }, [isNoctra, loadFriends, loadRequests, loadConversations, loadBlocked, loadStats]);
 
   useEffect(() => {
-    setInitialLoading(true);
+    // A saved copy means there is nothing to wait for: refresh quietly behind it.
+    const saved = isNoctra ? readSocialCache(selfId) : null;
+    if (saved) {
+      setFriends((current) => (current.length ? current : saved.friends));
+      setConversations((current) => (Object.keys(current).length ? current : saved.conversations || {}));
+    }
+    setInitialLoading(!saved);
     refresh();
   }, [refresh, account?.id]);
+
+  // Connection came back: refresh everything in the background.
+  useEffect(() => {
+    const onBack = () => { refresh(); };
+    window.addEventListener('noctra:reconnected', onBack);
+    return () => window.removeEventListener('noctra:reconnected', onBack);
+  }, [refresh]);
 
   // Slow reconciliation only - realtime events do the heavy lifting.
   useEffect(() => {

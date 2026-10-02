@@ -112,6 +112,20 @@ function loadPersistedState() {
  * seconds. Overlay what we know live: friends from the realtime friend list and
  * ourselves from the launcher's own presence.
  */
+/** Placeholder inbox rows shown while threads are still loading. */
+function ThreadSkeletons({ count = 3 }) {
+  return (
+    <div className="relay-thread-skeletons" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <div className="relay-thread-skeleton" key={i} style={{ animationDelay: `${i * 110}ms` }}>
+          <span className="relay-skel-avatar" />
+          <span className="relay-skel-lines"><span /><span /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function withLivePresence(group, friends, selfId, selfPresence) {
   if (!group?.members?.length) return group;
   const byId = new Map((friends || []).map((friend) => [friend.id, friend]));
@@ -942,7 +956,12 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
         </div>
 
         <div className="relay-inbox-scroll">
-          {allThreads.length === 0 ? (
+          {allThreads.length === 0 && (social?.initialLoading || relayGroups.loadingGroups) ? (
+            <>
+              <section className="relay-section"><div className="relay-section-header"><span>Groups</span></div><ThreadSkeletons count={2} /></section>
+              <section className="relay-section"><div className="relay-section-header"><span>Direct messages</span></div><ThreadSkeletons count={4} /></section>
+            </>
+          ) : allThreads.length === 0 ? (
             <div className="relay-empty-inbox">
               <div className="relay-empty-icon"><UserSquare2 size={38} strokeWidth={1.6} /></div>
               <div className="relay-empty-title">Nothing here yet</div>
@@ -964,7 +983,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
           ) : (
             sections.map((section) => {
               if (section.key === 'pinned' && section.list.length === 0) return null;
-              if (section.key === 'groups' && formattedGroups.length === 0) return null;
+              if (section.key === 'groups' && formattedGroups.length === 0 && !relayGroups.loadingGroups) return null;
               const isCollapsed = collapsed[section.key];
               return (
                 <section className="relay-section" key={section.key}>
@@ -981,7 +1000,9 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
                   {!isCollapsed && (
                     <div className="relay-threads-list">
                       {section.list.length === 0 ? (
-                        <div className="relay-section-empty">{section.empty}</div>
+                        (section.key === 'groups' && relayGroups.loadingGroups) || (section.key === 'direct' && social?.initialLoading)
+                          ? <ThreadSkeletons count={section.key === 'groups' ? 2 : 3} />
+                          : <div className="relay-section-empty">{section.empty}</div>
                       ) : (
                         section.list.map((thread, index) => (
                           <ThreadRow

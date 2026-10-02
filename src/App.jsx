@@ -41,6 +41,25 @@ export default function App() {
     };
   }, [activeAccount, cosmetics]);
 
+  // Back online after being offline: publish locker changes made offline and tell
+  // Relay / Locker to refresh, all in the background. Nothing blocks the UI.
+  const netState = network.status?.state;
+  const prevNetState = useRef(netState);
+  const activeAccountRef = useRef(null);
+  activeAccountRef.current = activeAccount;
+  useEffect(() => {
+    const previous = prevNetState.current;
+    prevNetState.current = netState;
+    if (netState !== 'online' || !previous || previous === 'online') return;
+    const current = activeAccountRef.current;
+    window.dispatchEvent(new CustomEvent('noctra:reconnected'));
+    if (current && current.type === 'noctra' && window.native?.wardrobe?.sync) {
+      window.native.wardrobe.sync(current).then((res) => {
+        if (res?.state) setWardrobe({ ...res.state, accountId: current.id });
+      }).catch(() => {});
+    }
+  }, [netState]);
+
   useEffect(() => {
     let cancelled = false;
     if (!activeAccount || !window.native?.wardrobe?.get) {

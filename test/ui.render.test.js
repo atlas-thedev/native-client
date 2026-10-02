@@ -71,7 +71,7 @@ process.stdout.write(html);
   assert.match(html, /Log in with/, 'Microsoft button keeps its label');
   assert.match(html, /account-login-native/, 'Native Account sign-in button exists');
   assert.match(html, /(Native|Noctra) Account/, 'Noctra Account button label exists');
-  for (const brand of ['Discord', 'X', 'Instagram', 'YouTube', 'Patreon']) {
+  for (const brand of ['Discord', 'YouTube']) {
     assert.ok(html.includes(`aria-label="${brand}"`), `social row has ${brand}`);
   }
   assert.match(html, /account-login-art/, 'artwork panel exists');

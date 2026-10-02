@@ -312,7 +312,7 @@ export default function SettingsView({
       { tab: 'storage', icon: Database, title: 'Clear download caches', desc: 'Free space used by manifests, artwork and cached data.', keywords: 'cache clear delete manifest artwork' },
       { tab: 'changelog', icon: History, title: 'Release notes', desc: 'Version history and patch notes.', keywords: 'changelog patch notes versions history' },
       { tab: 'about', icon: Info, title: 'About Noctra', desc: 'Launcher version, platform and credits.', keywords: 'about version platform architecture credits' },
-      { tab: 'about', icon: ExternalLink, title: 'GitHub repository & issue tracker', desc: 'Community and support links.', keywords: 'github repo issues bug support community' }
+      { tab: 'about', icon: ExternalLink, title: 'Community & support', desc: 'Discord and YouTube links.', keywords: 'discord youtube support community help' }
     ],
     [t, buildVersion]
   );
@@ -982,24 +982,24 @@ export default function SettingsView({
                   className="noctra-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
-                      ? window.native.openExternal('https://github.com/atlas-thedev/noctra-client')
-                      : window.open('https://github.com/atlas-thedev/noctra-client', '_blank')
+                      ? window.native.openExternal('https://discord.gg/Cb3DCf6G7a')
+                      : window.open('https://discord.gg/Cb3DCf6G7a', '_blank')
                   }
                 >
                   <ExternalLink size={14} />
-                  <span>GitHub Repository</span>
+                  <span>Discord</span>
                 </button>
                 <button
                   type="button"
                   className="noctra-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
-                      ? window.native.openExternal('https://github.com/atlas-thedev/noctra-client/issues')
-                      : window.open('https://github.com/atlas-thedev/noctra-client/issues', '_blank')
+                      ? window.native.openExternal('https://www.youtube.com/@noctra-client')
+                      : window.open('https://www.youtube.com/@noctra-client', '_blank')
                   }
                 >
                   <ExternalLink size={14} />
-                  <span>Issue Tracker</span>
+                  <span>YouTube</span>
                 </button>
               </div>
             </div>
