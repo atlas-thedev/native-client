@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
-const { Client, Authenticator } = require('minecraft-launcher-core');
+const { Client } = require('minecraft-launcher-core');
 const auth = require('./auth');
 const settingsMod = require('./settings');
 const javaMod = require('./java');
@@ -486,18 +486,17 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       return;
     }
 
-    // Microsoft account when signed in, offline auth otherwise
-    let authorization = null;
-    if (account?.useMicrosoft) {
-      setState('preparing', 'Refreshing Microsoft account…');
-      authorization = await auth.getMclcAuth();
-      if (!authorization) {
-        setState('error', 'Microsoft session expired — please sign in again.');
-        return;
-      }
+    // Microsoft accounts use a live session when Microsoft is reachable and
+    // fall back to their saved profile in offline mode; offline and Noctra
+    // accounts always launch with a local session. A launch never fails
+    // just because there is no internet.
+    if (account.useMicrosoft) setState('preparing', 'Refreshing Microsoft account…');
+    const { authorization: authResult, mode: authMode } = await auth.getLaunchAuth(account);
+    if (authMode === 'microsoft-offline') {
+      gameConsole.pushLauncher(`Microsoft is unreachable or the sign-in expired: playing offline as ${authResult.name}. Singleplayer, LAN and offline-mode servers work; online-mode servers need a fresh sign-in.`);
+    } else if (authMode === 'offline') {
+      gameConsole.pushLauncher(`Offline account ${authResult.name}: singleplayer, LAN and offline-mode (online-mode=false) servers are available.`);
     }
-
-    const authResult = authorization ?? (await Authenticator.getAuth(username));
 
     const opts = {
       root: rootDir(),
@@ -547,14 +546,21 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         opts.forge = await resolveForge(mcVersion, loaderVersion, loaderKind);
       }
 
-      if (loaderKind !== 'vanilla') {
-        setState('preparing', 'Setting up CustomSkinLoader…');
-        const wardrobe = await wardrobeMod.prepareFabricInstance(instance, account, (detail) => setState('preparing', detail));
-        if (wardrobe?.warning) launcher.emit('debug', `[Noctra Client]: Wardrobe integration: ${wardrobe.warning}`);
-      }
     } catch (err) {
       setState('error', err.message);
       return;
+    }
+
+    // Skins are cosmetic: a missing CustomSkinLoader download (offline, API
+    // down) must never stop the game from starting.
+    if (loaders.normalize(loader) !== 'vanilla') {
+      try {
+        setState('preparing', 'Setting up CustomSkinLoader…');
+        const wardrobe = await wardrobeMod.prepareFabricInstance(instance, account, (detail) => setState('preparing', detail));
+        if (wardrobe?.warning) launcher.emit('debug', `[Noctra Client]: Wardrobe integration: ${wardrobe.warning}`);
+      } catch (err) {
+        gameConsole.pushLauncher(`Skins are unavailable for this session: ${err.message}`);
+      }
     }
 
   fs.mkdirSync(instanceDir(instance.id), { recursive: true });

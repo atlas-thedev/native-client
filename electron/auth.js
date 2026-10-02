@@ -289,6 +289,76 @@ async function getMclcAuth() {
   return mc?.mclc?.() || null;
 }
 
+function generateOfflinePlayerUuid(username) {
+  const md5 = crypto.createHash('md5').update(`OfflinePlayer:${username}`).digest();
+  md5[6] = (md5[6] & 0x0f) | 0x30; // version 3
+  md5[8] = (md5[8] & 0x3f) | 0x80; // variant 2
+  const hex = md5.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// Minecraft's own rule for player names; servers reject anything else.
+const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
+
+function withTimeout(promise, ms) {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); })
+  ]).finally(() => clearTimeout(timer));
+}
+
+function dashedUuid(value) {
+  const hex = String(value || '').replace(/-/g, '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(hex)) return null;
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * A local (offline-mode) session. Nothing here touches the network, so it
+ * works without internet: singleplayer, LAN and servers running with
+ * online-mode=false. The UUID is Minecraft's own OfflinePlayer UUID, the
+ * same one offline-mode servers assign, so inventories and stats stay put.
+ */
+function offlineAuthorization(name, uuid = null) {
+  const id = dashedUuid(uuid) || generateOfflinePlayerUuid(name);
+  const token = id.replace(/-/g, '');
+  return {
+    access_token: token,
+    client_token: token,
+    uuid: id,
+    name,
+    user_properties: '{}',
+    meta: { type: 'mojang', demo: false }
+  };
+}
+
+/**
+ * The session a launch should use. Never blocks a launch on the network:
+ *   - Microsoft: a live session when Microsoft is reachable, otherwise the
+ *     saved premium profile in offline mode (singleplayer / LAN / offline servers).
+ *   - Offline and Noctra accounts: always a local session.
+ * Returns { authorization, mode: 'microsoft' | 'microsoft-offline' | 'offline' }.
+ */
+async function getLaunchAuth(account = {}) {
+  const name = String(account?.name || account?.username || 'Player').trim() || 'Player';
+  const isMicrosoft = account?.type === 'microsoft' || Boolean(account?.useMicrosoft || account?.isMicrosoft);
+  if (isMicrosoft) {
+    const mc = await withTimeout(getMinecraftSession(account?.id || null), 20_000).catch(() => null);
+    const live = mc?.mclc?.() || null;
+    if (live) return { authorization: live, mode: 'microsoft' };
+    let saved = null;
+    try {
+      saved = readAccounts().accounts.find((a) => a.id === account?.id && a.type === 'microsoft') || null;
+    } catch { /* fall back to what the renderer sent */ }
+    return {
+      authorization: offlineAuthorization(saved?.name || name, saved?.uuid || account?.uuid || null),
+      mode: 'microsoft-offline'
+    };
+  }
+  return { authorization: offlineAuthorization(name, account?.uuid || null), mode: 'offline' };
+}
+
 async function getMinecraftAccessToken(accountId, options = {}) {
   const mc = await getMinecraftSession(accountId, options);
   return mc?.mclc?.().access_token || null;
@@ -605,13 +675,6 @@ function init(dependencies, ipcMain) {
     };
   });
 
-function generateOfflinePlayerUuid(username) {
-  const md5 = crypto.createHash('md5').update(`OfflinePlayer:${username}`).digest();
-  md5[6] = (md5[6] & 0x0f) | 0x30; // version 3
-  md5[8] = (md5[8] & 0x3f) | 0x80; // variant 2
-  const hex = md5.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
   const handleAddNoctraAccount = (_event, payload) => {
     const rawName = typeof payload === 'string' ? payload : payload?.name;
@@ -700,14 +763,23 @@ function generateOfflinePlayerUuid(username) {
   });
 
   ipcMain.handle('accounts:addOffline', (_event, name) => {
-    if (!name?.trim()) return { ok: false, error: 'Name is required' };
-    const cleanName = name.trim();
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return { ok: false, error: 'Name is required' };
+    if (!OFFLINE_NAME.test(cleanName)) {
+      return { ok: false, error: 'Use 3–16 letters, numbers or underscores (no spaces).' };
+    }
     const data = readAccounts();
+    const existing = data.accounts.find((a) => a.type === 'offline' && a.name.toLowerCase() === cleanName.toLowerCase());
+    if (existing) {
+      data.activeId = existing.id;
+      saveAccounts(data);
+      return { ok: true, account: existing };
+    }
     const id = `offline-${crypto.randomBytes(4).toString('hex')}`;
     const uuid = generateOfflinePlayerUuid(cleanName);
     const account = { id, name: cleanName, uuid, type: 'offline' };
     data.accounts.push(account);
-    if (!data.activeId) data.activeId = id;
+    data.activeId = id;
     saveAccounts(data);
     return { ok: true, account };
   });
@@ -836,6 +908,9 @@ module.exports = {
   premiumSignIn,
   init,
   getMclcAuth,
+  getLaunchAuth,
+  offlineAuthorization,
+  generateOfflinePlayerUuid,
   getMinecraftAccessToken,
   getMinecraftProfile
 };

@@ -9,6 +9,12 @@ import { setApplicationLocale } from './i18n/I18nProvider.jsx';
 
 const GUEST = { id: 'guest', name: 'Guest', uuid: null, type: 'guest', isMicrosoft: false };
 
+// Startup must never wait on the network: anything optional gets a deadline.
+const withDeadline = (promise, ms, fallback = null) => Promise.race([
+  Promise.resolve(promise).catch(() => fallback),
+  new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+]);
+
 export default function App() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [accounts, setAccounts] = useState([]);
@@ -70,7 +76,8 @@ export default function App() {
         const initialAccount = accs.find(a => a.id === actId) ?? null;
         if (initialAccount && window.native.wardrobe?.get) {
           try {
-            const initialWardrobe = await window.native.wardrobe.get(initialAccount);
+            // Skins are optional; offline, don't hold the first screen for them.
+            const initialWardrobe = await withDeadline(window.native.wardrobe.get(initialAccount), 3000);
             if (initialWardrobe) {
               setWardrobe({ ...initialWardrobe, accountId: initialAccount.id });
             }
@@ -172,8 +179,8 @@ export default function App() {
   const handleAddOffline = async (name) => {
     const res = await window.native?.accounts?.addOffline(name);
     if (res?.ok) {
-      setAccounts(prev => [...prev, res.account]);
-      if (!activeId) setActiveId(res.account.id);
+      await refreshAccounts();
+      if (res.account?.id) setActiveId(res.account.id);
     }
     return res;
   };

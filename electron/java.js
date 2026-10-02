@@ -44,16 +44,38 @@ function acceptable(slot, major) {
 let manifestCache = null;
 const versionJsonCache = new Map();
 
+/**
+ * The Java requirement recorded in an installed version JSON. Installed
+ * instances never need the network to work out which Java they run on.
+ */
+function localRequiredMajor(mcVersion) {
+  try {
+    if (!deps?.app || !mcVersion) return null;
+    const file = path.join(deps.app.getPath('userData'), 'minecraft', 'versions', String(mcVersion), `${mcVersion}.json`);
+    const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const major = Number(json?.javaVersion?.majorVersion);
+    if (Number.isFinite(major) && major > 0) return major;
+    // Pre-1.17 version JSONs carry no javaVersion; those all run on Java 8.
+    return json?.id ? 8 : null;
+  } catch {
+    return null;
+  }
+}
+
 async function requiredMajor(mcVersion) {
+  const local = localRequiredMajor(mcVersion);
+  if (local) return local;
   if (!manifestCache) {
+    // Short timeout: offline launches fall back to fallbackMajor() quickly.
     manifestCache = await fetchJson(
-      'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
+      'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json',
+      { retries: 0, timeoutMs: 8000 }
     );
   }
   const entry = manifestCache.versions.find((v) => v.id === mcVersion);
   if (!entry) return 21;
   if (!versionJsonCache.has(mcVersion)) {
-    versionJsonCache.set(mcVersion, await fetchJson(entry.url));
+    versionJsonCache.set(mcVersion, await fetchJson(entry.url, { retries: 0, timeoutMs: 8000 }));
   }
   const versionJson = versionJsonCache.get(mcVersion);
   return versionJson.javaVersion?.majorVersion ?? 8;

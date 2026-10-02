@@ -374,22 +374,99 @@ async function ensureLibraries(profile, { root, kind = 'fabric', report = noop }
 
 const PROFILE_PREFIX = { fabric: 'fabric-loader', legacyfabric: 'fabric-loader', quilt: 'quilt-loader' };
 
+/* ── offline fallbacks ------------------------------------------------------ */
+
+/** Reads an installed Fabric-like profile, or null when it is missing/invalid. */
+function readLocalProfile(root, id) {
+  try {
+    const profile = JSON.parse(fs.readFileSync(path.join(root, 'versions', id, `${id}.json`), 'utf8'));
+    return profile?.id === id && typeof profile.mainClass === 'string' && profile.mainClass ? profile : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Loader versions of `kind` already installed for `mc`, newest first. */
+function installedFabricLikeVersions(root, kind, mc) {
+  const prefix = `${PROFILE_PREFIX[kind]}-`;
+  const suffix = `-${mc}`;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(path.join(root, 'versions'));
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((id) => id.startsWith(prefix) && id.endsWith(suffix))
+    .map((id) => ({ id, version: id.slice(prefix.length, id.length - suffix.length), profile: readLocalProfile(root, id) }))
+    .filter((entry) => entry.version && entry.profile)
+    // Fabric and Legacy Fabric share the fabric-loader prefix; their
+    // intermediary mappings come from different Maven repositories.
+    .filter((entry) => {
+      if (kind !== 'fabric' && kind !== 'legacyfabric') return true;
+      const legacy = JSON.stringify(entry.profile.libraries || []).includes('legacyfabric');
+      return kind === 'legacyfabric' ? legacy : !legacy;
+    })
+    .sort((a, b) => compareLoaderVersions(b.version, a.version));
+}
+
+/** Forge/NeoForge builds whose installer is already cached for `mc`, newest first. */
+function installedForgeLikeVersions(root, kind, mc) {
+  let files = [];
+  try {
+    files = fs.readdirSync(path.join(root, 'forge-installers'));
+  } catch {
+    return [];
+  }
+  const versions = [];
+  for (const file of files) {
+    const match = /^(forge|neoforge)-(.+)-installer\.jar$/i.exec(file);
+    if (!match || match[1].toLowerCase() !== kind) continue;
+    const full = match[2];
+    if (kind === 'forge') {
+      if (full.startsWith(`${mc}-`)) versions.push(full.slice(mc.length + 1));
+    } else if (mc === '1.20.1') {
+      if (full.startsWith('1.20.1-')) versions.push(full.slice('1.20.1-'.length));
+    } else {
+      const prefix = neoforgePrefix(mc);
+      if (prefix && full.startsWith(prefix)) versions.push(full);
+    }
+  }
+  return versions.sort((a, b) => compareLoaderVersions(b, a));
+}
+
 /** Installs (or verifies) a Fabric-like profile and returns its version id. */
 async function installFabricLike(kind, mc, requested, { root, report = noop }) {
   kind = normalize(kind);
   const name = DISPLAY[kind];
   let loader = requested;
   if (!loader) {
-    const list = await listVersions(kind, mc);
-    if (!list.versions.length) throw new Error(list.unavailable || `${name} does not support Minecraft ${mc}`);
-    loader = list.recommended;
+    let list = null;
+    try {
+      list = await listVersions(kind, mc);
+    } catch (error) {
+      // Offline: keep using the newest build that is already installed.
+      const installed = installedFabricLikeVersions(root, kind, mc)[0];
+      if (!installed) throw error;
+      loader = installed.version;
+    }
+    if (!loader) {
+      if (!list.versions.length) throw new Error(list.unavailable || `${name} does not support Minecraft ${mc}`);
+      loader = list.recommended;
+    }
   }
 
   const id = `${PROFILE_PREFIX[kind]}-${loader}-${mc}`;
   const jsonPath = path.join(root, 'versions', id, `${id}.json`);
   report({ status: 'preparing', detail: `Installing ${name} loader ${loader}…` });
 
-  let profile = null;
+  // An installed profile for this exact build never changes: use it without
+  // touching the network so installed instances launch offline instantly.
+  let profile = readLocalProfile(root, id);
+  if (profile) {
+    await ensureLibraries(profile, { root, kind, report });
+    return { id, version: loader };
+  }
   try {
     profile = await fetchJson(`${META[kind]}/versions/loader/${encodeURIComponent(mc)}/${encodeURIComponent(loader)}/profile/json`, { retries: 2 });
   } catch (error) {
@@ -472,19 +549,26 @@ async function installForgeLike(kind, mc, requested, { root, report = noop }) {
   const name = DISPLAY[kind];
   let version = requested;
   if (!version) {
-    if (kind === 'forge') {
-      try {
-        const promos = await forgePromotions();
-        version = promos?.promos?.[`${mc}-recommended`] ?? promos?.promos?.[`${mc}-latest`] ?? null;
-      } catch (error) {
-        throw friendlyNetworkError(kind, error);
+    try {
+      if (kind === 'forge') {
+        try {
+          const promos = await forgePromotions();
+          version = promos?.promos?.[`${mc}-recommended`] ?? promos?.promos?.[`${mc}-latest`] ?? null;
+        } catch (error) {
+          throw friendlyNetworkError(kind, error);
+        }
+      } else {
+        version = (await listVersions(kind, mc)).recommended;
       }
-    } else {
-      version = (await listVersions(kind, mc)).recommended;
+    } catch (error) {
+      // Offline: keep using the newest build whose installer is cached.
+      version = installedForgeLikeVersions(root, kind, mc)[0] || null;
+      if (!version) throw error;
     }
   }
   if (!version) throw new Error(`${name} does not support Minecraft ${mc}`);
-  if (kind === 'forge') {
+  const cachedBuild = installedForgeLikeVersions(root, kind, mc).find((entry) => entry === version || entry === `${mc}-${version}`);
+  if (kind === 'forge' && !cachedBuild) {
     // Promotions say "11.15.1.2318"; some branches publish it as
     // "1.8.9-11.15.1.2318-1.8.9". The Maven listing has the real name.
     const bare = version.startsWith(`${mc}-`) ? version.slice(mc.length + 1) : version;
@@ -708,6 +792,8 @@ module.exports = {
   ensureLibraries,
   installFabricLike,
   installForgeLike,
+  installedFabricLikeVersions,
+  installedForgeLikeVersions,
   launchableForgeJar,
   prepareForgeCache,
   patchMclc,

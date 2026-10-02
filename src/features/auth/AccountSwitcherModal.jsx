@@ -53,6 +53,7 @@ export default function AccountSwitcherModal({
 
   // Login form state
   const [loginInput, setLoginInput] = useState('');
+  const [offlineName, setOfflineName] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
 
   // Registration form state
@@ -189,6 +190,30 @@ export default function AccountSwitcherModal({
       }
     } catch (err) {
       setError(err?.message || t('error.microsoftLogin'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Offline accounts need no internet and no Microsoft/Noctra sign-in:
+  // singleplayer, LAN and offline-mode (online-mode=false) servers.
+  const handleOfflineSubmit = async (e) => {
+    e?.preventDefault?.();
+    const name = offlineName.trim();
+    if (!OFFLINE_NAME.test(name)) {
+      setError(t('error.offlineName') || 'Use 3–16 letters, numbers or underscores.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await onAddOffline?.(name);
+      if (!res?.ok) throw new Error(res?.error || 'Could not add the offline account.');
+      setOfflineName('');
+      setView('main');
+      onClose?.();
+    } catch (err) {
+      setError(err?.message || 'Could not add the offline account.');
     } finally {
       setBusy(false);
     }
@@ -416,6 +441,20 @@ export default function AccountSwitcherModal({
                     <strong className="account-login-btn-brand">{t('account.noctra') || t('account.native')}</strong>
                   </button>
 
+                  {onAddOffline && (
+                    <button
+                      type="button"
+                      className="account-login-noctra account-login-offline"
+                      onClick={() => {
+                        setView('offline');
+                        setError('');
+                      }}
+                    >
+                      <span className="account-login-btn-lead">Play</span>
+                      <strong className="account-login-btn-brand">Offline</strong>
+                    </button>
+                  )}
+
                   {/* Saved accounts */}
                   {accounts.length > 0 && (
                     <div className="account-login-saved">
@@ -445,7 +484,7 @@ export default function AccountSwitcherModal({
                               <div className="account-login-item-text">
                                 <strong>{acc.name}</strong>
                                 <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-noctra is-native'}>
-                                  {acc.type === 'microsoft' ? t('account.microsoft') : (t('account.noctra') || t('account.native'))}
+                                  {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.noctra') || t('account.native'))}
                                   {acc.type === 'microsoft' && acc.noctraLink?.connected && (
                                     <span className="account-login-item-link" title={`Signs into Noctra as ${acc.noctraLink.name}`}>
                                       <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.noctraLink.name}
@@ -679,6 +718,60 @@ export default function AccountSwitcherModal({
                     )}
                   </>
                 )}
+              </div>
+            ) : view === 'offline' ? (
+              <div className="noctra-auth-container">
+                <div className="noctra-auth-top">
+                  <button
+                    type="button"
+                    className="noctra-auth-back-btn"
+                    onClick={() => { setView('main'); setError(''); }}
+                    aria-label={t('common.back')}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>{t('common.back')}</span>
+                  </button>
+                </div>
+
+                <div className="noctra-auth-header">
+                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
+                  <h2 className="noctra-auth-title">Play offline</h2>
+                  <p className="noctra-auth-sub">
+                    No internet or sign-in needed. Works in singleplayer, on LAN and on offline-mode servers.
+                  </p>
+                </div>
+
+                <form className="noctra-auth-form" onSubmit={handleOfflineSubmit}>
+                  <div className="noctra-form-group">
+                    <label className="noctra-form-label">Username</label>
+                    <input
+                      type="text"
+                      className="noctra-form-input"
+                      placeholder="Steve"
+                      value={offlineName}
+                      maxLength={16}
+                      autoFocus
+                      spellCheck={false}
+                      onChange={(e) => { setOfflineName(e.target.value.replace(/\s/g, '')); setError(''); }}
+                    />
+                  </div>
+
+                  {error && <div className="account-login-error" role="alert">{error}</div>}
+
+                  <button
+                    type="submit"
+                    className="noctra-auth-primary-btn"
+                    disabled={busy || !OFFLINE_NAME.test(offlineName.trim())}
+                  >
+                    {busy ? (
+                      <span className="noctra-btn-spinner">
+                        <NativeIcon name="refresh" size={16} className="is-spinning" />
+                      </span>
+                    ) : (
+                      'Play offline'
+                    )}
+                  </button>
+                </form>
               </div>
             ) : view === 'noctra-login' ? (
               <div className="noctra-auth-container">
