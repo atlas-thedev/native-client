@@ -9,6 +9,7 @@ import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
 import './HomeView.css';
+import './HomeSelection.css';
 
 import useVersionBanners from '../../lib/useVersionBanners.js';
 const loadersOf = (instance) => instance?.mc_loader || instance?.loader || 'Vanilla';
@@ -31,6 +32,8 @@ export default function HomeView({
   onOpenVersions,
   onCreateInstance,
   account,
+  identity = null,
+  onSwitchIdentity,
   launcherState,
   onLaunch,
   onKill
@@ -124,6 +127,23 @@ export default function HomeView({
     }
   }, [cluster?.id]);
 
+  const isPlaying = (item) => launcherState?.status === 'running' && launcherState?.instanceId === item?.id;
+
+  /* The premade cards create exactly the version and loader they show. */
+  const createFromStarter = (starter) => {
+    if (!starter) {
+      onCreateInstance();
+      return;
+    }
+    onCreateInstance({
+      name: starter.name,
+      version: starter.mc_version || starter.version,
+      loader: starter.mc_loader || starter.loader || 'Fabric',
+      preset: 'optimization',
+      play: true
+    });
+  };
+
   const handleCardContextMenu = (e, targetCluster) => {
     e.preventDefault();
     setContextMenu({
@@ -159,6 +179,29 @@ export default function HomeView({
           <span className="home-greeting-text">{t(greetingKey())}</span>
           <span className="home-greeting-name">{account?.name || t('home.guest')}</span>
         </div>
+
+        {identity?.canSwitch && (
+          <div className="identity-switch" role="group" aria-label="Play as">
+            {[
+              { id: 'premium', label: 'Premium', name: identity.premiumName, hint: 'Microsoft sign-in: works on online servers' },
+              { id: 'noctra', label: 'Noctra', name: identity.noctraName, hint: 'Noctra profile and skins: offline session' }
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`identity-switch-btn ${identity.mode === option.id ? 'is-active' : ''}`}
+                aria-pressed={identity.mode === option.id}
+                disabled={Boolean(launcherState?.busy)}
+                title={`${option.hint}${option.name ? ` (${option.name})` : ''}`}
+                onClick={() => onSwitchIdentity?.(option.id)}
+              >
+                <i aria-hidden="true" />
+                <span>{option.label}</span>
+                {option.name && <small>{option.name}</small>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Active instance + launch / Starter display */}
@@ -184,7 +227,7 @@ export default function HomeView({
               <button
                 type="button"
                 className="home-starter-launch-btn"
-                onClick={onCreateInstance}
+                onClick={() => createFromStarter(cluster)}
               >
                 <Plus size={16} strokeWidth={2.4} />
                 <span>Create & Play</span>
@@ -202,6 +245,10 @@ export default function HomeView({
           </>
         ) : cluster ? (
           <>
+            <span className={`home-selected-tag ${isPlaying(cluster) ? 'is-playing' : ''}`}>
+              <i aria-hidden="true" />
+              {isPlaying(cluster) ? 'Playing now' : 'Selected instance'}
+            </span>
             <h1 className="home-cluster-title">
               {versionOf(cluster)} {loadersOf(cluster)}
             </h1>
@@ -295,6 +342,7 @@ export default function HomeView({
                     cardRefs.current[item.id] = element;
                   }}
                   className={`version-card ${isLargeCard ? 'is-large' : ''} ${isSelected ? 'active' : ''}`}
+                  aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
                     if (isStarterMode) {
                       setSelectedStarterId(item.id);
@@ -304,7 +352,7 @@ export default function HomeView({
                   }}
                   onDoubleClick={() => {
                     if (isStarterMode) {
-                      onCreateInstance();
+                      createFromStarter(item);
                     } else {
                       onOpenCluster(item, 'overview');
                     }
@@ -315,6 +363,12 @@ export default function HomeView({
                 >
                   <img src={itemArt} alt={title} className="version-card-bg" />
                   <div className="version-card-gradient" />
+                  {isSelected && (
+                    <span className={`version-card-selected ${!isStarterMode && isPlaying(item) ? 'is-playing' : ''}`}>
+                      <i aria-hidden="true" />
+                      {!isStarterMode && isPlaying(item) ? 'Playing' : 'Selected'}
+                    </span>
+                  )}
                   {isStarterMode && item.tags?.length > 0 && (
                     <div className="version-card-tags">
                       <span className="version-card-tag">{item.loader || 'Fabric'}</span>

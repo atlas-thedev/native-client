@@ -9,7 +9,9 @@ import {
   versionLine
 } from '../../lib/mojang.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
+import { PRESETS, PRESET_LOADERS, getPreset, presetModCount } from './presets.js';
 import './CreateInstanceModal.css';
+import './Presets.css';
 
 const MAX_VERSION_ROWS = 90;
 const RAM_MIN = 1024;
@@ -38,7 +40,17 @@ function artFor(versionId) {
   );
 }
 
-export default function CreateInstanceModal({ open, instances = [], onClose, onCreate, initialVersion = null, initialLoader = null }) {
+export default function CreateInstanceModal({
+  open,
+  instances = [],
+  onClose,
+  onCreate,
+  initialVersion = null,
+  initialLoader = null,
+  initialName = null,
+  initialPreset = null,
+  initialPlay = false
+}) {
   const { t, formatDate } = useI18n();
   const [manifest, setManifest] = useState(null);
   const [fabricSet, setFabricSet] = useState(null);
@@ -51,19 +63,24 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
   const [memoryMb, setMemoryMb] = useState(4096);
   const [search, setSearch] = useState('');
   const [showSnapshots, setShowSnapshots] = useState(false);
+  const [preset, setPreset] = useState('');
 
   /* Reset every time the modal is opened so it never shows stale input. */
   useEffect(() => {
     if (!open) return;
-    setName('');
-    setNameTouched(false);
+    // A premade card (Create & Play) opens the modal with its own name,
+    // version and loader so what you picked is exactly what gets created.
+    setName(initialName || '');
+    setNameTouched(Boolean(initialName));
     setSearch('');
     setShowSnapshots(false);
     setLoader(initialLoader || 'Fabric');
-    setMemoryMb(4096);
+    const seededPreset = getPreset(initialPreset);
+    setPreset(seededPreset ? seededPreset.id : '');
+    setMemoryMb(seededPreset?.memoryMb || 4096);
+    setVersion(initialVersion || '');
     // Quick search can open the modal with a version already picked.
     if (initialVersion) {
-      setVersion(initialVersion);
       if (!/^\d+\.\d+(?:\.\d+)?$/.test(initialVersion)) setShowSnapshots(true);
     }
   }, [open]);
@@ -137,7 +154,8 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
   const duplicateName = instances.some(
     (instance) => String(instance.name || '').toLowerCase() === trimmedName.toLowerCase()
   );
-  const canSubmit = Boolean(trimmedName) && Boolean(version) && availability.available;
+  const presetUsable = !preset || PRESET_LOADERS.includes(loader);
+  const canSubmit = presetUsable && Boolean(trimmedName) && Boolean(version) && availability.available;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -149,7 +167,9 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
       memoryMb,
       art: artFor(version),
       description: line?.description || `Minecraft ${version}`,
-      tags: line?.tags?.length ? line.tags.slice(0, 3) : [loader]
+      tags: line?.tags?.length ? line.tags.slice(0, 3) : [loader],
+      preset: preset || null,
+      play: Boolean(initialPlay)
     });
     onClose?.();
   };
@@ -289,7 +309,10 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
                       className={`ci-loader-btn ${loader === option ? 'active' : ''} ${
                         state.available ? '' : 'unavailable'
                       }`}
-                      onClick={() => setLoader(option)}
+                      onClick={() => {
+                        setLoader(option);
+                        if (!PRESET_LOADERS.includes(option)) setPreset('');
+                      }}
                       title={state.available ? option : state.reasonKey ? t(state.reasonKey, state.reasonVars) : state.reason}
                     >
                       {option}
@@ -303,6 +326,40 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
                   {availability.reasonKey ? t(availability.reasonKey, availability.reasonVars) : availability.reason}
                 </p>
               )}
+            </div>
+
+            <div className="ci-field">
+              <div className="ci-label-row">
+                <span className="ci-label">Mod preset</span>
+                {preset && (
+                  <button type="button" className="ci-toggle" onClick={() => setPreset('')}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="ci-preset-grid">
+                {PRESETS.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className={`ci-preset-card ${preset === entry.id ? 'active' : ''}`}
+                    onClick={() => {
+                      if (preset === entry.id) {
+                        setPreset('');
+                        return;
+                      }
+                      setPreset(entry.id);
+                      if (!PRESET_LOADERS.includes(loader)) setLoader('Fabric');
+                      setMemoryMb((current) => Math.max(current, entry.memoryMb));
+                    }}
+                  >
+                    <strong>{entry.name}</strong>
+                    <span>{entry.tagline}</span>
+                    <em>{presetModCount(entry)} mods installed automatically</em>
+                  </button>
+                ))}
+              </div>
+              <p className="ci-hint">Mods without a build for this Minecraft version are skipped.</p>
             </div>
 
             <div className="ci-field">
@@ -338,6 +395,7 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
                 <div className="ci-preview-chips">
                   <span className="ci-preview-chip mono">{version || '--'}</span>
                   <span className="ci-preview-chip brand">{loader}</span>
+                  {preset && <span className="ci-preview-chip">{getPreset(preset)?.name}</span>}
                 </div>
               </div>
             </div>
@@ -369,7 +427,7 @@ export default function CreateInstanceModal({ open, instances = [], onClose, onC
           </button>
           <button type="button" className="ci-brand-btn" onClick={submit} disabled={!canSubmit}>
             <NativeIcon name="plus" size={15} />
-            <span>{t('onboarding.finish')}</span>
+            <span>{initialPlay ? 'Create & Play' : t('onboarding.finish')}</span>
           </button>
         </footer>
       </div>
