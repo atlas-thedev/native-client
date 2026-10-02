@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const media = require('./media');
+const events = require('./social-events');
 
 /**
  * Noctra client-mod API.
@@ -10,7 +11,10 @@ const media = require('./media');
  *   GET  /v1/skins/directory   every published skin/cape, incremental via ?epoch=&since=
  *   GET  /v1/skins/stream      Server-Sent Events: a `skin` event the moment a wardrobe changes
  *   POST /v1/auth/game-ticket  swap a launcher session for a short-lived, game-only ticket
- *   GET  /v1/mod/me            who a game ticket belongs to
+ *   GET  /v1/mod/me            who a game ticket belongs to + account status
+ *   GET  /v1/mod/friends       friends (with live presence) and pending requests
+ *   GET  /v1/mod/stream        Server-Sent Events: presence / friends / account changes, live
+ *   POST /v1/mod/presence      what the player is doing in game ("Playing Minecraft 1.21.1")
  *
  * The mod never sees the account's real session token: the launcher hands it a
  * ticket that only works on /v1/mod/* and expires on its own.
@@ -41,11 +45,17 @@ function entryFor(profile) {
     const user = db.getUserByUsername(profile.username);
     mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
   } catch { /* the database may be unavailable in tests */ }
+  const anim = profile.capeAnim && HASH.test(profile.capeAnim.strip || '') && HASH.test(profile.cape || '')
+    ? { h: profile.capeAnim.strip, f: Number(profile.capeAnim.frames) || 0, p: Number(profile.capeAnim.fps) || 0 }
+    : null;
   return {
     n: profile.username,
     m: profile.model === 'slim' ? 'slim' : 'default',
     s: HASH.test(profile.skin || '') ? profile.skin : null,
+    // For an animated cape `c` is its first frame: the game loads it as an ordinary cape.
     c: HASH.test(profile.cape || '') ? profile.cape : null,
+    // Animation: strip hash, frame count, frames per second.
+    a: anim && anim.f >= 2 && anim.p > 0 ? anim : null,
     u: mcUuid,
     t: Date.parse(profile.updatedAt) || 0
   };
@@ -84,7 +94,8 @@ function noteProfile(profileOrName) {
   if (!entry) return;
   const key = entry.n.toLowerCase();
   const previous = index.get(key);
-  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u) return;
+  const animKey = (e) => (e && e.a ? `${e.a.h}:${e.a.f}:${e.a.p}` : '');
+  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry)) return;
   rev += 1;
   const stored = { ...entry, r: rev };
   if (stored.s || stored.c) index.set(key, stored); else index.delete(key);
@@ -144,14 +155,62 @@ function verifyTicket(ticket, now = Date.now()) {
 function accountPayload(user) {
   let link = null;
   try { link = db.getMinecraftLink(user.id); } catch { /* optional */ }
+  let badges = [];
+  try { badges = JSON.parse(user.badges || '[]'); } catch { /* none */ }
   return {
     id: user.id,
     name: user.username,
     uuid: user.uuid,
     model: user.model || 'classic',
-    minecraftUuid: link?.uuid || null
+    minecraftUuid: link?.uuid || null,
+    premium: link ? { linked: true, name: link.name || null, uuid: link.uuid || null } : { linked: false, name: null, uuid: null },
+    badges,
+    memberSince: user.created_at || null
   };
 }
+
+
+/** Friends + request counts shaped for a small in-game panel. */
+function friendsPayload(user) {
+  const friends = db.getFriends(user.id).map((f) => ({
+    id: f.id,
+    name: f.name,
+    nickname: f.nickname || null,
+    uuid: f.uuid || null,
+    status: f.status || 'offline',
+    online: f.status !== 'offline',
+    activity: f.activity || null,
+    serverAddress: f.serverAddress || null,
+    best: Boolean(f.isBestFriend),
+    pinned: Boolean(f.pinned),
+    lastSeen: f.lastSeen || null,
+    unread: Number(f.unreadCount || 0)
+  }));
+  let received = [];
+  let sent = 0;
+  try {
+    const requests = db.getFriendRequests(user.id);
+    received = (requests.received || []).map((r) => ({ id: r.id, name: r.name || r.username || '' }));
+    sent = (requests.sent || []).length;
+  } catch { /* optional */ }
+  return {
+    friends,
+    online: friends.filter((f) => f.online).length,
+    total: friends.length,
+    requests: { received, sent }
+  };
+}
+
+const MOD_STREAMS_PER_USER = 3;
+
+function announce(user, activity, status) {
+  try {
+    db.updatePresence(user.id, { status, activity, serverAddress: null });
+    events.publish(db.getFriendIds(user.id), 'presence', { userId: user.id, status, activity, serverAddress: null });
+  } catch { /* presence is best-effort */ }
+}
+
+const cleanActivity = (value) => String(value || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60);
 
 function userForTicket(ticket) {
   const payload = verifyTicket(ticket);
@@ -236,6 +295,60 @@ async function handleModRoutes(req, res, ctx) {
     const user = userForTicket(bearer);
     if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired. Relaunch from the Noctra Client.' }); return true; }
     send(res, 200, { ok: true, account: accountPayload(user), serverTime: Date.now() });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/mod/friends') {
+    const user = userForTicket(bearer);
+    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired.' }); return true; }
+    if (!hit('mod-friends', user.id, 40, 60_000)) { tooMany(res, 60); return true; }
+    send(res, 200, { ok: true, account: accountPayload(user), ...friendsPayload(user), serverTime: Date.now() }, { 'Cache-Control': 'no-store' });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/mod/presence') {
+    const user = userForTicket(bearer);
+    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired.' }); return true; }
+    if (!hit('mod-presence', user.id, 30, 60_000)) { tooMany(res, 60); return true; }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 4096) break; chunks.push(chunk); }
+    let body = {};
+    try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { /* ignore */ }
+    const activity = cleanActivity(body.activity);
+    if (activity) announce(user, activity, 'online');
+    send(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/mod/stream') {
+    const user = userForTicket(bearer);
+    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired.' }); return true; }
+    if (events.modConnectionCount(user.id) >= MOD_STREAMS_PER_USER) { tooMany(res, 30, 'Too many live connections.'); return true; }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*'
+    });
+    if (res.flushHeaders) res.flushHeaders();
+    if (req.socket?.setNoDelay) req.socket.setNoDelay(true);
+    if (req.socket?.setTimeout) req.socket.setTimeout(0);
+    const unsubscribe = events.subscribeMod(user.id, res);
+    const activity = cleanActivity(url.searchParams.get('activity')) || 'Playing Minecraft';
+    announce(user, activity, 'online');
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      unsubscribe();
+      if (events.isModConnected(user.id)) return;
+      if (events.isConnected(user.id)) announce(user, 'In Launcher', 'online');
+      else announce(user, null, 'offline');
+    };
+    req.on('close', close);
+    req.on('error', close);
     return true;
   }
 

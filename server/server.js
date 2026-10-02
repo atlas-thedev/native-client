@@ -8,6 +8,8 @@ const { handleRelayRoutes } = require('./relay-routes');
 const { sendVerificationCodeEmail, sendPasswordResetEmail } = require('./mailer');
 const media = require('./media');
 const modRoutes = require('./mod-routes');
+const capes = require('./capes');
+const storeRoutes = require('./store-routes');
 
 /**
  * Noctra Backend & API Server
@@ -165,6 +167,36 @@ function readProfile(username) {
 }
 
 /**
+ * Persists a wardrobe profile and tells everyone who cares, immediately:
+ * the Noctra mod (skin stream), the owner's other devices and friends (social stream).
+ */
+function saveProfile(profile, req, owner) {
+  atomicWrite(profilePath(profile.username), JSON.stringify(profile, null, 2));
+  try { modRoutes.noteProfile(profile); } catch {}
+  try {
+    const user = owner || db.getUserByUsername(profile.username);
+    if (user) {
+      const origin = originOf(req);
+      const payload = {
+        userId: user.id,
+        name: profile.username,
+        model: profile.model === 'slim' ? 'slim' : 'default',
+        skinUrl: profile.skin ? `${origin}/csl/textures/${profile.skin}` : null,
+        capeUrl: profile.cape ? `${origin}/csl/textures/${profile.cape}` : null,
+        capeAnimation: profile.capeAnim && profile.capeAnim.strip
+          ? { url: `${origin}/csl/textures/${profile.capeAnim.strip}`, frames: profile.capeAnim.frames, fps: profile.capeAnim.fps }
+          : null,
+        capeStore: profile.capeStore || null,
+        updatedAt: profile.updatedAt
+      };
+      events.publish(db.getFriendIds(user.id), 'skin:updated', payload);
+      events.publish(user.id, 'wardrobe:changed', payload);
+    }
+  } catch {}
+  return profile;
+}
+
+/**
  * Fixed-window rate limiter. `hit` counts an attempt, `blocked` only checks.
  * Buckets are pruned so the map cannot grow without bound.
  */
@@ -277,18 +309,29 @@ function customSkinProfile(profile, origin) {
     else skins.default = skin;
   }
 
-  const capes = {};
-  if (cape) capes.default = cape;
+  const capeMap = {};
+  if (cape) capeMap.default = cape;
 
-  return {
+  const document = {
     username: profile.username,
     model: profile.model || 'default',
     skins,
-    capes,
+    capes: capeMap,
     skin,
     cape,
     updatedAt: profile.updatedAt
   };
+  // Animated capes: `cape` above is the first frame (a normal cape for anything
+  // that cannot animate); clients that can animate read the whole strip here.
+  if (profile.capeAnim && profile.capeAnim.strip) {
+    document.capeAnimation = {
+      url: textureUrl(origin, profile.capeAnim.strip),
+      frames: profile.capeAnim.frames,
+      fps: profile.capeAnim.fps
+    };
+  }
+  if (profile.capeStore) document.capeStore = profile.capeStore;
+  return document;
 }
 
 const MINECRAFT_PROFILE_URL = process.env.NOCTRA_MC_PROFILE_URL || 'https://api.minecraftservices.com/minecraft/profile';
@@ -367,6 +410,17 @@ async function handler(req, res) {
       if (await modRoutes.handleModRoutes(req, res, { ip, send, hit, tooMany })) return;
     } catch (modError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Mod route failed.' });
+      return;
+    }
+
+    try {
+      if (await storeRoutes.handleStoreRoutes(req, res, {
+        ip, send, hit, tooMany, readJson, readProfile, saveProfile, originOf,
+        storeTexture: textureHash,
+        profileDocument: (profile, request) => customSkinProfile(profile, originOf(request))
+      })) return;
+    } catch (storeError) {
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Store route failed.' });
       return;
     }
 
@@ -499,29 +553,40 @@ async function handler(req, res) {
       }
 
       const skin = body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
-      const cape = body.cape !== undefined ? (body.cape ? textureHash(pngBuffer(body.cape)) : null) : (existing?.cape ?? null);
+      let cape = body.cape !== undefined ? (body.cape ? textureHash(pngBuffer(body.cape)) : null) : (existing?.cape ?? null);
+      let capeAnim = existing?.capeAnim ?? null;
+      let capeStore = existing?.capeStore ?? null;
+      // Older launchers re-send the (static) first frame on every sync. Only a
+      // genuinely different cape, or an explicit capeAnim field, drops the animation.
+      const capeChanged = body.cape !== undefined && cape !== (existing?.cape ?? null);
+      if (body.capeAnim !== undefined || capeChanged) {
+        capeStore = null;
+        capeAnim = null;
+      }
+      if (body.capeAnim) {
+        // Animated cape: `cape` is the first frame, capeAnim.strip the whole strip.
+        try {
+          const strip = capes.pngFromBase64(body.capeAnim.strip);
+          const still = body.cape ? pngBuffer(body.cape) : null;
+          if (!strip || !still) throw new Error('An animated cape needs its frame strip and its first frame.');
+          const described = capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
+          capeAnim = { strip: textureHash(strip), frames: described.frames, fps: described.fps };
+        } catch (error) {
+          return send(res, 400, { ok: false, error: error.message || 'Invalid animated cape.' });
+        }
+      }
+      if (!cape) { capeAnim = null; capeStore = null; }
       const profile = {
         username,
         model: body.model === 'slim' ? 'slim' : 'default',
         skin,
         cape,
+        ...(capeAnim ? { capeAnim } : {}),
+        ...(capeStore ? { capeStore } : {}),
         authHash: nextAuthHash,
         updatedAt: new Date().toISOString()
       };
-      atomicWrite(profilePath(username), JSON.stringify(profile, null, 2));
-      try { modRoutes.noteProfile(profile); } catch {}
-
-      // Tell friends to re-render the avatar immediately.
-      try {
-        const owner = db.getUserByUsername(username);
-        if (owner) {
-          events.publish(db.getFriendIds(owner.id), 'skin:updated', {
-            userId: owner.id,
-            name: username,
-            skinUrl: profile.skin ? `${originOf(req)}/csl/textures/${profile.skin}` : null
-          });
-        }
-      } catch {}
+      saveProfile(profile, req);
 
       return send(res, 200, {
         ok: true,
@@ -529,6 +594,7 @@ async function handler(req, res) {
         model: profile.model,
         skins: profile.skin ? [profile.skin] : [],
         capes: profile.cape ? [profile.cape] : [],
+        animated: Boolean(profile.capeAnim),
         profile: customSkinProfile(profile, originOf(req))
       });
     }
@@ -926,8 +992,8 @@ async function handler(req, res) {
           if (closed) return;
           closed = true;
           unsubscribe();
-          // Another window/device of the same account may still be connected.
-          if (events.isConnected(authUser.id)) return;
+          // Another window/device of the same account (or its game) may still be connected.
+          if (events.isConnected(authUser.id) || events.isModConnected(authUser.id)) return;
           try {
             db.updatePresence(authUser.id, { status: 'offline', activity: null, serverAddress: null });
           } catch {}

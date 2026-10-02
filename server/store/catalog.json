@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "sections": [
+    { "id": "capes", "name": "Capes", "blurb": "Animated and classic capes for your Noctra account." }
+  ],
+  "items": [
+    { "id": "you-got-this", "section": "capes", "name": "You Got This", "description": "A tiny cat cheering you on, frame by frame.", "tags": ["animated", "cute"], "frames": 26, "fps": 12, "author": "Noctra", "featured": true },
+    { "id": "aurora", "section": "capes", "name": "Aurora", "description": "Northern lights rolling across your back.", "tags": ["animated", "calm"], "frames": 24, "fps": 12, "author": "Noctra" },
+    { "id": "ember", "section": "capes", "name": "Ember", "description": "A slow, living flame.", "tags": ["animated", "fire"], "frames": 24, "fps": 12, "author": "Noctra" },
+    { "id": "pulse", "section": "capes", "name": "Pulse", "description": "Neon rings that breathe outwards.", "tags": ["animated", "neon"], "frames": 24, "fps": 12, "author": "Noctra" },
+    { "id": "matrix", "section": "capes", "name": "Rain Code", "description": "Green code rain, endlessly falling.", "tags": ["animated", "tech"], "frames": 24, "fps": 12, "author": "Noctra" }
+  ]
+}

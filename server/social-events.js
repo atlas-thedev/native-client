@@ -8,6 +8,10 @@
  */
 
 const clients = new Map(); // userId -> Set<ServerResponse>
+// The Noctra game mod listens separately: it must not count as "the launcher is open",
+// and it only receives the event types a game overlay can use (never message text).
+const modClients = new Map(); // userId -> Set<ServerResponse>
+const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed']);
 const typingState = new Map(); // `${fromId}:${toId}` -> expiresAt
 
 const TYPING_TTL = 6_000;
@@ -35,32 +39,59 @@ function subscribe(userId, res) {
   };
 }
 
+/** Register an SSE response for a user's game mod. Returns an unsubscribe function. */
+function subscribeMod(userId, res) {
+  if (!userId || !res) return () => {};
+  if (!modClients.has(userId)) modClients.set(userId, new Set());
+  modClients.get(userId).add(res);
+  try {
+    res.write(frame('hello', { userId }));
+  } catch {}
+  return () => {
+    const bucket = modClients.get(userId);
+    if (!bucket) return;
+    bucket.delete(res);
+    if (bucket.size === 0) modClients.delete(userId);
+  };
+}
+
+const isModConnected = (userId) => modClients.has(userId);
+const modConnectionCount = (userId) => (modClients.get(userId) ? modClients.get(userId).size : 0);
+
+function writeTo(map, userId, body) {
+  const bucket = map.get(userId);
+  if (!bucket) return;
+  for (const res of bucket) {
+    try {
+      res.write(body);
+    } catch {
+      bucket.delete(res);
+    }
+  }
+}
+
 /** Push an event to one or many users. Silently ignores offline users. */
 function publish(userIds, type, payload = {}) {
   const targets = Array.isArray(userIds) ? userIds : [userIds];
   const body = frame(type, payload);
+  const forMod = MOD_EVENTS.has(type);
   for (const userId of targets) {
     if (!userId) continue;
-    const bucket = clients.get(userId);
-    if (!bucket) continue;
-    for (const res of bucket) {
-      try {
-        res.write(body);
-      } catch {
-        bucket.delete(res);
-      }
-    }
+    writeTo(clients, userId, body);
+    if (forMod) writeTo(modClients, userId, body);
   }
 }
 
 /** Heartbeat comment so proxies never idle-close a stream. */
 function heartbeat() {
-  for (const bucket of clients.values()) {
-    for (const res of bucket) {
-      try {
-        res.write(': ping\n\n');
-      } catch {
-        bucket.delete(res);
+  for (const map of [clients, modClients]) {
+    for (const bucket of map.values()) {
+      for (const res of bucket) {
+        try {
+          res.write(': ping\n\n');
+        } catch {
+          bucket.delete(res);
+        }
       }
     }
   }
@@ -103,6 +134,9 @@ if (heartbeatTimer.unref) heartbeatTimer.unref();
 
 module.exports = {
   subscribe,
+  subscribeMod,
+  isModConnected,
+  modConnectionCount,
   publish,
   heartbeat,
   setTyping,
