@@ -18,7 +18,7 @@ const COMMUNITY = {
   youtube: 'https://www.youtube.com/@noctra-client'
 };
 
-const LEGAL = 'https://noctra.client';
+const LEGAL = 'https://nativelaunch.xyz';
 
 export default function AccountSwitcherModal({
   open,
