@@ -610,6 +610,20 @@ async function pullRemoteWardrobe(account) {
     const metadata = loadMetadata(account);
     let changed = false;
 
+    // One-time clean-up: earlier versions starred every skin pulled from the
+    // website/cloud. Un-star those once (a marker file keeps later stars intact).
+    try {
+      const marker = path.join(accountDir(account), '.sync-star-fixed');
+      if (!fs.existsSync(marker)) {
+        const syncedName = `${username}'s Skin`;
+        for (const it of metadata.items) {
+          if (it.kind === 'skin' && it.favorite && it.name === syncedName) { it.favorite = false; changed = true; }
+        }
+        fs.mkdirSync(accountDir(account), { recursive: true });
+        writeFileAtomic(marker, '1');
+      }
+    } catch {}
+
     // 1. Remote Skin
     const remoteSkinUrl = remote.skin || remote.skins?.default || remote.skins?.slim;
     if (remoteSkinUrl) {
@@ -667,7 +681,7 @@ async function pullRemoteWardrobe(account) {
                   name: `${username}'s Skin`,
                   model,
                   createdAt: Date.now(),
-                  favorite: true
+                  favorite: false
                 };
                 metadata.items.unshift(item);
                 metadata.activeSkin = id;
