@@ -246,12 +246,6 @@ export default function HomeView({
           </>
         ) : cluster ? (
           <>
-            {isPlaying(cluster) && (
-              <span className="home-selected-tag is-playing">
-                <i aria-hidden="true" />
-                Playing now
-              </span>
-            )}
             <h1 className="home-cluster-title">
               {versionOf(cluster)} {loadersOf(cluster)}
             </h1>
