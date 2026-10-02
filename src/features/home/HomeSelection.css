@@ -69,3 +69,16 @@
 .home-empty-tile strong { font-size: 13.5px; font-weight: 700; }
 .home-empty-tile small { font-size: 11.5px; line-height: 1.35; color: rgba(255, 255, 255, 0.62); }
 @media (max-width: 900px) { .home-empty-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Empty Home: white primary button */
+.home-empty-state .home-quick-btn.is-primary {
+  background: #fff !important;
+  border: 1px solid #fff !important;
+  color: #111 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  border-radius: 10px;
+}
+.home-empty-state .home-quick-btn.is-primary:hover { background: #ececec !important; border-color: #ececec !important; }
+.home-empty-state .home-quick-btn.is-primary svg,
+.home-empty-state .home-quick-btn.is-primary svg * { color: #111 !important; stroke: #111 !important; }
