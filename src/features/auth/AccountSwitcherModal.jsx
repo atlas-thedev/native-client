@@ -444,14 +444,26 @@ export default function AccountSwitcherModal({
                   {onAddOffline && (
                     <button
                       type="button"
-                      className="account-login-noctra account-login-offline"
+                      className="account-login-offline-link"
+                      style={{
+                        alignSelf: 'center',
+                        background: 'none',
+                        border: 0,
+                        padding: '4px 6px',
+                        marginTop: 2,
+                        font: 'inherit',
+                        fontSize: 12.5,
+                        color: 'var(--fg-muted, #9aa0a6)',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: 3,
+                        cursor: 'pointer'
+                      }}
                       onClick={() => {
                         setView('offline');
                         setError('');
                       }}
                     >
-                      <span className="account-login-btn-lead">Play</span>
-                      <strong className="account-login-btn-brand">Offline</strong>
+                      Play offline
                     </button>
                   )}
 
