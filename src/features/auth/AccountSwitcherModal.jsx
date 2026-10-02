@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, Link2, Minus, Square, Unlink, X } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Link2, Minus, Square, Unlink, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import BrandIcon from '../../components/ui/BrandIcon.jsx';
@@ -496,7 +496,7 @@ export default function AccountSwitcherModal({
           <section className="account-login-panel">
             {view === 'main' ? (
               <div className="account-login-content">
-                <Logo height={80} variant="mark" className="account-login-logo" />
+                <Logo height={56} variant="mark" className="account-login-logo" />
                 <h1 className="account-login-title">
                   Noctra <strong>Client</strong>
                 </h1>
@@ -535,35 +535,29 @@ export default function AccountSwitcherModal({
                   >
                     <span className="account-login-btn-lead">{t('account.logInWith')}</span>
                     <span className="account-login-noctra-mark account-login-native-mark" aria-hidden="true">
-                      <Logo height={32} variant="mark" />
+                      <Logo height={22} variant="mark" />
                     </span>
                     <strong className="account-login-btn-brand">{t('account.noctra') || t('account.native')}</strong>
                   </button>
 
                   {onAddOffline && (
-                    <button
-                      type="button"
-                      className="account-login-offline-link"
-                      style={{
-                        alignSelf: 'center',
-                        background: 'none',
-                        border: 0,
-                        padding: '4px 6px',
-                        marginTop: 2,
-                        font: 'inherit',
-                        fontSize: 12.5,
-                        color: 'var(--fg-muted, #9aa0a6)',
-                        textDecoration: 'underline',
-                        textUnderlineOffset: 3,
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        setView('offline');
-                        setError('');
-                      }}
-                    >
-                      Play offline
-                    </button>
+                    <>
+                      <div className="account-login-divider" aria-hidden="true">
+                        <i /><span>or</span><i />
+                      </div>
+                      <button
+                        type="button"
+                        className="account-login-offline"
+                        onClick={() => {
+                          setView('offline');
+                          setError('');
+                        }}
+                      >
+                        <WifiOff size={16} strokeWidth={2} aria-hidden="true" />
+                        <span className="account-login-offline-label">Play offline</span>
+                        <small>No account needed</small>
+                      </button>
+                    </>
                   )}
 
                   {/* Saved accounts */}
