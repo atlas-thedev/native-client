@@ -202,3 +202,13 @@
 .instances-view .instances-grid.is-list .instance-card:hover {
   transform: none;
 }
+
+/* Empty-state icon: white box + border */
+.instances-view .instances-empty-icon {
+  border: 1px solid #fff;
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+.instances-view .instances-empty-icon svg,
+.instances-view .instances-empty-icon svg * { color: #fff; stroke: #fff; }
