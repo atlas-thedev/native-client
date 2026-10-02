@@ -939,6 +939,13 @@ async function handler(req, res) {
         return send(res, 200, { ok: true, friends, serverTime: Date.now() }, { 'Cache-Control': 'no-store' });
       }
 
+      if (req.method === 'GET' && /^\/v1\/social\/friends\/[^/]+\/mutual$/.test(url.pathname)) {
+        const otherId = decodeURIComponent(url.pathname.split('/')[4] || '').trim();
+        if (!otherId) return send(res, 400, { ok: false, error: 'Friend ID required' });
+        const mutual = db.getMutualFriends(authUser.id, otherId).map((f) => withSkin(f, origin));
+        return send(res, 200, { ok: true, mutual, count: mutual.length }, { 'Cache-Control': 'no-store' });
+      }
+
       if (req.method === 'GET' && url.pathname === '/v1/social/requests') {
         const reqs = db.getFriendRequests(authUser.id);
         return send(res, 200, {

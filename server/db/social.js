@@ -534,7 +534,21 @@ function searchUsers(db, query, excludeUserId) {
   `).all(`%${clean}%`, excludeUserId, excludeUserId, excludeUserId);
 }
 
+/** Friends that both `userId` and `otherId` share. */
+function getMutualFriends(db, userId, otherId) {
+  return db.prepare(`
+    SELECT u.id AS id, u.username AS name, u.uuid, u.model
+    FROM friends a
+    JOIN friends b ON b.friend_id = a.friend_id AND b.user_id = ?
+    JOIN users u ON u.id = a.friend_id
+    WHERE a.user_id = ? AND a.friend_id NOT IN (?, ?)
+      AND NOT EXISTS (SELECT 1 FROM blocks bl WHERE (bl.user_id = ? AND bl.blocked_id = u.id) OR (bl.user_id = u.id AND bl.blocked_id = ?))
+    ORDER BY u.username COLLATE NOCASE
+  `).all(otherId, userId, userId, otherId, userId, userId);
+}
+
 module.exports = {
+  getMutualFriends,
   MESSAGE_LIMIT,
   updatePresence,
   getPresence,

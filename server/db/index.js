@@ -127,6 +127,7 @@ module.exports = {
   updatePresence: (userId, data) => socialMod.updatePresence(getDb(), userId, data),
   getPresence: (userId) => socialMod.getPresence(getDb(), userId),
   getFriends: (userId) => socialMod.getFriends(getDb(), userId),
+  getMutualFriends: (userId, otherId) => socialMod.getMutualFriends(getDb(), userId, otherId),
   getFriendIds: (userId) => socialMod.getFriendIds(getDb(), userId),
   areFriends: (userId, friendId) => socialMod.areFriends(getDb(), userId, friendId),
   getFriendRequests: (userId) => socialMod.getFriendRequests(getDb(), userId),
