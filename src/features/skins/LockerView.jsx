@@ -313,7 +313,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
         </div>
       ) : (
       <div className="locker-header-actions">
-      {cloudAccount && cloud === 'syncing' && hasSavedContent && online && <span className="locker-sync-pill is-syncing" role="status"><i/>Syncing your locker…</span>}
       {cloudAccount && (cloud === 'offline' || !online) && <span className="locker-sync-pill is-offline" role="status"><i/>Offline · showing your saved locker</span>}
       <button
         type="button"

@@ -205,7 +205,26 @@ if (pruneTimer.unref) pruneTimer.unref();
  * request came from the local reverse proxy (nginx sets X-Real-IP from its
  * Cloudflare-aware real_ip config), never straight from the internet.
  */
+const SITE_KEY = String(process.env.NOCTRA_SITE_KEY || '');
+
+/**
+ * The Noctra website proxies sign-in requests, so every visitor would share the
+ * website host's IP. When NOCTRA_SITE_KEY is set, a request carrying the same key
+ * in X-Noctra-Site-Key may name the real visitor in X-Noctra-Client-IP.
+ */
+function siteForwardedIp(req) {
+  if (!SITE_KEY) return null;
+  const key = String(req.headers['x-noctra-site-key'] || '');
+  const a = Buffer.from(key);
+  const b = Buffer.from(SITE_KEY);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const ip = String(req.headers['x-noctra-client-ip'] || '').trim();
+  return /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : null;
+}
+
 function clientIp(req) {
+  const forwarded = siteForwardedIp(req);
+  if (forwarded) return forwarded;
   const peer = String(req.socket?.remoteAddress || '');
   const fromProxy = TRUST_PROXY || peer === '::1' || peer.startsWith('127.') || peer.startsWith('::ffff:127.');
   if (fromProxy) {
