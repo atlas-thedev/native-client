@@ -100,6 +100,79 @@ function checkVerificationCode(db, email, code) {
   return ok;
 }
 
+// ── Password reset ──────────────────────────────────────────────────────
+// Separate from sign-up codes so a reset can never be confused with (or
+// block) a registration in progress. Only a salted hash of the code is kept.
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+const RESET_RESEND_COOLDOWN_MS = 60 * 1000;
+
+function hashResetCode(code, salt) {
+  return crypto.createHash('sha256').update(`${salt}:${String(code).trim()}`).digest('hex');
+}
+
+function savePasswordReset(db, email, code) {
+  const key = String(email || '').toLowerCase().trim();
+  const now = Date.now();
+  const salt = crypto.randomBytes(16).toString('hex');
+  db.prepare(`
+    INSERT INTO password_resets (email, code_hash, salt, created_at, expires_at, attempts)
+    VALUES (?, ?, ?, ?, ?, 0)
+    ON CONFLICT(email) DO UPDATE SET
+      code_hash = excluded.code_hash,
+      salt = excluded.salt,
+      created_at = excluded.created_at,
+      expires_at = excluded.expires_at,
+      attempts = 0
+  `).run(key, hashResetCode(code, salt), salt, now, now + RESET_CODE_TTL_MS);
+  return { expiresAt: now + RESET_CODE_TTL_MS };
+}
+
+function getPasswordReset(db, email) {
+  return db.prepare('SELECT * FROM password_resets WHERE email = ?').get(String(email || '').toLowerCase().trim()) || null;
+}
+
+/** Milliseconds until another reset code may be sent to this address (0 = now). */
+function passwordResetCooldown(db, email, now = Date.now()) {
+  const row = getPasswordReset(db, email);
+  if (!row) return 0;
+  return Math.max(0, Number(row.created_at || 0) + RESET_RESEND_COOLDOWN_MS - now);
+}
+
+/** Same guess budget as sign-up codes: MAX_CODE_ATTEMPTS wrong answers burn the code. */
+function checkPasswordResetCode(db, email, code) {
+  const key = String(email || '').toLowerCase().trim();
+  const row = getPasswordReset(db, key);
+  if (!row || Number(row.expires_at) <= Date.now()) return false;
+  if (Number(row.attempts || 0) >= MAX_CODE_ATTEMPTS) {
+    clearPasswordReset(db, key);
+    return false;
+  }
+  const supplied = Buffer.from(hashResetCode(code, row.salt), 'hex');
+  const expected = Buffer.from(String(row.code_hash), 'hex');
+  const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+  if (!ok) {
+    const attempts = Number(row.attempts || 0) + 1;
+    if (attempts >= MAX_CODE_ATTEMPTS) clearPasswordReset(db, key);
+    else db.prepare('UPDATE password_resets SET attempts = ? WHERE email = ?').run(attempts, key);
+  }
+  return ok;
+}
+
+function clearPasswordReset(db, email) {
+  db.prepare('DELETE FROM password_resets WHERE email = ?').run(String(email || '').toLowerCase().trim());
+}
+
+/**
+ * Sets a new password and signs the account out everywhere: whoever knew the
+ * old password (or held a stolen session) must not stay signed in.
+ */
+function setUserPassword(db, userId, password) {
+  const { hash, salt } = hashPassword(String(password));
+  db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?').run(hash, salt, userId);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  return { ok: true };
+}
+
 function clearVerificationCode(db, email) {
   db.prepare(`DELETE FROM verification_codes WHERE email = ?`).run(email.toLowerCase().trim());
 }
@@ -235,6 +308,13 @@ module.exports = {
   verificationCooldown,
   checkVerificationCode,
   clearVerificationCode,
+  RESET_CODE_TTL_MS,
+  savePasswordReset,
+  getPasswordReset,
+  passwordResetCooldown,
+  checkPasswordResetCode,
+  clearPasswordReset,
+  setUserPassword,
   getUserByEmail,
   getUserByUsername,
   getUserByLogin,

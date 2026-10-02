@@ -42,6 +42,16 @@ function initSchema(db) {
       expires_at INTEGER NOT NULL
     );
 
+    -- Password reset codes. Only a salted hash of the 6-digit code is stored.
+    CREATE TABLE IF NOT EXISTS password_resets (
+      email TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

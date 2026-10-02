@@ -233,4 +233,59 @@ async function sendVerificationCodeEmail(email, code, username = '') {
   return sendEmail({ to: email, subject, html, text });
 }
 
-module.exports = { sendEmail, sendVerificationCodeEmail, DEFAULT_SENDER, REPLY_TO, FOOTER_ADDRESS };
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+));
+
+/**
+ * Send a 6-digit password reset code to the given email.
+ */
+async function sendPasswordResetEmail(email, code, username = '') {
+  const subject = `Noctra Client — Password Reset Code: ${code}`;
+  const text = `Your Noctra password reset code is: ${code}\n\nThis code will expire in 15 minutes. If you didn't ask to reset your password, you can ignore this email and your password will stay the same.\n\n${FOOTER_ADDRESS}`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Reset</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #0b080c; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ece6ed; }
+    .wrapper { width: 100%; max-width: 520px; margin: 0 auto; padding: 40px 20px; }
+    .card { background: #161218; border: 1px solid rgba(160, 81, 162, 0.25); border-radius: 16px; padding: 36px 28px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { font-size: 22px; font-weight: 700; color: #ffffff; margin: 0 0 10px; letter-spacing: -0.02em; }
+    p { font-size: 14px; color: #a9a0ad; line-height: 1.5; margin: 0 0 24px; }
+    .code-box { background: rgba(160, 81, 162, 0.12); border: 1px solid rgba(160, 81, 162, 0.35); border-radius: 12px; padding: 18px 24px; margin: 0 auto 28px; display: inline-block; }
+    .code { font-family: 'SF Mono', Monaco, Menlo, 'Courier New', monospace; font-size: 36px; font-weight: 700; color: #ffffff; letter-spacing: 8px; margin: 0; }
+    .expire { font-size: 12px; color: #887e8d; margin-top: 10px; margin-bottom: 0; }
+    .footer { margin-top: 32px; font-size: 11px; color: #69606d; text-align: center; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <h1>Reset your password</h1>
+      <p>Hello${username ? ` <strong>${escapeHtml(username)}</strong>` : ''},<br>Use this 6-digit code in Noctra Client to choose a new password:</p>
+
+      <div class="code-box">
+        <div class="code">${escapeHtml(code)}</div>
+        <div class="expire">Expires in 15 minutes</div>
+      </div>
+
+      <p style="font-size: 12px; color: #807685; margin: 0;">If you didn't ask to reset your password, you can safely ignore this email. Your password will stay the same.</p>
+    </div>
+    <div class="footer">
+      Noctra Client &bull; Noctra Security<br>
+      ${FOOTER_ADDRESS}
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return sendEmail({ to: email, subject, html, text });
+}
+
+module.exports = { sendEmail, sendVerificationCodeEmail, sendPasswordResetEmail, DEFAULT_SENDER, REPLY_TO, FOOTER_ADDRESS };

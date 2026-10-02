@@ -5,7 +5,7 @@ const path = require('path');
 const db = require('./db');
 const events = require('./social-events');
 const { handleRelayRoutes } = require('./relay-routes');
-const { sendVerificationCodeEmail } = require('./mailer');
+const { sendVerificationCodeEmail, sendPasswordResetEmail } = require('./mailer');
 const media = require('./media');
 
 /**
@@ -682,6 +682,60 @@ async function handler(req, res) {
       }
 
       return send(res, 200, { ok: true, message: 'New code sent.' });
+    }
+
+    // ── Password reset (email code) ─────────────────────────────────────
+    // /forgot never reveals whether an address has an account: it always
+    // answers the same way. /reset needs the emailed code, and on success
+    // ends every existing session for the account.
+    if (req.method === 'POST' && url.pathname === '/v1/auth/password/forgot') {
+      if (!hit('reset-ip', ip, 6, 10 * 60_000)) return tooMany(res, 600, 'Too many reset requests. Please wait a few minutes.');
+      const body = await readJson(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return send(res, 400, { ok: false, error: 'Please enter a valid email address.' });
+      }
+      if (!hit('reset-email', email, 5, 60 * 60_000)) return tooMany(res, 3600, 'Too many reset codes requested for this email. Try again later.');
+
+      const generic = { ok: true, message: 'If an account exists for that email, a reset code has been sent.' };
+      const user = db.getUserByEmail(email);
+      if (!user || db.passwordResetCooldown(email) > 0) return send(res, 200, generic);
+
+      const code = crypto.randomInt(100000, 1000000).toString();
+      db.savePasswordReset(email, code);
+      try {
+        await sendPasswordResetEmail(email, code, user.username);
+      } catch (err) {
+        console.error('Password reset email error:', err);
+        db.clearPasswordReset(email);
+      }
+      return send(res, 200, generic);
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/auth/password/reset') {
+      if (!hit('reset-verify-ip', ip, 30, 10 * 60_000)) return tooMany(res, 600);
+      const body = await readJson(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      const code = String(body.code || '').trim();
+      const password = String(body.password || '');
+
+      if (!password || password.length < 6) {
+        return send(res, 400, { ok: false, error: 'Password must be at least 6 characters long.' });
+      }
+      if (password.length > 256) {
+        return send(res, 400, { ok: false, error: 'Password is too long.' });
+      }
+      const user = email ? db.getUserByEmail(email) : null;
+      if (!user || !db.checkPasswordResetCode(email, code)) {
+        return send(res, 400, { ok: false, error: 'Invalid or expired reset code.' });
+      }
+
+      db.setUserPassword(user.id, password);
+      db.clearPasswordReset(email);
+      // Earlier failed sign-ins must not lock the owner out of the new password.
+      rateBuckets.delete(`login-fail:${email}`);
+      rateBuckets.delete(`login-fail:${String(user.username).toLowerCase()}`);
+      return send(res, 200, { ok: true, message: 'Password updated. You can now sign in.' });
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/auth/backup') {

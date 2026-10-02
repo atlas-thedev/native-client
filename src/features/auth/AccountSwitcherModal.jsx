@@ -63,6 +63,11 @@ export default function AccountSwitcherModal({
   const [regModel, setRegModel] = useState('classic');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Password reset state
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+
   // Premium ↔ Noctra connection
   const [connectTargetId, setConnectTargetId] = useState(null);
   const [connectDone, setConnectDone] = useState(false);
@@ -114,12 +119,15 @@ export default function AccountSwitcherModal({
       setRegEmail('');
       setRegPassword('');
       setRegModel('classic');
+      setResetEmail('');
+      setResetPassword('');
+      setResetConfirm('');
       setOtpDigits(['', '', '', '', '', '']);
     }
   }, [open]);
 
   useEffect(() => {
-    if (view !== 'noctra-verify' || countdown <= 0) return undefined;
+    if ((view !== 'noctra-verify' && view !== 'noctra-reset') || countdown <= 0) return undefined;
     const timer = setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -324,6 +332,97 @@ export default function AccountSwitcherModal({
       onClose?.();
     } catch (err) {
       setError(err?.message || 'Verification failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startPasswordReset = () => {
+    // Carry over an email typed into the sign-in box.
+    if (!resetEmail && EMAIL_REGEX.test(loginInput.trim())) setResetEmail(loginInput.trim());
+    setPasswordInput('');
+    setError('');
+    setView('noctra-forgot');
+  };
+
+  const handleForgotSubmit = async (e) => {
+    e?.preventDefault?.();
+    const email = resetEmail.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const res = await window.native?.accounts?.noctraForgotPassword?.({ email });
+      if (!res) throw new Error('Password reset is not available in this build.');
+      if (!res.ok) throw new Error(res.error || 'Could not send a reset code.');
+      setResetEmail(email);
+      setResetPassword('');
+      setResetConfirm('');
+      setCountdown(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      setView('noctra-reset');
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      setError(err?.message || 'Could not send a reset code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResendResetCode = async () => {
+    if (countdown > 0 || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await window.native?.accounts?.noctraForgotPassword?.({ email: resetEmail.trim().toLowerCase() });
+      if (res && !res.ok) throw new Error(res.error || 'Could not resend the code.');
+      setCountdown(60);
+    } catch (err) {
+      setError(err?.message || 'Could not resend the code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResetSubmit = async (e) => {
+    e?.preventDefault?.();
+    const email = resetEmail.trim().toLowerCase();
+    const code = otpDigits.join('').trim();
+    if (code.length !== 6) {
+      setError(t('account.invalidCode'));
+      return;
+    }
+    if (resetPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (resetPassword !== resetConfirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const res = await window.native?.accounts?.noctraResetPassword?.({ email, code, password: resetPassword });
+      if (!res) throw new Error('Password reset is not available in this build.');
+      if (!res.ok) throw new Error(res.error || 'Could not reset the password.');
+      // Sign straight in with the new password.
+      const login = await onNoctraLogin?.({ login: email, password: resetPassword });
+      if (login && !login.ok) {
+        setPasswordInput('');
+        setLoginInput(email);
+        setView('noctra-login');
+        setError('Password updated. Please sign in with your new password.');
+        return;
+      }
+      onClose?.();
+    } catch (err) {
+      setError(err?.message || 'Could not reset the password.');
     } finally {
       setBusy(false);
     }
@@ -840,6 +939,12 @@ export default function AccountSwitcherModal({
                     </div>
                   </div>
 
+                  <div className="noctra-resend-row" style={{ justifyContent: 'flex-end' }}>
+                    <button type="button" className="noctra-link-btn" onClick={startPasswordReset}>
+                      Forgot password?
+                    </button>
+                  </div>
+
                   {error && <div className="account-login-error" role="alert">{error}</div>}
 
                   <button
@@ -1068,6 +1173,169 @@ export default function AccountSwitcherModal({
                         className="noctra-link-btn"
                         disabled={busy}
                         onClick={handleResendCode}
+                      >
+                        {t('account.resendCode')}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            ) : view === 'noctra-forgot' ? (
+              <div className="noctra-auth-container">
+                <div className="noctra-auth-top">
+                  <button
+                    type="button"
+                    className="noctra-auth-back-btn"
+                    onClick={() => { setView('noctra-login'); setError(''); }}
+                    aria-label={t('common.back')}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>{t('common.back')}</span>
+                  </button>
+                </div>
+
+                <div className="noctra-auth-header">
+                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
+                  <h2 className="noctra-auth-title">Reset your password</h2>
+                  <p className="noctra-auth-sub">Enter the email for your Noctra account and we'll send you a 6-digit code.</p>
+                </div>
+
+                <form className="noctra-auth-form" onSubmit={handleForgotSubmit}>
+                  <div className="noctra-form-group">
+                    <label className="noctra-form-label">Email</label>
+                    <input
+                      type="email"
+                      className="noctra-form-input"
+                      placeholder="you@example.com"
+                      value={resetEmail}
+                      autoFocus
+                      onChange={(e) => { setResetEmail(e.target.value); setError(''); }}
+                    />
+                  </div>
+
+                  {error && <div className="account-login-error" role="alert">{error}</div>}
+
+                  <button
+                    type="submit"
+                    className="noctra-auth-primary-btn"
+                    disabled={busy || !resetEmail.trim()}
+                  >
+                    {busy ? (
+                      <span className="noctra-btn-spinner">
+                        <NativeIcon name="refresh" size={16} className="is-spinning" />
+                        <span>{t('account.securing')}</span>
+                      </span>
+                    ) : (
+                      'Send reset code'
+                    )}
+                  </button>
+                </form>
+              </div>
+            ) : view === 'noctra-reset' ? (
+              <div className="noctra-auth-container">
+                <div className="noctra-auth-top">
+                  <button
+                    type="button"
+                    className="noctra-auth-back-btn"
+                    onClick={() => { setView('noctra-forgot'); setError(''); }}
+                    aria-label={t('account.changeEmail')}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>{t('account.changeEmail')}</span>
+                  </button>
+                </div>
+
+                <div className="noctra-auth-header">
+                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
+                  <h2 className="noctra-auth-title">Choose a new password</h2>
+                  <p className="noctra-auth-sub">
+                    If an account exists for {resetEmail}, we sent it a 6-digit code. Enter it below with your new password.
+                  </p>
+                </div>
+
+                <form className="noctra-auth-form" onSubmit={handleResetSubmit}>
+                  <div className="noctra-otp-container">
+                    {otpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => (otpRefs.current[idx] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={1}
+                        className={`noctra-otp-box ${digit ? 'filled' : ''}`}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        onPaste={handleOtpPaste}
+                        autoFocus={idx === 0}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="noctra-form-group">
+                    <label className="noctra-form-label">New password</label>
+                    <div className="noctra-input-wrap">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        className="noctra-form-input has-toggle"
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        value={resetPassword}
+                        onChange={(e) => { setResetPassword(e.target.value); setError(''); }}
+                      />
+                      <button
+                        type="button"
+                        className="noctra-input-toggle"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="noctra-form-group">
+                    <label className="noctra-form-label">Confirm new password</label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="noctra-form-input"
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      value={resetConfirm}
+                      onChange={(e) => { setResetConfirm(e.target.value); setError(''); }}
+                    />
+                  </div>
+
+                  {error && <div className="account-login-error" role="alert">{error}</div>}
+
+                  <button
+                    type="submit"
+                    className="noctra-auth-primary-btn"
+                    disabled={busy || otpDigits.join('').length < 6 || !resetPassword || !resetConfirm}
+                  >
+                    {busy ? (
+                      <span className="noctra-btn-spinner">
+                        <NativeIcon name="refresh" size={16} className="is-spinning" />
+                        <span>{t('account.securing')}</span>
+                      </span>
+                    ) : (
+                      'Reset password'
+                    )}
+                  </button>
+
+                  <div className="noctra-resend-row">
+                    {countdown > 0 ? (
+                      <span className="noctra-countdown-text">
+                        {t('account.resendIn').replace('{seconds}', countdown)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="noctra-link-btn"
+                        disabled={busy}
+                        onClick={handleResendResetCode}
                       >
                         {t('account.resendCode')}
                       </button>

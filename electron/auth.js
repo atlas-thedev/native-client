@@ -718,6 +718,31 @@ function init(dependencies, ipcMain) {
     return authFetch('/v1/auth/resend-code', payload);
   });
 
+  ipcMain.handle('accounts:noctraForgotPassword', async (_event, payload) => {
+    return authFetch('/v1/auth/password/forgot', { email: String(payload?.email || '').trim() });
+  });
+
+  ipcMain.handle('accounts:noctraResetPassword', async (_event, payload) => {
+    const res = await authFetch('/v1/auth/password/reset', {
+      email: String(payload?.email || '').trim(),
+      code: String(payload?.code || '').trim(),
+      password: String(payload?.password || '')
+    });
+    if (res?.ok) {
+      // Every old session for this account was ended on the server; drop the
+      // stale local copy so nothing keeps using a dead token.
+      const email = String(payload?.email || '').trim().toLowerCase();
+      const data = readAccounts();
+      const before = data.accounts.length;
+      data.accounts = data.accounts.filter((a) => !(a.type === 'noctra' && String(a.email || '').toLowerCase() === email));
+      if (data.accounts.length !== before) {
+        if (!data.accounts.some((a) => a.id === data.activeId)) data.activeId = data.accounts[0]?.id ?? null;
+        saveAccounts(data);
+      }
+    }
+    return res;
+  });
+
   ipcMain.handle('accounts:noctraVerifyRegister', async (_event, payload) => {
     const res = await authFetch('/v1/auth/register/verify', payload);
     if (res?.ok && res?.account) {
