@@ -601,3 +601,30 @@
   .instances-search { width: 100%; }
   .instances-grid.is-list .instance-card-stats { display: none; }
 }
+
+/* ---------- calmer corners + white primary (override pass) ---------- */
+.instances-view { --in-btn-radius: 10px; }
+.instances-brand-btn,
+.instances-ghost-btn,
+.instances-danger-btn,
+.instances-search,
+.instances-sort-btn,
+.instances-chips,
+.instances-chip,
+.instances-layout-toggle,
+.instances-layout-toggle button,
+.instances-search-clear,
+.instance-card-settings-btn,
+.instance-card-menu-btn,
+.instance-card-launch .launch-action { border-radius: var(--in-btn-radius); }
+.instances-chips,
+.instances-layout-toggle { border-radius: 12px; }
+.instances-chip,
+.instances-layout-toggle button { border-radius: 8px; }
+.instance-chip, .instance-card-live { border-radius: 8px; }
+
+.instances-brand-btn { background: #fff; border-color: #fff; color: #111; }
+.instances-brand-btn:hover:not(:disabled) { background: #f0f0f0; border-color: #f0f0f0; filter: none; }
+:root .instances-view .instances-brand-btn svg,
+:root .instances-view .instances-brand-btn svg *,
+:root .instances-view .instances-brand-btn .native-icon-plus path { color: #111 !important; stroke: #111 !important; }

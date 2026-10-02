@@ -17,15 +17,16 @@
 }
 .instances-view .instances-brand-btn {
   height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--nx-accent-hi);
-  background: var(--nx-grad);
-  box-shadow: 0 8px 22px rgba(140, 63, 149, 0.36);
+  border-radius: 10px;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #111;
+  box-shadow: none;
 }
 .instances-view .instances-brand-btn:hover:not(:disabled) {
-  background: var(--nx-grad);
-  filter: brightness(1.1);
-  box-shadow: 0 10px 26px rgba(140, 63, 149, 0.46);
+  background: #f0f0f0;
+  filter: none;
+  box-shadow: none;
 }
 
 /* toolbar */
@@ -37,7 +38,7 @@
 }
 .instances-view .instances-search {
   height: 38px;
-  border-radius: 11px;
+  border-radius: 10px;
   border: 1px solid var(--nx-line-strong);
   background: var(--nx-sunken);
 }
