@@ -212,3 +212,54 @@ export async function installPreset(instance, presetId, { onProgress } = {}) {
 
   return { installed, skipped, failed };
 }
+
+/* ── compatibility preview (no downloads) ────────────────────────────────── */
+
+const compatCache = new Map();
+
+/**
+ * Checks every mod of a preset against a Minecraft version + loader so the
+ * create dialog can show what will and will not be installed.
+ * Resolves [{ slug, kind, title, iconUrl, status, versionNumber }] where
+ * status is 'compatible' | 'unavailable'.
+ */
+export async function checkPresetCompat(presetId, mcVersion, loader) {
+  const preset = getPreset(presetId);
+  if (!preset || !mcVersion) return [];
+  const key = `${presetId}|${mcVersion}|${loader}`;
+  if (compatCache.has(key)) return compatCache.get(key);
+
+  const loaders = loader === 'Quilt' ? ['quilt', 'fabric'] : ['fabric'];
+  const entries = [
+    ...preset.mods.map((slug) => ({ slug, kind: 'mod' })),
+    ...(preset.shaders || []).map((slug) => ({ slug, kind: 'shader' }))
+  ];
+
+  const [hits, projects] = await Promise.all([
+    mapLimit(entries, 6, (entry) =>
+      resolveProject(entry.slug, { mcVersion, loaders, shader: entry.kind === 'shader' })
+    ),
+    getJson(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(entries.map((e) => e.slug)))}`).catch(() => [])
+  ]);
+
+  const bySlug = new Map();
+  (Array.isArray(projects) ? projects : []).forEach((project) => {
+    bySlug.set(project.slug, project);
+    bySlug.set(project.id, project);
+  });
+
+  const result = entries.map((entry, index) => {
+    const hit = hits[index];
+    const project = bySlug.get(entry.slug);
+    return {
+      slug: entry.slug,
+      kind: entry.kind,
+      title: project?.title || entry.slug,
+      iconUrl: project?.icon_url || '',
+      status: hit ? 'compatible' : 'unavailable',
+      versionNumber: hit?.version?.version_number || ''
+    };
+  });
+  compatCache.set(key, result);
+  return result;
+}

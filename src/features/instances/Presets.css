@@ -1,12 +1,92 @@
-.ci-preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.ci-preset-card {
-  display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer;
-  padding: 10px 12px; border-radius: 10px; color: inherit; font: inherit;
-  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: border-color 0.15s, background 0.15s;
+/* Mod preset picker + compatibility list (matches the dialog's pill/black-tile style). */
+.ci-preset-summary { font-size: 12px; font-weight: 600; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+
+.ci-mod-list {
+  height: 168px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #000;
+  border: 1px solid var(--ci-line);
+  border-radius: 16px;
 }
-.ci-preset-card:hover { background: rgba(255, 255, 255, 0.07); }
-.ci-preset-card.active { border-color: var(--brand, #8b7bff); background: rgba(139, 123, 255, 0.14); }
-.ci-preset-card strong { font-size: 13px; }
-.ci-preset-card span { font-size: 11.5px; opacity: 0.7; line-height: 1.35; }
-.ci-preset-card em { font-style: normal; font-size: 10.5px; opacity: 0.55; }
+.ci-mod-list::-webkit-scrollbar { width: 6px; }
+.ci-mod-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 999px; }
+
+.ci-mod-row {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 10px;
+}
+.ci-mod-row:hover { background: rgba(255, 255, 255, 0.04); }
+.ci-mod-row.unavailable .ci-mod-name,
+.ci-mod-row.unavailable .ci-mod-icon { opacity: 0.45; }
+
+.ci-mod-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #151517;
+  border: 1px solid var(--ci-line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg-muted);
+}
+.ci-mod-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.ci-mod-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ci-mod-name em {
+  flex: none;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--fg-secondary);
+  border: 1px solid var(--ci-line-strong);
+}
+.ci-mod-version {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ci-mod-status {
+  flex: none;
+  min-width: 86px;
+  text-align: center;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--ci-line-strong);
+  color: var(--fg-muted);
+}
+.ci-mod-status.compatible { color: #4ade80; border-color: rgba(74, 222, 128, 0.35); background: rgba(74, 222, 128, 0.08); }
+.ci-mod-status.unavailable { color: #f87171; border-color: rgba(248, 113, 113, 0.35); background: rgba(248, 113, 113, 0.08); }
+
+/* Preview chips must not wrap into pill-in-pill. */
+.ci-preview-chips { flex-wrap: wrap; }
+.ci-preview-chip { white-space: nowrap; }

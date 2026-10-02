@@ -9,7 +9,7 @@ import {
   versionLine
 } from '../../lib/mojang.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
-import { PRESETS, PRESET_LOADERS, getPreset, presetModCount } from './presets.js';
+import { PRESETS, PRESET_LOADERS, checkPresetCompat, getPreset } from './presets.js';
 import './CreateInstanceModal.css';
 import './Presets.css';
 
@@ -39,6 +39,11 @@ function artFor(versionId) {
     getClusterArt({ version: versionId, mc_version: versionId, artKey: line?.artKey })
   );
 }
+
+const presetPlaceholder = (preset) => [
+  ...preset.mods.map((slug) => ({ slug, kind: 'mod', title: slug, iconUrl: '', status: 'checking', versionNumber: '' })),
+  ...(preset.shaders || []).map((slug) => ({ slug, kind: 'shader', title: slug, iconUrl: '', status: 'checking', versionNumber: '' }))
+];
 
 export default function CreateInstanceModal({
   open,
@@ -154,6 +159,32 @@ export default function CreateInstanceModal({
   const duplicateName = instances.some(
     (instance) => String(instance.name || '').toLowerCase() === trimmedName.toLowerCase()
   );
+  const activePreset = getPreset(preset);
+
+  /* Which of the preset's mods have a build for the chosen version + loader. */
+  const [compat, setCompat] = useState(null);
+  useEffect(() => {
+    if (!open || !preset || !version || !PRESET_LOADERS.includes(loader)) {
+      setCompat(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setCompat(null);
+    const timer = window.setTimeout(() => {
+      checkPresetCompat(preset, version, loader)
+        .then((items) => { if (!cancelled) setCompat({ items }); })
+        .catch(() => { if (!cancelled) setCompat({ items: null, error: true }); });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, preset, version, loader]);
+
+  const compatSummary = compat?.items
+    ? { ok: compat.items.filter((item) => item.status === 'compatible').length, total: compat.items.length }
+    : null;
+
   const presetUsable = !preset || PRESET_LOADERS.includes(loader);
   const canSubmit = presetUsable && Boolean(trimmedName) && Boolean(version) && availability.available;
 
@@ -331,35 +362,72 @@ export default function CreateInstanceModal({
             <div className="ci-field">
               <div className="ci-label-row">
                 <span className="ci-label">Mod preset</span>
-                {preset && (
-                  <button type="button" className="ci-toggle" onClick={() => setPreset('')}>
-                    Clear
-                  </button>
+                {preset && compatSummary && (
+                  <span className="ci-preset-summary">
+                    {compatSummary.ok} of {compatSummary.total} compatible with {version}
+                  </span>
                 )}
               </div>
-              <div className="ci-preset-grid">
+
+              <div className="ci-loader-row">
+                <button
+                  type="button"
+                  className={`ci-loader-btn ${preset ? '' : 'active'}`}
+                  onClick={() => setPreset('')}
+                >
+                  None
+                </button>
                 {PRESETS.map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
-                    className={`ci-preset-card ${preset === entry.id ? 'active' : ''}`}
+                    className={`ci-loader-btn ${preset === entry.id ? 'active' : ''}`}
                     onClick={() => {
-                      if (preset === entry.id) {
-                        setPreset('');
-                        return;
-                      }
                       setPreset(entry.id);
                       if (!PRESET_LOADERS.includes(loader)) setLoader('Fabric');
                       setMemoryMb((current) => Math.max(current, entry.memoryMb));
                     }}
                   >
-                    <strong>{entry.name}</strong>
-                    <span>{entry.tagline}</span>
-                    <em>{presetModCount(entry)} mods installed automatically</em>
+                    {entry.name}
                   </button>
                 ))}
               </div>
-              <p className="ci-hint">Mods without a build for this Minecraft version are skipped.</p>
+
+              {activePreset ? (
+                <>
+                  <p className="ci-hint">{activePreset.tagline}. Installed automatically after you create the instance.</p>
+                  <div className="ci-mod-list" role="list">
+                    {(compat?.items || presetPlaceholder(activePreset)).map((item) => (
+                      <div key={`${item.kind}-${item.slug}`} className={`ci-mod-row ${item.status}`} role="listitem">
+                        <span className="ci-mod-icon">
+                          {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span>{item.title.slice(0, 1).toUpperCase()}</span>}
+                        </span>
+                        <span className="ci-mod-name">
+                          {item.title}
+                          {item.kind === 'shader' && <em>Shader pack</em>}
+                        </span>
+                        <span className="ci-mod-version">{item.versionNumber}</span>
+                        <span className={`ci-mod-status ${item.status}`}>
+                          {item.status === 'compatible' && 'Compatible'}
+                          {item.status === 'unavailable' && 'Not available'}
+                          {item.status === 'checking' && 'Checking…'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {compat?.error && (
+                    <p className="ci-hint warn">
+                      <NativeIcon name="alert" size={13} />
+                      Could not check compatibility (offline?). Mods are checked again when installing.
+                    </p>
+                  )}
+                  {compatSummary && compatSummary.ok < compatSummary.total && (
+                    <p className="ci-hint">Mods marked Not available have no build for {version} and are skipped.</p>
+                  )}
+                </>
+              ) : (
+                <p className="ci-hint">Pick a preset to preview its mods and see which work with {version || 'this version'}.</p>
+              )}
             </div>
 
             <div className="ci-field">
@@ -395,7 +463,7 @@ export default function CreateInstanceModal({
                 <div className="ci-preview-chips">
                   <span className="ci-preview-chip mono">{version || '--'}</span>
                   <span className="ci-preview-chip brand">{loader}</span>
-                  {preset && <span className="ci-preview-chip">{getPreset(preset)?.name}</span>}
+                  {preset && <span className="ci-preview-chip">{activePreset?.name}</span>}
                 </div>
               </div>
             </div>
@@ -409,6 +477,12 @@ export default function CreateInstanceModal({
                 <dt>{t('create.loader')}</dt>
                 <dd>{loader}</dd>
               </div>
+              {activePreset && (
+                <div>
+                  <dt>Preset</dt>
+                  <dd>{compatSummary ? `${compatSummary.ok}/${compatSummary.total} mods` : 'Checking…'}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t('onboarding.memory')}</dt>
                 <dd>{`${memoryMb} MB`}</dd>
