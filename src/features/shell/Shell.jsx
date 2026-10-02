@@ -32,6 +32,7 @@ import GuidesView from '../guides/GuidesView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
+import '../../lib/whitePrimary.css';
 
 const WELCOME_TOUR_KEY = 'noctra.welcome-tour.v1';
 const PLAY_AS_KEY = 'noctra.play-as.v1';

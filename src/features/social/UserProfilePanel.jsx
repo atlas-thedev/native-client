@@ -29,7 +29,7 @@ export default function UserProfilePanel({
 
   useEffect(() => {
     setMutual(Array.isArray(user?.mutualFriends) ? user.mutualFriends : []);
-    if (!userId || isGroup) return undefined;
+    if (!userId || isGroup || (typeof navigator !== 'undefined' && navigator.onLine === false)) return undefined;
     let cancelled = false;
     const api = window.noctra?.social;
     api?.getMutualFriends?.(userId)
