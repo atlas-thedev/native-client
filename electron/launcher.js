@@ -9,6 +9,7 @@ const javaRuntime = require('./javaRuntime');
 const { downloadFile, fetchJson, writeFileAtomic } = require('./download');
 const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
+const noctraMod = require('./noctraMod');
 const socialMod = require('./social');
 const discordRpcMod = require('./discordRpc');
 const playHistory = require('./playHistory');
@@ -170,6 +171,20 @@ const setState = (status, detail = '') => {
 
 const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
+
+/** The Noctra session of the account being launched (Noctra account, or the one a premium account is connected to). */
+function noctraIdentityFor(rawAccount) {
+  try {
+    const data = auth.readAccounts(deps.app.getPath('userData'));
+    const saved = (data.accounts || []).find((entry) => entry.id === rawAccount?.id);
+    if (!saved) return null;
+    if (saved.type === 'noctra') {
+      const token = saved.token || saved.sessionToken;
+      return token ? { id: saved.id, name: saved.name || saved.username, token } : null;
+    }
+    return auth.linkedIdentity(saved);
+  } catch { return null; }
+}
 
 function usesPost1216Rendering(mcVersion) {
   const match = String(mcVersion || '').match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
@@ -551,15 +566,39 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       return;
     }
 
-    // Skins are cosmetic: a missing CustomSkinLoader download (offline, API
-    // down) must never stop the game from starting.
+    // Skins are cosmetic: a failure here (offline, API down) must never stop
+    // the game from starting. Fabric/Quilt 1.16+ use the Noctra Client mod
+    // (live skins + capes, signed in to the Noctra account); everything else
+    // (older versions, Forge, NeoForge, Legacy Fabric) keeps CustomSkinLoader.
     if (loaders.normalize(loader) !== 'vanilla') {
+      let modResult = { installed: false };
       try {
-        setState('preparing', 'Setting up CustomSkinLoader…');
-        const wardrobe = await wardrobeMod.prepareFabricInstance(instance, account, (detail) => setState('preparing', detail));
-        if (wardrobe?.warning) launcher.emit('debug', `[Noctra Client]: Wardrobe integration: ${wardrobe.warning}`);
+        modResult = await noctraMod.prepare({
+          instance: { ...instance, loader },
+          identity: noctraIdentityFor(rawAccount),
+          gameDir: instanceDir(instance.id),
+          cacheDir: path.join(deps.app.getPath('userData'), 'noctra-mod'),
+          roots: socialMod.API_ROOTS,
+          onState: (detail) => setState('preparing', detail)
+        });
+        if (modResult.warning) launcher.emit('debug', `[Noctra Client]: Noctra mod: ${modResult.warning}`);
+        if (modResult.installed) {
+          gameConsole.pushLauncher(`Noctra Client mod ${modResult.version || modResult.filename} ready${modResult.signedIn ? ' · signed in to Noctra' : ' · guest mode'}`);
+        }
       } catch (err) {
-        gameConsole.pushLauncher(`Skins are unavailable for this session: ${err.message}`);
+        gameConsole.pushLauncher(`Noctra Client mod unavailable: ${err.message}`);
+      }
+
+      if (modResult.installed) {
+        try { wardrobeMod.removeSkinLoader(instance); } catch { /* leftover jar is harmless */ }
+      } else {
+        try {
+          setState('preparing', 'Setting up CustomSkinLoader…');
+          const wardrobe = await wardrobeMod.prepareFabricInstance(instance, account, (detail) => setState('preparing', detail));
+          if (wardrobe?.warning) launcher.emit('debug', `[Noctra Client]: Wardrobe integration: ${wardrobe.warning}`);
+        } catch (err) {
+          gameConsole.pushLauncher(`Skins are unavailable for this session: ${err.message}`);
+        }
       }
     }
 
@@ -671,6 +710,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeChild = null;
         activeInstance = null;
       }
+      noctraMod.clearHandoff(instanceDir(instance.id));
       setState('error', `Minecraft process failed: ${err.message}`);
       resetPresence();
       gameConsole.end(instance.id, { note: `Minecraft process failed: ${err.message}` });
@@ -692,6 +732,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeInstance = null;
         activeFinish = null;
       }
+      noctraMod.clearHandoff(instanceDir(instance.id));
       gameConsole.end(instance.id, { code, signal, killed });
       resetPresence();
       const record = await crashReporter.endSession(code, signal).catch(() => null);

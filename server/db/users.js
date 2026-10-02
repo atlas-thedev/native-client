@@ -185,6 +185,11 @@ function getUserByUsername(db, username) {
   return db.prepare(`SELECT * FROM users WHERE lower(username) = lower(?)`).get(username.trim()) || null;
 }
 
+function getUserById(db, id) {
+  if (!id) return null;
+  return db.prepare(`SELECT * FROM users WHERE id = ?`).get(String(id)) || null;
+}
+
 function getUserByLogin(db, login) {
   const val = login.trim();
   return db.prepare(`
@@ -317,6 +322,7 @@ module.exports = {
   setUserPassword,
   getUserByEmail,
   getUserByUsername,
+  getUserById,
   getUserByLogin,
   createUser,
   createSession,

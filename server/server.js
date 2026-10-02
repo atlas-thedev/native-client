@@ -7,6 +7,7 @@ const events = require('./social-events');
 const { handleRelayRoutes } = require('./relay-routes');
 const { sendVerificationCodeEmail, sendPasswordResetEmail } = require('./mailer');
 const media = require('./media');
+const modRoutes = require('./mod-routes');
 
 /**
  * Noctra Backend & API Server
@@ -362,6 +363,13 @@ async function handler(req, res) {
       return;
     }
 
+    try {
+      if (await modRoutes.handleModRoutes(req, res, { ip, send, hit, tooMany })) return;
+    } catch (modError) {
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Mod route failed.' });
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/health') {
       return send(res, 200, {
         ok: true,
@@ -501,6 +509,7 @@ async function handler(req, res) {
         updatedAt: new Date().toISOString()
       };
       atomicWrite(profilePath(username), JSON.stringify(profile, null, 2));
+      try { modRoutes.noteProfile(profile); } catch {}
 
       // Tell friends to re-render the avatar immediately.
       try {
@@ -787,6 +796,7 @@ async function handler(req, res) {
 
       if (req.method === 'DELETE') {
         db.unlinkMinecraftAccount(authUser.id);
+        try { modRoutes.noteProfile(authUser.username); } catch {}
         return send(res, 200, { ok: true, profile: null }, { 'Cache-Control': 'no-store' });
       }
 
@@ -803,6 +813,7 @@ async function handler(req, res) {
             uuid: minecraftProfile.uuid,
             name: minecraftProfile.name
           });
+          try { modRoutes.noteProfile(authUser.username); } catch {}
           return send(res, 200, { ok: true, profile }, { 'Cache-Control': 'no-store' });
         } catch (error) {
           return send(res, 409, { ok: false, error: error.message });

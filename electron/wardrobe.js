@@ -1247,6 +1247,30 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
   }
 }
 
+/**
+ * Drops the CustomSkinLoader copy this launcher installed (tracked by
+ * `.noctra-loader.json`) once the Noctra Client mod takes over skins. A copy the
+ * player added by hand is left alone.
+ */
+function removeSkinLoader(instance) {
+  if (!instance?.id) return { removed: false };
+  const gameDir = path.join(deps.app.getPath('userData'), 'minecraft', 'instances', String(instance.id));
+  const cslDir = path.join(gameDir, 'CustomSkinLoader');
+  const modsDir = path.join(gameDir, 'mods');
+  let removed = false;
+  for (const name of ['.noctra-loader.json', '.native-loader.json']) {
+    const trackerPath = path.join(cslDir, name);
+    let tracker = null;
+    try { tracker = JSON.parse(fs.readFileSync(trackerPath, 'utf8')); } catch { continue; }
+    if (tracker?.filename) {
+      const jar = path.join(modsDir, path.basename(String(tracker.filename)));
+      try { if (fs.existsSync(jar)) { fs.rmSync(jar, { force: true }); removed = true; } } catch {}
+    }
+    try { fs.rmSync(trackerPath, { force: true }); } catch {}
+  }
+  return { removed };
+}
+
 async function artifactMatches(filePath, { sha1, size }) {
   try {
     const stat = await fs.promises.stat(filePath);
@@ -1348,6 +1372,7 @@ module.exports = {
   setModel,
   exportItem,
   prepareFabricInstance,
+  removeSkinLoader,
   configureSkinLoader,
   migrateLegacy,
   pullRemoteWardrobe,

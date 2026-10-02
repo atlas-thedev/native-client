@@ -107,6 +107,7 @@ module.exports = {
   setUserPassword: (userId, password) => usersMod.setUserPassword(getDb(), userId, password),
   getUserByEmail: (email) => usersMod.getUserByEmail(getDb(), email),
   getUserByUsername: (username) => usersMod.getUserByUsername(getDb(), username),
+  getUserById: (id) => usersMod.getUserById(getDb(), id),
   getUserByLogin: (login) => usersMod.getUserByLogin(getDb(), login),
   createUser: (data) => usersMod.createUser(getDb(), data),
   createSession: (userId) => usersMod.createSession(getDb(), userId),
