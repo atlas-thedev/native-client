@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles, Swords, Zap, Box } from 'lucide-react';
+import { PRESETS } from '../instances/presets.js';
 import Icon from '../../components/ui/Icon.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import ContextMenu from '../../components/ui/ContextMenu.jsx';
@@ -278,7 +279,7 @@ export default function HomeView({
             <h2 className="home-cluster-title">No instances yet</h2>
             <p className="home-cluster-subtitle">Create your first instance to pick a version, a mod loader and start playing.</p>
             <div className="home-actions-row">
-              <button type="button" className="home-quick-btn is-primary" onClick={onCreateInstance}>
+              <button type="button" className="home-quick-btn is-primary" onClick={() => onCreateInstance()}>
                 <Plus size={16} strokeWidth={2.2} />
                 <span>{t('home.newInstance')}</span>
               </button>
@@ -286,6 +287,32 @@ export default function HomeView({
                 <NativeIcon name="download" size={15} />
                 <span>{t('home.allVersions')}</span>
               </button>
+            </div>
+
+            <div className="home-empty-starts" role="group" aria-label="Quick start">
+              <span className="home-empty-starts-label">Or start from a preset</span>
+              <div className="home-empty-tiles">
+                {PRESETS.map((preset) => {
+                  const Icon = { optimization: Zap, pvp: Swords, visuals: Sparkles }[preset.id] || Box;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="home-empty-tile"
+                      onClick={() => onCreateInstance({ preset: preset.id, loader: 'Fabric' })}
+                    >
+                      <span className="home-empty-tile-icon"><Icon size={18} strokeWidth={2} /></span>
+                      <strong>{preset.name}</strong>
+                      <small>{preset.tagline}</small>
+                    </button>
+                  );
+                })}
+                <button type="button" className="home-empty-tile" onClick={() => onCreateInstance({ loader: 'Vanilla' })}>
+                  <span className="home-empty-tile-icon"><Box size={18} strokeWidth={2} /></span>
+                  <strong>Vanilla</strong>
+                  <small>Plain Minecraft, no mods</small>
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -157,6 +157,8 @@ export default function Shell({
     };
   }, [isNoctra, account, premiumLink?.userId, premiumLink?.name, premiumLink?.uuid]);
   const hasNoctra = Boolean(socialAccount);
+  // Offline accounts get a local-only Locker (never synced to Noctra).
+  const canUseLocalLocker = Boolean(hasValidAccount && account.type === 'offline');
 
   /* A premium account linked to Noctra can play as either identity without
      going back to the login screen. Premium = real Microsoft session (online
@@ -644,7 +646,7 @@ export default function Shell({
           isAccountOpen={!hasValidAccount || accountSwitcherOpen}
           account={launchAccount}
           isNoctra={hasNoctra}
-          canUseLocker={isNoctra}
+          canUseLocker={isNoctra || canUseLocalLocker}
           notifications={notifications.length}
           onOpenNotifications={() => setNotificationsOpen(true)}
           isMaximized={isMaximized}
@@ -691,7 +693,7 @@ export default function Shell({
           )}
 
         {currentTab === 'skins' && (
-          isNoctra ? (
+          isNoctra || canUseLocalLocker ? (
             <LockerView
               account={account}
               onWardrobeChanged={onWardrobeChanged}

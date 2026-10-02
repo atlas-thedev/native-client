@@ -1,10 +1,10 @@
-/* Glowing, animated, cartoon-shaded buttons: chunky outline, glossy top,
-   hard bottom edge, pulsing glow, sweeping shine, squish on press. */
+/* Modern shaded buttons: soft vertical gradient, crisp top highlight, subtle
+   neutral depth, smooth lift on hover. No glow, no looping animation. */
 
 :root {
-  --cb-green: #2fe07a; --cb-green-d: #0f8f4a; --cb-green-glow: 47, 224, 122;
-  --cb-purple: #9a7bff; --cb-purple-d: #5b3fd1; --cb-purple-glow: 154, 123, 255;
-  --cb-red: #ff5d6c; --cb-red-d: #b8243a; --cb-red-glow: 255, 93, 108;
+  --mb-violet-1: #8f7bff; --mb-violet-2: #6a4df0;
+  --mb-green-1: #36d985;  --mb-green-2: #17a85f;
+  --mb-red-1: #ff6b78;    --mb-red-2: #d63449;
 }
 
 :root .launch-action:not(.is-busy),
@@ -13,33 +13,23 @@
 :root .ci-brand-btn,
 :root .guides-primary,
 :root .noctra-auth-primary-btn {
-  --cb-top: var(--cb-purple); --cb-bottom: var(--cb-purple-d); --cb-glow: var(--cb-purple-glow);
+  --mb-1: var(--mb-violet-1); --mb-2: var(--mb-violet-2);
   position: relative;
   color: #fff !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.02em;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
-  border: 2px solid rgba(10, 6, 30, 0.85) !important;
-  background-image:
-    linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 52%),
-    linear-gradient(180deg, var(--cb-top), var(--cb-bottom)) !important;
-  background-size: 260% 100%, 100% 100%, 100% 100% !important;
-  background-position: 160% 0, 0 0, 0 0 !important;
-  background-repeat: no-repeat !important;
-  background-color: var(--cb-bottom) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+  border: 1px solid rgba(0, 0, 0, 0.35) !important;
+  background: linear-gradient(180deg, var(--mb-1) 0%, var(--mb-2) 100%) !important;
   box-shadow:
-    0 4px 0 rgba(10, 6, 30, 0.9),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.22),
-    inset 0 2px 0 rgba(255, 255, 255, 0.45),
-    0 0 18px rgba(var(--cb-glow), 0.55) !important;
-  transform: translateY(0);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
-  animation: cb-glow 2.2s ease-in-out infinite, cb-shine 3.6s ease-in-out infinite;
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 6px 14px -6px rgba(0, 0, 0, 0.6) !important;
+  transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
   cursor: pointer;
 }
-:root .launch-action.is-launch { --cb-top: var(--cb-green); --cb-bottom: var(--cb-green-d); --cb-glow: var(--cb-green-glow); }
-:root .launch-action.is-stop { --cb-top: var(--cb-red); --cb-bottom: var(--cb-red-d); --cb-glow: var(--cb-red-glow); }
+:root .launch-action.is-launch { --mb-1: var(--mb-green-1); --mb-2: var(--mb-green-2); }
+:root .launch-action.is-stop { --mb-1: var(--mb-red-1); --mb-2: var(--mb-red-2); }
 
 :root .launch-action:not(.is-busy):hover,
 :root .home-quick-btn.is-primary:hover,
@@ -47,13 +37,13 @@
 :root .ci-brand-btn:hover:not(:disabled),
 :root .guides-primary:hover,
 :root .noctra-auth-primary-btn:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.03);
-  filter: brightness(1.1) saturate(1.1);
+  transform: translateY(-1px);
+  filter: brightness(1.08);
   box-shadow:
-    0 6px 0 rgba(10, 6, 30, 0.9),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.22),
-    inset 0 2px 0 rgba(255, 255, 255, 0.5),
-    0 0 28px rgba(var(--cb-glow), 0.85) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 10px 18px -6px rgba(0, 0, 0, 0.65) !important;
 }
 :root .launch-action:not(.is-busy):active,
 :root .home-quick-btn.is-primary:active,
@@ -61,34 +51,14 @@
 :root .ci-brand-btn:active:not(:disabled),
 :root .guides-primary:active,
 :root .noctra-auth-primary-btn:active:not(:disabled) {
-  transform: translateY(3px) scale(0.98);
-  box-shadow:
-    0 1px 0 rgba(10, 6, 30, 0.9),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.25),
-    inset 0 2px 0 rgba(255, 255, 255, 0.35),
-    0 0 12px rgba(var(--cb-glow), 0.6) !important;
+  transform: translateY(1px);
+  filter: brightness(0.96);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.4) !important;
 }
 :root .ci-brand-btn:disabled,
-:root .noctra-auth-primary-btn:disabled { animation: none; filter: grayscale(0.6) brightness(0.8); }
+:root .noctra-auth-primary-btn:disabled { filter: grayscale(0.5) brightness(0.8); box-shadow: none !important; }
 
-/* Icons inside keep the white cartoon look. */
 :root .launch-action:not(.is-busy) svg,
 :root .launch-action:not(.is-busy) svg *,
 :root .create-instance-box .ci-brand-btn svg,
-:root .create-instance-box .ci-brand-btn svg * {
-  color: #fff !important; stroke: #fff !important;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
-}
-
-@keyframes cb-glow {
-  0%, 100% { box-shadow: 0 4px 0 rgba(10, 6, 30, 0.9), inset 0 -3px 0 rgba(0, 0, 0, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 0 14px rgba(var(--cb-glow), 0.4); }
-  50% { box-shadow: 0 4px 0 rgba(10, 6, 30, 0.9), inset 0 -3px 0 rgba(0, 0, 0, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 0 26px rgba(var(--cb-glow), 0.8); }
-}
-@keyframes cb-shine {
-  0%, 55% { background-position: 160% 0, 0 0, 0 0; }
-  100% { background-position: -60% 0, 0 0, 0 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  :root .launch-action, :root .home-quick-btn.is-primary, :root .home-starter-launch-btn,
-  :root .ci-brand-btn, :root .guides-primary, :root .noctra-auth-primary-btn { animation: none; }
-}
+:root .create-instance-box .ci-brand-btn svg * { color: #fff !important; stroke: #fff !important; }

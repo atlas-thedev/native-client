@@ -288,6 +288,12 @@ const warmingSkins = new Map();
 // Skin cache files are keyed per identity. A Microsoft account and a Noctra
 // account can share a username, so a bare `<username>.png` let one account
 // show the other's skin.
+// Offline accounts are local-only: their wardrobe never touches the Noctra API
+// (anyone could otherwise publish skins under a name they do not own).
+function isLocalOnlyAccount(account) {
+  return account?.type === 'offline' || String(account?.id || '').startsWith('offline-');
+}
+
 function isMicrosoftAccount(account) {
   return account?.type === 'microsoft' || account?.isMicrosoft === true;
 }
@@ -312,7 +318,7 @@ function warmSkinCache(account) {
     // 1. Try Noctra wardrobe server first (local accounts only — the server
     // looks skins up by username, which would hand a Microsoft account the
     // skin of a Noctra account with the same name).
-    if (!isMicrosoftAccount(account)) try {
+    if (!isMicrosoftAccount(account) && !isLocalOnlyAccount(account)) try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);
       const cslRes = await fetch(`${apiRoot()}/csl/${encodeURIComponent(username)}.json`, { signal: controller.signal });
@@ -581,7 +587,7 @@ async function pullRemoteWardrobe(account) {
   if (!account?.name || account.name === 'guest') return null;
   // The Noctra server resolves wardrobes by username: never pull another
   // account's cosmetics into a Microsoft profile that happens to share it.
-  if (isMicrosoftAccount(account)) return null;
+  if (isMicrosoftAccount(account) || isLocalOnlyAccount(account)) return null;
   const username = cleanName(account.name, 'Player');
 
   try {
@@ -761,6 +767,7 @@ async function pullRemoteWardrobe(account) {
 
 async function syncWardrobe(account) {
   if (!account?.name || account.name === 'guest') return { ok: false };
+  if (isLocalOnlyAccount(account)) return { ok: false, localOnly: true, state: publicState(account) };
   if (isMicrosoftAccount(account)) return { ok: false };
   const username = cleanName(account.name, 'Player');
   let metadata = loadMetadata(account);

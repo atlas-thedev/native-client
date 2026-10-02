@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Star, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { CAPE_PRESETS } from './capePresets.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './LockerView.css';
+import './LockerLocal.css';
 
 const CAPES_PER_PAGE = 5;
 const SKINS_PER_PAGE = 5;
@@ -16,6 +17,8 @@ const normalizeCapeName = (value) => String(value || '').toLowerCase().replace(/
 
 export default function LockerView({ account, onWardrobeChanged, onNotify }) {
   const { t } = useI18n();
+  // Offline accounts keep their skins on this PC only; nothing is sent to Noctra.
+  const localOnly = account?.type === 'offline';
   const [wardrobe, setWardrobe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -44,7 +47,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
         const current = await window.native.wardrobe.get(account);
         publishState(current);
         // Automatically sync with cloud in background so any remote changes are pulled
-        window.native.wardrobe.sync(account).then((res) => {
+        if (!localOnly) window.native.wardrobe.sync(account).then((res) => {
           if (res?.pulled && res?.state) {
             publishState(res.state);
           } else if (res?.ok) {
@@ -163,7 +166,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
   };
 
   const handleCloudSync = async () => {
-    if (!account) return;
+    if (!account || localOnly) return;
     setSyncing(true);
     try {
       const res = await window.native?.wardrobe?.sync?.(account);
@@ -264,6 +267,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
         <h1 className="locker-title page-title">{t('locker.title') || 'LOCKER'}</h1>
         <p className="locker-subtitle">{t('locker.subtitle')}</p>
       </div>
+      {localOnly ? (
+        <div className="locker-local-note" role="note">
+          <HardDrive size={14} aria-hidden="true" />
+          <div>
+            <strong>Saved on this PC only</strong>
+            <span>Offline accounts aren't synced with Noctra, so other players can't see your skin. Sign in with a Noctra account to share it.</span>
+          </div>
+        </div>
+      ) : (
       <button
         type="button"
         className="locker-sync-btn"
@@ -275,6 +287,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify }) {
         <RefreshCw size={13} className={syncing ? 'is-spinning' : ''}/>
         <span>{syncing ? t('locker.syncing') : t('locker.syncButton')}</span>
       </button>
+      )}
     </header>
     <div className="locker-workspace">
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>

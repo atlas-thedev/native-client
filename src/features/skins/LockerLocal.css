@@ -1,0 +1,7 @@
+.locker-local-note {
+  display: flex; align-items: flex-start; gap: 10px; max-width: 360px; padding: 10px 14px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--fg-secondary, #b4b4bc); font-size: 12px; line-height: 1.4;
+}
+.locker-local-note svg { flex: none; margin-top: 2px; }
+.locker-local-note strong { display: block; color: var(--fg-primary-hover, #fff); font-size: 12.5px; margin-bottom: 2px; }
