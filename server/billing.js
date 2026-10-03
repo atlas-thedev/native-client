@@ -452,6 +452,7 @@ async function handleBillingRoutes(req, res, ctx) {
           description: `${item.name} cape for Noctra`,
           product_id: c.capeProduct,
           unit_price: { amount: String(Math.round(Number(item.price) * 100)), currency_code: 'USD' },
+          quantity: { minimum: 1, maximum: 1 },
           custom_data: { itemId: item.id }
         }
       }];
