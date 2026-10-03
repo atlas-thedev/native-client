@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Star, Store, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
+import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
@@ -419,7 +420,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Noctra Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
           {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
-          {!capesSkeleton && capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No capes match “{capeQuery.trim()}”.</p>}{!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
+          {!capesSkeleton && capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No capes match “{capeQuery.trim()}”.</p>}{!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
           {showOfficialCards && <p className="locker-cape-hint">{t('locker.officialHint')}</p>}
         </section>
       </main>
@@ -477,4 +478,38 @@ function ModelArmGlyph({ model }) {
       <rect className="glyph-arm" x="16" y="9" width={armW} height="9" />
     </svg>
   );
+}
+
+/** Animated store cape front for a locker card: plays the strip, shows the still until it loads. */
+function AnimatedCapeThumb({ item, fallback }) {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let timer = null;
+    (async () => {
+      try {
+        const res = await window.native?.store?.strip?.(item.id);
+        if (!alive || !res?.ok) return;
+        const image = await loadStripImage(res.url);
+        if (!alive || !ref.current) return;
+        const frames = Math.max(1, item.frames || 1);
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        let index = 0;
+        const paint = () => {
+          if (!alive || !ref.current) return;
+          try { drawCapeFront(ref.current, image, frames, index); } catch {}
+          setReady(true);
+          index = (index + 1) % frames;
+          if (frames > 1 && !reduce) timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
+        };
+        paint();
+      } catch { /* keep the still */ }
+    })();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [item.id, item.frames, item.fps]);
+  return <span className="locker-cape-anim">
+    {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
+    <canvas ref={ref} width={40} height={64} className="locker-cape-canvas" style={ready ? undefined : { display: 'none' }} aria-hidden="true"/>
+  </span>;
 }
