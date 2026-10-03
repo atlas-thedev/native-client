@@ -272,6 +272,10 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
 
         {error && !analyzing && <div className="crash-body-empty">{error}</div>}
 
+        {!report && !error && !analyzing && (
+          <div className="crash-body-empty">No crash was found for this instance. If the game closed unexpectedly, launch it again and reopen the analyzer after it crashes.</div>
+        )}
+
         {report && !analyzing && (
           <div className="crash-body">
             <p className="crash-summary">{report.summary}</p>
