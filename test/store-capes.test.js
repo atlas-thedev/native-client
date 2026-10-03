@@ -387,34 +387,3 @@ test('mod friends + live stream: presence and requests reach the game', async ()
   assert.match(heard.join(''), /"status":"offline"/);
   stream.destroy();
 });
-
-test('server capes (CWR Network, CrabbyMC): HD 48-frame strips joined from parts, exclusive', async () => {
-  const catalog = await json('/v1/store/catalog');
-  for (const id of ['cwr-network', 'crabbymc']) {
-    const item = catalog.body.items.find((i) => i.id === id);
-    assert.ok(item, `${id} is listed`);
-    assert.equal(item.exclusive, true);
-    assert.equal(item.frames, 48);
-    assert.equal(item.width, 1024);
-    assert.equal(item.frameHeight, 512);
-  }
-  const user = db.createUser({ email: 'crab@example.com', username: 'CrabFan', password: 'correct horse battery' });
-  const token = db.createSession(user.id).token;
-  assert.equal((await post('/v1/store/claim', { itemId: 'crabbymc' }, token)).status, 403);
-});
-
-test('a bundled cape with a higher art number replaces the saved textures', () => {
-  const store = require('../server/store-routes');
-  const file = path.join(db.DATA_DIR || path.join(__dirname, '..', 'data'), 'store', 'catalog.json');
-  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const cwr = saved.items.find((i) => i.id === 'cwr-network');
-  const fresh = { strip: cwr.strip, still: cwr.still };
-  Object.assign(cwr, { art: 1, strip: 'a'.repeat(64), still: 'b'.repeat(64), frames: 30, name: 'Renamed by admin' });
-  fs.writeFileSync(file, JSON.stringify(saved));
-  store.resetCatalog();
-  const item = store.findItem('cwr-network');
-  assert.equal(item.strip, fresh.strip);
-  assert.equal(item.still, fresh.still);
-  assert.equal(item.frames, 48);
-  assert.equal(item.name, 'Renamed by admin', 'admin edits are kept');
-});

@@ -81,17 +81,8 @@ function validateAnimation({ strip, still, frames, fps }) {
 
 /* ── Store catalogue ──────────────────────────────────────────────────── */
 
-/**
- * Reads a bundled base64 asset. Big strips are split into `<name>.part0`, `<name>.part1`, …
- * (each under 1 MB so they stay easy to review and push); the parts are joined in order.
- */
 function readAsset(name) {
-  const file = path.join(ASSET_DIR, name);
-  if (!fs.existsSync(`${file}.part0`)) return Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'base64');
-  const parts = [];
-  for (let i = 0; fs.existsSync(`${file}.part${i}`); i += 1) parts.push(fs.readFileSync(`${file}.part${i}`, 'utf8').trim());
-  if (!parts.length) throw new Error(`Missing asset ${name}.`);
-  return Buffer.from(parts.join(''), 'base64');
+  return Buffer.from(fs.readFileSync(path.join(ASSET_DIR, name), 'utf8').trim(), 'base64');
 }
 
 /**
@@ -115,7 +106,6 @@ function loadCatalog(storeTexture) {
         author: item.author || 'Noctra',
         featured: Boolean(item.featured),
         exclusive: Boolean(item.exclusive),
-        art: Math.max(1, Math.floor(Number(item.art) || 1)),
         price: 0,
         animated: true,
         frames: description.frames,
