@@ -60,6 +60,9 @@ function init() {
   handle('admin:storeCreate', (item = {}) => adminFetch('/store/items', { method: 'POST', body: item, timeout: 60_000 }));
   handle('admin:storeUpdate', (id, patch = {}) => adminFetch(`/store/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, timeout: 60_000 }));
   handle('admin:storeDelete', (id) => adminFetch(`/store/items/${encodeURIComponent(id)}`, { method: 'DELETE' }));
+  handle('admin:storeOwners', (id) => adminFetch(`/store/items/${encodeURIComponent(id)}/owners`));
+  handle('admin:storeGrant', (id, username) => adminFetch(`/store/items/${encodeURIComponent(id)}/grant`, { method: 'POST', body: { username: String(username || '') } }));
+  handle('admin:storeRevoke', (id, username) => adminFetch(`/store/items/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: { username: String(username || '') } }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

@@ -931,3 +931,20 @@
   background: var(--success);
   flex-shrink: 0;
 }
+
+/* Noctra's own mod: always on, managed by the launcher. */
+.im-core-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--accent-text);
+  border-radius: 999px;
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: default;
+}
+.im-core-pill svg, .im-core-pill svg * { color: currentColor; stroke: currentColor; }

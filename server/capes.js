@@ -105,6 +105,7 @@ function loadCatalog(storeTexture) {
         tags: Array.isArray(item.tags) ? item.tags : [],
         author: item.author || 'Noctra',
         featured: Boolean(item.featured),
+        exclusive: Boolean(item.exclusive),
         price: 0,
         animated: true,
         frames: description.frames,

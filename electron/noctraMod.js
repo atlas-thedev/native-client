@@ -118,7 +118,8 @@ function installJar(jarPath, modsDir) {
   const name = path.basename(jarPath);
   const destination = path.join(modsDir, name);
   for (const entry of fs.readdirSync(modsDir)) {
-    if (entry !== name && /^noctra-client-.*\.jar$/i.test(entry)) {
+    // Older versions, and any copy someone renamed to .jar.disabled: the launcher owns this mod.
+    if (entry !== name && /^noctra-client-.*\.jar(\.disabled)?$/i.test(entry)) {
       try { fs.rmSync(path.join(modsDir, entry), { force: true }); } catch { /* in use: next launch */ }
     }
   }

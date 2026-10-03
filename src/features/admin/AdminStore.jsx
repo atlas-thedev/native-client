@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, EyeOff, LoaderCircle, Pencil, Plus, Search, Star, Trash2, Upload, X } from 'lucide-react';
+import { Eye, EyeOff, Gift, LoaderCircle, Pencil, Plus, Search, Star, Trash2, Upload, X } from 'lucide-react';
 import { drawCapeFront, firstFrameDataUrl, guessFrames, isNativeCapeRatio, MAX_FPS, MAX_FRAMES } from '../../lib/animatedCape.js';
 
 const MAX_ANIM_MB = 16;
@@ -47,7 +47,59 @@ export function CapeThumb({ src, frames = 1, fps = 0, width = 40, height = 64 })
   return <canvas ref={ref} width={width} height={height} className="admin-cape-thumb" />;
 }
 
-const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, fps: 12, frames: 1, texture: null });
+/** Who owns a cape, plus "give to a player" (the only way to get an exclusive cape). */
+function CapeOwners({ item, onNotify, onChanged }) {
+  const [owners, setOwners] = useState(null);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let alive = true;
+    setOwners(null);
+    window.native?.admin?.storeOwners?.(item.id).then((result) => {
+      if (!alive) return;
+      if (result?.ok) setOwners(result.owners || []); else { setOwners([]); setError(result?.error || 'Could not load owners.'); }
+    }).catch(() => alive && setOwners([]));
+    return () => { alive = false; };
+  }, [item.id]);
+  const act = async (kind, username) => {
+    const who = String(username || '').trim();
+    if (!who || busy) return;
+    setBusy(`${kind}:${who}`);
+    setError('');
+    try {
+      const result = kind === 'grant' ? await window.native.admin.storeGrant(item.id, who) : await window.native.admin.storeRevoke(item.id, who);
+      if (!result?.ok) throw new Error(result?.error || 'That didn’t work.');
+      setOwners(result.owners || []);
+      onChanged?.(result.items);
+      if (kind === 'grant') setName('');
+      onNotify?.('Store', kind === 'grant' ? `${who} now has ${item.name}.` : `${item.name} was taken from ${who}.`);
+    } catch (reason) { setError(reason?.message || 'That didn’t work.'); }
+    finally { setBusy(''); }
+  };
+  return (
+    <section className="admin-cape-owners">
+      <h3>Give this cape <small>{owners ? `${owners.length} ${owners.length === 1 ? 'owner' : 'owners'}` : ''}</small></h3>
+      <form className="admin-cape-grant" onSubmit={(event) => { event.preventDefault(); act('grant', name); }}>
+        <input value={name} maxLength={32} onChange={(event) => setName(event.target.value)} placeholder="Noctra username"/>
+        <button type="submit" disabled={!name.trim() || Boolean(busy)}>{busy.startsWith('grant:') ? <LoaderCircle size={13} className="is-spinning"/> : <Gift size={13}/>}Give</button>
+      </form>
+      {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
+      <div className="admin-cape-owner-list">
+        {!owners ? <span className="admin-note"><LoaderCircle size={12} className="is-spinning"/> Loading…</span>
+          : owners.length ? owners.map((owner) => (
+            <div key={owner.userId} className="admin-cape-owner">
+              <strong>{owner.username || owner.userId}</strong>
+              <small>{owner.source === 'admin' ? 'given' : owner.source} · {new Date(owner.acquiredAt).toLocaleDateString()}</small>
+              {owner.username && <button type="button" title={`Take it from ${owner.username}`} aria-label={`Take it from ${owner.username}`} disabled={Boolean(busy)} onClick={() => act('revoke', owner.username)}>{busy === `revoke:${owner.username}` ? <LoaderCircle size={12} className="is-spinning"/> : <X size={12}/>}</button>}
+            </div>
+          )) : <span className="admin-note">Nobody has it yet.</span>}
+      </div>
+    </section>
+  );
+}
+
+const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, exclusive: false, fps: 12, frames: 1, texture: null });
 
 /** Admin -> Store: add, edit, hide, feature and delete Noctra capes. */
 export default function AdminStore({ onNotify, onError }) {
@@ -91,6 +143,7 @@ export default function AdminStore({ onNotify, onError }) {
       if (filter === 'animated' && !item.animated) return false;
       if (filter === 'static' && item.animated) return false;
       if (filter === 'hidden' && !item.hidden) return false;
+      if (filter === 'exclusive' && !item.exclusive) return false;
       if (!needle) return true;
       return [item.name, item.id, item.author, ...(item.tags || [])].some((value) => String(value || '').toLowerCase().includes(needle));
     });
@@ -104,7 +157,7 @@ export default function AdminStore({ onNotify, onError }) {
 
   const openNew = () => { setDraft(emptyDraft()); setFileError(''); setEditing('new'); };
   const openEdit = (item) => {
-    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Noctra', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), fps: item.fps || 12, frames: item.frames || 1, texture: null });
+    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Noctra', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), fps: item.fps || 12, frames: item.frames || 1, texture: null });
     setFileError('');
     setEditing(item.id);
   };
@@ -151,6 +204,7 @@ export default function AdminStore({ onNotify, onError }) {
       author: draft.author.trim() || 'Noctra',
       featured: draft.featured,
       hidden: draft.hidden,
+      exclusive: draft.exclusive,
       ...(draft.order !== '' && Number.isFinite(Number(draft.order)) ? { order: Number(draft.order) } : {}),
       fps
     };
@@ -212,7 +266,7 @@ export default function AdminStore({ onNotify, onError }) {
       <div className="admin-toolbar">
         <label className="admin-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capes, ids or tags"/></label>
         <div className="admin-filters">
-          {[['all', 'All'], ['animated', 'Animated'], ['static', 'Static'], ['hidden', 'Hidden']].map(([id, label]) => (
+          {[['all', 'All'], ['animated', 'Animated'], ['static', 'Static'], ['exclusive', 'Exclusive'], ['hidden', 'Hidden']].map(([id, label]) => (
             <button key={id} type="button" className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>
           ))}
         </div>
@@ -232,6 +286,7 @@ export default function AdminStore({ onNotify, onError }) {
                   <strong>{item.name}</strong>
                   {item.animated && <em className="admin-tag is-anim">Animated · {item.frames}f · {item.fps}fps</em>}
                   {!item.animated && <em className="admin-tag">Static</em>}
+                  {item.exclusive && <em className="admin-tag is-exclusive">Exclusive</em>}
                   {item.featured && <em className="admin-tag is-featured">Featured</em>}
                   {item.hidden && <em className="admin-tag is-hidden">Hidden</em>}
                   {item.isNew && <em className="admin-tag">New</em>}
@@ -280,9 +335,12 @@ export default function AdminStore({ onNotify, onError }) {
               <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
               <label className="admin-check"><input type="checkbox" checked={draft.featured} onChange={set('featured')}/><span>Featured</span></label>
               <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
+              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Exclusive: shown in the Store, but only admins can give it</span></label>
             </div>
 
-            <p className="admin-note">Price: Free. Every cape in the Store is free for now.</p>
+            {editingItem && <CapeOwners item={editingItem} onNotify={onNotify} onChanged={(next) => next && setItems(next)}/>}
+
+            <p className="admin-note">{draft.exclusive ? 'Exclusive: players can’t claim it. Give it to people below.' : 'Price: Free. Every cape in the Store is free for now.'}</p>
             {fileError && <div className="admin-error" role="alert"><span>{fileError}</span></div>}
 
             <footer>

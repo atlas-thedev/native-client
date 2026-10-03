@@ -253,6 +253,49 @@ test('store: catalogue is public, equip needs a session, equip/unequip are live'
   assert.equal((await json('/csl/ShopUser.json')).body.cape, null);
 });
 
+test('exclusive Beta Tester cape: listed, never claimable, only admins hand it out', async () => {
+  const catalog = await json('/v1/store/catalog');
+  const beta = catalog.body.items.find((i) => i.id === 'beta-tester');
+  assert.ok(beta, 'beta-tester is listed in the store');
+  assert.equal(beta.exclusive, true);
+  assert.equal(beta.animated, true);
+
+  const tester = db.createUser({ email: 'tester@example.com', username: 'BetaPal', password: 'correct horse battery' });
+  const token = db.createSession(tester.id).token;
+  assert.equal((await post('/v1/store/claim', { itemId: 'beta-tester' }, token)).status, 403);
+  assert.equal((await post('/v1/store/equip', { itemId: 'beta-tester' }, token)).status, 403);
+
+  // Uploading its PNG through the wardrobe doesn't unlock it either.
+  const still = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'beta-tester.still.png.b64'), 'utf8').trim();
+  const sneaky = await post('/v1/wardrobe', { username: 'BetaPal', cape: still }, token);
+  assert.equal(sneaky.status, 200);
+  assert.equal(sneaky.body.profile.cape, null);
+
+  const admin = db.createUser({ email: 'betaboss@example.com', username: 'BetaBoss', password: 'correct horse battery' });
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.id);
+  const adminToken = db.createSession(admin.id).token;
+  assert.equal((await post('/v1/admin/store/items/beta-tester/grant', { username: 'BetaPal' }, token)).status, 403);
+  assert.equal((await post('/v1/admin/store/items/beta-tester/grant', { username: 'NobodyHere' }, adminToken)).status, 404);
+  const granted = await post('/v1/admin/store/items/beta-tester/grant', { username: 'betapal' }, adminToken);
+  assert.equal(granted.status, 200, JSON.stringify(granted.body));
+  assert.equal(granted.body.owners[0].username, 'BetaPal');
+  assert.equal(granted.body.owners[0].source, 'admin');
+
+  const worn = await post('/v1/store/equip', { itemId: 'beta-tester' }, token);
+  assert.equal(worn.status, 200, JSON.stringify(worn.body));
+  assert.equal(worn.body.equipped, 'beta-tester');
+  // The launcher re-sends the still on every sync: it stays on.
+  const resync = await post('/v1/wardrobe', { username: 'BetaPal', cape: still }, token);
+  assert.ok(resync.body.profile.cape);
+
+  const revoked = await post('/v1/admin/store/items/beta-tester/revoke', { username: 'BetaPal' }, adminToken);
+  assert.equal(revoked.status, 200);
+  assert.equal(revoked.body.owners.length, 0);
+  const me = await json('/v1/store/me', { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(me.body.equipped, null);
+  assert.equal(me.body.owned.some((o) => o.id === 'beta-tester'), false);
+});
+
 test('mod friends + live stream: presence and requests reach the game', async () => {
   const a = db.createUser({ email: 'fa@example.com', username: 'FriendA', password: 'correct horse battery' });
   const b = db.createUser({ email: 'fb@example.com', username: 'FriendB', password: 'correct horse battery' });

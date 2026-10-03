@@ -17,6 +17,12 @@
  *   POST   /v1/admin/store/items           create (animated strip + still, or a static PNG)
  *   PATCH  /v1/admin/store/items/:id       edit metadata and/or replace textures
  *   DELETE /v1/admin/store/items/:id       remove from the store (owners keep nothing)
+ *   GET    /v1/admin/store/items/:id/owners   who has this item
+ *   POST   /v1/admin/store/items/:id/grant    { username }  give an item (the only way to get exclusive ones)
+ *   POST   /v1/admin/store/items/:id/revoke   { username }  take it back (and off, if worn)
+ *
+ * Exclusive items (`exclusive: true`, e.g. Beta Tester) are listed in the store but can't be
+ * claimed or equipped by just anyone: an admin grants them.
  *
  * Animated capes are ONLY store items: the wardrobe accepts an animation when its strip is
  * a store item the account owns (see `authorizeAnimation`). Anything else is shown as its
@@ -139,9 +145,14 @@ const PRESET_CAPE_HASHES = new Set([
   '6836989ef37c72e84552410f178740a3d630ed4ecdce14029e6e9e155980d06c', // Purple Heart
   'f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4' // Vanilla
 ]);
-/** Players can't upload capes: only the classic presets and Noctra Store capes are worn/served. */
-const capeAllowed = (hash) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash);
-const isStoreStill = (hash) => Boolean(hash) && current().items.some((item) => item.still === hash);
+/**
+ * Players can't upload capes: only the classic presets and Noctra Store capes are worn/served.
+ * Exclusive capes (e.g. Beta Tester) only count for a profile that wears them through the store
+ * (`capeStore`), which only an owner can do; their PNG alone never unlocks them.
+ */
+const capeAllowed = (hash, profile = null) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash, profile);
+const isStoreStill = (hash, profile = null) => Boolean(hash) && current().items.some((item) =>
+  item.still === hash && (!item.exclusive || (profile && profile.capeStore === item.id)));
 const findByStrip = (hash) => current().items.find((item) => item.animated && item.strip === hash) || null;
 
 /**
@@ -186,6 +197,7 @@ function publicItem(item, textureBase, counts) {
     author: item.author,
     featured: Boolean(item.featured),
     hidden: Boolean(item.hidden),
+    exclusive: Boolean(item.exclusive),
     isNew: Date.now() - (Number(item.createdAt) || 0) < NEW_FOR_MS,
     price: 0,
     animated: Boolean(item.animated),
@@ -313,8 +325,10 @@ async function handleStoreRoutes(req, res, ctx) {
     let profile = null;
     if (url.pathname === '/v1/store/claim') {
       if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cape is no longer available.' }); return true; }
+      if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
       grant(user.id, item.id, 'free');
     } else {
+      if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} stays in your locker. You can take it off any time.` }); return true; }
       revoke(user.id, item.id);
       const existing = ctx.readProfile(user.username);
       if (existing && existing.capeStore === item.id) {
@@ -345,6 +359,7 @@ async function handleStoreRoutes(req, res, ctx) {
       const item = findItem(String(body.itemId));
       if (!item) { send(res, 404, { ok: false, error: 'That store item does not exist.' }); return true; }
       if (!owns(user.id, item.id)) {
+        if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
         if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cape to your locker first.' }); return true; }
         grant(user.id, item.id, 'free'); // everything is free today
       }
@@ -398,6 +413,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       author: cleanText(body.author, 40) || 'Noctra',
       featured: Boolean(body.featured),
       hidden: Boolean(body.hidden),
+      exclusive: Boolean(body.exclusive),
       price: 0,
       order: Number.isFinite(Number(body.order)) ? Number(body.order) : -1,
       ...textures,
@@ -409,6 +425,42 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     persist();
     send(res, 200, { ok: true, item: publicItem(item, textureBase), items: list() }, noStore);
     return true;
+  }
+
+  const ownersMatch = url.pathname.match(/^\/v1\/admin\/store\/items\/([^/]+)\/(owners|grant|revoke)$/);
+  if (ownersMatch) {
+    const item = findItem(decodeURIComponent(ownersMatch[1]));
+    if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+    const owners = () => sql().prepare('SELECT user_id, acquired_at, source FROM store_owned WHERE item_id = ? ORDER BY acquired_at DESC LIMIT 500').all(item.id)
+      .map((row) => {
+        let account = null;
+        try { account = db.getUserById ? db.getUserById(row.user_id) : null; } catch {}
+        return { userId: row.user_id, username: account?.username || null, acquiredAt: Number(row.acquired_at), source: row.source };
+      });
+    if (req.method === 'GET' && ownersMatch[2] === 'owners') {
+      send(res, 200, { ok: true, owners: owners() }, noStore);
+      return true;
+    }
+    if (req.method === 'POST') {
+      const body = await ctx.readJson(req);
+      const name = cleanText(body.username, 32);
+      let target = null;
+      try { target = name ? db.getUserByUsername(name) : null; } catch {}
+      if (!target) { send(res, 404, { ok: false, error: `No Noctra account called "${name || '?'}".` }); return true; }
+      if (ownersMatch[2] === 'grant') {
+        grant(target.id, item.id, 'admin');
+      } else {
+        revoke(target.id, item.id);
+        const existing = ctx.readProfile(target.username);
+        if (existing && existing.capeStore === item.id) {
+          ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: new Date().toISOString() }, req, target);
+        }
+      }
+      const profile = ctx.readProfile(target.username);
+      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: profile?.capeStore || null, owned: true });
+      send(res, 200, { ok: true, owners: owners(), items: list() }, noStore);
+      return true;
+    }
   }
 
   const match = url.pathname.match(/^\/v1\/admin\/store\/items\/([^/]+)$/);
@@ -427,6 +479,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       if (body.author !== undefined) next.author = cleanText(body.author, 40) || 'Noctra';
       if (body.featured !== undefined) next.featured = Boolean(body.featured);
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
+      if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
       if (body.strip || body.still) {
         try { Object.assign(next, texturesFrom({ ...body, animated: body.animated !== undefined ? body.animated : item.animated })); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }

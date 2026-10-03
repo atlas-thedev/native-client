@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
-import { Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Lock, Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import noctraIcon from '../../assets/noctra-icon.png';
+import { isNoctraCoreMod, noctraModVersion } from './coreMods.js';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 import ContentHealth, { useContentHealth } from './ContentHealth.jsx';
 import { GlyphBump } from './HealthGlyphs.jsx';
@@ -81,14 +83,23 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
       })),
       ...files
         .filter((file) => !file.name.startsWith('.') && !tracked.some((entry) => entry.filename === file.name))
-        .map((file) => ({
+        .map((file) => (folder === 'mods' && isNoctraCoreMod(file.name) ? {
+          // Noctra's own mod: the launcher installs and updates it on every launch. It can't be turned off.
+          id: file.name,
+          filename: file.name,
+          title: 'Noctra Client',
+          size: file.size,
+          enabled: true,
+          core: true,
+          coreVersion: noctraModVersion(file.name)
+        } : {
           id: file.name,
           filename: file.name,
           title: /customskinloader/i.test(file.name) ? 'CustomSkinLoader' : file.name,
           size: file.size,
           enabled: !file.name.endsWith('.disabled')
         }))
-    ];
+    ].sort((a, b) => Number(Boolean(b.core)) - Number(Boolean(a.core)));
   }, [cluster.id, folder, type]);
 
   useEffect(() => {
@@ -163,6 +174,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   const addContent = canBrowse ? browseContent : openFolder;
 
   const toggleContent = (row) => {
+    if (row.core) return;
     const nextEnabled = !row.enabled;
     action(async () => {
       if (type === 'mods' && row.managed) {
@@ -189,6 +201,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   };
 
   const remove = (row) => {
+    if (row.core) return;
     if (
       !window.confirm(
         `Delete “${row.title}”? ${
@@ -297,7 +310,9 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
               >
                 {/* 36x36px Icon */}
                 <span className="im-file-icon">
-                  {row.metadata?.iconUrl ? (
+                  {row.core ? (
+                    <img src={noctraIcon} alt="Noctra" />
+                  ) : row.metadata?.iconUrl ? (
                     <img
                       src={row.metadata.iconUrl}
                       alt=""
@@ -321,7 +336,9 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 <div className="im-file-name">
                   <strong title={row.title}>{row.title}</strong>
                   <small>
-                    {row.metadata?.author
+                    {row.core
+                      ? 'Required for Noctra skins, capes and friends · updated automatically'
+                      : row.metadata?.author
                       ? `By ${row.metadata.author}`
                       : type === 'worlds'
                         ? `Modified ${new Date(row.modified).toLocaleDateString()}`
@@ -333,6 +350,9 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
 
                 {/* Version / Size badge in Mono */}
                 <span className="im-file-meta">
+                  {row.coreVersion && (
+                    <span className="im-file-version-tag">{row.coreVersion}</span>
+                  )}
                   {row.metadata?.version && (
                     <span className="im-file-version-tag">{row.metadata.version}</span>
                   )}
@@ -354,6 +374,11 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
 
                 {/* Actions: Switch toggle & Delete */}
                 <div className="im-file-actions">
+                  {row.core ? (
+                    <span className="im-core-pill" title="Noctra needs this mod. The launcher keeps it installed and up to date.">
+                      <Lock size={12} /> Required
+                    </span>
+                  ) : (<>
                   {['mods', 'shaders', 'textures'].includes(type) && (
                     <button
                       type="button"
@@ -381,6 +406,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                   >
                     <Trash2 size={15} />
                   </button>
+                  </>)}
                 </div>
               </div>
             ))}

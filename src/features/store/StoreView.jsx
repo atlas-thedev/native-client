@@ -165,10 +165,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [selected, previews, wardrobe, account]);
 
   const actionFor = (item, compact = false) => {
+    const owned = ownedIds.has(item.id);
+    if (item.exclusive && !owned) {
+      return <span className="store-exclusive-pill" title="Not sold. The Noctra team gives this cape to beta testers."><Lock size={12} />{compact ? 'Exclusive' : 'Beta testers only'}</span>;
+    }
     if (!signedIn) {
       return <button type="button" className="store-btn ghost" onClick={(event) => { event.stopPropagation(); onOpenAccountSwitcher?.(); }}><Lock size={13} />{compact ? 'Sign in' : 'Sign in with Noctra'}</button>;
     }
-    const owned = ownedIds.has(item.id);
     const wearing = me.equipped === item.id;
     if (!owned) {
       return <button type="button" className="store-btn" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); claim(item); }}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Plus size={13} />}Add to locker</button>;
@@ -220,17 +223,19 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <div className="store-detail-meta">
                   <div className="store-detail-row">
                     <h2>{selected.name}</h2>
-                    <span className="store-price">{selected.price > 0 ? `$${selected.price}` : 'Free'}</span>
+                    <span className={`store-price${selected.exclusive ? ' is-exclusive' : ''}`}>{selected.exclusive ? 'Exclusive' : selected.price > 0 ? `$${selected.price}` : 'Free'}</span>
                   </div>
                   <p>{selected.description}</p>
+                  {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold and can’t be claimed. The Noctra team gives it to beta testers.'}</span></div>}
                   <div className="store-tags">
+                    {selected.exclusive && <span className="store-tag strong">Exclusive</span>}
                     {selected.animated && <span className="store-tag strong">Animated</span>}
-                    {(selected.tags || []).filter((tag) => tag !== 'animated').map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
+                    {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
                   </div>
                   <div className="store-stats"><Users size={13} />{selected.owners || 0} {selected.owners === 1 ? 'player has' : 'players have'} this · by {selected.author || 'Noctra'}</div>
                   <div className="store-detail-actions">
                     {actionFor(selected)}
-                    {signedIn && ownedIds.has(selected.id) && <button type="button" className="store-icon-btn" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker" aria-label="Remove from locker"><Trash2 size={14} /></button>}
+                    {signedIn && ownedIds.has(selected.id) && !selected.exclusive && <button type="button" className="store-icon-btn" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker" aria-label="Remove from locker"><Trash2 size={14} /></button>}
                   </div>
                 </div>
               </>
@@ -274,14 +279,15 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                     <div className="store-card-art">
                       <canvas ref={(node) => { if (node) canvases.current.set(item.id, node); else canvases.current.delete(item.id); }} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
                       <div className="store-card-badges">
-                        {item.isNew && <span className="store-badge solid">NEW</span>}
+                        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />EXCLUSIVE</span>}
+                        {item.isNew && !item.exclusive && <span className="store-badge solid">NEW</span>}
                         {item.animated && <span className="store-badge">ANIM</span>}
                       </div>
                       {ownedIds.has(item.id) && <span className={`store-card-mark${me.equipped === item.id ? ' is-worn' : ''}`} title={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'} aria-label={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'}><Check size={11} strokeWidth={3} /></span>}
                     </div>
                     <div className="store-card-meta">
                       <strong>{item.name}</strong>
-                      <small><Users size={11} />{item.owners || 0} · {item.price > 0 ? `$${item.price}` : 'Free'}</small>
+                      <small><Users size={11} />{item.owners || 0} · {item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free'}</small>
                     </div>
                     <div className="store-card-action">{actionFor(item, true)}</div>
                   </article>

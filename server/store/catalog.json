@@ -8,6 +8,7 @@
     { "id": "aurora", "section": "capes", "name": "Aurora", "description": "Northern lights rolling across your back.", "tags": ["animated", "calm"], "frames": 24, "fps": 12, "author": "Noctra" },
     { "id": "ember", "section": "capes", "name": "Ember", "description": "A slow, living flame.", "tags": ["animated", "fire"], "frames": 24, "fps": 12, "author": "Noctra" },
     { "id": "pulse", "section": "capes", "name": "Pulse", "description": "Neon rings that breathe outwards.", "tags": ["animated", "neon"], "frames": 24, "fps": 12, "author": "Noctra" },
-    { "id": "matrix", "section": "capes", "name": "Rain Code", "description": "Green code rain, endlessly falling.", "tags": ["animated", "tech"], "frames": 24, "fps": 12, "author": "Noctra" }
+    { "id": "matrix", "section": "capes", "name": "Rain Code", "description": "Green code rain, endlessly falling.", "tags": ["animated", "tech"], "frames": 24, "fps": 12, "author": "Noctra" },
+    { "id": "beta-tester", "section": "capes", "name": "Beta Tester", "description": "For the people who tested Noctra before anyone else. Given by the Noctra team, never sold.", "tags": ["animated", "exclusive"], "frames": 24, "fps": 12, "author": "Noctra", "exclusive": true }
   ]
 }

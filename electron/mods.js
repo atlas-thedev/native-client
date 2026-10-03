@@ -152,6 +152,7 @@ function init(dependencies, ipcMain) {
 
   // Deletes a content file that is not tracked in the install manifest.
   ipcMain.handle('mods:removeFile', (_event, { instanceId, folder = 'mods', filename }) => {
+    require('./coreMods').assertNotCoreMod(folder, filename);
     const { target } = validateDestination(instanceId, folder, filename);
     try {
       fs.unlinkSync(target);

@@ -48,7 +48,7 @@ function entryFor(profile) {
   // Only Noctra store capes animate (see store-routes.animationFor).
   let allowed = null;
   let capeOk = true;
-  try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape); } catch {}
+  try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape, profile); } catch {}
   const anim = allowed && HASH.test(profile.cape || '')
     ? { h: allowed.strip, f: Number(allowed.frames) || 0, p: Number(allowed.fps) || 0 }
     : null;

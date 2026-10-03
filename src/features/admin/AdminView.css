@@ -326,3 +326,20 @@
   .admin-store-body { flex-direction: column; }
   .admin-store-editor { width: auto; }
 }
+
+/* Exclusive capes + "give this cape" */
+.admin-tag.is-exclusive { color: #ffd68c; background: rgba(255, 214, 140, 0.12); }
+.admin-cape-owners { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08)); }
+.admin-cape-owners h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700; color: var(--fg-primary); }
+.admin-cape-owners h3 small { font-weight: 500; color: var(--fg-muted); font-size: 11.5px; }
+.admin-cape-grant { display: flex; gap: 6px; }
+.admin-cape-grant input { flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong, rgba(255, 255, 255, 0.14)); border-radius: 8px; background: transparent; color: var(--fg-primary); font: inherit; font-size: 12.5px; }
+.admin-cape-grant button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent-text); color: var(--page); font: 700 12px var(--font-sans); cursor: pointer; }
+.admin-cape-grant button:disabled { opacity: 0.5; cursor: default; }
+:root .admin-cape-grant button svg, :root .admin-cape-grant button svg * { color: var(--page) !important; stroke: var(--page) !important; }
+.admin-cape-owner-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.admin-cape-owner { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); }
+.admin-cape-owner strong { font-size: 12.5px; color: var(--fg-primary); }
+.admin-cape-owner small { flex: 1 1 auto; font-size: 11px; color: var(--fg-muted); }
+.admin-cape-owner button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-muted); cursor: pointer; }
+.admin-cape-owner button:hover:not(:disabled) { color: #f17a7a; background: rgba(241, 122, 122, 0.1); }

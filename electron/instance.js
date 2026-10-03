@@ -847,6 +847,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('instance:installedVersions', () => installedVersions());
 
   ipcMain.handle('instance:toggleFile', async (_e, instanceId, subpath, filename, enabled) => {
+    if (!enabled) require('./coreMods').assertNotCoreMod(subpath, filename);
     const dir = resolveInside(instanceDir(instanceId), subpath || '');
     if (!filename || filename.includes('/') || filename.includes('\\')) throw new Error('Invalid filename');
     const cleanName = filename.replace(/\.disabled$/, '');

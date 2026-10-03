@@ -150,8 +150,8 @@ function atomicWrite(filePath, data) {
   fs.renameSync(temporary, filePath);
 }
 
-const capeAllowed = (hash) => storeRoutes.capeAllowed(hash);
-const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape) ? profile.cape : null);
+const capeAllowed = (hash, profile = null) => storeRoutes.capeAllowed(hash, profile);
+const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape, profile) ? profile.cape : null);
 
 function textureHash(buffer) {
   if (!buffer) return null;
@@ -565,8 +565,8 @@ async function handler(req, res) {
       if (body.cape !== undefined) {
         const capeBuffer = body.cape ? pngBuffer(body.cape) : null;
         const capeHash = capeBuffer ? crypto.createHash('sha256').update(capeBuffer).digest('hex') : null;
-        if (capeAllowed(capeHash)) cape = capeHash ? textureHash(capeBuffer) : null;
-        else { capeRefused = true; cape = capeAllowed(cape) ? cape : null; }
+        if (capeAllowed(capeHash, existing)) cape = capeHash ? textureHash(capeBuffer) : null;
+        else { capeRefused = true; cape = capeAllowed(cape, existing) ? cape : null; }
       }
       let capeAnim = existing?.capeAnim ?? null;
       let capeStore = existing?.capeStore ?? null;
