@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Notification, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Notification, ipcMain, shell, nativeImage } = require('electron');
 const path = require('path');
 const safeFile = require('./safeFile');
 const fs = require('fs');
@@ -120,6 +120,20 @@ ipcMain.on('window:maximize', () => {
   else win?.maximize();
 });
 ipcMain.on('window:close', () => win?.close());
+// Noctra+ members get the N+ app icon (window/taskbar, and the macOS dock).
+const plusIconUrl = require('./plusIcon');
+let plusIconOn = false;
+ipcMain.on('app:setPlusIcon', (_event, on) => {
+  const next = Boolean(on);
+  if (next === plusIconOn) return;
+  plusIconOn = next;
+  try {
+    const image = next ? nativeImage.createFromDataURL(plusIconUrl) : nativeImage.createFromPath(appIcon);
+    if (image.isEmpty()) return;
+    win?.setIcon?.(image);
+    if (process.platform === 'darwin') app.dock?.setIcon(image);
+  } catch {}
+});
 
 ipcMain.handle('external:open', async (_event, value) => {
   const url = new URL(String(value));

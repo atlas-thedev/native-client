@@ -10,6 +10,7 @@ const api = {
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
+  setPlusIcon: (on) => ipcRenderer.send('app:setPlusIcon', Boolean(on)),
   openExternal: (url) => ipcRenderer.invoke('external:open', url),
   showNotification: (title, body) => ipcRenderer.invoke('app:showNotification', { title, body }),
   onMaximizedChange: (callback) =>

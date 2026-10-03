@@ -34,7 +34,7 @@ import GroupSettingsModal from './GroupSettingsModal.jsx';
 import MessageRow from './MessageRow.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import { ReplyComposerBar } from './ReplyPreview.jsx';
-import Badges from './Badges.jsx';
+import Badges, { isPlusUser } from './Badges.jsx';
 import UserProfilePanel from './UserProfilePanel.jsx';
 import GroupMembersPanel from './GroupMembersPanel.jsx';
 import FriendsHome from './FriendsHome.jsx';
@@ -149,7 +149,7 @@ export function withLivePresence(group, friends, selfId, selfPresence) {
   return changed ? { ...group, members } : group;
 }
 
-export default function RelayPage({ account, social, onJoinServer, onNotify, onActiveThreadChange }) {
+export default function RelayPage({ account, isPlus = false, social, onJoinServer, onNotify, onActiveThreadChange }) {
   const persisted = useMemo(() => loadPersistedState(), []);
   const selfId = social?.selfId || account?.id || null;
 
@@ -170,6 +170,10 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('overview');
+  const plusIds = useMemo(
+    () => new Set((social?.friends || []).filter(isPlusUser).map((friend) => friend.id)),
+    [social?.friends]
+  );
   const [friendsHomeRequest, setFriendsHomeRequest] = useState({ tab: 'online', nonce: 0 });
 
   const [selectedId, setSelectedId] = useState(null);
@@ -272,6 +276,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
         skinUrl: friend.skinUrl || null,
         model: friend.model || 'classic',
         badges: friend.badges || [],
+        minecraft: friend.minecraft || null,
         isVerified: Boolean(friend.isVerified),
         memberSince: friend.memberSince || null,
         status,
@@ -1320,6 +1325,7 @@ export default function RelayPage({ account, social, onJoinServer, onNotify, onA
                       msg={item}
                       isGroup={isGroupThread}
                       selfId={selfId}
+                      authorPlus={item.isMine ? isPlus : plusIds.has(item.senderId)}
                       selfName={account?.name || 'You'}
                       palette={REACTION_PALETTE}
                       canModerate={Boolean(relayGroups.canModerate)}

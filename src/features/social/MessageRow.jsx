@@ -15,6 +15,7 @@ import RelayAvatar from './RelayAvatar.jsx';
 import { ReplyQuote } from './ReplyPreview.jsx';
 import { safeMediaUrl } from './safeMedia.js';
 
+import { PlusMark } from './Badges.jsx';
 const countReactions = (reactions = []) => reactions.reduce((acc, item) => {
   if (!item?.reaction) return acc;
   acc[item.reaction] = (acc[item.reaction] || 0) + 1;
@@ -45,6 +46,7 @@ export function MessageRow({
   isGroup,
   selfId,
   selfName = 'You',
+  authorPlus = false,
   palette = [],
   canModerate = false,
   readAt = 0,
@@ -113,6 +115,7 @@ export function MessageRow({
         {!continued && (
           <div className="rm-head">
             <span className="rm-author">{authorName}</span>
+            {authorPlus && <PlusMark size={13} />}
             <span className="rm-time">{stampLabel(msg.createdAt, msg.time)}</span>
             {receipt}
             {isMine && msg.pending && <span className="rm-state">Sending…</span>}

@@ -1,3 +1,4 @@
+import usePlus from '../../lib/usePlus.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppNavbar from './AppNavbar.jsx';
 import HomeView from '../home/HomeView.jsx';
@@ -183,6 +184,40 @@ export default function Shell({
       return next;
     });
   }, [account?.id]);
+  /* Signed in with Noctra directly but a premium account in the switcher is
+     linked to it: the home switcher can hop to that premium identity too. */
+  const linkedPremiumAccount = useMemo(() => (
+    isNoctra ? accounts.find((entry) => entry?.type === 'microsoft' && entry.noctraLink?.connected && entry.noctraLink.userId === account.id) || null : null
+  ), [isNoctra, accounts, account?.id]);
+  const identity = useMemo(() => {
+    if (canSwitchIdentity) {
+      return {
+        mode: playAs,
+        premium: { name: account?.name, account },
+        noctra: { name: socialAccount?.name, account: { ...socialAccount, isMicrosoft: false, type: 'noctra' } }
+      };
+    }
+    if (linkedPremiumAccount) {
+      return {
+        mode: 'noctra',
+        premium: { name: linkedPremiumAccount.name, account: linkedPremiumAccount },
+        noctra: { name: account?.name, account }
+      };
+    }
+    return null;
+  }, [canSwitchIdentity, playAs, account, socialAccount, linkedPremiumAccount]);
+  const chooseIdentity = useCallback((mode) => {
+    if (canSwitchIdentity) { switchIdentity(mode); return; }
+    if (linkedPremiumAccount && mode === 'premium') {
+      setPlayAsMap((current) => {
+        const next = { ...current, [linkedPremiumAccount.id]: 'premium' };
+        try { localStorage.setItem(PLAY_AS_KEY, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      onSwitchAccount?.(linkedPremiumAccount.id);
+    }
+  }, [canSwitchIdentity, switchIdentity, linkedPremiumAccount, onSwitchAccount]);
+  const isPlus = usePlus(socialAccount, hasNoctra);
   const [connectRequest, setConnectRequest] = useState(null);
   const openConnectNoctra = useCallback((microsoftAccountId) => {
     setConnectRequest({ id: microsoftAccountId, nonce: Date.now() });
@@ -650,6 +685,7 @@ export default function Shell({
           isAccountOpen={!hasValidAccount || accountSwitcherOpen}
           account={launchAccount}
           isNoctra={hasNoctra}
+          isPlus={isPlus}
           canUseLocker={canUseLocker || canUseLocalLocker}
           notifications={notifications.length}
           onOpenNotifications={() => setNotificationsOpen(true)}
@@ -683,13 +719,9 @@ export default function Shell({
               onOpenVersions={() => setCurrentTab('versions')}
               onCreateInstance={(seed) => openCreateInstance(seed || null)}
               account={launchAccount}
-              identity={canSwitchIdentity ? {
-                canSwitch: true,
-                mode: playAs,
-                premiumName: account?.name,
-                noctraName: socialAccount?.name
-              } : null}
-              onSwitchIdentity={switchIdentity}
+              identity={identity}
+              isPlus={isPlus}
+              onSwitchIdentity={chooseIdentity}
               launcherState={launcher}
               onLaunch={handleLaunch}
               onKill={launcher.kill}
@@ -728,6 +760,7 @@ export default function Shell({
           hasNoctra ? (
             <RelayPage
               account={socialAccount}
+              isPlus={isPlus}
               social={social}
               onJoinServer={handleJoinServer}
               onNotify={notifyRelay}

@@ -626,7 +626,7 @@
 }
 
 .relay-thread-name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 13px;
   font-weight: 600;
@@ -641,6 +641,7 @@
 
 .relay-thread-time {
   flex: none;
+  margin-left: auto;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--fg-muted);

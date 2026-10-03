@@ -8,6 +8,7 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
+import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
 import './HomeView.css';
 import './HomeSelection.css';
 
@@ -33,6 +34,7 @@ export default function HomeView({
   onCreateInstance,
   account,
   identity = null,
+  isPlus = false,
   onSwitchIdentity,
   launcherState,
   onLaunch,
@@ -182,31 +184,20 @@ export default function HomeView({
       <div className="home-topbar">
         <div className="home-greeting">
           <span className="home-greeting-text">{t(greetingKey())}</span>
-          <span className="home-greeting-name">{account?.name || t('home.guest')}</span>
+          {identity ? (
+            <IdentitySwitcher
+              identity={identity}
+              isPlus={isPlus}
+              disabled={Boolean(launcherState?.busy)}
+              onSwitch={onSwitchIdentity}
+            />
+          ) : (
+            <span className="home-greeting-name">
+              {account?.name || t('home.guest')}
+              {isPlus && <PlusTag />}
+            </span>
+          )}
         </div>
-
-        {identity?.canSwitch && (
-          <div className="identity-switch" role="group" aria-label="Play as">
-            {[
-              { id: 'premium', label: 'Premium', name: identity.premiumName, hint: 'Microsoft sign-in: works on online servers' },
-              { id: 'noctra', label: 'Noctra', name: identity.noctraName, hint: 'Noctra profile and skins: offline session' }
-            ].map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`identity-switch-btn ${identity.mode === option.id ? 'is-active' : ''}`}
-                aria-pressed={identity.mode === option.id}
-                disabled={Boolean(launcherState?.busy)}
-                title={`${option.hint}${option.name ? ` (${option.name})` : ''}`}
-                onClick={() => onSwitchIdentity?.(option.id)}
-              >
-                <i aria-hidden="true" />
-                <span>{option.label}</span>
-                {option.name && <small>{option.name}</small>}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Active instance + launch / Starter display */}

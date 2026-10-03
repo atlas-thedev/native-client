@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Bell, BellOff, Check, CheckCheck, LogOut, Paperclip, Pin, Settings, Trash2 } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
+import { isPlusUser, PlusMark } from './Badges.jsx';
 
 /** One inbox row: avatar, presence, name, snippet, delivery state and quick actions. */
 export function ThreadRow({
@@ -46,6 +47,7 @@ export function ThreadRow({
         <div className="relay-thread-info">
           <div className="relay-thread-top-row">
             <span className="relay-thread-name">{thread.nickname || thread.name}</span>
+            {!isGroup && isPlusUser(thread) && <PlusMark size={12} />}
             {thread.pinned && <Pin size={10} className="relay-thread-flag is-pinned" title="Pinned" />}
             {thread.muted && <BellOff size={10} className="relay-thread-flag is-muted" title="Muted" />}
             <span className="relay-thread-time">{thread.lastTime || ''}</span>

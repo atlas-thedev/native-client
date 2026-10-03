@@ -767,6 +767,18 @@ async function fetchStoreMe(account) {
   return { equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
 }
 
+/** A premium account connected to Noctra (or its linked identity) uses the Noctra session stored in main. */
+function resolveBillingAccount(account) {
+  if (account?.token && account?.type === 'noctra') return account;
+  const id = account?.linkedFrom || (account?.type === 'microsoft' ? account.id : null);
+  if (!id) return account;
+  try {
+    const auth = require('./auth');
+    const stored = (auth.readAccounts(deps.app.getPath('userData')).accounts || []).find((a) => a.id === id);
+    return auth.linkedIdentity(stored) || account;
+  } catch { return account; }
+}
+
 /** Calls a billing endpoint with the account's session. */
 async function billingRequest(account, pathname, { method = 'GET', body = null } = {}) {
   requireStoreAccount(account);
@@ -1704,7 +1716,7 @@ function init(dependencies, ipcMain) {
     } catch (error) { return { ok: false, enabled: false, error: error.message }; }
   });
   ipcMain.handle('billing:me', async (_event, account) => {
-    try { return { ok: true, ...(await billingRequest(account, '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
+    try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipcMain.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
     try {

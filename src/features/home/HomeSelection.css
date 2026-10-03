@@ -40,22 +40,6 @@
 @keyframes selected-pulse { 50% { opacity: 0.3; } }
 
 /* Premium / Noctra identity switch in the home header. */
-.identity-switch {
-  display: inline-flex; gap: 4px; padding: 4px; margin-left: auto; border-radius: 12px;
-  background: rgba(10, 10, 16, 0.55); border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
-}
-.identity-switch-btn {
-  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 9px;
-  border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.7);
-  background: transparent; transition: background 0.15s, color 0.15s;
-}
-.identity-switch-btn i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
-.identity-switch-btn small { font-size: 11px; font-weight: 500; opacity: 0.7; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.identity-switch-btn:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, 0.08); }
-.identity-switch-btn.is-active { color: #fff; background: var(--brand, #8b7bff); }
-.identity-switch-btn.is-active i { background: currentColor; }
-.identity-switch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .home-topbar { display: flex; align-items: center; gap: 16px; }
 
 /* Empty Home: quick-start preset tiles. */

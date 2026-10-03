@@ -48,6 +48,23 @@ export const BADGE_DEFS = {
   }
 };
 
+/** True when the server has granted the Noctra+ badge. */
+export const isPlusUser = (user) => getUserBadges(user).includes('plus');
+
+/** Small gold crown shown next to Noctra+ members' names across Relay. */
+export function PlusMark({ size = 14, className = '' }) {
+  return (
+    <img
+      src={plusBadge}
+      alt="Noctra+"
+      title="Noctra+ member"
+      draggable="false"
+      className={`noctra-plus-mark ${className}`}
+      style={{ width: size, height: size, flex: 'none', borderRadius: Math.round(size / 4), imageRendering: 'pixelated', verticalAlign: 'middle' }}
+    />
+  );
+}
+
 /**
  * Returns badge IDs for a given user entity.
  * Badges are server-granted (admin panel); names never grant badges.

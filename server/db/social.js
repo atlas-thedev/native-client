@@ -47,6 +47,8 @@ function getFriends(db, userId) {
       u.uuid,
       u.model,
       u.badges,
+      u.minecraft_uuid AS minecraftUuid,
+      u.minecraft_username AS minecraftName,
       u.created_at AS memberSince,
       f.is_best_friend AS isBestFriend,
       f.nickname,
@@ -113,6 +115,8 @@ function getFriends(db, userId) {
       // Every Noctra account completes email verification at signup, so a row
       // in `users` is exactly what the verified badge represents.
       isVerified: true,
+      // Linked Microsoft/Minecraft (premium) account, shown under Connections in Relay.
+      minecraft: r.minecraftUuid && r.minecraftName ? { uuid: r.minecraftUuid, name: r.minecraftName } : null,
       memberSince: r.memberSince || null,
       isBestFriend: Boolean(r.isBestFriend),
       nickname: r.nickname || null,

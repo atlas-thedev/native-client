@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Ban, CalendarDays, Server, Users, Trash2, UserMinus, X } from 'lucide-react';
+import { BadgeCheck, Ban, CalendarDays, Check, Copy, Server, Users, Trash2, UserMinus, X } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
-import Badges, { getUserBadges } from './Badges.jsx';
+import Badges, { getUserBadges, isPlusUser, PlusMark } from './Badges.jsx';
+import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import './UserProfilePanel.css';
 
 const formatMemberDate = (stamp) => {
@@ -78,6 +79,7 @@ export default function UserProfilePanel({
         <div className="np-identity">
           <div className="np-name-row">
             <h3 className="np-name">{user.nickname || user.name}</h3>
+            {isPlusUser(user) && <PlusMark size={18} />}
           </div>
           <span className="np-handle">@{user.name}</span>
 
@@ -92,6 +94,8 @@ export default function UserProfilePanel({
         </div>
 
         <div className="np-divider" />
+
+        {user.minecraft?.name && <ConnectionsBlock minecraft={user.minecraft} />}
 
         {/* Activity */}
         <div className="np-block">
@@ -225,5 +229,33 @@ export default function UserProfilePanel({
         )}
       </div>
     </aside>
+  );
+}
+
+/** Linked premium Minecraft account, visible to friends. */
+function ConnectionsBlock({ minecraft }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    try { navigator.clipboard?.writeText(minecraft.name); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <div className="np-block">
+      <span className="np-label">Connections</span>
+      <div className="np-card np-connection">
+        <PlayerAvatar uuid={minecraft.uuid} name={minecraft.name} size={36} radius={8} className="np-connection-head" />
+        <div className="np-connection-text">
+          <span className="np-connection-name">
+            {minecraft.name}
+            <BadgeCheck size={14} className="np-connection-verified" aria-label="Verified" />
+          </span>
+          <span className="np-connection-sub">Minecraft · Premium</span>
+        </div>
+        <button type="button" className="np-connection-copy" onClick={copy} title={copied ? 'Copied' : 'Copy username'} aria-label="Copy username">
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+      </div>
+    </div>
   );
 }

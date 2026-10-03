@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { Check, Crown, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
@@ -83,7 +84,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (conf?.ok) setBilling({ enabled: Boolean(conf.enabled), plus: conf.plus || null });
     if (isStoreAccount(account)) {
       const mine = await window.native?.billing?.me?.(account).catch(() => null);
-      if (mine?.ok) setPlus(mine.plus || null);
+      if (mine?.ok) { setPlus(mine.plus || null); announcePlus(mine.plus?.active); }
       return mine;
     }
     return null;
@@ -120,7 +121,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       ]);
       if (stopped) return;
       if (mine?.ok) setMe({ owned: mine.owned || [], equipped: mine.equipped || null });
-      if (bill?.ok) setPlus(bill.plus || null);
+      if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
         onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Noctra+! Every paid cape is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);

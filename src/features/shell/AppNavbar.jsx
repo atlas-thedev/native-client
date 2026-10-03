@@ -110,6 +110,7 @@ export default function AppNavbar({
   onOpenNotifications,
   account,
   isNoctra = false,
+  isPlus = false,
   canUseLocker = isNoctra,
   notifications = 0,
   isMaximized,
@@ -140,7 +141,7 @@ export default function AppNavbar({
     <>
       <header className="noctra-titlebar">
         <div className="noctra-build">
-          <span className="noctra-wordmark"><Logo height={11} variant="mark" /> Noctra Client</span>
+          <span className="noctra-wordmark"><Logo height={11} variant="mark" /> Noctra Client{isPlus && <em className="noctra-wordmark-plus">+</em>}</span>
           <i />
           <span>Build <b>{buildVersion}</b></span>
           {Number.isFinite(liveUserCount) && (
@@ -224,13 +225,14 @@ export default function AppNavbar({
       <aside className="noctra-rail" aria-label={t('nav.primary')}>
         <button
           type="button"
-          className="noctra-rail-logo"
+          className={`noctra-rail-logo ${isPlus ? 'is-plus' : ''}`}
           onClick={() => onSelectTab('home')}
-          aria-label="Noctra Client"
-          data-tooltip="Noctra Client"
+          aria-label={isPlus ? 'Noctra+' : 'Noctra Client'}
+          data-tooltip={isPlus ? 'Noctra+' : 'Noctra Client'}
           data-tour="brand"
         >
           <Logo height={28} variant="mark" />
+          {isPlus && <span className="noctra-rail-plus" aria-hidden="true">+</span>}
         </button>
 
         <nav className="rail-group rail-core-group" aria-label="Launcher">
