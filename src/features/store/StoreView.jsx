@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { Check, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, Store, Trash2, Users } from 'lucide-react';
+import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
@@ -265,9 +266,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`store-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
                 ))}
               </div>
-              <select className="store-sort" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort">
-                {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
+              <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((s) => ({ value: s.id, label: s.label }))} />
             </div>
 
             {items.length === 0 ? (
@@ -281,7 +280,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                       <div className="store-card-badges">
                         {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />EXCLUSIVE</span>}
                         {item.isNew && !item.exclusive && <span className="store-badge solid">NEW</span>}
-                        {item.animated && <span className="store-badge">ANIM</span>}
+                        {item.animated && !item.exclusive && <span className="store-badge">ANIM</span>}
                       </div>
                       {ownedIds.has(item.id) && <span className={`store-card-mark${me.equipped === item.id ? ' is-worn' : ''}`} title={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'} aria-label={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'}><Check size={11} strokeWidth={3} /></span>}
                     </div>

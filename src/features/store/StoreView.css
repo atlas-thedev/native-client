@@ -100,7 +100,7 @@
 }
 .store-chip:hover { color: var(--fg-primary); background: var(--st-tile-hover); }
 .store-chip.active { background: var(--accent-text); color: var(--page); border-color: transparent; }
-.store-sort { height: 34px; padding: 0 10px; border: 1px solid var(--st-line-strong); border-radius: var(--radius-full); background: var(--st-well); color: var(--fg-primary); font: 600 12px var(--font-sans); }
+.store-sort { flex: 0 0 150px; font: 600 12px var(--font-sans); }
 
 .store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-bottom: 8px; }
 .store-card {
@@ -166,7 +166,8 @@
 }
 .store-card-action .store-exclusive-pill { width: 100%; height: 30px; font-size: 11.5px; }
 .store-detail-actions .store-exclusive-pill { flex: 1 1 auto; height: 38px; }
-.store-badge.exclusive { background: linear-gradient(90deg, #d9a6da, #ffd68c); color: #160f2a; border-color: transparent; display: inline-flex; align-items: center; gap: 4px; }
+.store-badge.exclusive { background: linear-gradient(90deg, #d9a6da, #ffd68c); color: #160f2a; border-color: transparent; gap: 3px; padding: 2px 6px; }
+:root .store-badge.exclusive svg, :root .store-badge.exclusive svg * { color: #160f2a !important; fill: #160f2a !important; stroke: none !important; }
 .store-price.is-exclusive { color: var(--accent-text); }
 .store-exclusive-note { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 4px; padding: 9px 11px; border: 1px solid var(--st-line); border-radius: var(--radius-md, 10px); background: var(--st-tile); color: var(--fg-secondary); font-size: 12px; line-height: 1.45; }
 .store-exclusive-note svg { flex: none; margin-top: 2px; color: #ffd68c; }
