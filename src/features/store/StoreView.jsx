@@ -20,6 +20,37 @@ const SORTS = [
   { id: 'name', label: 'A – Z' }
 ];
 
+/** 1234 -> "1.2k" so the owner count stays a short number next to the people icon. */
+const formatCount = (value) => {
+  const n = Number(value) || 0;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}m`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`;
+  return String(n);
+};
+
+const CLOUDS = [
+  { size: 9, left: '6%', top: 34, delay: -12 },
+  { size: 13, left: '34%', top: 18, delay: -31 },
+  { size: 10, left: '61%', top: 52, delay: -47 },
+  { size: 12, left: '84%', top: 26, delay: -5 }
+];
+
+/** Pixel clouds drifting over a slanted ground stripe, behind the spotlight. */
+function SpotBackdrop() {
+  return (
+    <div className="store-spot-backdrop" aria-hidden="true">
+      {CLOUDS.map((cloud, index) => (
+        <span key={index} className="store-cloud" style={{ fontSize: cloud.size, left: cloud.left, top: cloud.top, animationDelay: `${cloud.delay}s` }} />
+      ))}
+      <svg className="store-spot-ground" viewBox="0 0 1200 112" preserveAspectRatio="none">
+        <polygon points="0,4 1200,74 1200,90 0,20" className="is-top" />
+        <polygon points="0,20 1200,90 1200,96 0,26" className="is-edge" />
+        <polygon points="0,26 1200,96 1200,112 0,112" className="is-base" />
+      </svg>
+    </div>
+  );
+}
+
 const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'noctra';
 
 /**
@@ -196,7 +227,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     new: capes.filter((item) => item.isNew).length,
     owned: capes.filter((item) => ownedIds.has(item.id)).length
   };
-  const wornItem = capes.find((item) => item.id === me.equipped) || null;
   const priceOf = (item) => (item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
@@ -235,21 +265,21 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         <div className="store-scroll">
           {selected && (
             <section className="store-spot" aria-label={`${selected.name} details`}>
+              <SpotBackdrop />
               <div className="store-spot-info">
                 <div className="store-spot-badges">
                   {selected.featured && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
                   {selected.isNew && <span className="store-badge solid">New</span>}
                   {selected.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
                   {selected.animated && <span className="store-badge">Animated</span>}
-                  {me.equipped === selected.id && <span className="store-badge wearing"><i />Wearing</span>}
-                  {me.equipped !== selected.id && ownedIds.has(selected.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
+                  {ownedIds.has(selected.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
                 </div>
                 <h2 className="store-spot-name">{selected.name}</h2>
                 <p className="store-spot-desc">{selected.description}</p>
                 {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold and can’t be claimed. The Noctra team gives it to beta testers.'}</span></div>}
                 <dl className="store-spot-facts">
                   <div><dt>Price</dt><dd>{priceOf(selected)}</dd></div>
-                  <div><dt>Owners</dt><dd>{selected.owners || 0}</dd></div>
+                  <div><dt>Owned</dt><dd className="store-owners" title={`${selected.owners || 0} ${selected.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(selected.owners)}</dd></div>
                   <div><dt>Type</dt><dd>{selected.animated ? 'Animated' : 'Static'}</dd></div>
                   <div><dt>By</dt><dd>{selected.author || 'Noctra'}</dd></div>
                 </dl>
@@ -293,11 +323,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             <div className="store-grid">
               {items.map((item) => {
                 const owned = ownedIds.has(item.id);
-                const worn = me.equipped === item.id;
                 return (
                   <article
                     key={item.id}
-                    className={`store-card${selected?.id === item.id ? ' active' : ''}${worn ? ' is-worn' : ''}${owned ? ' is-owned' : ''}`}
+                    className={`store-card${selected?.id === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
                     onClick={() => setSelectedId(item.id)}
                     tabIndex={0}
                     aria-pressed={selected?.id === item.id}
@@ -310,11 +339,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                         {item.isNew && !item.exclusive && <span className="store-badge solid">New</span>}
                         {item.animated && !item.exclusive && <span className="store-badge">Anim</span>}
                       </div>
-                      {(owned || worn) && <span className={`store-card-state${worn ? ' is-worn' : ''}`}>{worn ? <><i />Wearing</> : <><Check size={10} strokeWidth={3} />Owned</>}</span>}
+                      {owned && <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>}
                     </div>
                     <div className="store-card-meta">
                       <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
-                      <small><Users size={11} />{item.owners || 0} {item.owners === 1 ? 'owner' : 'owners'} · {item.author || 'Noctra'}</small>
+                      <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
                     </div>
                     <div className="store-card-action">{actionFor(item, true)}</div>
                   </article>
@@ -322,7 +351,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               })}
             </div>
           )}
-          {wornItem && signedIn && <p className="store-footnote"><Shirt size={12} />You’re wearing <strong>{wornItem.name}</strong>. Players on Noctra see it in game.</p>}
         </div>
       )}
     </div>

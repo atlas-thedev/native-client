@@ -148,8 +148,6 @@
 .store-card-action .store-btn { width: 100%; height: 32px; font-size: 11.5px; }
 .store-card-action .store-exclusive-pill { width: 100%; height: 32px; font-size: 11.5px; }
 .store-empty { display: flex; align-items: center; gap: 10px; padding: 28px; justify-content: center; border: 1px dashed var(--st-line-strong); border-radius: var(--radius-lg); color: var(--fg-muted); font-size: 13px; }
-.store-footnote { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; color: var(--fg-muted); }
-.store-footnote strong { color: var(--fg-primary-hover); }
 
 .store-coming {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
@@ -186,3 +184,29 @@
 @media (prefers-reduced-motion: reduce) {
   .store-card { transition: none; }
 }
+
+/* Spotlight backdrop: drifting pixel clouds over a slanted ground stripe. */
+.store-spot > *:not(.store-spot-backdrop) { position: relative; z-index: 1; }
+.store-spot-backdrop { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.store-cloud {
+  position: absolute; width: 1em; height: 1em; background: transparent; color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    2em 0 currentColor, 3em 0 currentColor, 4em 0 currentColor,
+    1em 1em currentColor, 2em 1em currentColor, 3em 1em currentColor, 4em 1em currentColor, 5em 1em currentColor, 6em 1em currentColor,
+    0 2em currentColor, 1em 2em currentColor, 2em 2em currentColor, 3em 2em currentColor, 4em 2em currentColor, 5em 2em currentColor, 6em 2em currentColor, 7em 2em currentColor;
+  animation: store-cloud-drift 70s linear infinite;
+}
+@keyframes store-cloud-drift {
+  0% { transform: translateX(-25vw); opacity: 0; }
+  8%, 92% { opacity: 1; }
+  100% { transform: translateX(25vw); opacity: 0; }
+}
+.store-spot-ground { position: absolute; left: 0; bottom: 0; width: 100%; height: 84px; }
+.store-spot-ground .is-top { fill: rgba(255, 255, 255, 0.08); }
+.store-spot-ground .is-edge { fill: rgba(255, 255, 255, 0.035); }
+.store-spot-ground .is-base { fill: var(--st-well); }
+@media (prefers-reduced-motion: reduce) { .store-cloud { animation: none; } }
+
+/* Owner count: people icon + number. */
+.store-owners { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.store-card-meta small.store-owners { color: var(--fg-secondary); font-size: 11.5px; font-weight: 600; }
