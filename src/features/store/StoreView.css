@@ -210,3 +210,24 @@
 /* Owner count: people icon + number. */
 .store-owners { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .store-card-meta small.store-owners { color: var(--fg-secondary); font-size: 11.5px; font-weight: 600; }
+
+/* Noctra+ strip */
+.store-plus { flex: 0 0 auto; display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--st-line-strong); border-radius: 14px; background: var(--st-tile); }
+.store-plus.is-member { border-color: rgba(255, 214, 140, 0.35); }
+.store-plus-mark { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #ffd68c; color: #1a1306; }
+:root .store-plus-mark svg, :root .store-plus-mark svg * { stroke: #1a1306 !important; color: #1a1306 !important; }
+.store-plus-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.store-plus-copy strong { font-size: 14px; color: var(--fg-primary-hover); }
+.store-plus-copy span { font-size: 12.5px; color: var(--fg-muted); }
+.store-plus-actions { display: flex; gap: 8px; flex: none; }
+
+/* Redeem code */
+.store-modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); }
+.store-modal { width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid var(--st-line-strong); border-radius: 16px; background: var(--st-tile); }
+.store-modal-head { display: flex; align-items: flex-start; gap: 12px; }
+.store-modal-head > div { flex: 1; min-width: 0; }
+.store-modal-head h3 { margin: 0 0 4px; font-size: 15px; color: var(--fg-primary-hover); }
+.store-modal-head p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--fg-muted); }
+.store-code-input { height: 44px; padding: 0 14px; border: 1px solid var(--st-line-strong); border-radius: 10px; background: var(--st-well); color: var(--fg-primary-hover); font: 700 16px var(--font-mono, ui-monospace, monospace); letter-spacing: 0.12em; outline: none; }
+.store-code-input:focus { border-color: rgba(255, 255, 255, 0.35); }
+.store-modal > .store-btn { height: 40px; }

@@ -40,6 +40,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const capes = require('./capes');
 const events = require('./social-events');
+const billing = require('./billing');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
@@ -110,8 +111,8 @@ function sql() {
 }
 
 function ownedBy(userId) {
-  return sql().prepare('SELECT item_id, acquired_at FROM store_owned WHERE user_id = ? ORDER BY acquired_at DESC').all(String(userId))
-    .map((row) => ({ id: row.item_id, acquiredAt: Number(row.acquired_at) }));
+  return sql().prepare('SELECT item_id, acquired_at, source FROM store_owned WHERE user_id = ? ORDER BY acquired_at DESC').all(String(userId))
+    .map((row) => ({ id: row.item_id, acquiredAt: Number(row.acquired_at), source: row.source }));
 }
 function owns(userId, itemId) {
   return Boolean(sql().prepare('SELECT 1 FROM store_owned WHERE user_id = ? AND item_id = ?').get(String(userId), String(itemId)));
@@ -201,7 +202,8 @@ function publicItem(item, textureBase, counts) {
     hidden: Boolean(item.hidden),
     exclusive: Boolean(item.exclusive),
     isNew: Date.now() - (Number(item.createdAt) || 0) < NEW_FOR_MS,
-    price: 0,
+    price: item.exclusive ? 0 : Math.max(0, Number(item.price) || 0),
+    paid: billing.isPaid(item),
     animated: Boolean(item.animated),
     frames: item.animated ? item.frames : 1,
     fps: item.animated ? item.fps : 0,
@@ -225,6 +227,13 @@ function slug(value) {
 const cleanText = (value, max) => String(value ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 const cleanTags = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
   .map((tag) => slug(tag).slice(0, 24)).filter(Boolean).filter((tag, i, all) => all.indexOf(tag) === i).slice(0, 8);
+
+/** 0 = free. Otherwise USD, 0.50-99.99, two decimals. */
+function priceFrom(value) {
+  const n = Math.round((Number(value) || 0) * 100) / 100;
+  if (n <= 0) return 0;
+  return Math.min(99.99, Math.max(0.5, n));
+}
 
 /** Validates uploaded textures. Returns texture fields for an item. */
 function texturesFrom(body) {
@@ -328,9 +337,17 @@ async function handleStoreRoutes(req, res, ctx) {
     if (url.pathname === '/v1/store/claim') {
       if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cape is no longer available.' }); return true; }
       if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
-      grant(user.id, item.id, 'free');
+      if (!owns(user.id, item.id)) {
+        if (billing.isPaid(item)) {
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Noctra+.` }); return true; }
+          grant(user.id, item.id, 'plus');
+        } else {
+          grant(user.id, item.id, 'free');
+        }
+      }
     } else {
       if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} stays in your locker. You can take it off any time.` }); return true; }
+      if (['purchase', 'code'].includes(billing.ownedSource(user.id, item.id))) { send(res, 403, { ok: false, error: `${item.name} is yours to keep. You can take it off any time.` }); return true; }
       revoke(user.id, item.id);
       const existing = ctx.readProfile(user.username);
       if (existing && existing.capeStore === item.id) {
@@ -363,7 +380,12 @@ async function handleStoreRoutes(req, res, ctx) {
       if (!owns(user.id, item.id)) {
         if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
         if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cape to your locker first.' }); return true; }
-        grant(user.id, item.id, 'free'); // everything is free today
+        if (billing.isPaid(item)) {
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Noctra+.` }); return true; }
+          grant(user.id, item.id, 'plus');
+        } else {
+          grant(user.id, item.id, 'free');
+        }
       }
       next = {
         ...existing,
@@ -416,7 +438,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       featured: Boolean(body.featured),
       hidden: Boolean(body.hidden),
       exclusive: Boolean(body.exclusive),
-      price: 0,
+      price: priceFrom(body.price),
       order: Number.isFinite(Number(body.order)) ? Number(body.order) : -1,
       ...textures,
       createdAt: now,
@@ -466,13 +488,13 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       } else {
         const item = findItem(String(body.itemId || ''));
         if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
-        if (action === 'grant') grant(target.id, item.id, 'admin');
+        if (action === 'grant') billing.grantItem(target.id, item.id, 'admin');
         if (action === 'revoke') {
           revoke(target.id, item.id);
           if (existing.capeStore === item.id) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
         }
         if (action === 'equip') {
-          if (!owns(target.id, item.id)) grant(target.id, item.id, 'admin');
+          if (!owns(target.id, item.id)) billing.grantItem(target.id, item.id, 'admin');
           ctx.saveProfile({
             ...existing,
             cape: item.still,
@@ -510,7 +532,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       try { target = name ? db.getUserByUsername(name) : null; } catch {}
       if (!target) { send(res, 404, { ok: false, error: `No Noctra account called "${name || '?'}".` }); return true; }
       if (ownersMatch[2] === 'grant') {
-        grant(target.id, item.id, 'admin');
+        billing.grantItem(target.id, item.id, 'admin');
       } else {
         revoke(target.id, item.id);
         const existing = ctx.readProfile(target.username);
@@ -542,6 +564,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       if (body.featured !== undefined) next.featured = Boolean(body.featured);
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
       if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
+      if (body.price !== undefined) next.price = priceFrom(body.price);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
       if (body.strip || body.still) {
         try { Object.assign(next, texturesFrom({ ...body, animated: body.animated !== undefined ? body.animated : item.animated })); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }

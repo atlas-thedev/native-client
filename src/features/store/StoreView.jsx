@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
-import { Check, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, Store, Trash2, Users } from 'lucide-react';
+import { Check, Crown, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -9,7 +9,8 @@ import './StoreView.css';
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'animated', label: 'Animated' },
-  { id: 'static', label: 'Static' },
+  { id: 'free', label: 'Free' },
+  { id: 'paid', label: 'Paid' },
   { id: 'new', label: 'New' },
   { id: 'owned', label: 'In my locker' }
 ];
@@ -55,7 +56,7 @@ const isStoreAccount = (account) => Boolean(account?.token) && account?.type ===
 
 /**
  * The Noctra Store: browse capes, add them to your locker, wear them.
- * Everything is free today; animated capes only come from here.
+ * Most capes are free; paid ones can be bought or come with Noctra+.
  */
 export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccountSwitcher, onWardrobeChanged }) {
   const [catalog, setCatalog] = useState(null);
@@ -71,6 +72,22 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const canvases = useRef(new Map());
   const images = useRef(new Map()); // id -> { image, frames, fps }
   const signedIn = isStoreAccount(account);
+  const [billing, setBilling] = useState({ enabled: false, plus: null });
+  const [plus, setPlus] = useState(null); // { active, plan, renewsAt, endsAt }
+  const [pending, setPending] = useState(null); // checkout waiting in the browser
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [code, setCode] = useState('');
+
+  const loadBilling = useCallback(async () => {
+    const conf = await window.native?.billing?.config?.().catch(() => null);
+    if (conf?.ok) setBilling({ enabled: Boolean(conf.enabled), plus: conf.plus || null });
+    if (isStoreAccount(account)) {
+      const mine = await window.native?.billing?.me?.(account).catch(() => null);
+      if (mine?.ok) setPlus(mine.plus || null);
+      return mine;
+    }
+    return null;
+  }, [account]);
 
   const load = useCallback(async (force = false) => {
     setError('');
@@ -89,6 +106,35 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [account]);
 
   useEffect(() => { load(false); }, [load]);
+  useEffect(() => { loadBilling(); }, [loadBilling]);
+
+  // After a checkout opens in the browser, watch for the payment to land.
+  useEffect(() => {
+    if (!pending) return undefined;
+    let stopped = false;
+    const check = async () => {
+      if (stopped) return;
+      const [mine, bill] = await Promise.all([
+        window.native?.store?.me?.(account).catch(() => null),
+        window.native?.billing?.me?.(account).catch(() => null)
+      ]);
+      if (stopped) return;
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: mine.equipped || null });
+      if (bill?.ok) setPlus(bill.plus || null);
+      const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
+      if (done) {
+        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Noctra+! Every paid cape is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
+        window.dispatchEvent(new Event('noctra:store-changed'));
+        load(true);
+        setPending(null);
+      }
+    };
+    const timer = setInterval(check, 4000);
+    const onFocus = () => check();
+    window.addEventListener('focus', onFocus);
+    const giveUp = setTimeout(() => setPending(null), 20 * 60_000);
+    return () => { stopped = true; clearInterval(timer); clearTimeout(giveUp); window.removeEventListener('focus', onFocus); };
+  }, [pending, account]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!account) return;
     window.native?.wardrobe?.get?.(account).then((state) => state && setWardrobe(state)).catch(() => {});
@@ -138,7 +184,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const filtered = list.filter((item) => {
       if (q && !`${item.name} ${item.description} ${(item.tags || []).join(' ')} ${item.author}`.toLowerCase().includes(q)) return false;
       if (filter === 'animated') return item.animated;
-      if (filter === 'static') return !item.animated;
+      if (filter === 'free') return !item.paid && !item.exclusive;
+      if (filter === 'paid') return item.paid;
       if (filter === 'new') return item.isNew;
       if (filter === 'owned') return ownedIds.has(item.id);
       return true;
@@ -176,6 +223,37 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     onNotify?.('Store', item ? `${item.name} is now your cape — in the launcher and in game.` : 'Cape taken off.');
   });
 
+  const buy = (item) => run(`buy:${item.id}`, async () => {
+    const res = await window.native.billing.checkout(account, { kind: 'cape', itemId: item.id });
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
+    setPending({ kind: 'cape', itemId: item.id, name: item.name });
+  });
+
+  const joinPlus = (plan) => run(`plus:${plan}`, async () => {
+    const res = await window.native.billing.checkout(account, { kind: 'plus', plan });
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
+    setPending({ kind: 'plus', plan, name: 'Noctra+' });
+  });
+
+  const manageBilling = () => run('portal', async () => {
+    const res = await window.native.billing.portal(account);
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t open billing.');
+  });
+
+  const redeemCode = (event) => {
+    event.preventDefault();
+    if (!code.trim()) return;
+    run('redeem', async () => {
+      const res = await window.native.store.redeem(account, code.trim());
+      if (!res?.ok) throw new Error(res?.error || 'That code didn’t work.');
+      setCode('');
+      setRedeemOpen(false);
+      await load(true);
+      if (res.item?.id) setSelectedId(res.item.id);
+      onNotify?.('Store', `${res.item?.name || 'Your cape'} was added to your locker.`);
+    });
+  };
+
   const unclaim = (item) => run(`unclaim:${item.id}`, async () => {
     const res = await window.native.store.unclaim(account, item.id);
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t remove that cape.');
@@ -200,12 +278,25 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const actionFor = (item, compact = false) => {
     const owned = ownedIds.has(item.id);
     if (item.exclusive && !owned) {
-      return <span className="store-exclusive-pill" title="Not sold. The Noctra team gives this cape to beta testers."><Lock size={12} />{compact ? 'Exclusive' : 'Beta testers only'}</span>;
+      return <span className="store-exclusive-pill" title="Not sold. You get it at Noctra events or with a code."><Lock size={12} />{compact ? 'Event only' : 'Events & codes only'}</span>;
     }
     if (!signedIn) {
       return <button type="button" className="store-btn ghost" onClick={(event) => { event.stopPropagation(); onOpenAccountSwitcher?.(); }}><Lock size={13} />{compact ? 'Sign in' : 'Sign in with Noctra'}</button>;
     }
     const wearing = me.equipped === item.id;
+    if (!owned && item.paid) {
+      const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
+      if (plus?.active) {
+        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Crown size={13} />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
+      }
+      if (!billing.enabled) {
+        return <span className="store-exclusive-pill" title="Payments are switched on soon.">{`$${Number(item.price).toFixed(2)} · soon`}</span>;
+      }
+      if (pending?.itemId === item.id) {
+        return <button type="button" className="store-btn ghost" onClick={stop(() => setPending(null))} title="Waiting for your payment. Click to stop waiting."><Loader2 size={13} className="is-spinning" />{compact ? 'Waiting…' : 'Finish paying in your browser…'}</button>;
+      }
+      return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => buy(item))}>{busy === `buy:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <ShoppingBag size={13} />}{`Buy $${Number(item.price).toFixed(2)}`}</button>;
+    }
     if (!owned) {
       return <button type="button" className="store-btn" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); claim(item); }}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Plus size={13} />}Add to locker</button>;
     }
@@ -223,11 +314,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const counts = {
     all: capes.length,
     animated: capes.filter((item) => item.animated).length,
-    static: capes.filter((item) => !item.animated).length,
+    free: capes.filter((item) => !item.paid && !item.exclusive).length,
+    paid: capes.filter((item) => item.paid).length,
     new: capes.filter((item) => item.isNew).length,
     owned: capes.filter((item) => ownedIds.has(item.id)).length
   };
-  const priceOf = (item) => (item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free');
+  const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
   return (
@@ -235,7 +327,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <header className="store-header">
         <div className="store-header-copy">
           <h1 className="store-title page-title">Store</h1>
-          <p className="store-subtitle">Capes made by Noctra. Add one to your locker and wear it everywhere — the launcher, the website and in game. Everything is free right now.</p>
+          <p className="store-subtitle">Capes made by Noctra. Add one to your locker and wear it everywhere — the launcher, the website and in game. Most capes are free — some are paid or included with Noctra+.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && capes.length > 0 && (
@@ -244,6 +336,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <div className="store-collection-bar"><i style={{ width: `${capes.length ? Math.round((counts.owned / capes.length) * 100) : 0}%` }} /></div>
             </div>
           )}
+          {signedIn && <button type="button" className="store-btn ghost" onClick={() => setRedeemOpen(true)}><Ticket size={13} />Redeem code</button>}
           {signedIn && <button type="button" className="store-btn ghost" onClick={onOpenLocker}><Package size={13} />My locker</button>}
           <button type="button" className="store-icon-btn" onClick={() => load(true)} title="Refresh" aria-label="Refresh the store"><RefreshCw size={14} /></button>
         </div>
@@ -276,7 +369,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 </div>
                 <h2 className="store-spot-name">{selected.name}</h2>
                 <p className="store-spot-desc">{selected.description}</p>
-                {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold and can’t be claimed. The Noctra team gives it to beta testers.'}</span></div>}
+                {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold. You get it at Noctra events or with a redeem code.'}</span></div>}
                 <dl className="store-spot-facts">
                   <div><dt>Price</dt><dd>{priceOf(selected)}</dd></div>
                   <div><dt>Owned</dt><dd className="store-owners" title={`${selected.owners || 0} ${selected.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(selected.owners)}</dd></div>
@@ -290,7 +383,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 )}
                 <div className="store-detail-actions">
                   {actionFor(selected)}
-                  {signedIn && ownedIds.has(selected.id) && !selected.exclusive && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
+                  {signedIn && ownedIds.has(selected.id) && !selected.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === selected.id)?.source) && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
                 </div>
               </div>
               <div className="store-spot-stage">
@@ -298,6 +391,34 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               </div>
               <div className="store-spot-art" aria-hidden="true">
                 <canvas ref={bindCanvas(`hero:${selected.id}`)} width={80} height={128} />
+              </div>
+            </section>
+          )}
+
+          {billing.enabled && (
+            <section className={`store-plus${plus?.active ? ' is-member' : ''}`} aria-label="Noctra+">
+              <span className="store-plus-mark"><Crown size={16} /></span>
+              <div className="store-plus-copy">
+                <strong>{plus?.active ? 'You’re a Noctra+ member' : 'Noctra+'}</strong>
+                <span>
+                  {plus?.active
+                    ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid capes go back when it ends.` : `Every paid cape is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
+                    : 'Every paid cape while you’re a member, plus the Noctra+ badge. Cancel any time.'}
+                </span>
+              </div>
+              <div className="store-plus-actions">
+                {!signedIn ? (
+                  <button type="button" className="store-btn ghost" onClick={onOpenAccountSwitcher}><Lock size={13} />Sign in with Noctra</button>
+                ) : plus?.active ? (
+                  <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={manageBilling}>{busy === 'portal' ? <Loader2 size={13} className="is-spinning" /> : null}Manage</button>
+                ) : pending?.kind === 'plus' ? (
+                  <button type="button" className="store-btn ghost" onClick={() => setPending(null)}><Loader2 size={13} className="is-spinning" />Finish paying in your browser…</button>
+                ) : (
+                  <>
+                    <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => joinPlus('monthly')}>{busy === 'plus:monthly' ? <Loader2 size={13} className="is-spinning" /> : null}${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month</button>
+                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <Crown size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
+                  </>
+                )}
               </div>
             </section>
           )}
@@ -351,6 +472,22 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               })}
             </div>
           )}
+        </div>
+      )}
+      {redeemOpen && (
+        <div className="store-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRedeemOpen(false); }}>
+          <form className="store-modal" role="dialog" aria-label="Redeem a code" onSubmit={redeemCode}>
+            <div className="store-modal-head">
+              <span className="store-plus-mark"><Ticket size={16} /></span>
+              <div>
+                <h3>Redeem a code</h3>
+                <p>Got a code from a Noctra event or a giveaway? Enter it to add the cape to your locker.</p>
+              </div>
+              <button type="button" className="store-icon-btn" onClick={() => setRedeemOpen(false)} aria-label="Close"><X size={14} /></button>
+            </div>
+            <input className="store-code-input" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="SUMMER-26" maxLength={32} autoFocus aria-label="Code" />
+            <button type="submit" className="store-btn" disabled={!code.trim() || busy !== null}>{busy === 'redeem' ? <Loader2 size={13} className="is-spinning" /> : <Ticket size={13} />}Redeem</button>
+          </form>
         </div>
       )}
     </div>

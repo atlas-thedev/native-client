@@ -10,6 +10,7 @@ const media = require('./media');
 const modRoutes = require('./mod-routes');
 const capes = require('./capes');
 const storeRoutes = require('./store-routes');
+const billing = require('./billing');
 
 /**
  * Noctra Backend & API Server
@@ -417,6 +418,15 @@ async function handler(req, res) {
       if (await modRoutes.handleModRoutes(req, res, { ip, send, hit, tooMany })) return;
     } catch (modError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Mod route failed.' });
+      return;
+    }
+
+    try {
+      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem });
+      if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
+    } catch (billingError) {
+      console.error('[Noctra Billing]', billingError);
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Billing route failed.' });
       return;
     }
 

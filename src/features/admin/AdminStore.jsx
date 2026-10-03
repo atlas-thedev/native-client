@@ -99,7 +99,7 @@ function CapeOwners({ item, onNotify, onChanged }) {
   );
 }
 
-const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, exclusive: false, fps: 12, frames: 1, texture: null });
+const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, exclusive: false, price: '', fps: 12, frames: 1, texture: null });
 
 /** Admin -> Store: add, edit, hide, feature and delete Noctra capes. */
 export default function AdminStore({ onNotify, onError }) {
@@ -141,7 +141,7 @@ export default function AdminStore({ onNotify, onError }) {
     const needle = query.trim().toLowerCase();
     return (items || []).filter((item) => {
       if (filter === 'animated' && !item.animated) return false;
-      if (filter === 'static' && item.animated) return false;
+      if (filter === 'paid' && !item.paid) return false;
       if (filter === 'hidden' && !item.hidden) return false;
       if (filter === 'exclusive' && !item.exclusive) return false;
       if (!needle) return true;
@@ -157,7 +157,7 @@ export default function AdminStore({ onNotify, onError }) {
 
   const openNew = () => { setDraft(emptyDraft()); setFileError(''); setEditing('new'); };
   const openEdit = (item) => {
-    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Noctra', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), fps: item.fps || 12, frames: item.frames || 1, texture: null });
+    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Noctra', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), price: item.price > 0 ? String(item.price) : '', fps: item.fps || 12, frames: item.frames || 1, texture: null });
     setFileError('');
     setEditing(item.id);
   };
@@ -205,6 +205,7 @@ export default function AdminStore({ onNotify, onError }) {
       featured: draft.featured,
       hidden: draft.hidden,
       exclusive: draft.exclusive,
+      price: draft.exclusive ? 0 : Math.max(0, Number(draft.price) || 0),
       ...(draft.order !== '' && Number.isFinite(Number(draft.order)) ? { order: Number(draft.order) } : {}),
       fps
     };
@@ -266,7 +267,7 @@ export default function AdminStore({ onNotify, onError }) {
       <div className="admin-toolbar">
         <label className="admin-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capes, ids or tags"/></label>
         <div className="admin-filters">
-          {[['all', 'All'], ['animated', 'Animated'], ['static', 'Static'], ['exclusive', 'Exclusive'], ['hidden', 'Hidden']].map(([id, label]) => (
+          {[['all', 'All'], ['animated', 'Animated'], ['paid', 'Paid'], ['exclusive', 'Event'], ['hidden', 'Hidden']].map(([id, label]) => (
             <button key={id} type="button" className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>
           ))}
         </div>
@@ -286,7 +287,9 @@ export default function AdminStore({ onNotify, onError }) {
                   <strong>{item.name}</strong>
                   {item.animated && <em className="admin-tag is-anim">Animated · {item.frames}f · {item.fps}fps</em>}
                   {!item.animated && <em className="admin-tag">Static</em>}
-                  {item.exclusive && <em className="admin-tag is-exclusive">Exclusive</em>}
+                  {item.exclusive && <em className="admin-tag is-exclusive">Event</em>}
+                  {item.paid && <em className="admin-tag is-price">${Number(item.price).toFixed(2)}</em>}
+                  {!item.paid && !item.exclusive && <em className="admin-tag">Free</em>}
                   {item.featured && <em className="admin-tag is-featured">Featured</em>}
                   {item.hidden && <em className="admin-tag is-hidden">Hidden</em>}
                   {item.isNew && <em className="admin-tag">New</em>}
@@ -332,15 +335,16 @@ export default function AdminStore({ onNotify, onError }) {
               <label><span>Author</span><input value={draft.author} maxLength={40} onChange={set('author')}/></label>
               {previewAnimated && <label><span>Frames</span><input type="number" min={2} max={MAX_FRAMES} value={draft.frames} disabled={!draft.texture} onChange={set('frames')}/></label>}
               {previewAnimated && <label><span>Speed (fps)</span><input type="number" min={1} max={MAX_FPS} value={draft.fps} onChange={set('fps')}/></label>}
+              <label><span>Price (USD)</span><input type="number" min={0} max={99.99} step={0.01} value={draft.exclusive ? '' : draft.price} disabled={draft.exclusive} onChange={set('price')} placeholder="0 = free"/></label>
               <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
               <label className="admin-check"><input type="checkbox" checked={draft.featured} onChange={set('featured')}/><span>Featured</span></label>
               <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
-              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Exclusive: shown in the Store, but only admins can give it</span></label>
+              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Event cape: never sold. Give it out by hand or with redeem codes</span></label>
             </div>
 
             {editingItem && <CapeOwners item={editingItem} onNotify={onNotify} onChanged={(next) => next && setItems(next)}/>}
 
-            <p className="admin-note">{draft.exclusive ? 'Exclusive: players can’t claim it. Give it to people below.' : 'Price: Free. Every cape in the Store is free for now.'}</p>
+            <p className="admin-note">{draft.exclusive ? 'Event cape: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Noctra+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
             {fileError && <div className="admin-error" role="alert"><span>{fileError}</span></div>}
 
             <footer>

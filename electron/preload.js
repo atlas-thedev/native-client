@@ -79,7 +79,14 @@ const api = {
     equip: (account, itemId) => ipcRenderer.invoke('store:equip', { account, itemId }),
     me: (account) => ipcRenderer.invoke('store:me', account),
     claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
-    unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId })
+    unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId }),
+    redeem: (account, code) => ipcRenderer.invoke('store:redeem', { account, code })
+  },
+  billing: {
+    config: () => ipcRenderer.invoke('billing:config'),
+    me: (account) => ipcRenderer.invoke('billing:me', account),
+    checkout: (account, request) => ipcRenderer.invoke('billing:checkout', { account, ...request }),
+    portal: (account) => ipcRenderer.invoke('billing:portal', account)
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),
@@ -268,7 +275,11 @@ const api = {
     getUser: (userId) => ipcRenderer.invoke('admin:getUser', userId),
     userCape: (userId, itemId, action) => ipcRenderer.invoke('admin:userCape', userId, itemId, action),
     setAdmin: (userId, isAdmin) => ipcRenderer.invoke('admin:setAdmin', userId, isAdmin),
-    revokeSessions: (userId) => ipcRenderer.invoke('admin:revokeSessions', userId)
+    revokeSessions: (userId) => ipcRenderer.invoke('admin:revokeSessions', userId),
+    billingOverview: () => ipcRenderer.invoke('admin:billingOverview'),
+    billingCodes: () => ipcRenderer.invoke('admin:billingCodes'),
+    billingCreateCode: (payload) => ipcRenderer.invoke('admin:billingCreateCode', payload),
+    billingDeleteCode: (code) => ipcRenderer.invoke('admin:billingDeleteCode', code)
   },
   discord: {
     setTab: (tab) => ipcRenderer.send('discord:setTab', tab),

@@ -5,6 +5,9 @@ import bugHunterBadge from '../../assets/badges/bug-hunter.png';
 import staffBadge from '../../assets/badges/staff.png';
 import './Badges.css';
 
+/* Noctra+ badge: a gold pixel crown (inline so it works everywhere). */
+const plusBadge = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><rect width="16" height="16" rx="4" fill="#ffd68c"/><path fill="#1a1306" d="M3 5h2v2h1V5h1V4h2v1h1v2h1V5h2v7H3z"/><path fill="#ffd68c" d="M5 10h6v1H5z"/></svg>')}`;
+
 const badgeIcon = (src) => <img src={src} alt="" aria-hidden="true" draggable="false"/>;
 
 export const BADGE_DEFS = {
@@ -35,6 +38,13 @@ export const BADGE_DEFS = {
     description: 'Official Noctra Client Staff Team',
     gradient: 'linear-gradient(135deg, #5865f2 0%, #eb459e 100%)',
     icon: badgeIcon(staffBadge)
+  },
+  plus: {
+    id: 'plus',
+    name: 'Noctra+',
+    description: 'Noctra+ member',
+    gradient: 'linear-gradient(135deg, #ffd68c 0%, #f5b94a 100%)',
+    icon: badgeIcon(plusBadge)
   }
 };
 

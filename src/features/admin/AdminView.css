@@ -375,3 +375,25 @@
 .admin-store-editor { border-radius: var(--ad-radius); background: var(--in-card); }
 .admin-store-new, .admin-store-save { background: #fff; color: #0b0b0f; }
 :root .admin-store-new svg, :root .admin-store-new svg *, :root .admin-store-save svg, :root .admin-store-save svg * { stroke: #0b0b0f !important; color: #0b0b0f !important; }
+.admin-tag.is-price { color: #0b0b0f; background: #ffd68c; }
+
+/* Sales */
+.admin-sales-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+.admin-chip.is-test { color: #93c5fd; background: rgba(147, 197, 253, 0.1); border: 1px solid rgba(147, 197, 253, 0.3); margin-left: auto; }
+.admin-chip.is-live { color: #6ee7a8; background: rgba(110, 231, 168, 0.1); border: 1px solid rgba(110, 231, 168, 0.3); margin-left: auto; }
+.admin-chip.is-refund { color: #fca5a5; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); }
+.admin-sales-list, .admin-code-list { display: flex; flex-direction: column; max-height: 360px; overflow-y: auto; }
+.admin-sale-row, .admin-code-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--in-line); }
+.admin-sale-row:last-child, .admin-code-row:last-child { border-bottom: 0; }
+.admin-sale-row.is-refunded .admin-sale-amount { text-decoration: line-through; color: var(--fg-muted); }
+.admin-sale-main, .admin-code-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.admin-sale-main strong, .admin-code-main strong { font-size: 12.5px; color: var(--fg-primary-hover); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.admin-sale-main small, .admin-code-main small { font-size: 11px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-sale-amount { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.admin-code-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.admin-code-form .admin-field.is-wide { grid-column: 1 / -1; }
+.admin-code-form > .admin-btn { grid-column: 1 / -1; justify-self: start; }
+.admin-code-row.is-done { opacity: 0.5; }
+.admin-code-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--in-line-strong); border-radius: 8px; background: var(--in-well); color: var(--fg-primary-hover); cursor: pointer; }
+.admin-code-chip code { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; }
+.admin-icon-btn.is-danger { color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); }

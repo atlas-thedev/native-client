@@ -73,6 +73,10 @@ function init() {
     adminFetch(`/users/${encodeURIComponent(userId)}/admin`, { method: 'POST', body: { isAdmin: Boolean(isAdmin) } }));
   handle('admin:revokeSessions', (userId) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/sessions/revoke`, { method: 'POST', body: {} }));
+  handle('admin:billingOverview', () => adminFetch('/billing/overview'));
+  handle('admin:billingCodes', () => adminFetch('/billing/codes'));
+  handle('admin:billingCreateCode', (payload = {}) => adminFetch('/billing/codes', { method: 'POST', body: payload }));
+  handle('admin:billingDeleteCode', (code) => adminFetch(`/billing/codes/${encodeURIComponent(code)}`, { method: 'DELETE' }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

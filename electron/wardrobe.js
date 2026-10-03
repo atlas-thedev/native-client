@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { dialog, net } = require('electron');
+const { dialog, net, shell } = require('electron');
 const { downloadFile, writeFileAtomic } = require('./download');
 const safeFile = require('./safeFile');
 
@@ -765,6 +765,32 @@ async function fetchStoreMe(account) {
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
   return { equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
+}
+
+/** Calls a billing endpoint with the account's session. */
+async function billingRequest(account, pathname, { method = 'GET', body = null } = {}) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}${pathname}`, {
+    method,
+    headers: storeHeaders(account),
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(20_000)
+  });
+  let payload = {};
+  try { payload = await response.json(); } catch {}
+  if (!response.ok || payload.ok === false) throw new Error(payload.error || `Billing request failed (HTTP ${response.status}).`);
+  return payload;
+}
+
+/** Only ever hand Paddle / Noctra pages to the system browser. */
+function openBillingPage(url) {
+  let parsed = null;
+  try { parsed = new URL(String(url || '')); } catch { return false; }
+  const host = parsed.hostname.toLowerCase();
+  const allowed = parsed.protocol === 'https:' && (host === 'nativelaunch.xyz' || host.endsWith('.nativelaunch.xyz') || host.endsWith('.paddle.com'));
+  if (!allowed) return false;
+  shell.openExternal(parsed.toString());
+  return true;
 }
 
 /** Adds a store item to (or, with remove, takes it out of) the account's locker. */
@@ -1669,6 +1695,33 @@ function init(dependencies, ipcMain) {
   });
   ipcMain.handle('store:unclaim', async (_event, { account, itemId }) => {
     try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('billing:config', async () => {
+    try {
+      const response = await fetch(`${apiRoot()}/v1/billing/config`, { signal: AbortSignal.timeout(10_000) });
+      const payload = await response.json();
+      return { ok: true, ...payload };
+    } catch (error) { return { ok: false, enabled: false, error: error.message }; }
+  });
+  ipcMain.handle('billing:me', async (_event, account) => {
+    try { return { ok: true, ...(await billingRequest(account, '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
+    try {
+      const payload = await billingRequest(account, '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, plan } });
+      if (!openBillingPage(payload.url)) throw new Error('Couldn’t open the checkout page.');
+      return { ok: true, transactionId: payload.transactionId };
+    } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('billing:portal', async (_event, account) => {
+    try {
+      const payload = await billingRequest(account, '/v1/billing/portal', { method: 'POST', body: {} });
+      if (!openBillingPage(payload.url)) throw new Error('Couldn’t open billing.');
+      return { ok: true };
+    } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:redeem', async (_event, { account, code }) => {
+    try { return { ok: true, ...(await billingRequest(account, '/v1/store/redeem', { method: 'POST', body: { code: String(code || '') } })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipcMain.handle('store:equip', async (_event, { account, itemId }) => {
     try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
