@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, Sparkles, Store, Trash2, Users } from 'lucide-react';
+import { PixelCape, PixelStar } from './PixelIcons.jsx';
+import { Check, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, Store, Trash2, Users } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
@@ -200,7 +201,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
       {catalog && !(catalog.items || []).length && (
         <div className="store-coming">
-          <span className="store-coming-icon"><Sparkles size={20} /></span>
+          <span className="store-coming-icon"><PixelCape size={22} /></span>
           <h2>New capes are on the way</h2>
           <p>The first Noctra capes are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
           <button type="button" className="store-btn ghost" onClick={() => load(true)}><RefreshCw size={13} />Check again</button>
@@ -214,7 +215,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <>
                 <div className="store-stage">
                   {previewAccount && <SkinViewer3D key={`${selected.id}:${previews[selected.id] ? 1 : 0}`} account={previewAccount} width={300} height={360} animation="walk" autoRotate />}
-                  {selected.featured && <span className="store-badge solid"><Sparkles size={11} />Featured</span>}
+                  {selected.featured && <span className="store-badge solid"><PixelStar size={10} />Featured</span>}
                 </div>
                 <div className="store-detail-meta">
                   <div className="store-detail-row">
@@ -241,7 +242,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <button type="button" className={`store-hero${selected?.id === featured.id ? ' active' : ''}`} onClick={() => setSelectedId(featured.id)}>
                 <canvas ref={(node) => { if (node) canvases.current.set(`hero:${featured.id}`, node); else canvases.current.delete(`hero:${featured.id}`); }} width={80} height={128} className="store-hero-canvas" aria-hidden="true" />
                 <div>
-                  <span className="store-badge solid"><Sparkles size={11} />New · Featured</span>
+                  <span className="store-badge solid"><PixelStar size={10} />New · Featured</span>
                   <h3>{featured.name}</h3>
                   <p>{featured.description}</p>
                 </div>
