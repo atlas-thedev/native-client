@@ -99,6 +99,8 @@ function CapeOwners({ item, onNotify, onChanged }) {
   );
 }
 
+/** Matches the server: the Store hero rotates through at most 5 featured capes. */
+const MAX_FEATURED = 5;
 const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, exclusive: false, price: '', fps: 12, frames: 1, texture: null });
 
 /** Admin -> Store: add, edit, hide, feature and delete Noctra capes. */
@@ -152,8 +154,10 @@ export default function AdminStore({ onNotify, onError }) {
   const totals = useMemo(() => ({
     capes: (items || []).length,
     animated: (items || []).filter((item) => item.animated).length,
-    owners: (items || []).reduce((sum, item) => sum + (item.owners || 0), 0)
+    owners: (items || []).reduce((sum, item) => sum + (item.owners || 0), 0),
+    featured: (items || []).filter((item) => item.featured).length
   }), [items]);
+  const featuredFull = totals.featured >= MAX_FEATURED;
 
   const openNew = () => { setDraft(emptyDraft()); setFileError(''); setEditing('new'); };
   const openEdit = (item) => {
@@ -271,7 +275,7 @@ export default function AdminStore({ onNotify, onError }) {
             <button key={id} type="button" className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>
           ))}
         </div>
-        <span className="admin-result-count">{totals.capes} capes · {totals.animated} animated · {totals.owners} in lockers</span>
+        <span className="admin-result-count">{totals.capes} capes · {totals.animated} animated · {totals.featured}/{MAX_FEATURED} featured · {totals.owners} in lockers</span>
         <button type="button" className="admin-store-new" onClick={openNew}><Plus size={14}/>New cape</button>
       </div>
 
@@ -298,7 +302,7 @@ export default function AdminStore({ onNotify, onError }) {
                 {item.description && <small className="admin-user-meta">{item.description}</small>}
               </div>
               <div className="admin-store-actions">
-                <button type="button" title={item.featured ? 'Unfeature' : 'Feature'} className={item.featured ? 'is-on' : ''} disabled={busy === item.id} onClick={() => patch(item, { featured: !item.featured }, `${item.name} ${item.featured ? 'is no longer featured' : 'is now featured'}.`)}><Star size={14}/></button>
+                <button type="button" title={item.featured ? 'Unfeature' : featuredFull ? `Up to ${MAX_FEATURED} capes can be featured` : 'Feature in the Store hero'} className={item.featured ? 'is-on' : ''} disabled={busy === item.id || (!item.featured && featuredFull)} onClick={() => patch(item, { featured: !item.featured }, `${item.name} ${item.featured ? 'is no longer featured' : 'is now featured'}.`)}><Star size={14}/></button>
                 <button type="button" title={item.hidden ? 'Show in Store' : 'Hide from Store'} disabled={busy === item.id} onClick={() => patch(item, { hidden: !item.hidden }, `${item.name} is now ${item.hidden ? 'visible' : 'hidden'}.`)}>{item.hidden ? <EyeOff size={14}/> : <Eye size={14}/>}</button>
                 <button type="button" title="Edit" disabled={busy === item.id} onClick={() => openEdit(item)}><Pencil size={14}/></button>
                 <button type="button" title={confirmDelete === item.id ? 'Click again to delete' : 'Delete'} className={confirmDelete === item.id ? 'is-danger' : ''} disabled={busy === item.id} onClick={() => remove(item)}>{busy === item.id ? <LoaderCircle size={14} className="is-spinning"/> : <Trash2 size={14}/>}{confirmDelete === item.id && <span>Delete?</span>}</button>
@@ -337,7 +341,7 @@ export default function AdminStore({ onNotify, onError }) {
               {previewAnimated && <label><span>Speed (fps)</span><input type="number" min={1} max={MAX_FPS} value={draft.fps} onChange={set('fps')}/></label>}
               <label><span>Price (USD)</span><input type="number" min={0} max={99.99} step={0.01} value={draft.exclusive ? '' : draft.price} disabled={draft.exclusive} onChange={set('price')} placeholder="0 = free"/></label>
               <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
-              <label className="admin-check"><input type="checkbox" checked={draft.featured} onChange={set('featured')}/><span>Featured</span></label>
+              <label className="admin-check" title={featuredFull && !draft.featured ? `Up to ${MAX_FEATURED} capes can be featured` : undefined}><input type="checkbox" checked={draft.featured} disabled={!draft.featured && featuredFull && !(editing !== 'new' && items?.find((item) => item.id === editing)?.featured)} onChange={set('featured')}/><span>Featured ({totals.featured}/{MAX_FEATURED})</span></label>
               <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
               <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Event cape: never sold. Give it out by hand or with redeem codes</span></label>
             </div>

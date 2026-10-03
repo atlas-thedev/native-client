@@ -231,3 +231,70 @@
 .store-code-input { height: 44px; padding: 0 14px; border: 1px solid var(--st-line-strong); border-radius: 10px; background: var(--st-well); color: var(--fg-primary-hover); font: 700 16px var(--font-mono, ui-monospace, monospace); letter-spacing: 0.12em; outline: none; }
 .store-code-input:focus { border-color: rgba(255, 255, 255, 0.35); }
 .store-modal > .store-btn { height: 40px; }
+
+/* Featured hero: rotates through up to 5 featured capes. */
+.store-spot.is-featured { grid-template-columns: minmax(0, 1fr) 280px 168px; }
+.store-spot-info { animation: store-spot-in 360ms ease both; }
+@keyframes store-spot-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+button.store-spot-stage { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: zoom-in; border-radius: 14px; }
+button.store-spot-stage:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: 2px; }
+.store-spot-zoom {
+  position: absolute; left: 50%; bottom: 34px; transform: translate(-50%, 4px); display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px; border: 1px solid var(--st-line-strong); border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.55); color: #fff; font: 600 11.5px var(--font-sans); opacity: 0; pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-visible .store-spot-zoom { opacity: 1; transform: translate(-50%, 0); }
+.store-spot-picker { justify-self: end; display: flex; flex-direction: column; gap: 6px; width: 168px; }
+.store-spot-thumb {
+  position: relative; display: flex; align-items: center; gap: 10px; height: 52px; padding: 6px 10px 6px 6px; overflow: hidden;
+  border: 1px solid var(--st-line); border-radius: 10px; background: var(--st-well); color: var(--fg-secondary);
+  font: 600 12px var(--font-sans); text-align: left; cursor: pointer; transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+.store-spot-thumb:hover { color: var(--fg-primary); border-color: var(--st-line-strong); }
+.store-spot-thumb.active { color: #fff; border-color: rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.06); }
+.store-spot-thumb canvas { flex: none; width: 25px; height: 40px; image-rendering: pixelated; }
+.store-spot-thumb span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.store-spot-progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: rgba(255, 255, 255, 0.7); transform-origin: left; animation: store-spot-progress linear both; }
+@keyframes store-spot-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.store-card { cursor: zoom-in; }
+
+/* Noctra+ mark: the N+ icon on a dark tile. */
+.store-plus-mark.is-plus { background: #0b0b0f; color: #fff; border: 1px solid rgba(255, 214, 140, 0.45); }
+:root .store-plus-mark.is-plus svg path:first-of-type { fill: #fff !important; }
+.store-btn .noctra-plus-icon { margin-right: 1px; }
+
+/* 3D cape viewer popup */
+.store-viewer-backdrop { backdrop-filter: blur(2px); }
+.store-viewer {
+  position: relative; display: grid; grid-template-columns: 340px minmax(0, 1fr); width: min(860px, calc(100vw - 40px)); max-height: calc(100vh - 40px);
+  overflow: hidden; border: 1px solid var(--st-line-strong); border-radius: 18px; background: var(--st-tile);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55); animation: store-viewer-in 180ms ease both;
+}
+@keyframes store-viewer-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+.store-viewer-stage { position: relative; display: grid; place-items: center; min-height: 440px; background: var(--st-well); overflow: hidden; }
+.store-viewer-stage > *:not(.store-spot-backdrop) { position: relative; z-index: 1; }
+.store-viewer-stage canvas { cursor: grab; }
+.store-viewer-stage canvas:active { cursor: grabbing; }
+.store-viewer-art { position: absolute !important; top: 12px; left: 12px; padding: 8px; border: 1px solid var(--st-line-strong); border-radius: 10px; background: rgba(0, 0, 0, 0.35); }
+.store-viewer-art canvas { display: block; width: 40px; height: 64px; image-rendering: pixelated; cursor: default !important; }
+.store-viewer-hint { position: absolute !important; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--fg-muted); }
+.store-viewer-info { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 28px 28px 24px; overflow: auto; }
+.store-viewer-info .store-spot-name { font-size: 26px; padding-right: 36px; }
+.store-viewer-info .store-spot-facts { grid-template-columns: repeat(2, minmax(0, auto)); gap: 10px 28px; }
+.store-viewer-close { position: absolute; top: 14px; right: 14px; z-index: 2; }
+.store-viewer-nav { position: absolute; right: 14px; bottom: 14px; z-index: 2; display: flex; gap: 6px; }
+@media (max-width: 1100px) {
+  .store-spot.is-featured { grid-template-columns: minmax(0, 1fr) 240px; }
+  .store-spot.is-featured .store-spot-picker { grid-column: 1 / -1; justify-self: stretch; flex-direction: row; width: auto; overflow-x: auto; }
+  .store-spot.is-featured .store-spot-thumb { flex: 1 0 140px; }
+}
+@media (max-width: 820px) {
+  .store-spot.is-featured { grid-template-columns: 1fr; }
+  .store-viewer { grid-template-columns: 1fr; overflow: auto; }
+  .store-viewer-stage { min-height: 360px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .store-spot-info, .store-viewer { animation: none; }
+  .store-spot-progress { display: none; }
+}

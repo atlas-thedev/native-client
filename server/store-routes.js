@@ -216,6 +216,11 @@ function publicItem(item, textureBase, counts) {
   };
 }
 
+/** The launcher's store hero rotates through at most this many featured capes. */
+const MAX_FEATURED = 5;
+const featuredCount = (items, exceptId = null) => items.filter((item) => item.featured && item.id !== exceptId).length;
+const tooManyFeatured = () => `Up to ${MAX_FEATURED} capes can be featured. Unfeature one first.`;
+
 const sorted = (items) => [...items].sort((a, b) =>
   Number(Boolean(b.featured)) - Number(Boolean(a.featured))
   || (Number(a.order) || 0) - (Number(b.order) || 0)
@@ -414,7 +419,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   const list = () => sorted(cat.items).map((item) => ({ ...publicItem(item, textureBase, ownerCounts()), order: Number(item.order) || 0 }));
 
   if (req.method === 'GET' && url.pathname === '/v1/admin/store/items') {
-    send(res, 200, { ok: true, items: list(), sections: cat.sections }, noStore);
+    send(res, 200, { ok: true, items: list(), sections: cat.sections, maxFeatured: MAX_FEATURED }, noStore);
     return true;
   }
 
@@ -425,6 +430,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     const id = slug(body.id || name);
     if (!ID_RE.test(id)) { send(res, 400, { ok: false, error: 'The id may only use a-z, 0-9 and dashes.' }); return true; }
     if (findItem(id)) { send(res, 409, { ok: false, error: `A cape with the id "${id}" already exists.` }); return true; }
+    if (body.featured && featuredCount(cat.items) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
     let textures;
     try { textures = texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
     const now = Date.now();
@@ -561,7 +567,10 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       if (body.description !== undefined) next.description = cleanText(body.description, 200);
       if (body.tags !== undefined) next.tags = cleanTags(body.tags);
       if (body.author !== undefined) next.author = cleanText(body.author, 40) || 'Noctra';
-      if (body.featured !== undefined) next.featured = Boolean(body.featured);
+      if (body.featured !== undefined) {
+        next.featured = Boolean(body.featured);
+        if (next.featured && !item.featured && featuredCount(cat.items, item.id) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
+      }
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
       if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
       if (body.price !== undefined) next.price = priceFrom(body.price);
@@ -596,4 +605,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, isStoreStill, capeAllowed, owns, grant, resetCatalog };
+module.exports = { MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, isStoreStill, capeAllowed, owns, grant, resetCatalog };

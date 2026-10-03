@@ -188,6 +188,44 @@ test('admin store: create animated + static capes, edit, hide, delete', async ()
   assert.equal((await json('/v1/store/me', { headers: { Authorization: `Bearer ${pleb}` } })).body.owned.some((o) => o.id === 'plain-black'), false);
 });
 
+test('admin store: at most 5 capes can be featured (the launcher hero rotates through them)', async () => {
+  const admin = db.createUser({ email: 'featureboss@example.com', username: 'FeatureBoss', password: 'correct horse battery' });
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.id);
+  const token = db.createSession(admin.id).token;
+  const req = (method, pathname, body) => json(pathname, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: body ? JSON.stringify(body) : undefined });
+  const cape = (name, featured) => req('POST', '/v1/admin/store/items', { name, animated: true, strip: b64(png(64, 64, 90)), still: b64(png(64, 32, 90)), frames: 2, fps: 4, featured });
+
+  const listed = await req('GET', '/v1/admin/store/items');
+  assert.equal(listed.body.maxFeatured, 5);
+  const already = listed.body.items.filter((item) => item.featured).length;
+  assert.ok(already <= 5);
+  const created = [];
+  for (let i = already; i < 5; i += 1) {
+    const res = await cape(`Feature Fill ${i}`, true);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    created.push(res.body.item.id);
+  }
+  // A sixth featured cape is refused, both on create and on edit.
+  const sixth = await cape('Feature Six', true);
+  assert.equal(sixth.status, 409);
+  assert.match(sixth.body.error, /Up to 5/);
+  const plain = await cape('Feature Plain', false);
+  assert.equal(plain.status, 200);
+  created.push(plain.body.item.id);
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${plain.body.item.id}`, { featured: true })).status, 409);
+  // Editing a featured cape (without changing that) still works when the list is full.
+  const featuredId = (await req('GET', '/v1/admin/store/items')).body.items.find((item) => item.featured && !created.includes(item.id)).id;
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: true, description: 'Still featured.' })).status, 200);
+  // Free a slot, then the other cape can be featured.
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: false })).status, 200);
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${plain.body.item.id}`, { featured: true })).status, 200);
+  assert.equal((await req('GET', '/v1/admin/store/items')).body.items.filter((item) => item.featured).length, 5);
+  // Put things back for the other tests.
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: true })).status, 409);
+  for (const id of created) assert.equal((await req('DELETE', `/v1/admin/store/items/${id}`)).status, 200);
+  assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: true })).status, 200);
+});
+
 test('store: catalogue is public, equip needs a session, equip/unequip are live', async () => {
   const catalog = await json('/v1/store/catalog');
   assert.equal(catalog.status, 200);

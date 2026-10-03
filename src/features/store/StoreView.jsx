@@ -1,11 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
-import { Check, Crown, Loader2, Lock, Package, Plus, RefreshCw, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, Lock, Package, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
+import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
+
+/** The hero spotlight rotates through at most this many featured capes. */
+export const MAX_FEATURED = 5;
+const HERO_ROTATE_MS = 7000;
+
+/** Featured capes in catalogue order (the API sorts featured first by `order`), capped at MAX_FEATURED. */
+export const featuredCapes = (items = []) => items
+  .filter((item) => item.featured && (item.section === 'capes' || !item.section))
+  .slice(0, MAX_FEATURED);
+
+/** Canvas keys are "<id>" or "<slot>:<id>" (hero / thumb / view). */
+const itemIdOfKey = (key) => (key.includes(':') ? key.slice(key.indexOf(':') + 1) : key);
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -67,7 +80,9 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('featured');
-  const [selectedId, setSelectedId] = useState(null);
+  const [viewId, setViewId] = useState(null); // cape open in the 3D viewer popup
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
   const [wardrobe, setWardrobe] = useState(null);
   const [previews, setPreviews] = useState({}); // id -> data URL (strip or still)
   const canvases = useRef(new Map());
@@ -96,7 +111,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       const res = await window.native?.store?.catalog?.({ force });
       if (!res?.ok) throw new Error(res?.error || 'Couldn’t load the store.');
       setCatalog(res);
-      setSelectedId((id) => id || res.items[0]?.id || null);
     } catch (e) {
       setError(e?.message || 'Couldn’t load the store.');
     }
@@ -166,7 +180,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       if (now - last > 40) {
         last = now;
         canvases.current.forEach((canvas, key) => {
-          const entry = images.current.get(key.startsWith('hero:') ? key.slice(5) : key);
+          const entry = images.current.get(itemIdOfKey(key));
           if (!entry || !canvas.isConnected) return;
           const index = entry.frames > 1 && !reduce ? Math.floor((now * entry.fps) / 1000) % entry.frames : 0;
           drawCapeFront(canvas, entry.image, entry.frames, index);
@@ -200,8 +214,41 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     return sort === 'featured' ? filtered : [...filtered].sort(by);
   }, [catalog, query, filter, sort, ownedIds]);
 
-  const selected = (catalog?.items || []).find((item) => item.id === selectedId) || items[0] || null;
-  const featured = (catalog?.items || []).find((item) => item.featured) || null;
+  const featured = useMemo(() => featuredCapes(catalog?.items || []), [catalog]);
+  const heroList = featured.length ? featured : (items[0] ? [items[0]] : []);
+  const hero = heroList.length ? heroList[heroIndex % heroList.length] : null;
+  const viewing = viewId ? (catalog?.items || []).find((item) => item.id === viewId) || null : null;
+
+  // Keep the hero index valid when the featured list changes.
+  useEffect(() => { setHeroIndex((index) => (heroList.length ? index % heroList.length : 0)); }, [heroList.length]);
+
+  // Rotate through the featured capes; pause while hovered or while the 3D popup is open.
+  useEffect(() => {
+    if (featured.length < 2 || heroPaused || viewId) return undefined;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (reduce) return undefined;
+    const timer = setTimeout(() => setHeroIndex((index) => (index + 1) % featured.length), HERO_ROTATE_MS);
+    return () => clearTimeout(timer);
+  }, [featured.length, heroIndex, heroPaused, viewId]);
+
+  // The popup steps through the capes currently listed in the grid.
+  const stepView = useCallback((delta) => {
+    if (!items.length) return;
+    const at = items.findIndex((item) => item.id === viewId);
+    const next = items[((at < 0 ? 0 : at) + delta + items.length) % items.length];
+    if (next) setViewId(next.id);
+  }, [items, viewId]);
+
+  useEffect(() => {
+    if (!viewId) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') setViewId(null);
+      else if (event.key === 'ArrowRight') stepView(1);
+      else if (event.key === 'ArrowLeft') stepView(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewId, stepView]);
 
   const run = async (label, fn) => {
     setBusy(label);
@@ -250,7 +297,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       setCode('');
       setRedeemOpen(false);
       await load(true);
-      if (res.item?.id) setSelectedId(res.item.id);
+      if (res.item?.id) setViewId(res.item.id);
       onNotify?.('Store', `${res.item?.name || 'Your cape'} was added to your locker.`);
     });
   };
@@ -263,18 +310,21 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     onNotify?.('Store', `${item.name} was removed from your locker.`);
   });
 
-  const previewAccount = useMemo(() => {
-    if (!selected) return null;
-    const preview = previews[selected.id];
+  /** The signed-in player's skin wearing `item`, for the 3D viewers. */
+  const accountWearing = useCallback((item) => {
+    if (!item) return null;
+    const preview = previews[item.id];
     return {
       ...account,
       skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null,
       model: wardrobe?.active?.model || wardrobe?.model || account?.model,
-      capeUrl: selected.stillUrl,
+      capeUrl: item.stillUrl,
       hasCape: true,
-      capeAnim: selected.animated && preview ? { stripUrl: preview, frames: selected.frames, fps: selected.fps } : null
+      capeAnim: item.animated && preview ? { stripUrl: preview, frames: item.frames, fps: item.fps } : null
     };
-  }, [selected, previews, wardrobe, account]);
+  }, [previews, wardrobe, account]);
+  const heroAccount = useMemo(() => accountWearing(hero), [accountWearing, hero]);
+  const viewAccount = useMemo(() => accountWearing(viewing), [accountWearing, viewing]);
 
   const actionFor = (item, compact = false) => {
     const owned = ownedIds.has(item.id);
@@ -288,7 +338,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (!owned && item.paid) {
       const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
       if (plus?.active) {
-        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Crown size={13} />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
+        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
       }
       if (!billing.enabled) {
         return <span className="store-exclusive-pill" title="Payments are switched on soon.">{`$${Number(item.price).toFixed(2)} · soon`}</span>;
@@ -322,6 +372,39 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   };
   const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
+
+  const visibleTags = (item) => (item.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive');
+  /** Badges, name, description, facts, tags and actions: shared by the hero and the 3D popup. */
+  const renderDetails = (item, { kicker = null, Heading = 'h2' } = {}) => (
+    <>
+      <div className="store-spot-badges">
+        {kicker}
+        {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
+        {item.isNew && <span className="store-badge solid">New</span>}
+        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
+        {item.animated && <span className="store-badge">Animated</span>}
+        {ownedIds.has(item.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
+      </div>
+      <Heading className="store-spot-name">{item.name}</Heading>
+      <p className="store-spot-desc">{item.description}</p>
+      {item.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(item.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold. You get it at Noctra events or with a redeem code.'}</span></div>}
+      <dl className="store-spot-facts">
+        <div><dt>Price</dt><dd>{priceOf(item)}</dd></div>
+        <div><dt>Owned</dt><dd className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(item.owners)}</dd></div>
+        <div><dt>Type</dt><dd>{item.animated ? 'Animated' : 'Static'}</dd></div>
+        <div><dt>By</dt><dd>{item.author || 'Noctra'}</dd></div>
+      </dl>
+      {visibleTags(item).length > 0 && (
+        <div className="store-tags">
+          {visibleTags(item).map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
+        </div>
+      )}
+      <div className="store-detail-actions">
+        {actionFor(item)}
+        {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(item)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
+      </div>
+    </>
+  );
 
   return (
     <div className="store-view">
@@ -357,48 +440,60 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
       {catalog && (catalog.items || []).length > 0 && (
         <div className="store-scroll">
-          {selected && (
-            <section className="store-spot" aria-label={`${selected.name} details`}>
+          {hero && (
+            <section
+              className={`store-spot${featured.length ? ' is-featured' : ''}`}
+              aria-label={featured.length ? 'Featured capes' : `${hero.name} details`}
+              aria-roledescription={featured.length > 1 ? 'carousel' : undefined}
+              onMouseEnter={() => setHeroPaused(true)}
+              onMouseLeave={() => setHeroPaused(false)}
+              onFocus={() => setHeroPaused(true)}
+              onBlur={() => setHeroPaused(false)}
+            >
               <SpotBackdrop />
-              <div className="store-spot-info">
-                <div className="store-spot-badges">
-                  {selected.featured && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
-                  {selected.isNew && <span className="store-badge solid">New</span>}
-                  {selected.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
-                  {selected.animated && <span className="store-badge">Animated</span>}
-                  {ownedIds.has(selected.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
+              <div className="store-spot-info" key={`info:${hero.id}`}>
+                {renderDetails(hero, {
+                  kicker: featured.length
+                    ? <span className="store-badge solid"><PixelStar size={9} />{featured.length > 1 ? `Featured · ${(heroIndex % featured.length) + 1}/${featured.length}` : 'Featured'}</span>
+                    : null
+                })}
+              </div>
+              <button type="button" className="store-spot-stage" onClick={() => setViewId(hero.id)} title={`View ${hero.name} in 3D`} aria-label={`View ${hero.name} in 3D`}>
+                {heroAccount && <SkinViewer3D key={`hero:${hero.id}:${previews[hero.id] ? 1 : 0}`} account={heroAccount} width={280} height={330} animation="walk" autoRotate />}
+                <span className="store-spot-zoom"><Rotate3d size={13} />View in 3D</span>
+              </button>
+              {featured.length > 1 ? (
+                <div className="store-spot-picker" role="tablist" aria-label="Featured capes">
+                  {featured.map((item, index) => {
+                    const active = index === heroIndex % featured.length;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        className={`store-spot-thumb${active ? ' active' : ''}`}
+                        onClick={() => setHeroIndex(index)}
+                        title={item.name}
+                      >
+                        <canvas ref={bindCanvas(`thumb:${item.id}`)} width={80} height={128} aria-hidden="true" />
+                        <span>{item.name}</span>
+                        {active && !heroPaused && !viewId && <i key={`bar:${heroIndex}`} className="store-spot-progress" style={{ animationDuration: `${HERO_ROTATE_MS}ms` }} />}
+                      </button>
+                    );
+                  })}
                 </div>
-                <h2 className="store-spot-name">{selected.name}</h2>
-                <p className="store-spot-desc">{selected.description}</p>
-                {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold. You get it at Noctra events or with a redeem code.'}</span></div>}
-                <dl className="store-spot-facts">
-                  <div><dt>Price</dt><dd>{priceOf(selected)}</dd></div>
-                  <div><dt>Owned</dt><dd className="store-owners" title={`${selected.owners || 0} ${selected.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(selected.owners)}</dd></div>
-                  <div><dt>Type</dt><dd>{selected.animated ? 'Animated' : 'Static'}</dd></div>
-                  <div><dt>By</dt><dd>{selected.author || 'Noctra'}</dd></div>
-                </dl>
-                {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').length > 0 && (
-                  <div className="store-tags">
-                    {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
-                  </div>
-                )}
-                <div className="store-detail-actions">
-                  {actionFor(selected)}
-                  {signedIn && ownedIds.has(selected.id) && !selected.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === selected.id)?.source) && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
+              ) : (
+                <div className="store-spot-art" aria-hidden="true">
+                  <canvas ref={bindCanvas(`hero:${hero.id}`)} width={80} height={128} />
                 </div>
-              </div>
-              <div className="store-spot-stage">
-                {previewAccount && <SkinViewer3D key={`${selected.id}:${previews[selected.id] ? 1 : 0}`} account={previewAccount} width={280} height={330} animation="walk" autoRotate />}
-              </div>
-              <div className="store-spot-art" aria-hidden="true">
-                <canvas ref={bindCanvas(`hero:${selected.id}`)} width={80} height={128} />
-              </div>
+              )}
             </section>
           )}
 
           {billing.enabled && (
             <section className={`store-plus${plus?.active ? ' is-member' : ''}`} aria-label="Noctra+">
-              <span className="store-plus-mark"><Crown size={16} /></span>
+              <span className="store-plus-mark is-plus"><NoctraPlusIcon size={20} title="Noctra+" /></span>
               <div className="store-plus-copy">
                 <strong>{plus?.active ? 'You’re a Noctra+ member' : 'Noctra+'}</strong>
                 <span>
@@ -417,7 +512,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 ) : (
                   <>
                     <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => joinPlus('monthly')}>{busy === 'plus:monthly' ? <Loader2 size={13} className="is-spinning" /> : null}${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month</button>
-                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <Crown size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
+                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
                   </>
                 )}
               </div>
@@ -448,11 +543,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 return (
                   <article
                     key={item.id}
-                    className={`store-card${selected?.id === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
-                    onClick={() => setSelectedId(item.id)}
+                    className={`store-card${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
+                    onClick={() => setViewId(item.id)}
                     tabIndex={0}
-                    aria-pressed={selected?.id === item.id}
-                    onKeyDown={(event) => { if (event.key === 'Enter') setSelectedId(item.id); }}
+                    aria-haspopup="dialog"
+                    aria-label={`${item.name}: view in 3D`}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setViewId(item.id); } }}
                   >
                     <div className="store-card-art">
                       <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
@@ -473,6 +569,28 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               })}
             </div>
           )}
+        </div>
+      )}
+      {viewing && (
+        <div className="store-modal-backdrop store-viewer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewId(null); }}>
+          <div className="store-viewer" role="dialog" aria-modal="true" aria-label={`${viewing.name} in 3D`}>
+            <div className="store-viewer-stage">
+              <SpotBackdrop />
+              {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} width={320} height={400} animation="walk" autoRotate />}
+              <div className="store-viewer-art" aria-hidden="true"><canvas ref={bindCanvas(`view:${viewing.id}`)} width={80} height={128} /></div>
+              <span className="store-viewer-hint">Drag to turn</span>
+            </div>
+            <div className="store-viewer-info">
+              {renderDetails(viewing, { Heading: 'h3' })}
+            </div>
+            <button type="button" className="store-icon-btn store-viewer-close" onClick={() => setViewId(null)} aria-label="Close"><X size={14} /></button>
+            {items.length > 1 && (
+              <div className="store-viewer-nav">
+                <button type="button" className="store-icon-btn" onClick={() => stepView(-1)} aria-label="Previous cape" title="Previous (←)"><ChevronLeft size={15} /></button>
+                <button type="button" className="store-icon-btn" onClick={() => stepView(1)} aria-label="Next cape" title="Next (→)"><ChevronRight size={15} /></button>
+              </div>
+            )}
+          </div>
         </div>
       )}
       {redeemOpen && (
