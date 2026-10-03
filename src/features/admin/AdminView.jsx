@@ -208,7 +208,6 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     <main className="admin-view">
       <header className="admin-header">
         <div className="admin-heading">
-          <span className="admin-kicker"><Crown size={12} />Control room</span>
           <h1 className="admin-title page-title">Administration</h1>
           <p className="admin-subtitle">Manage Noctra users, badges, Store capes, and database health.</p>
         </div>

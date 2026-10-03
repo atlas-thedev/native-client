@@ -9,11 +9,10 @@
 .version-card.active:hover {
   outline: none; transform: none;
   border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.8);
+  box-shadow: none;
 }
 .version-card.active::after {
   border-color: #fff;
-  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.35), inset 0 -60px 60px -40px rgba(0, 0, 0, 0.45);
 }
 .version-card:not(.active) .version-card-bg { filter: saturate(0.75) brightness(0.72); transition: filter 0.2s ease, transform 0.5s var(--ease-out); }
 .version-card:not(.active):hover .version-card-bg { filter: saturate(0.95) brightness(0.9); }
@@ -25,12 +24,11 @@
 .version-card-selected {
   position: absolute; top: 10px; right: 10px; left: auto; z-index: 3;
   padding: 4px 9px; border-radius: 999px; color: #0d0d12;
-  background: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  background: #fff;
 }
 .home-selected-tag {
   width: fit-content; margin-bottom: 8px; padding: 4px 10px; border-radius: 999px;
   color: #fff; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(8px);
 }
 .version-card-selected i,
 .home-selected-tag i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }

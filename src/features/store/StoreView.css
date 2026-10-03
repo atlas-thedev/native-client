@@ -29,7 +29,6 @@
 /* header */
 .store-header { flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .store-header-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.store-kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); }
 .store-title { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; color: var(--fg-primary-hover); }
 .store-subtitle { max-width: 600px; margin: 0; font-size: 13px; line-height: 1.55; color: var(--fg-muted); }
 .store-header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
@@ -49,7 +48,7 @@
 }
 .store-btn:hover:not(:disabled) { opacity: 0.88; }
 .store-btn:disabled { opacity: 0.55; cursor: default; }
-.store-btn.ghost { background: rgba(0, 0, 0, 0.25); color: var(--fg-primary); border-color: var(--st-line-strong); }
+.store-btn.ghost { background: transparent; color: var(--fg-primary); border-color: var(--st-line-strong); }
 .store-btn.ghost:hover:not(:disabled) { background: var(--st-tile-hover); border-color: rgba(255, 255, 255, 0.25); opacity: 1; }
 .store-btn.subtle { color: var(--fg-secondary); }
 .store-icon-btn {
@@ -66,22 +65,13 @@
 
 /* spotlight */
 .store-spot {
-  --tint: 180, 180, 200;
-  position: relative; flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 280px 170px; align-items: center; gap: 12px;
-  min-height: 330px; padding: 26px 26px 26px 30px; overflow: hidden; isolation: isolate;
-  border: 1px solid var(--st-line-strong); border-radius: 22px;
-  background:
-    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.2px) 0 0 / 18px 18px,
-    linear-gradient(120deg, color-mix(in srgb, rgb(var(--tint)) 9%, #07070a) 0%, #060608 55%, color-mix(in srgb, rgb(var(--tint)) 14%, #060608) 100%);
-}
-.store-spot-glow {
-  position: absolute; z-index: -1; right: 90px; top: 50%; width: 460px; height: 460px; transform: translateY(-50%);
-  border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--tint), 0.32), rgba(var(--tint), 0.08) 55%, transparent 75%);
-  pointer-events: none; transition: background 0.4s ease;
+  position: relative; flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 280px 150px; align-items: center; gap: 12px;
+  min-height: 330px; padding: 26px 26px 26px 30px; overflow: hidden;
+  border: 1px solid var(--st-line-strong); border-radius: 16px; background: var(--st-tile);
 }
 .store-spot-info { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 470px; }
 .store-spot-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-.store-spot-name { margin: 0; font-size: 38px; line-height: 1.02; font-weight: 800; letter-spacing: -0.035em; color: #fff; overflow-wrap: anywhere; }
+.store-spot-name { margin: 0; font-size: 32px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em; color: #fff; overflow-wrap: anywhere; }
 .store-spot-desc { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--fg-secondary); }
 .store-spot-facts { display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: start; gap: 4px 22px; margin: 2px 0 0; }
 .store-spot-facts div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -91,20 +81,14 @@
 .store-detail-actions .store-btn { height: 40px; padding: 0 20px; font-size: 13px; }
 .store-detail-actions .store-exclusive-pill { height: 40px; }
 .store-spot-stage { position: relative; display: grid; place-items: center; height: 330px; margin: -26px 0; }
-.store-spot-stage > *:not(.store-spot-floor) { position: relative; z-index: 1; }
-.store-spot-floor {
-  position: absolute; left: 50%; bottom: 26px; width: 170px; height: 26px; transform: translateX(-50%);
-  border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent); filter: blur(2px);
-}
 .store-spot-art {
-  justify-self: end; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 18px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 16px; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px);
+  justify-self: end; display: grid; place-items: center; padding: 16px;
+  border: 1px solid var(--st-line-strong); border-radius: 12px; background: var(--st-well);
 }
-.store-spot-art canvas { width: 100px; height: 160px; image-rendering: pixelated; border-radius: 4px; filter: drop-shadow(0 10px 24px rgba(var(--tint), 0.35)); }
-.store-spot-art span { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); }
+.store-spot-art canvas { width: 100px; height: 160px; image-rendering: pixelated; }
 
 .store-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.store-tag { padding: 3px 9px; border-radius: var(--radius-full); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--st-line); font-size: 11px; color: var(--fg-secondary); }
+.store-tag { padding: 3px 9px; border-radius: var(--radius-full); background: transparent; border: 1px solid var(--st-line); font-size: 11px; color: var(--fg-secondary); }
 
 /* toolbar */
 .store-toolbar { position: sticky; top: -2px; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 0; background: var(--st-bg); }
@@ -128,39 +112,28 @@
 /* gallery */
 .store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
 .store-card {
-  --tint: 160, 160, 180;
   position: relative; display: flex; flex-direction: column; padding: 6px; border: 1px solid var(--st-line);
-  border-radius: 18px; background: var(--st-tile); cursor: pointer; outline: none;
-  transition: background 0.18s var(--ease), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  border-radius: 14px; background: var(--st-tile); cursor: pointer; outline: none;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
-.store-card:hover, .store-card:focus-visible { background: var(--st-tile-hover); border-color: rgba(255, 255, 255, 0.18); }
-.store-card.active { border-color: #fff; box-shadow: 0 0 0 1px #fff, 0 18px 36px -18px rgba(var(--tint), 0.55); }
+.store-card:hover, .store-card:focus-visible { background: var(--st-tile-hover); border-color: var(--st-line-strong); }
+.store-card.active { border-color: #fff; }
 .store-card-art {
   position: relative; display: flex; align-items: center; justify-content: center; height: 186px; overflow: hidden;
-  border-radius: 13px;
-  background:
-    radial-gradient(circle at 50% 58%, rgba(var(--tint), 0.28), rgba(var(--tint), 0.05) 55%, transparent 72%),
-    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.2px) 0 0 / 14px 14px,
-    #050507;
+  border-radius: 10px; background: var(--st-well);
 }
-.store-card-canvas {
-  width: 75px; height: 120px; image-rendering: pixelated; border-radius: 3px;
-  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.6));
-  transition: transform 0.35s var(--ease-out);
-}
-.store-card:hover .store-card-canvas { transform: translateY(-4px) scale(1.04); }
+.store-card-canvas { width: 75px; height: 120px; image-rendering: pixelated; }
 .store-card-badges { position: absolute; top: 9px; left: 9px; display: flex; gap: 4px; }
 .store-card-state {
   position: absolute; right: 9px; bottom: 9px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
-  border-radius: 999px; background: rgba(0, 0, 0, 0.65); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(6px);
+  border-radius: 999px; background: #000; border: 1px solid var(--st-line-strong);
   font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-primary-hover);
 }
 .store-card-state.is-worn { background: #fff; color: #0b0b0f; border-color: #fff; }
-.store-card-state i { width: 6px; height: 6px; border-radius: 50%; background: #1fbf63; box-shadow: 0 0 0 2px rgba(31, 191, 99, 0.25); }
+.store-card-state i { width: 6px; height: 6px; border-radius: 50%; background: #1fbf63; }
 .store-badge {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--radius-full);
-  border: 1px solid var(--st-line-strong); background: rgba(0, 0, 0, 0.6); font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--fg-primary);
-  backdrop-filter: blur(6px);
+  border: 1px solid var(--st-line-strong); background: #000; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-primary);
 }
 .store-badge.solid { background: #fff; color: #0b0b0f; border-color: transparent; }
 .store-badge.wearing i { width: 6px; height: 6px; border-radius: 50%; background: #1fbf63; }
@@ -196,10 +169,10 @@
   height: 34px; padding: 0 15px; border: 1px dashed var(--st-line-strong); border-radius: var(--radius-full);
   color: var(--fg-secondary); font: 700 12.5px var(--font-sans); white-space: nowrap; cursor: default;
 }
-.store-badge.exclusive { background: linear-gradient(90deg, #d9a6da, #ffd68c); color: #160f2a; border-color: transparent; gap: 3px; }
+.store-badge.exclusive { background: #ffd68c; color: #160f2a; border-color: transparent; gap: 3px; }
 :root .store-badge.exclusive svg, :root .store-badge.exclusive svg * { color: #160f2a !important; fill: #160f2a !important; stroke: none !important; }
 :root .store-badge.solid svg, :root .store-badge.solid svg * { color: #0b0b0f !important; fill: #0b0b0f !important; }
-.store-exclusive-note { display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px; border: 1px solid var(--st-line); border-radius: var(--radius-md, 10px); background: rgba(0, 0, 0, 0.35); color: var(--fg-secondary); font-size: 12px; line-height: 1.45; }
+.store-exclusive-note { display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px; border: 1px solid var(--st-line); border-radius: var(--radius-md, 10px); background: transparent; color: var(--fg-secondary); font-size: 12px; line-height: 1.45; }
 .store-exclusive-note svg { flex: none; margin-top: 2px; color: #ffd68c; }
 
 @media (max-width: 1100px) {
@@ -211,6 +184,5 @@
   .store-spot-stage { margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .store-card, .store-card-canvas { transition: none; }
-  .store-card:hover .store-card-canvas { transform: none; }
+  .store-card { transition: none; }
 }

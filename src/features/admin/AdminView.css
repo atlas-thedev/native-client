@@ -23,7 +23,6 @@
 /* header */
 .admin-header { flex: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .admin-heading { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.admin-kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); }
 .admin-title { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; color: var(--fg-primary-hover); }
 .admin-subtitle { margin: 0; font-size: 13px; color: var(--fg-muted); }
 .admin-header-actions { display: flex; align-items: center; gap: 10px; flex: none; }
@@ -73,13 +72,13 @@
 .admin-kpi {
   position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'icon label' 'value value' 'hint hint'; align-items: center; gap: 6px 10px;
   padding: 16px 18px; border: 1px solid var(--in-line); border-radius: var(--ad-radius); text-align: left; color: inherit; font: inherit;
-  background: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px) 0 0 / 16px 16px, var(--in-card);
+  background: var(--in-card);
 }
 .admin-kpi.is-link { cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
 .admin-kpi.is-link:hover { border-color: rgba(255, 255, 255, 0.22); background-color: var(--in-card-hover); }
 .admin-kpi-icon { grid-area: icon; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: rgba(255, 255, 255, 0.08); color: var(--fg-primary-hover); }
 .admin-kpi-label { grid-area: label; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); }
-.admin-kpi-value { grid-area: value; margin-top: 6px; font-size: 30px; line-height: 1; font-weight: 800; letter-spacing: -0.03em; color: #fff; font-variant-numeric: tabular-nums; }
+.admin-kpi-value { grid-area: value; margin-top: 6px; font-size: 28px; line-height: 1; font-weight: 700; letter-spacing: -0.02em; color: #fff; font-variant-numeric: tabular-nums; }
 .admin-kpi-hint { grid-area: hint; font-size: 11.5px; color: var(--fg-muted); }
 
 .admin-overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
@@ -103,7 +102,7 @@
 .admin-mini-row small { font-size: 11px; color: var(--fg-muted); min-width: 52px; text-align: right; }
 
 .admin-quick-give-body { display: flex; gap: 14px; align-items: stretch; }
-.admin-quick-give-art { flex: none; display: grid; place-items: center; width: 74px; border-radius: 12px; border: 1px solid var(--in-line); color: var(--fg-muted); background: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.2px) 0 0 / 10px 10px, #050507; }
+.admin-quick-give-art { flex: none; display: grid; place-items: center; width: 74px; border-radius: 12px; border: 1px solid var(--in-line); color: var(--fg-muted); background: #050507; }
 .admin-quick-give-art .admin-cape-thumb { border: 0; background: none; }
 .admin-quick-give-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .admin-field { display: flex; flex-direction: column; gap: 5px; }
@@ -141,15 +140,15 @@
 /* shared bits */
 .admin-avatar {
   flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px;
-  background: linear-gradient(145deg, hsl(var(--avatar-hue) 55% 42%), hsl(calc(var(--avatar-hue) + 40) 60% 26%));
-  color: #fff; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: hsl(var(--avatar-hue) 35% 30%);
+  color: #fff; font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
 }
 .admin-avatar.is-sm { width: 28px; height: 28px; border-radius: 9px; font-size: 10.5px; }
 .admin-avatar.is-lg { width: 60px; height: 60px; border-radius: 18px; font-size: 20px; }
 .admin-presence { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: capitalize; white-space: nowrap; }
 .admin-presence i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); }
 .admin-presence.is-online, .admin-presence.is-in-game, .admin-presence.is-idle { color: #6ee7a8; }
-.admin-presence.is-online i, .admin-presence.is-in-game i { background: #34d27b; box-shadow: 0 0 0 3px rgba(52, 210, 123, 0.18); }
+.admin-presence.is-online i, .admin-presence.is-in-game i { background: #34d27b; }
 .admin-presence.is-idle i { background: #fbbf24; }
 .admin-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .admin-chip.is-admin { color: #fcd34d; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.28); }
@@ -200,7 +199,7 @@
 .admin-pagination button:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, 0.06); }
 .admin-pagination button:disabled { opacity: 0.35; cursor: default; }
 
-.admin-user-empty { align-items: center; justify-content: center; gap: 8px; padding: 30px; text-align: center; background: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px) 0 0 / 16px 16px, var(--in-card); }
+.admin-user-empty { align-items: center; justify-content: center; gap: 8px; padding: 30px; text-align: center; background: var(--in-card); }
 .admin-user-empty-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); color: var(--fg-primary-hover); }
 .admin-user-empty h3 { margin: 6px 0 0; font-size: 16px; }
 .admin-user-empty p { max-width: 320px; margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
@@ -210,7 +209,7 @@
 .admin-user-panel > .admin-error { margin: 0 18px 12px; }
 .admin-user-hero {
   display: flex; align-items: flex-start; gap: 14px; padding: 20px 18px 16px;
-  background: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px) 0 0 / 14px 14px, linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  
 }
 .admin-user-hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .admin-user-hero-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -233,7 +232,7 @@
 
 .admin-wearing { display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.85); border-radius: 14px; background: rgba(255, 255, 255, 0.04); }
 .admin-wearing.is-empty { border-color: var(--in-line); border-style: dashed; background: none; }
-.admin-wearing-art { flex: none; display: grid; place-items: center; width: 64px; height: 92px; border-radius: 10px; color: var(--fg-muted); background: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.2px) 0 0 / 10px 10px, #050507; }
+.admin-wearing-art { flex: none; display: grid; place-items: center; width: 64px; height: 92px; border-radius: 10px; color: var(--fg-muted); background: #050507; }
 .admin-wearing-art .admin-cape-thumb, .admin-cape-tile-art .admin-cape-thumb, .admin-attach-art .admin-cape-thumb { border: 0; background: none; }
 .admin-wearing-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .admin-wearing-copy small { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); }
@@ -243,7 +242,7 @@
 .admin-cape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
 .admin-cape-tile { display: flex; flex-direction: column; gap: 3px; padding: 6px 6px 8px; border: 1px solid var(--in-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); min-width: 0; }
 .admin-cape-tile.is-worn { border-color: rgba(255, 255, 255, 0.85); }
-.admin-cape-tile-art { position: relative; display: grid; place-items: center; height: 84px; margin-bottom: 4px; border-radius: 8px; background: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.2px) 0 0 / 10px 10px, #050507; }
+.admin-cape-tile-art { position: relative; display: grid; place-items: center; height: 84px; margin-bottom: 4px; border-radius: 8px; background: #050507; }
 .admin-cape-tile-flag { position: absolute; left: 6px; top: 6px; padding: 1px 6px; border-radius: 999px; background: #fff; color: #0b0b0f; font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
 .admin-cape-tile strong { padding: 0 2px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .admin-cape-tile small { padding: 0 2px; font-size: 10.5px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

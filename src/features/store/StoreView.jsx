@@ -20,29 +20,6 @@ const SORTS = [
   { id: 'name', label: 'A – Z' }
 ];
 
-/** A bright accent colour pulled from the first frame of a cape, used to light its card. */
-function capeTint(image, frames) {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 20; canvas.height = 32;
-    drawCapeFront(canvas, image, frames, 0);
-    const { data } = canvas.getContext('2d').getImageData(0, 0, 20, 32);
-    let r = 0; let g = 0; let b = 0; let weight = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 128) continue;
-      const max = Math.max(data[i], data[i + 1], data[i + 2]);
-      const min = Math.min(data[i], data[i + 1], data[i + 2]);
-      const w = 0.15 + (max - min) / 255 + max / 510; // favour vivid, bright pixels
-      r += data[i] * w; g += data[i + 1] * w; b += data[i + 2] * w; weight += w;
-    }
-    if (!weight) return null;
-    let rgb = [r / weight, g / weight, b / weight];
-    const peak = Math.max(...rgb, 1);
-    rgb = rgb.map((v) => Math.round(Math.min(255, (v / peak) * 235)));
-    return rgb.join(', ');
-  } catch { return null; }
-}
-
 const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'noctra';
 
 /**
@@ -60,7 +37,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [selectedId, setSelectedId] = useState(null);
   const [wardrobe, setWardrobe] = useState(null);
   const [previews, setPreviews] = useState({}); // id -> data URL (strip or still)
-  const [tints, setTints] = useState({}); // id -> 'r, g, b' accent pulled from the cape art
   const canvases = useRef(new Map());
   const images = useRef(new Map()); // id -> { image, frames, fps }
   const signedIn = isStoreAccount(account);
@@ -101,8 +77,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           const image = await loadStripImage(res.url);
           images.current.set(item.id, { image, frames: item.animated ? item.frames : 1, fps: item.animated ? item.fps : 0 });
           setPreviews((current) => ({ ...current, [item.id]: res.url }));
-          const tint = capeTint(image, item.animated ? item.frames : 1);
-          if (tint) setTints((current) => ({ ...current, [item.id]: tint }));
+
         } catch { /* the card keeps its placeholder */ }
       }
     })();
@@ -224,13 +199,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const wornItem = capes.find((item) => item.id === me.equipped) || null;
   const priceOf = (item) => (item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
-  const tintStyle = (id) => (tints[id] ? { '--tint': tints[id] } : undefined);
 
   return (
     <div className="store-view">
       <header className="store-header">
         <div className="store-header-copy">
-          <span className="store-kicker"><PixelCape size={13} />Noctra Store</span>
           <h1 className="store-title page-title">Store</h1>
           <p className="store-subtitle">Capes made by Noctra. Add one to your locker and wear it everywhere — the launcher, the website and in game. Everything is free right now.</p>
         </div>
@@ -261,8 +234,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       {catalog && (catalog.items || []).length > 0 && (
         <div className="store-scroll">
           {selected && (
-            <section className="store-spot" style={tintStyle(selected.id)} aria-label={`${selected.name} details`}>
-              <div className="store-spot-glow" aria-hidden="true" />
+            <section className="store-spot" aria-label={`${selected.name} details`}>
               <div className="store-spot-info">
                 <div className="store-spot-badges">
                   {selected.featured && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
@@ -278,7 +250,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <dl className="store-spot-facts">
                   <div><dt>Price</dt><dd>{priceOf(selected)}</dd></div>
                   <div><dt>Owners</dt><dd>{selected.owners || 0}</dd></div>
-                  <div><dt>Type</dt><dd>{selected.animated ? `${selected.frames || 1} frames · ${selected.fps || 0} fps` : 'Static'}</dd></div>
+                  <div><dt>Type</dt><dd>{selected.animated ? 'Animated' : 'Static'}</dd></div>
                   <div><dt>By</dt><dd>{selected.author || 'Noctra'}</dd></div>
                 </dl>
                 {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').length > 0 && (
@@ -293,11 +265,9 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               </div>
               <div className="store-spot-stage">
                 {previewAccount && <SkinViewer3D key={`${selected.id}:${previews[selected.id] ? 1 : 0}`} account={previewAccount} width={280} height={330} animation="walk" autoRotate />}
-                <span className="store-spot-floor" aria-hidden="true" />
               </div>
               <div className="store-spot-art" aria-hidden="true">
                 <canvas ref={bindCanvas(`hero:${selected.id}`)} width={80} height={128} />
-                <span>{selected.animated ? 'Live preview' : 'Cape art'}</span>
               </div>
             </section>
           )}
@@ -327,7 +297,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 return (
                   <article
                     key={item.id}
-                    style={tintStyle(item.id)}
                     className={`store-card${selected?.id === item.id ? ' active' : ''}${worn ? ' is-worn' : ''}${owned ? ' is-owned' : ''}`}
                     onClick={() => setSelectedId(item.id)}
                     tabIndex={0}
