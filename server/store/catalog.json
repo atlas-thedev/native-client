@@ -10,6 +10,7 @@
     { "id": "pulse", "section": "capes", "name": "Pulse", "description": "Neon rings that breathe outwards.", "tags": ["animated", "neon"], "frames": 24, "fps": 12, "author": "Noctra" },
     { "id": "matrix", "section": "capes", "name": "Rain Code", "description": "Green code rain, endlessly falling.", "tags": ["animated", "tech"], "frames": 24, "fps": 12, "author": "Noctra" },
     { "id": "beta-tester", "section": "capes", "name": "Beta Tester", "description": "For the people who tested Noctra before anyone else. Given by the Noctra team, never sold.", "tags": ["animated", "exclusive"], "frames": 24, "fps": 12, "author": "Noctra", "exclusive": true },
-    { "id": "cwr-network", "section": "capes", "name": "CWR Network", "description": "The official cape of the CwR MC Network (mc.cwresports.lk): a floating island over a glowing sea. Given by the Noctra team, never sold.", "tags": ["animated", "exclusive", "cwr"], "frames": 30, "fps": 15, "author": "Noctra x CwR", "exclusive": true }
+    { "id": "cwr-network", "section": "capes", "name": "CWR Network", "description": "The official cape of the CwR MC Network (mc.cwresports.lk): the CwR island inside a pulsing red neon ring, with rising embers. Given by the Noctra team, never sold.", "tags": ["animated", "exclusive", "cwr"], "frames": 48, "fps": 16, "art": 2, "author": "Noctra x CwR", "exclusive": true },
+    { "id": "crabbymc", "section": "capes", "name": "CrabbyMC", "description": "The official cape of CrabbyMC (play.crabbymc.fun): the CrabbyMC logo floating under the sea, with light rays, bubbles and a crab walking the seabed. Given by the Noctra team, never sold.", "tags": ["animated", "exclusive", "crabbymc"], "frames": 48, "fps": 16, "author": "Noctra x CrabbyMC", "exclusive": true }
   ]
 }

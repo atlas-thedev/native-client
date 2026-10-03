@@ -338,7 +338,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (!owned && item.paid) {
       const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
       if (plus?.active) {
-        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
+        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} ring="transparent" />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
       }
       if (!billing.enabled) {
         return <span className="store-exclusive-pill" title="Payments are switched on soon.">{`$${Number(item.price).toFixed(2)} · soon`}</span>;
@@ -493,11 +493,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
           {billing.enabled && (
             <section className={`store-plus${plus?.active ? ' is-member' : ''}`} aria-label="Noctra+">
-              <span className="store-plus-mark is-plus"><NoctraPlusIcon size={20} title="Noctra+" /></span>
+              <span className="store-plus-mark is-plus"><NoctraPlusIcon size={22} title="Noctra+" ring="#0b0b0f" /></span>
               <div className="store-plus-copy">
                 <strong>{plus?.active ? 'You’re a Noctra+ member' : 'Noctra+'}</strong>
                 <span>
-                  {plus?.active
+                  {plus?.active && plus.gifted
+                    ? `Given to you by the Noctra team${plus.endsAt ? ` until ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}. Every paid cape is yours to wear.`
+                    : plus?.active
                     ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid capes go back when it ends.` : `Every paid cape is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
                     : 'Every paid cape while you’re a member, plus the Noctra+ badge. Cancel any time.'}
                 </span>
@@ -505,6 +507,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <div className="store-plus-actions">
                 {!signedIn ? (
                   <button type="button" className="store-btn ghost" onClick={onOpenAccountSwitcher}><Lock size={13} />Sign in with Noctra</button>
+                ) : plus?.active && plus.gifted ? (
+                  <span className="store-plus-gift"><NoctraPlusIcon size={14} ring="transparent" />Gift</span>
                 ) : plus?.active ? (
                   <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={manageBilling}>{busy === 'portal' ? <Loader2 size={13} className="is-spinning" /> : null}Manage</button>
                 ) : pending?.kind === 'plus' ? (
@@ -512,7 +516,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 ) : (
                   <>
                     <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => joinPlus('monthly')}>{busy === 'plus:monthly' ? <Loader2 size={13} className="is-spinning" /> : null}${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month</button>
-                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
+                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} ring="transparent" />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
                   </>
                 )}
               </div>

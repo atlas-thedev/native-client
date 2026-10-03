@@ -75,7 +75,15 @@ function ensureCatalog(textureFn) {
     catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items };
     let added = false;
     bundled.items.forEach((item, index) => {
-      if (catalog.items.some((x) => x.id === item.id) || catalog.deleted.includes(item.id)) return;
+      const saved = catalog.items.find((x) => x.id === item.id);
+      // New artwork for a bundled cape (its `art` number went up): swap in the new textures,
+      // keep the admin's edits (name, price, featured, hidden…).
+      if (saved && item.art > (Number(saved.art) || 1)) {
+        Object.assign(saved, { art: item.art, animated: item.animated, frames: item.frames, fps: item.fps, width: item.width, frameHeight: item.frameHeight, strip: item.strip, still: item.still, updatedAt: now });
+        added = true;
+        return;
+      }
+      if (saved || catalog.deleted.includes(item.id)) return;
       catalog.items.push({ ...item, hidden: false, order: catalog.items.length + index, createdAt: now, updatedAt: now });
       added = true;
     });

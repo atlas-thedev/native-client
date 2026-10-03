@@ -1,25 +1,39 @@
 import React from 'react';
+import noctraLogo from '../../assets/noctra-icon.png';
 
 /**
- * The Noctra+ mark: the Noctra "N" with a gold plus (same artwork as the N+ app icon).
- * The N follows the text colour; the plus is always Noctra+ gold.
+ * The Noctra+ mark, the same one the website uses (noctra-site components/plus/PlusMark.tsx):
+ * the Noctra N (logo masked in the text colour) with the gold rounded "+" badge top-right.
+ * `ring` is the colour of the cut-out around the badge; pass the background it sits on.
  */
-export default function NoctraPlusIcon({ size = 16, className = '', title = null }) {
+export default function NoctraPlusIcon({ size = 16, className = '', title = null, ring = 'var(--bg, #0b0b0f)' }) {
+  const plus = Math.round(size * 0.42);
+  const mask = `url(${noctraLogo}) center / contain no-repeat`;
   return (
-    <svg
+    <span
       className={`noctra-plus-icon ${className}`.trim()}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
       role={title ? 'img' : undefined}
-      aria-hidden={title ? undefined : 'true'}
       aria-label={title || undefined}
-      focusable="false"
-      style={{ flex: 'none', display: 'inline-block', verticalAlign: 'middle' }}
+      aria-hidden={title ? undefined : 'true'}
+      title={title || undefined}
+      style={{ position: 'relative', display: 'inline-block', flex: 'none', width: size, height: size, verticalAlign: 'middle' }}
     >
-      {title && <title>{title}</title>}
-      <path fill="currentColor" d="M2 22.5V7.5h4.1l6.4 8.6V7.5h4v15h-4.1l-6.4-8.6v8.6z" />
-      <path fill="#ffd68c" stroke="#b9852d" strokeWidth="0.6" strokeLinejoin="round" d="M17.6 0.8h2.8v3.1h3.1v2.8h-3.1v3.1h-2.8V6.7h-3.1V3.9h3.1z" />
-    </svg>
+      <span
+        style={{
+          position: 'absolute', left: 0, top: size * 0.14, width: size * 0.86, height: size * 0.86,
+          backgroundColor: 'currentColor', WebkitMask: mask, mask
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute', right: 0, top: 0, width: plus, height: plus, borderRadius: '28%',
+          display: 'grid', placeItems: 'center', fontWeight: 900, lineHeight: 1, fontSize: plus * 0.9,
+          color: '#1b1405', background: 'linear-gradient(#ffe08a, #f2b632)',
+          boxShadow: `0 0 0 ${Math.max(1, size / 24)}px ${ring}`
+        }}
+      >
+        +
+      </span>
+    </span>
   );
 }

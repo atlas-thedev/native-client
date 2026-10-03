@@ -261,7 +261,7 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 
 /* Noctra+ mark: the N+ icon on a dark tile. */
 .store-plus-mark.is-plus { background: #0b0b0f; color: #fff; border: 1px solid rgba(255, 214, 140, 0.45); }
-:root .store-plus-mark.is-plus svg path:first-of-type { fill: #fff !important; }
+.store-plus-gift { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 214, 140, 0.45); color: #ffd68c; font-size: 12px; font-weight: 600; }
 .store-btn .noctra-plus-icon { margin-right: 1px; }
 
 /* 3D cape viewer popup */

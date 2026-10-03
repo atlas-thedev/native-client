@@ -104,6 +104,37 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     const overview = await (await call('GET', '/v1/admin/billing/overview', null, bossSession.token)).json();
     assert.equal(overview.refunds.count, 1);
     assert.equal(overview.recent[0].username, 'Buyer');
+
+    // Admins can give Noctra+ without a payment, for a while or forever, and take it back.
+    const friend = db.createUser({ email: 'friend@test.local', username: 'Friendo', password: 'password123' });
+    const friendSession = db.createSession(friend.id);
+    const plusOf = async () => (await (await call('GET', '/v1/billing/me', null, friendSession.token)).json()).plus;
+    assert.equal((await plusOf()).active, false);
+    assert.equal((await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 30 }, buyerSession.token)).status, 403, 'only admins give Noctra+');
+    assert.equal((await call('POST', '/v1/admin/billing/plus', { username: 'NobodyHere', days: 30 }, bossSession.token)).status, 404);
+    const given = await (await call('POST', '/v1/admin/billing/plus', { username: 'friendo', days: 30, note: 'giveaway' }, bossSession.token)).json();
+    assert.equal(given.ok, true);
+    assert.ok(given.expiresAt > Date.now() + 29 * 864e5 && given.expiresAt < Date.now() + 31 * 864e5);
+    const gifted = await plusOf();
+    assert.equal(gifted.active, true);
+    assert.equal(gifted.gifted, true);
+    assert.ok(db.getUserById(friend.id).badges.includes('plus'), 'gift adds the Noctra+ badge');
+    const friendClaim = await call('POST', '/v1/store/claim', { itemId: paid.id }, friendSession.token);
+    assert.equal(friendClaim.status, 200, 'a gifted member gets paid capes');
+    const more = await (await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 30 }, bossSession.token)).json();
+    assert.ok(more.expiresAt > given.expiresAt + 29 * 864e5, 'more time adds to what is left');
+    const list = await (await call('GET', '/v1/admin/billing/plus', null, bossSession.token)).json();
+    assert.equal(list.gifts.length, 1);
+    assert.equal(list.gifts[0].username, 'Friendo');
+    const withGift = await (await call('GET', '/v1/admin/billing/overview', null, bossSession.token)).json();
+    assert.equal(withGift.plus.gifted, 1);
+    const removed = await (await call('DELETE', `/v1/admin/billing/plus/${friend.id}`, null, bossSession.token)).json();
+    assert.equal(removed.gifts.length, 0);
+    assert.equal((await plusOf()).active, false);
+    assert.ok(!(await (await call('GET', '/v1/store/me', null, friendSession.token)).json()).owned.some((entry) => entry.id === paid.id), 'paid capes go back when the gift ends');
+    const forever = await (await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 0 }, bossSession.token)).json();
+    assert.equal(forever.expiresAt, null);
+    assert.equal((await plusOf()).endsAt, null);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.closeDb();

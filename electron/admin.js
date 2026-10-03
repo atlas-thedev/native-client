@@ -77,6 +77,12 @@ function init() {
   handle('admin:billingCodes', () => adminFetch('/billing/codes'));
   handle('admin:billingCreateCode', (payload = {}) => adminFetch('/billing/codes', { method: 'POST', body: payload }));
   handle('admin:billingDeleteCode', (code) => adminFetch(`/billing/codes/${encodeURIComponent(code)}`, { method: 'DELETE' }));
+  handle('admin:plusGifts', () => adminFetch('/billing/plus'));
+  handle('admin:givePlus', (payload = {}) => adminFetch('/billing/plus', {
+    method: 'POST',
+    body: { username: String(payload.username || ''), days: Number(payload.days) || 0, note: String(payload.note || '') }
+  }));
+  handle('admin:removePlus', (userId) => adminFetch(`/billing/plus/${encodeURIComponent(String(userId || ''))}`, { method: 'DELETE' }));
   handle('admin:billingSettings', () => adminFetch('/billing/settings'));
   handle('admin:billingSaveSettings', (payload = {}) => adminFetch('/billing/settings', { method: 'POST', body: payload }));
   handle('admin:billingSetup', (environment) => adminFetch('/billing/setup', { method: 'POST', body: { environment } }));

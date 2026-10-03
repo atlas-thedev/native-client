@@ -13,12 +13,16 @@
  *   GET|POST /v1/admin/billing/settings     Paddle keys per environment (secrets are write-only)
  *   POST /v1/admin/billing/setup            { environment } create/find products, prices and the webhook in Paddle
  *   POST /v1/admin/billing/activate         { environment } switch checkouts between sandbox and live
+ *   GET|POST /v1/admin/billing/plus         list / give Noctra+ to a player { username, days (0 = forever), note }
+ *   DELETE   /v1/admin/billing/plus/:userId take a given Noctra+ away again
  *
  * How things are owned (all in store_owned):
  *   source 'purchase'  bought once, kept forever (removed again on refund / chargeback)
  *   source 'plus'      added while a Noctra+ member; removed when the membership ends
  *   source 'code'      redeemed with an event code
  *   source 'admin'     given by an admin
+ *
+ * Noctra+ comes from a Paddle subscription or from an admin (plus_grants, optionally until a date).
  *
  * Keys: saved from the admin page (billing_settings, per environment) or, as a fallback for the
  * environment named by PADDLE_ENV, the env vars PADDLE_API_KEY, PADDLE_CLIENT_TOKEN, PADDLE_WEBHOOK_SECRET,
@@ -118,6 +122,9 @@ function sql() {
         PRIMARY KEY (user_id, environment)
       );
       CREATE INDEX IF NOT EXISTS idx_billing_customer_ids_customer ON billing_customer_ids(customer_id);
+      CREATE TABLE IF NOT EXISTS plus_grants (
+        user_id TEXT PRIMARY KEY, expires_at INTEGER, note TEXT, granted_by TEXT, created_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS redeem_uses (
         code TEXT NOT NULL, user_id TEXT NOT NULL, used_at INTEGER NOT NULL, PRIMARY KEY (code, user_id)
       );
@@ -139,10 +146,20 @@ const toMs = (value) => {
 
 /* ── entitlements ──────────────────────────────────────────────────── */
 
+/** An admin-given Noctra+ that hasn't run out yet. */
+function giftFor(userId) {
+  const row = sql().prepare('SELECT * FROM plus_grants WHERE user_id = ?').get(String(userId));
+  return row && (!row.expires_at || row.expires_at > Date.now()) ? row : null;
+}
+
 function plusFor(userId) {
   const rows = sql().prepare("SELECT * FROM billing_subscriptions WHERE user_id = ? AND COALESCE(environment, ?) = ? ORDER BY updated_at DESC").all(String(userId), envDefault(), activeEnv());
   const live = rows.find((row) => PLUS_ACTIVE.has(row.status)) || null;
   const latest = live || rows[0] || null;
+  const gift = live ? null : giftFor(userId);
+  if (gift) {
+    return { active: true, status: 'active', plan: 'gift', gifted: true, renewsAt: null, endsAt: gift.expires_at || null, subscriptionId: null };
+  }
   return {
     active: Boolean(live),
     status: latest?.status || null,
@@ -200,6 +217,24 @@ function syncPlus(userId) {
     }
   }
   notify(user);
+}
+
+/** Ends gifts that ran out (checked every few minutes and on start). */
+let sweepTimer = null;
+function sweepGifts() {
+  try {
+    const expired = sql().prepare('SELECT user_id FROM plus_grants WHERE expires_at IS NOT NULL AND expires_at <= ?').all(Date.now());
+    for (const row of expired) {
+      sql().prepare('DELETE FROM plus_grants WHERE user_id = ?').run(row.user_id);
+      syncPlus(row.user_id);
+    }
+  } catch (error) { console.warn('[Noctra Billing] Gift sweep failed:', error.message); }
+}
+function startGiftSweep() {
+  if (sweepTimer) return;
+  sweepTimer = setInterval(sweepGifts, 5 * 60_000);
+  sweepTimer.unref?.();
+  setImmediate(sweepGifts);
 }
 
 function notify(user) {
@@ -419,6 +454,7 @@ async function handleBillingRoutes(req, res, ctx) {
   const isRedeem = url.pathname === '/v1/store/redeem';
   const isAdmin = url.pathname.startsWith('/v1/admin/billing/');
   if (!isBilling && !isRedeem && !isAdmin) return false;
+  startGiftSweep();
   const { send, hit, tooMany, ip } = ctx;
   const noStore = { 'Cache-Control': 'no-store' };
   const c = config();
@@ -659,6 +695,7 @@ async function handleAdmin(req, res, ctx, url, user) {
     const recent30 = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status = 'paid' AND created_at >= ? AND ${inEnv}`, since);
     const refunds = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status != 'paid' AND ${inEnv}`);
     const members = sql().prepare(`SELECT plan, COUNT(*) AS n FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') AND ${inEnv} GROUP BY plan`).all();
+    const gifted = one(`SELECT COUNT(*) AS n FROM plus_grants WHERE (expires_at IS NULL OR expires_at > ?) AND user_id NOT IN (SELECT user_id FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') AND ${inEnv})`, Date.now()).n || 0;
     const recent = sql().prepare('SELECT * FROM billing_purchases ORDER BY created_at DESC LIMIT 25').all().map((row) => ({
       transactionId: row.transaction_id, userId: row.user_id, username: nameOf(row.user_id), kind: row.kind, itemId: row.item_id,
       itemName: row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
@@ -672,12 +709,47 @@ async function handleAdmin(req, res, ctx, url, user) {
       sales: { count: paid.n || 0, total: (paid.cents || 0) / 100, last30Count: recent30.n || 0, last30: (recent30.cents || 0) / 100, currency: 'USD' },
       refunds: { count: refunds.n || 0, total: (refunds.cents || 0) / 100 },
       plus: {
-        active: members.reduce((sum, row) => sum + row.n, 0),
+        active: members.reduce((sum, row) => sum + row.n, 0) + gifted,
+        gifted,
         monthly: members.find((row) => row.plan === 'monthly')?.n || 0,
         yearly: members.find((row) => row.plan === 'yearly')?.n || 0
       },
       recent
     }, noStore);
+    return true;
+  }
+
+  const listGifts = () => sql().prepare('SELECT * FROM plus_grants WHERE expires_at IS NULL OR expires_at > ? ORDER BY created_at DESC LIMIT 500').all(Date.now()).map((row) => ({
+    userId: row.user_id, username: nameOf(row.user_id), expiresAt: row.expires_at || null, note: row.note || '',
+    grantedBy: nameOf(row.granted_by), createdAt: row.created_at, subscribed: plusFor(row.user_id).gifted !== true
+  }));
+
+  if (url.pathname === '/v1/admin/billing/plus') {
+    if (req.method === 'GET') { send(res, 200, { ok: true, gifts: listGifts() }, noStore); return true; }
+    if (req.method === 'POST') {
+      const body = await ctx.readJson(req);
+      const name = String(body.username || '').trim();
+      const target = name ? db.getUserByUsername(name) : null;
+      if (!target) { send(res, 404, { ok: false, error: name ? `No Noctra account called ${name}.` : 'Type a username.' }); return true; }
+      const days = Number(body.days);
+      const current = sql().prepare('SELECT expires_at FROM plus_grants WHERE user_id = ?').get(String(target.id));
+      // Giving more time to someone who still has a gift adds to what's left.
+      const from = current && current.expires_at && current.expires_at > Date.now() ? current.expires_at : Date.now();
+      const expiresAt = Number.isFinite(days) && days > 0 ? from + Math.min(days, 3650) * 86_400_000 : null;
+      sql().prepare(`INSERT INTO plus_grants (user_id, expires_at, note, granted_by, created_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET expires_at = excluded.expires_at, note = excluded.note, granted_by = excluded.granted_by`)
+        .run(String(target.id), expiresAt, String(body.note || '').slice(0, 120), String(user.id), Date.now());
+      syncPlus(target.id);
+      send(res, 200, { ok: true, username: target.username, expiresAt, gifts: listGifts() }, noStore);
+      return true;
+    }
+  }
+  const giftMatch = url.pathname.match(/^\/v1\/admin\/billing\/plus\/([^/]+)$/);
+  if (giftMatch && req.method === 'DELETE') {
+    const userId = decodeURIComponent(giftMatch[1]);
+    sql().prepare('DELETE FROM plus_grants WHERE user_id = ?').run(userId);
+    syncPlus(userId);
+    send(res, 200, { ok: true, gifts: listGifts() }, noStore);
     return true;
   }
 
