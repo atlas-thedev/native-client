@@ -64,10 +64,19 @@ const api = {
     setModel: (account, model) => ipcRenderer.invoke('wardrobe:setModel', { account, model }),
     export: (account, id) => ipcRenderer.invoke('wardrobe:export', { account, id }),
     sync: (account) => ipcRenderer.invoke('wardrobe:sync', account),
+    // Pull the account's cloud locker (another device / the website changed it).
+    pull: (account) => ipcRenderer.invoke('wardrobe:pull', account),
+    // Live refresh after a `wardrobe:changed` event: pulls only when the cloud copy is newer.
+    refresh: (account) => ipcRenderer.invoke('wardrobe:refresh', account),
     officialProfile: (account) => ipcRenderer.invoke('wardrobe:officialProfile', account),
     reauthOfficialProfile: (account) => ipcRenderer.invoke('wardrobe:reauthOfficialProfile', account),
     applyOfficialSkin: (account, id) => ipcRenderer.invoke('wardrobe:applyOfficialSkin', { account, id }),
     activateOfficialCape: (account, capeId) => ipcRenderer.invoke('wardrobe:activateOfficialCape', { account, capeId })
+  },
+  store: {
+    catalog: (options) => ipcRenderer.invoke('store:catalog', options),
+    strip: (itemId) => ipcRenderer.invoke('store:strip', itemId),
+    equip: (account, itemId) => ipcRenderer.invoke('store:equip', { account, itemId })
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),

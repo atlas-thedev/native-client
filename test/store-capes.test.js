@@ -150,6 +150,15 @@ test('store: catalogue is public, equip needs a session, equip/unequip are live'
   stream.on('error', () => {});
   await new Promise((r) => setTimeout(r, 250));
 
+  const watched = [];
+  const watch = http.get(`${base}/v1/store/stream?token=${session.token}`, (res) => {
+    res.setEncoding('utf8');
+    res.on('data', (chunk) => watched.push(chunk));
+  });
+  watch.on('error', () => {});
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal((await json('/v1/store/stream')).status, 401);
+
   const equip = await post('/v1/store/equip', { itemId: 'aurora' }, session.token);
   assert.equal(equip.status, 200);
   assert.equal(equip.body.equipped, 'aurora');
@@ -163,6 +172,10 @@ test('store: catalogue is public, equip needs a session, equip/unequip are live'
   assert.match(heard.join(''), /event: wardrobe:changed/);
   assert.match(heard.join(''), /"capeStore":"aurora"/);
   stream.destroy();
+  const wend = Date.now() + 3000;
+  while (!watched.join('').includes('wardrobe:changed') && Date.now() < wend) await new Promise((r) => setTimeout(r, 50));
+  assert.match(watched.join(''), /event: wardrobe:changed/);
+  watch.destroy();
 
   const off = await post('/v1/store/equip', { itemId: null }, session.token);
   assert.equal(off.body.equipped, null);

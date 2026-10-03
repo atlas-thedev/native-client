@@ -2,12 +2,14 @@
 /**
  *   GET  /v1/store/catalog   public: sections + every item with texture URLs
  *   GET  /v1/store/me        the signed-in account's equipped store item
+ *   GET  /v1/store/stream    SSE: wardrobe:changed for the signed-in account (website live refresh)
  *   POST /v1/store/equip     { itemId } equip a store cape (itemId null = take it off)
  *
  * Store items are free today; the item model already carries `price`.
  */
 const db = require('./db');
 const capes = require('./capes');
+const events = require('./social-events');
 
 let catalog = null;
 let revision = 1;
@@ -61,6 +63,28 @@ async function handleStoreRoutes(req, res, ctx) {
       sections: cat.sections,
       items: cat.items.map((item) => publicItem(item, textureBase))
     }, { 'Cache-Control': 'public, max-age=60', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
+  // Live refresh for the website: pushes `wardrobe:changed` whenever this account's locker changes
+  // (launcher, website, another device). Does not affect presence.
+  if (req.method === 'GET' && url.pathname === '/v1/store/stream') {
+    const token = bearerOf(req) || String(url.searchParams.get('token') || '').trim();
+    const user = token ? db.getUserBySession(token) : null;
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in first.' }); return true; }
+    if (!hit('store-stream', ip, 30, 60_000)) { tooMany(res, 60); return true; }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    if (res.flushHeaders) res.flushHeaders();
+    if (req.socket && req.socket.setNoDelay) req.socket.setNoDelay(true);
+    if (req.socket && req.socket.setTimeout) req.socket.setTimeout(0);
+    const unsubscribe = events.subscribeWatch(user.id, res);
+    req.on('close', unsubscribe);
+    req.on('error', unsubscribe);
     return true;
   }
 

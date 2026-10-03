@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Film, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Star, Store, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
+import AnimatedCapeModal from './AnimatedCapeModal.jsx';
+import CapeStoreModal from './CapeStoreModal.jsx';
 import { CAPE_PRESETS } from './capePresets.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
@@ -32,8 +34,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
   const [importOpen, setImportOpen] = useState(false);
   const [importData, setImportData] = useState(null);
   const [importSaving, setImportSaving] = useState(false);
+  const [animImport, setAnimImport] = useState(null);
+  const [animSaving, setAnimSaving] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
   const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const animInputRef = useRef(null);
 
   const publishState = (next) => {
     setWardrobe(next);
@@ -88,6 +94,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
 
   useEffect(() => { loadWardrobe(); }, [account?.id]);
 
+  // Live: the launcher shell pulls the cloud copy whenever the website / another device changes it.
+  useEffect(() => {
+    if (!account) return undefined;
+    const refresh = () => { window.native?.wardrobe?.get?.(account).then((next) => { if (next) publishState(next); }).catch(() => {}); };
+    window.addEventListener('noctra:wardrobe-refreshed', refresh);
+    return () => window.removeEventListener('noctra:wardrobe-refreshed', refresh);
+  }, [account?.id]);
+
   // Connection lost -> keep working from the saved copy. Connection back -> sync again in the background.
   const wasOnline = useRef(online);
   useEffect(() => {
@@ -125,7 +139,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
   const previewCapeUrl = showCape
     ? (showOfficialCards ? (official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
     : null;
-  const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl) }), [account, currentModel, wardrobe?.active?.skinUrl, previewCapeUrl]);
+  const previewCapeAnim = previewCapeUrl && !showOfficialCards ? (wardrobe?.active?.capeAnim || null) : null;
+  const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
   const skinItems = useMemo(() => {
     const byId = new Map();
@@ -158,15 +173,26 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
         .map((preset) => ({ key: `lock:${preset.id}`, kind: 'locked', name: preset.name, textureUrl: preset.textureUrl, active: false }));
       return [none, ...owned, ...locked];
     }
-    return CAPE_PRESETS.map((cape) => ({
+    // Animated capes (from the store, the website, or uploaded here) sit right after "no cape".
+    const animated = (wardrobe?.capes || []).filter((item) => item.animated).map((item) => ({
+      key: `anim:${item.id}`,
+      kind: 'wardrobe',
+      name: item.name,
+      textureUrl: item.url,
+      item,
+      animated: true,
+      active: Boolean(item.active)
+    }));
+    const presets = CAPE_PRESETS.map((cape) => ({
       key: cape.id,
       kind: cape.id === 'none' ? 'none' : 'preset',
       name: cape.name,
       textureUrl: cape.textureUrl,
       preset: cape,
-      active: cape.id === 'none' ? !wardrobe?.active?.hasCape : activeCapeName === cape.name
+      active: cape.id === 'none' ? !wardrobe?.active?.hasCape : (!wardrobe?.active?.cape?.animated && activeCapeName === cape.name)
     }));
-  }, [showOfficialCards, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, activeCapeName, t]);
+    return [...presets.slice(0, 1), ...animated, ...presets.slice(1)];
+  }, [showOfficialCards, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, wardrobe?.active?.cape?.animated, wardrobe?.capes, activeCapeName, t]);
 
   const capePages = Math.max(1, Math.ceil(capeCards.length / CAPES_PER_PAGE));
   const skinPages = Math.max(1, Math.ceil(skinItems.length / SKINS_PER_PAGE));
@@ -285,6 +311,37 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip cape.'); }
   };
 
+  const applyWardrobeCape = async (item) => {
+    if (!account || !item?.id) return;
+    try {
+      const next = await window.native?.wardrobe?.apply?.(account, item.id);
+      if (next) publishState(next);
+      window.native?.wardrobe?.sync?.(account).catch(() => {});
+    } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip cape.'); }
+  };
+
+  const processAnimFile = async (file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.png') && file.type !== 'image/png') { onNotify?.('Invalid File', t('locker.uploadNotPng')); return; }
+    if (file.size > 16 * 1024 * 1024) { onNotify?.('Animated cape', 'That file is too large (16 MB max).'); return; }
+    try {
+      setAnimImport({ name: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') || 'Animated cape', dataUrl: await readFileAsDataUrl(file) });
+    } catch (error) { onNotify?.('Upload Error', error?.message || 'Could not read file.'); }
+  };
+
+  const saveAnimatedCape = async ({ name, anim, dataUrl, stillDataUrl }) => {
+    if (!account) return;
+    setAnimSaving(true);
+    try {
+      const next = await window.native?.wardrobe?.upload?.(account, 'cape', dataUrl, { name, anim, stillDataUrl });
+      if (next) publishState(next);
+      window.native?.wardrobe?.sync?.(account).catch(() => {});
+      setAnimImport(null);
+      onNotify?.(t('locker.title'), `${name} is now your cape.`);
+    } catch (error) { onNotify?.('Animated cape', error?.message || 'Could not save the animated cape.'); }
+    finally { setAnimSaving(false); }
+  };
+
   // Routes a cape card to the right backend: owned Minecraft capes go through the
   // official profile API, locked (unowned) presets are inert, and everything else
   // (preset mode, or the Microsoft fallback strip) uploads to the local wardrobe.
@@ -294,6 +351,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
       official.equip(card.kind === 'official' ? card.id : null);
       return;
     }
+    if (card.kind === 'wardrobe') { applyWardrobeCape(card.item); return; }
     applyCape(card.preset);
   };
 
@@ -341,14 +399,17 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onlin
           {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
           {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
         </div></section>
-        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div>
+        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && account?.type === 'noctra' && <button type="button" onClick={() => setStoreOpen(true)} title="Animated capes, free for your account"><Store size={13}/>Store</button>}{!showOfficialCards && <button type="button" onClick={() => animInputRef.current?.click()} title="Upload an animated cape (a strip of frames)"><Film size={13}/>Animated</button>}{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
           {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
-          {!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
+          {!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{card.animated && <em className="locker-cape-anim">ANIM</em>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
           {showOfficialCards && <p className="locker-cape-hint">{t('locker.officialHint')}</p>}
         </section>
       </main>
     </div>
+    <input ref={animInputRef} type="file" accept="image/png,.png" hidden onChange={(event) => { processAnimFile(event.target.files?.[0]); event.target.value=''; }}/>
+    {animImport && <AnimatedCapeModal account={account} skinUrl={wardrobe?.active?.skinUrl || null} model={currentModel} file={animImport} saving={animSaving} onClose={() => setAnimImport(null)} onSave={saveAnimatedCape}/>}
+    {storeOpen && <CapeStoreModal account={account} equippedId={wardrobe?.active?.cape?.storeId || null} onClose={() => setStoreOpen(false)} onNotify={onNotify} onEquipped={(state) => { if (state) publishState(state); }}/>}
     <input ref={fileInputRef} type="file" accept="image/png,.png" hidden onChange={(event) => { processFile(event.target.files?.[0]); event.target.value=''; }}/>
     {importOpen && importData && <div className="locker-modal-overlay" onClick={() => setImportOpen(false)}><div className="locker-import-modal" onClick={(event) => event.stopPropagation()}><button type="button" className="import-modal-close" onClick={() => setImportOpen(false)}><X size={16}/></button><div className="import-modal-preview"><SkinViewer3D account={{...account,skinUrl:importData.dataUrl,model:importData.model}} width={170} height={230} animation="idle" autoRotate/></div><div className="import-modal-form"><div className="import-modal-head"><h3>{t('locker.importTitle')}</h3><p>{t('locker.importSubtitle')}</p></div><label className="import-form-field"><span>{t('locker.fieldName')}</span><input value={importData.name} onChange={(event) => setImportData({...importData,name:event.target.value})}/></label><div className="import-form-field"><span>{t('locker.fieldFile')}</span><button type="button" className="import-file-display" onClick={() => fileInputRef.current?.click()}><span>{importData.fileName}</span><Folder size={14}/></button></div><div className="import-form-field"><span>{t('locker.model')}</span><div className="import-model-grid">{['classic','slim'].map((model) => <button key={model} type="button" className={`import-model-card${importData.model===model?' active':''}`} onClick={() => setImportData({...importData,model})}><ModelArmGlyph model={model}/><strong>{model==='classic'?t('locker.modelClassic'):t('locker.modelSlim')}</strong><small>{model==='classic'?t('locker.modelClassicDesc'):t('locker.modelSlimDesc')}</small>{importData.detected===model && <em className="import-model-detected">{t('locker.modelDetected')}</em>}{importData.model===model && <span className="import-model-check"><Check size={12}/></span>}</button>)}</div></div><button type="button" className="import-save-btn" onClick={saveImport} disabled={importSaving}><Check size={15}/>{importSaving?t('common.loading'):t('common.save')}</button></div></div></div>}
   </div>;

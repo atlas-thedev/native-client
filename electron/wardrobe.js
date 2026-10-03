@@ -30,6 +30,10 @@ const apiRoot = () => String(process.env.NATIVE_WARDROBE_API || API_ROOT).replac
 const SLOT_COUNT = 3; // legacy wardrobe.json
 const ITEM_LIMIT = 60;
 const MAX_PNG_BYTES = 5 * 1024 * 1024;
+// Animated capes are a vertical strip of frames, so they are much taller (and bigger) than a skin.
+const MAX_ANIM_BYTES = 16 * 1024 * 1024;
+const MAX_ANIM_FRAMES = 240;
+const MAX_ANIM_FPS = 30;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 let deps = null;
@@ -111,10 +115,20 @@ function cleanName(value, fallback) {
   return name || fallback;
 }
 
+/** `{ frames, fps }` of an animated cape item, or null. */
+function normalizeAnim(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const frames = Math.floor(Number(raw.frames));
+  const fps = Math.round(Number(raw.fps));
+  if (!(frames >= 2 && frames <= MAX_ANIM_FRAMES)) return null;
+  return { frames, fps: Math.min(MAX_ANIM_FPS, Math.max(1, Number.isFinite(fps) ? fps : 10)) };
+}
+
 function normalizeItem(raw, fallbackId) {
   if (!raw || typeof raw !== 'object') return null;
   const kind = raw.kind === 'cape' ? 'cape' : raw.kind === 'skin' ? 'skin' : null;
   if (!kind) return null;
+  const anim = kind === 'cape' && raw.stillFile ? normalizeAnim(raw.anim) : null;
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : fallbackId,
     kind,
@@ -122,7 +136,9 @@ function normalizeItem(raw, fallbackId) {
     name: cleanName(raw.name, kind === 'cape' ? 'Cape' : 'Skin'),
     model: normalizeModel(raw.model),
     createdAt: Number(raw.createdAt) || Date.now(),
-    favorite: Boolean(raw.favorite)
+    favorite: Boolean(raw.favorite),
+    // Animated cape: `file` is the whole strip, `stillFile` its first frame (the normal cape).
+    ...(anim ? { anim, stillFile: String(raw.stillFile), ...(raw.storeId ? { storeId: String(raw.storeId).slice(0, 64) } : {}) } : {})
   };
 }
 
@@ -234,14 +250,30 @@ const activeItem = (metadata, kind) => findItem(metadata, kind === 'skin' ? meta
 
 /* ── PNG validation ──────────────────────────────────────────── */
 
-function pngInfoBuffer(buffer, label = 'PNG') {
+function pngInfoBuffer(buffer, label = 'PNG', { animated = false } = {}) {
   if (!buffer || buffer.length <= 24) throw new Error(`The selected ${label} is too small.`);
-  if (buffer.length > MAX_PNG_BYTES) throw new Error('Choose a PNG smaller than 5 MB.');
+  if (buffer.length > (animated ? MAX_ANIM_BYTES : MAX_PNG_BYTES)) throw new Error(`Choose a PNG smaller than ${animated ? 16 : 5} MB.`);
   if (!buffer.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error(`The selected file is not a valid ${label}.`);
   const width = buffer.readUInt32BE(16);
   const height = buffer.readUInt32BE(20);
-  if (!width || !height || width > 4096 || height > 4096) throw new Error('The PNG dimensions are not supported.');
+  if (!width || !height || width > 4096 || height > (animated ? 32768 : 4096)) throw new Error('The PNG dimensions are not supported.');
+  if (animated && width * height > 33_554_432) throw new Error('That animation is too large. Use fewer or smaller frames.');
   return { width, height, size: buffer.length };
+}
+
+/**
+ * An animated cape is a vertical strip of `frames` equally tall frames plus its first frame as a
+ * normal cape. Every frame size is welcome (64×32 … 2048×1024, or any custom ratio).
+ */
+function validateAnimatedCape(strip, still, anim) {
+  const info = pngInfoBuffer(strip, 'animation', { animated: true });
+  const spec = normalizeAnim(anim);
+  if (!spec) throw new Error('An animated cape needs between 2 and 240 frames.');
+  if (info.height % spec.frames !== 0) throw new Error(`The strip height (${info.height}px) does not divide into ${spec.frames} frames.`);
+  const frameHeight = info.height / spec.frames;
+  const first = pngInfoBuffer(still, 'cape');
+  if (first.width !== info.width || first.height !== frameHeight) throw new Error('The cape preview must match one frame of the strip.');
+  return { ...spec, width: info.width, frameHeight };
 }
 
 function pngInfo(filePath) {
@@ -250,11 +282,11 @@ function pngInfo(filePath) {
   return { ...info, buffer };
 }
 
-function decodeBase64Texture(value) {
+function decodeBase64Texture(value, options) {
   const raw = String(value || '').replace(/^data:image\/png;base64,/i, '');
   if (!raw) throw new Error('No texture data was received.');
   const buffer = Buffer.from(raw, 'base64');
-  pngInfoBuffer(buffer);
+  pngInfoBuffer(buffer, 'PNG', options);
   return buffer;
 }
 
@@ -266,9 +298,15 @@ function dataUrl(account, file) {
   }
 }
 
+function stripDataUrl(account, id) {
+  const item = findItem(loadMetadata(account), id);
+  return item?.anim ? dataUrl(account, item.file) : null;
+}
+
 /* ── public state ────────────────────────────────────────────── */
 
 function publicItem(account, item, metadata) {
+  const animated = Boolean(item.anim && item.stillFile);
   return {
     id: item.id,
     kind: item.kind,
@@ -278,7 +316,9 @@ function publicItem(account, item, metadata) {
     favorite: item.favorite,
     ageDays: Math.max(0, Math.floor((Date.now() - item.createdAt) / 86_400_000)),
     active: (item.kind === 'skin' ? metadata.activeSkin : metadata.activeCape) === item.id,
-    url: dataUrl(account, item.file)
+    // Animated capes expose their first frame as `url`, so anything that cannot animate shows a normal cape.
+    url: dataUrl(account, animated ? item.stillFile : item.file),
+    ...(animated ? { animated: true, anim: { ...item.anim }, ...(item.storeId ? { storeId: item.storeId } : {}) } : {})
   };
 }
 
@@ -427,6 +467,8 @@ function publicState(account) {
       capeUrl,
       hasSkin: Boolean(skinUrl),
       hasCape: Boolean(capeUrl),
+      // Whole frame strip of the active animated cape (`capeUrl` is its first frame).
+      capeAnim: cape?.animated ? { ...cape.anim, stripUrl: stripDataUrl(account, cape.id) } : null,
       skin,
       cape
     }
@@ -435,7 +477,7 @@ function publicState(account) {
 
 /* ── mutations ───────────────────────────────────────────────── */
 
-function storeItem(account, kind, buffer, { name, model, favorite = false } = {}) {
+function storeItem(account, kind, buffer, { name, model, favorite = false, anim = null, still = null } = {}) {
   const metadata = loadMetadata(account);
   const targetName = cleanName(name, kind === 'cape' ? 'Cape' : 'Skin');
   const existing = metadata.items.find((item) => item.kind === kind && item.name === targetName);
@@ -465,6 +507,21 @@ function storeItem(account, kind, buffer, { name, model, favorite = false } = {}
   fs.mkdirSync(accountDir(account), { recursive: true });
   writeFileAtomic(itemPath(account, file), buffer);
 
+  // Animated cape: keep the first frame next to the strip. Replacing an animation with a plain cape drops it.
+  const target = metadata.items.find((item) => item.id === id);
+  if (kind === 'cape' && target) {
+    if (anim && still) {
+      const stillFile = file.replace(/\.png$/, '.still.png');
+      writeFileAtomic(itemPath(account, stillFile), still);
+      target.anim = anim;
+      target.stillFile = stillFile;
+    } else {
+      if (target.stillFile) fs.rmSync(itemPath(account, target.stillFile), { force: true });
+      delete target.anim;
+      delete target.stillFile;
+    }
+  }
+
   if (kind === 'skin') {
     metadata.activeSkin = id;
     metadata.model = existing ? existing.model : normalizeModel(model);
@@ -477,6 +534,7 @@ function storeItem(account, kind, buffer, { name, model, favorite = false } = {}
   for (const stale of removed) {
     if (!metadata.items.some((it) => it.file === stale.file)) {
       fs.rmSync(itemPath(account, stale.file), { force: true });
+      if (stale.stillFile) fs.rmSync(itemPath(account, stale.stillFile), { force: true });
     }
   }
 
@@ -484,9 +542,16 @@ function storeItem(account, kind, buffer, { name, model, favorite = false } = {}
   return publicState(account);
 }
 
-function addItemFromBase64(account, { kind, dataUrl: value, name, model }) {
+function addItemFromBase64(account, { kind, dataUrl: value, name, model, anim, stillDataUrl }) {
   if (!account?.id) throw new Error('Sign in to use the locker.');
   if (kind !== 'skin' && kind !== 'cape') throw new Error('Invalid locker item.');
+  if (anim) {
+    if (kind !== 'cape') throw new Error('Only capes can be animated.');
+    const strip = decodeBase64Texture(value, { animated: true });
+    const still = decodeBase64Texture(stillDataUrl);
+    const spec = validateAnimatedCape(strip, still, anim);
+    return storeItem(account, kind, strip, { name, model, anim: { frames: spec.frames, fps: spec.fps }, still });
+  }
   return storeItem(account, kind, decodeBase64Texture(value), { name, model });
 }
 
@@ -568,6 +633,7 @@ function removeItem(account, id) {
   metadata.lastModifiedAt = Date.now();
   saveMetadata(account, metadata);
   fs.rmSync(itemPath(account, item.file), { force: true });
+  if (item.stillFile) fs.rmSync(itemPath(account, item.stillFile), { force: true });
   return publicState(account);
 }
 
@@ -575,22 +641,107 @@ function removeItem(account, id) {
 
 function readActiveBuffers(account) {
   const metadata = loadMetadata(account);
-  const read = (item) => {
-    if (!item) return null;
+  const read = (file) => {
+    if (!file) return null;
     try {
-      return fs.readFileSync(itemPath(account, item.file));
+      return fs.readFileSync(itemPath(account, file));
     } catch {
       return null;
     }
   };
+  const capeItem = activeItem(metadata, 'cape');
+  const animated = Boolean(capeItem?.anim && capeItem.stillFile);
+  // `cape` is always a normal cape texture (the first frame of an animation); `capeAnim` carries the strip.
+  const cape = read(animated ? capeItem.stillFile : capeItem?.file);
+  const strip = animated && cape ? read(capeItem.file) : null;
   return {
     metadata,
-    skin: read(activeItem(metadata, 'skin')),
-    cape: read(activeItem(metadata, 'cape'))
+    skin: read(activeItem(metadata, 'skin')?.file),
+    cape,
+    capeAnim: strip ? { strip, frames: capeItem.anim.frames, fps: capeItem.anim.fps } : null
   };
 }
 
-async function pullRemoteWardrobe(account) {
+/* ── cape store (website + launcher) ─────────────────────────── */
+
+let catalogCache = { at: 0, data: null };
+const CATALOG_TTL = 60_000;
+
+/** Public store catalogue (sections + items). Falls back to the last good copy when offline. */
+async function fetchStoreCatalog({ force = false } = {}) {
+  if (!force && catalogCache.data && Date.now() - catalogCache.at < CATALOG_TTL) return catalogCache.data;
+  try {
+    const response = await fetch(`${apiRoot()}/v1/store/catalog`, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (!data?.ok || !Array.isArray(data.items)) throw new Error('Bad catalogue');
+    catalogCache = { at: Date.now(), data };
+    return data;
+  } catch (error) {
+    if (catalogCache.data) return catalogCache.data;
+    throw new Error(`Couldn't load the store (${error?.message || 'offline'}).`);
+  }
+}
+
+async function storeCapeName(id) {
+  if (!id) return null;
+  try {
+    const found = (await fetchStoreCatalog()).items.find((item) => item.id === id);
+    if (found?.name) return found.name;
+  } catch {}
+  return String(id).replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const stripCache = new Map(); // url -> data URL (store previews are shared by every account)
+
+/** A store item's whole animation strip as a data URL, for the in-launcher preview. */
+async function fetchStoreStrip(itemId) {
+  const catalog = await fetchStoreCatalog();
+  const item = catalog.items.find((entry) => entry.id === itemId);
+  if (!item) throw new Error('That store item does not exist.');
+  if (stripCache.has(item.stripUrl)) return stripCache.get(item.stripUrl);
+  const response = await fetch(item.stripUrl, { signal: AbortSignal.timeout(25_000) });
+  if (!response.ok) throw new Error('Couldn’t download that animation.');
+  const bytes = Buffer.from(await response.arrayBuffer());
+  pngInfoBuffer(bytes, 'animation', { animated: true });
+  const value = `data:image/png;base64,${bytes.toString('base64')}`;
+  if (stripCache.size > 12) stripCache.delete(stripCache.keys().next().value);
+  stripCache.set(item.stripUrl, value);
+  return value;
+}
+
+/** Equip (or, with itemId null, remove) a store cape on the signed-in Noctra account, then mirror it locally. */
+async function equipStoreItem(account, itemId) {
+  if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
+    throw new Error('Sign in with a Noctra account to use store items.');
+  }
+  if (!isOnline()) throw new Error('You’re offline. Connect to the internet to change your cape.');
+  const response = await fetch(`${apiRoot()}/v1/store/equip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Noctra-Token': account.token },
+    body: JSON.stringify({ itemId: itemId || null }),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t equip that (HTTP ${response.status}).`);
+
+  if (!itemId) {
+    const metadata = loadMetadata(account);
+    metadata.activeCape = null;
+    metadata.lastModifiedAt = Date.now();
+    metadata.lastSyncedAt = Date.now();
+    saveMetadata(account, metadata);
+    return publicState(account);
+  }
+  // The server now holds the animation: pull it into the local locker.
+  const metadata = loadMetadata(account);
+  metadata.lastModifiedAt = 0;
+  saveMetadata(account, metadata);
+  return (await pullRemoteWardrobe(account, { authoritative: true })) || publicState(account);
+}
+
+async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
   if (!account?.name || account.name === 'guest') return null;
   // The Noctra server resolves wardrobes by username: never pull another
   // account's cosmetics into a Microsoft profile that happens to share it.
@@ -696,76 +847,129 @@ async function pullRemoteWardrobe(account) {
       }
     }
 
-    // 2. Remote Cape
+    // 2. Remote Cape. An animated cape arrives as `capeAnimation` (the whole frame strip) next to the
+    // normal first-frame `cape`, which is also what older launchers and vanilla clients use.
     const remoteCapeUrl = remote.cape || remote.capes?.default;
-    if (remoteCapeUrl) {
-      const hashMatch = remoteCapeUrl.match(/\/textures\/([a-f0-9]{64})/i);
-      const remoteHash = hashMatch ? hashMatch[1].toLowerCase() : null;
+    const remoteSpec = remote.capeAnimation?.url ? normalizeAnim(remote.capeAnimation) : null;
+    const sha = (value) => crypto.createHash('sha256').update(value).digest('hex').toLowerCase();
+    const hashOf = (url) => (String(url || '').match(/\/textures\/([a-f0-9]{64})/i) || [])[1]?.toLowerCase() || null;
+    const readItemFile = (file) => { try { return fs.readFileSync(itemPath(account, file)); } catch { return null; } };
+    const download = async (url, limit, ms) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      try {
+        const response = await fetch(url, { signal: ctrl.signal });
+        if (!response.ok) return null;
+        const bytes = Buffer.from(await response.arrayBuffer());
+        return bytes.length > 24 && bytes.length <= limit ? bytes : null;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    if (authoritative && !remoteSpec && !remoteCapeUrl && metadata.activeCape) {
+      // The cloud copy has no cape any more (taken off on the website / another device).
+      metadata.activeCape = null;
+      changed = true;
+    }
+
+    if (remoteSpec) {
+      const stripHash = hashOf(remote.capeAnimation.url);
+      const sameStrip = stripHash
+        ? metadata.items.find((it) => it.kind === 'cape' && it.anim && (readItemFile(it.file) ? sha(readItemFile(it.file)) === stripHash : false))
+        : null;
+      if (sameStrip) {
+        if (metadata.activeCape !== sameStrip.id || sameStrip.anim.fps !== remoteSpec.fps || sameStrip.anim.frames !== remoteSpec.frames) {
+          sameStrip.anim = remoteSpec;
+          metadata.activeCape = sameStrip.id;
+          changed = true;
+        }
+        if (remote.capeStore && sameStrip.storeId !== remote.capeStore) { sameStrip.storeId = String(remote.capeStore).slice(0, 64); changed = true; }
+      } else {
+        try {
+          const strip = await download(remote.capeAnimation.url, MAX_ANIM_BYTES, 25_000);
+          const still = remoteCapeUrl ? await download(remoteCapeUrl, MAX_PNG_BYTES, 8000) : null;
+          if (strip && still) {
+            validateAnimatedCape(strip, still, remoteSpec);
+            const id = crypto.randomUUID();
+            const file = `cape-${id.slice(0, 8)}.png`;
+            const stillFile = `cape-${id.slice(0, 8)}.still.png`;
+            fs.mkdirSync(accountDir(account), { recursive: true });
+            writeFileAtomic(itemPath(account, file), strip);
+            writeFileAtomic(itemPath(account, stillFile), still);
+            metadata.items.unshift({
+              id,
+              kind: 'cape',
+              file,
+              stillFile,
+              anim: remoteSpec,
+              ...(remote.capeStore ? { storeId: String(remote.capeStore).slice(0, 64) } : {}),
+              name: cleanName(await storeCapeName(remote.capeStore), `${username}'s Animated Cape`),
+              model: 'classic',
+              createdAt: Date.now(),
+              favorite: false
+            });
+            metadata.activeCape = id;
+            changed = true;
+          }
+        } catch (err) {
+          console.warn('Failed to download remote animated cape:', err?.message || err);
+        }
+      }
+    } else if (remoteCapeUrl) {
+      const remoteHash = hashOf(remoteCapeUrl);
       const currentActiveCape = activeItem(metadata, 'cape');
       let needsDownload = true;
 
       if (currentActiveCape) {
-        try {
-          const currentBuf = fs.readFileSync(itemPath(account, currentActiveCape.file));
-          const currentHash = crypto.createHash('sha256').update(currentBuf).digest('hex').toLowerCase();
-          if (remoteHash && currentHash === remoteHash) {
-            needsDownload = false;
-          }
-        } catch {}
+        // An animated cape's normal cape texture is its first frame.
+        const currentBuf = readItemFile(currentActiveCape.anim ? currentActiveCape.stillFile : currentActiveCape.file);
+        if (currentBuf && remoteHash && sha(currentBuf) === remoteHash && !currentActiveCape.anim) needsDownload = false;
       }
 
       if (needsDownload) {
         try {
-          const cCtrl = new AbortController();
-          const cTimeout = setTimeout(() => cCtrl.abort(), 8000);
-          const cRes = await fetch(remoteCapeUrl, { signal: cCtrl.signal });
-          clearTimeout(cTimeout);
-          if (cRes.ok) {
-            const buf = Buffer.from(await cRes.arrayBuffer());
-            if (buf.length > 24) {
-              const bufHash = crypto.createHash('sha256').update(buf).digest('hex').toLowerCase();
-              const official = getOfficialCapeByHash(bufHash);
-              const capeName = official ? official.name : `${username}'s Cape`;
+          const buf = await download(remoteCapeUrl, MAX_PNG_BYTES, 8000);
+          if (buf) {
+            const bufHash = sha(buf);
+            const official = getOfficialCapeByHash(bufHash);
+            const capeName = official ? official.name : `${username}'s Cape`;
 
-              let existingItem = null;
-              for (const it of metadata.items) {
-                if (it.kind === 'cape') {
-                  if (official && it.name === official.name) {
-                    existingItem = it;
-                    break;
-                  }
-                  try {
-                    const b = fs.readFileSync(itemPath(account, it.file));
-                    if (crypto.createHash('sha256').update(b).digest('hex').toLowerCase() === bufHash) {
-                      existingItem = it;
-                      break;
-                    }
-                  } catch {}
+            let existingItem = null;
+            for (const it of metadata.items) {
+              if (it.kind === 'cape' && !it.anim) {
+                if (official && it.name === official.name) {
+                  existingItem = it;
+                  break;
+                }
+                const b = readItemFile(it.file);
+                if (b && sha(b) === bufHash) {
+                  existingItem = it;
+                  break;
                 }
               }
+            }
 
-              if (existingItem) {
-                writeFileAtomic(itemPath(account, existingItem.file), buf);
-                metadata.activeCape = existingItem.id;
-                changed = true;
-              } else {
-                const id = crypto.randomUUID();
-                const file = `cape-${id.slice(0, 8)}.png`;
-                fs.mkdirSync(accountDir(account), { recursive: true });
-                writeFileAtomic(itemPath(account, file), buf);
-                const item = {
-                  id,
-                  kind: 'cape',
-                  file,
-                  name: capeName,
-                  model: 'classic',
-                  createdAt: Date.now(),
-                  favorite: false
-                };
-                metadata.items.unshift(item);
-                metadata.activeCape = id;
-                changed = true;
-              }
+            if (existingItem) {
+              writeFileAtomic(itemPath(account, existingItem.file), buf);
+              metadata.activeCape = existingItem.id;
+              changed = true;
+            } else {
+              const id = crypto.randomUUID();
+              const file = `cape-${id.slice(0, 8)}.png`;
+              fs.mkdirSync(accountDir(account), { recursive: true });
+              writeFileAtomic(itemPath(account, file), buf);
+              metadata.items.unshift({
+                id,
+                kind: 'cape',
+                file,
+                name: capeName,
+                model: 'classic',
+                createdAt: Date.now(),
+                favorite: false
+              });
+              metadata.activeCape = id;
+              changed = true;
             }
           }
         } catch (err) {
@@ -785,6 +989,29 @@ async function pullRemoteWardrobe(account) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Live refresh: the Noctra server says this account's locker changed (website, another PC, a store
+ * equip). Pulls only when the cloud copy is newer than both our last sync and our own edits, so a change
+ * we just made is never overwritten by the echo of an older one.
+ */
+async function refreshFromCloud(account) {
+  if (!account?.name || account.name === 'guest') return { ok: false };
+  if (isMicrosoftAccount(account) || isLocalOnlyAccount(account) || !isOnline()) return { ok: false };
+  const metadata = loadMetadata(account);
+  let remoteTime = 0;
+  try {
+    const response = await fetch(`${apiRoot()}/csl/${encodeURIComponent(cleanName(account.name, 'Player'))}.json`, { signal: AbortSignal.timeout(5000) });
+    if (response.status === 404) return { ok: true, pulled: false };
+    if (!response.ok) return { ok: false };
+    remoteTime = Date.parse((await response.json())?.updatedAt) || 0;
+  } catch {
+    return { ok: false };
+  }
+  if (!(remoteTime > (Number(metadata.lastSyncedAt) || 0) && remoteTime > (Number(metadata.lastModifiedAt) || 0))) return { ok: true, pulled: false };
+  const state = await pullRemoteWardrobe(account, { authoritative: true });
+  return { ok: true, pulled: Boolean(state), state };
 }
 
 async function syncWardrobe(account) {
@@ -827,7 +1054,7 @@ async function syncWardrobe(account) {
   } catch {}
 
   // Otherwise, push local outfit to the server
-  const { skin, cape } = readActiveBuffers(account);
+  const { skin, cape, capeAnim } = readActiveBuffers(account);
   metadata = loadMetadata(account);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -853,7 +1080,8 @@ async function syncWardrobe(account) {
         username: account.name,
         model: metadata.model,
         skin: skin ? skin.toString('base64') : null,
-        cape: cape ? cape.toString('base64') : null
+        cape: cape ? cape.toString('base64') : null,
+        ...(capeAnim ? { capeAnim: { strip: capeAnim.strip.toString('base64'), frames: capeAnim.frames, fps: capeAnim.fps } } : {})
       }),
       signal: controller.signal
     });
@@ -1365,6 +1593,16 @@ function init(dependencies, ipcMain) {
   });
   ipcMain.handle('wardrobe:export', (_event, { account, id }) => exportItem(account, id));
   ipcMain.handle('wardrobe:sync', (_event, account) => syncWardrobe(account));
+  ipcMain.handle('wardrobe:refresh', (_event, account) => refreshFromCloud(account));
+  ipcMain.handle('store:catalog', async (_event, options) => {
+    try { return { ok: true, ...(await fetchStoreCatalog(options || {})) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:strip', async (_event, itemId) => {
+    try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:equip', async (_event, { account, itemId }) => {
+    try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
   ipcMain.handle('wardrobe:officialProfile', profileResult((_event, account) => officialProfile(account)));
   ipcMain.handle('wardrobe:reauthOfficialProfile', profileResult(async (_event, account) => {
     return officialProfile(account, { forceRefresh: true });
@@ -1378,6 +1616,8 @@ module.exports = {
   publicState,
   pngInfo,
   pngInfoBuffer,
+  validateAnimatedCape,
+  fetchStoreCatalog,
   addItemFromBase64,
   applyItem,
   clearActive,
@@ -1390,6 +1630,7 @@ module.exports = {
   configureSkinLoader,
   migrateLegacy,
   pullRemoteWardrobe,
+  refreshFromCloud,
   syncWardrobe,
   warmSkinCache,
   deterministicSyncKey,

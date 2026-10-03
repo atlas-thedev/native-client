@@ -571,6 +571,8 @@ async function handler(req, res) {
           if (!strip || !still) throw new Error('An animated cape needs its frame strip and its first frame.');
           const described = capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
           capeAnim = { strip: textureHash(strip), frames: described.frames, fps: described.fps };
+          // The same store cape re-sent by the launcher stays a store cape.
+          if (existing?.capeStore && existing.capeAnim?.strip === capeAnim.strip && existing.cape === cape) capeStore = existing.capeStore;
         } catch (error) {
           return send(res, 400, { ok: false, error: error.message || 'Invalid animated cape.' });
         }

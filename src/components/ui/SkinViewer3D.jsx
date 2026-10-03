@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PlayerAvatar from './PlayerAvatar.jsx';
+import { loadStripImage, startCapeAnimation } from '../../lib/animatedCape.js';
 import { FALLBACK_SKIN, isLocalIdentity, isSlimArmTexture, loadSkinTexture, sanitizeSkinArms, SKIN_SERVICE, skinIdentifier } from '../../lib/skins.js';
 
 const SKIN_PATH = '/skin/';
@@ -99,6 +100,12 @@ export default function SkinViewer3D({
   const effectiveAccount = selfHealed && !account?.skinUrl ? { ...account, ...selfHealed } : account;
   const skinUrl = effectiveAccount?.skinUrl || skinTextureUrl(effectiveAccount);
   const capeUrl = capeTextureUrl(effectiveAccount);
+  // Animated cape: `capeUrl` stays the first frame; the strip repaints it over time.
+  const capeAnim = capeUrl && effectiveAccount?.capeAnim?.stripUrl ? effectiveAccount.capeAnim : null;
+  const animKey = capeAnim ? `${capeAnim.frames}@${capeAnim.fps}#${capeAnim.stripUrl.length}:${capeAnim.stripUrl.slice(-40)}` : '';
+  const capeAnimRef = useRef(null);
+  const capeAnimSource = useRef(null);
+  capeAnimSource.current = capeAnim;
   const effectiveModel = effectiveAccount?.model;
 
   const loadedSkinRef = useRef(null);
@@ -170,6 +177,8 @@ export default function SkinViewer3D({
 
     return () => {
       disposed = true;
+      capeAnimRef.current?.stop();
+      capeAnimRef.current = null;
       try {
         viewerRef.current?.dispose?.();
       } catch {
@@ -211,12 +220,22 @@ export default function SkinViewer3D({
       });
     }
 
-    if (loadedCapeRef.current !== capeUrl) {
-      loadedCapeRef.current = capeUrl;
+    const capeKey = `${capeUrl || ''}|${animKey}`;
+    if (loadedCapeRef.current !== capeKey) {
+      loadedCapeRef.current = capeKey;
       const reqId = ++capeReqRef.current;
+      capeAnimRef.current?.stop();
+      capeAnimRef.current = null;
       if (capeUrl) {
         viewer.loadCape(capeUrl).then(() => {
           if (reqId !== capeReqRef.current) return;
+          const anim = capeAnimSource.current;
+          if (anim) {
+            loadStripImage(anim.stripUrl).then((image) => {
+              if (reqId !== capeReqRef.current) return;
+              capeAnimRef.current = startCapeAnimation(viewer, image, { frames: anim.frames, fps: anim.fps });
+            }).catch(() => { /* the still first frame stays */ });
+          }
           if (viewer.playerObject?.cape) {
             viewer.playerObject.cape.position.z = -2.5;
             viewer.playerObject.cape.visible = true;
@@ -244,7 +263,7 @@ export default function SkinViewer3D({
         } catch {}
       }
     }
-  }, [skinUrl, capeUrl, effectiveModel, ready]);
+  }, [skinUrl, capeUrl, animKey, effectiveModel, ready]);
 
   /* ---- live auto-rotate toggle ---- */
   useEffect(() => {

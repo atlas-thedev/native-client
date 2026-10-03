@@ -60,6 +60,33 @@ export default function App() {
     }
   }, [netState]);
 
+  // Live: when the website, another PC, or a store equip changes this account's locker, the server
+  // sends `wardrobe:changed` and the cloud copy is pulled right away (no restart, no manual sync).
+  useEffect(() => {
+    const social = window.native?.social;
+    if (!social?.onSocialEvent || !window.native?.wardrobe?.refresh) return undefined;
+    let busy = false;
+    let again = false;
+    const run = async () => {
+      const current = activeAccountRef.current;
+      if (!current || current.type !== 'noctra') return;
+      if (busy) { again = true; return; }
+      busy = true;
+      try {
+        const res = await window.native.wardrobe.refresh(current);
+        if (res?.pulled && res.state && activeAccountRef.current?.id === current.id) {
+          setWardrobe({ ...res.state, accountId: current.id });
+          window.dispatchEvent(new CustomEvent('noctra:wardrobe-refreshed'));
+        }
+      } catch { /* the next event or sync retries */ }
+      busy = false;
+      if (again) { again = false; run(); }
+    };
+    return social.onSocialEvent((event) => {
+      if (event?.type === 'wardrobe:changed') run();
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     if (!activeAccount || !window.native?.wardrobe?.get) {

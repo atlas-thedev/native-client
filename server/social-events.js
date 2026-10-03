@@ -12,6 +12,10 @@ const clients = new Map(); // userId -> Set<ServerResponse>
 // and it only receives the event types a game overlay can use (never message text).
 const modClients = new Map(); // userId -> Set<ServerResponse>
 const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed']);
+// The website watches too (locker / store live refresh). It is not "the launcher", so it never
+// touches presence or the online count.
+const watchClients = new Map(); // userId -> Set<ServerResponse>
+const WATCH_EVENTS = new Set(['wardrobe:changed', 'account:changed']);
 const typingState = new Map(); // `${fromId}:${toId}` -> expiresAt
 
 const TYPING_TTL = 6_000;
@@ -55,6 +59,21 @@ function subscribeMod(userId, res) {
   };
 }
 
+function subscribeWatch(userId, res) {
+  if (!userId || !res) return () => {};
+  if (!watchClients.has(userId)) watchClients.set(userId, new Set());
+  watchClients.get(userId).add(res);
+  try {
+    res.write(frame('hello', { userId }));
+  } catch {}
+  return () => {
+    const bucket = watchClients.get(userId);
+    if (!bucket) return;
+    bucket.delete(res);
+    if (bucket.size === 0) watchClients.delete(userId);
+  };
+}
+
 const isModConnected = (userId) => modClients.has(userId);
 const modConnectionCount = (userId) => (modClients.get(userId) ? modClients.get(userId).size : 0);
 
@@ -79,12 +98,13 @@ function publish(userIds, type, payload = {}) {
     if (!userId) continue;
     writeTo(clients, userId, body);
     if (forMod) writeTo(modClients, userId, body);
+    if (WATCH_EVENTS.has(type)) writeTo(watchClients, userId, body);
   }
 }
 
 /** Heartbeat comment so proxies never idle-close a stream. */
 function heartbeat() {
-  for (const map of [clients, modClients]) {
+  for (const map of [clients, modClients, watchClients]) {
     for (const bucket of map.values()) {
       for (const res of bucket) {
         try {
@@ -135,6 +155,7 @@ if (heartbeatTimer.unref) heartbeatTimer.unref();
 module.exports = {
   subscribe,
   subscribeMod,
+  subscribeWatch,
   isModConnected,
   modConnectionCount,
   publish,
