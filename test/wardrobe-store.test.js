@@ -90,17 +90,32 @@ test('launcher store: catalogue, equip an animated cape, live refresh, unequip',
   assert.equal(bad.ok, false);
 });
 
-test('launcher can publish its own animated cape (any frame ratio) and the directory carries it', async () => {
+test('launcher: own animated capes are refused, store capes go through the locker', async () => {
   const user = db.createUser({ email: 'u2@example.com', username: 'UploadUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
   const account = { id: String(user.id), name: 'UploadUser', type: 'noctra', token: session.token };
   const strip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8');
   const still = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.still.png.b64'), 'utf8');
-  wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Mine', anim: { frames: 24, fps: 12 }, stillDataUrl: still });
-  const result = await wardrobe.syncWardrobe(account);
-  assert.equal(result.ok, true);
+  assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Mine', anim: { frames: 24, fps: 12 }, stillDataUrl: still }), /Noctra Store/);
+  // Static capes are still fine.
+  wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: still, name: 'Static' });
+
+  const me0 = await handlers.get('store:me')({}, account);
+  assert.equal(me0.ok, true);
+  assert.deepEqual(me0.owned, []);
+  const claimed = await handlers.get('store:claim')({}, { account, itemId: 'pulse' });
+  assert.equal(claimed.ok, true, claimed.error);
+  assert.deepEqual(claimed.owned.map((o) => o.id), ['pulse']);
+  const worn = await handlers.get('store:equip')({}, { account, itemId: 'pulse' });
+  assert.equal(worn.ok, true, worn.error);
+  assert.equal(worn.state.active.cape.storeId, 'pulse');
+  const sync = await wardrobe.syncWardrobe(account);
+  assert.equal(sync.ok, true);
   const dir = await (await fetch(`${process.env.NATIVE_WARDROBE_API}/v1/skins/directory`)).json();
-  const entry = dir.entries.find((e) => e.n === 'UploadUser');
-  assert.equal(entry.a.f, 24);
-  assert.equal(entry.a.p, 12);
+  assert.equal(dir.entries.find((e) => e.n === 'UploadUser').a.f, 24);
+
+  const removed = await handlers.get('store:unclaim')({}, { account, itemId: 'pulse' });
+  assert.equal(removed.ok, true, removed.error);
+  assert.deepEqual(removed.owned, []);
+  assert.equal(removed.state.active.hasCape, false);
 });

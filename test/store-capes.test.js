@@ -76,7 +76,7 @@ test('animation validation accepts every standard cape size and odd ratios, reje
   assert.throws(() => capes.validateAnimation({ strip: Buffer.from('nope'), still: png(64, 32), frames: 2, fps: 10 }), /Invalid PNG/);
 });
 
-test('publishing an animated cape: first frame is the cape, the strip rides along, old syncs keep it', async () => {
+test('only Noctra store capes animate: own strips become still capes, owned store strips animate', async () => {
   const user = db.createUser({ email: 'anim@example.com', username: 'AnimUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
   const strip = png(128, 64 * 4, 90);
@@ -85,36 +85,107 @@ test('publishing an animated cape: first frame is the cape, the strip rides alon
   const bad = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(png(128, 32)), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
   assert.equal(bad.status, 400);
 
-  const ok = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
-  assert.equal(ok.status, 200);
+  // A self-made animation is refused: the still first frame is saved as a normal cape.
+  const own = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
+  assert.equal(own.status, 200);
+  assert.equal(own.body.animated, false);
+  assert.match(own.body.notice, /Noctra Store/);
+  assert.match(own.body.profile.cape, /\/csl\/textures\/[a-f0-9]{64}$/);
+  assert.equal(own.body.profile.capeAnimation, undefined);
+  assert.equal((await json('/v1/skins/directory')).body.entries.find((e) => e.n === 'AnimUser').a, null);
+
+  // A store strip the account does not own is refused too...
+  const storeStrip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8').trim();
+  const storeStill = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.still.png.b64'), 'utf8').trim();
+  const notOwned = await post('/v1/wardrobe', { username: 'AnimUser', cape: storeStill, capeAnim: { strip: storeStrip, frames: 24, fps: 12 } }, session.token);
+  assert.equal(notOwned.body.animated, false);
+
+  // ...until it is added to the locker.
+  const claim = await post('/v1/store/claim', { itemId: 'matrix' }, session.token);
+  assert.equal(claim.status, 200);
+  assert.deepEqual(claim.body.owned.map((o) => o.id), ['matrix']);
+  const ok = await post('/v1/wardrobe', { username: 'AnimUser', cape: storeStill, capeAnim: { strip: storeStrip, frames: 24, fps: 12 } }, session.token);
   assert.equal(ok.body.animated, true);
-  assert.equal(ok.body.profile.capeAnimation.frames, 4);
-  assert.equal(ok.body.profile.capeAnimation.fps, 12);
-  assert.match(ok.body.profile.cape, /\/csl\/textures\/[a-f0-9]{64}$/);
-  assert.notEqual(ok.body.profile.cape, ok.body.profile.capeAnimation.url);
-
+  assert.equal(ok.body.profile.capeStore, 'matrix');
+  assert.equal(ok.body.profile.capeAnimation.frames, 24);
   const csl = await json('/csl/AnimUser.json');
-  assert.equal(csl.body.capeAnimation.frames, 4);
-  const stripResponse = await fetch(csl.body.capeAnimation.url);
-  assert.equal(stripResponse.headers.get('content-type'), 'image/png');
-  assert.equal(Buffer.from(await stripResponse.arrayBuffer()).length, strip.length);
-
-  const dir = await json('/v1/skins/directory');
-  const entry = dir.body.entries.find((e) => e.n === 'AnimUser');
-  assert.equal(entry.c, csl.body.cape.split('/').pop());
-  assert.deepEqual({ f: entry.a.f, p: entry.a.p }, { f: 4, p: 12 });
-  assert.equal(entry.a.h, csl.body.capeAnimation.url.split('/').pop());
+  assert.equal(csl.body.capeAnimation.frames, 24);
+  const entry = (await json('/v1/skins/directory')).body.entries.find((e) => e.n === 'AnimUser');
+  assert.deepEqual({ f: entry.a.f, p: entry.a.p }, { f: 24, p: 12 });
 
   // An older launcher re-sends the static first frame: the animation stays.
-  const resync = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), model: 'slim' }, session.token);
+  const resync = await post('/v1/wardrobe', { username: 'AnimUser', cape: storeStill, model: 'slim' }, session.token);
   assert.equal(resync.body.animated, true);
 
   // A different static cape drops it.
   const swap = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(png(64, 32, 200)) }, session.token);
   assert.equal(swap.body.animated, false);
   assert.equal((await json('/csl/AnimUser.json')).body.capeAnimation, undefined);
-  const dir2 = await json('/v1/skins/directory');
-  assert.equal(dir2.body.entries.find((e) => e.n === 'AnimUser').a, null);
+
+  // Removing it from the locker takes it off.
+  await post('/v1/store/equip', { itemId: 'matrix' }, session.token);
+  const unclaim = await post('/v1/store/unclaim', { itemId: 'matrix' }, session.token);
+  assert.equal(unclaim.body.equipped, null);
+  assert.deepEqual(unclaim.body.owned, []);
+  assert.equal((await json('/csl/AnimUser.json')).body.cape, null);
+});
+
+test('legacy self-made animations on disk are shown as still capes', async () => {
+  const strip = png(64, 32 * 3, 40);
+  const hash = (buf) => require('node:crypto').createHash('sha256').update(buf).digest('hex');
+  fs.mkdirSync(path.join(DATA_DIR, 'profiles'), { recursive: true });
+  fs.writeFileSync(path.join(DATA_DIR, 'profiles', 'legacyanim.json'), JSON.stringify({
+    username: 'LegacyAnim', model: 'default', skin: null, cape: hash(png(64, 32, 40)), capeAnim: { strip: hash(strip), frames: 3, fps: 10 }, updatedAt: new Date().toISOString()
+  }));
+  const csl = await json('/csl/LegacyAnim.json');
+  assert.ok(csl.body.cape);
+  assert.equal(csl.body.capeAnimation, undefined);
+});
+
+test('admin store: create animated + static capes, edit, hide, delete', async () => {
+  const admin = db.createUser({ email: 'boss@example.com', username: 'StoreBoss', password: 'correct horse battery' });
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.id);
+  const token = db.createSession(admin.id).token;
+  const pleb = db.createSession(db.createUser({ email: 'pleb@example.com', username: 'Pleb', password: 'correct horse battery' }).id).token;
+  const req = (method, pathname, body, t = token) => json(pathname, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` }, body: body ? JSON.stringify(body) : undefined });
+
+  assert.equal((await req('GET', '/v1/admin/store/items', null, pleb)).status, 403);
+  assert.equal((await json('/v1/admin/store/items')).status, 401);
+
+  const created = await req('POST', '/v1/admin/store/items', { name: 'Galaxy Swirl', description: 'Stars.', tags: 'space, Animated', animated: true, strip: b64(png(64, 32 * 4, 70)), still: b64(png(64, 32, 70)), frames: 4, fps: 8, featured: true });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  assert.equal(created.body.item.id, 'galaxy-swirl');
+  assert.deepEqual(created.body.item.tags, ['space', 'animated']);
+  assert.equal((await req('POST', '/v1/admin/store/items', { name: 'Galaxy Swirl', animated: false, still: b64(png(64, 32)) })).status, 409);
+  assert.equal((await req('POST', '/v1/admin/store/items', { name: 'Broken', animated: true, strip: b64(png(64, 100)), still: b64(png(64, 32)), frames: 3, fps: 8 })).status, 400);
+
+  const flat = await req('POST', '/v1/admin/store/items', { name: 'Plain Black', animated: false, still: b64(png(64, 32, 0)) });
+  assert.equal(flat.body.item.animated, false);
+  assert.equal(flat.body.item.stripUrl, null);
+
+  let catalog = (await json('/v1/store/catalog')).body;
+  assert.equal(catalog.items[0].id === 'galaxy-swirl' || catalog.items[0].featured, true);
+  assert.ok(catalog.items.some((i) => i.id === 'plain-black'));
+  assert.equal(catalog.items.find((i) => i.id === 'galaxy-swirl').isNew, true);
+
+  // Static store capes can be worn too.
+  const wear = await post('/v1/store/equip', { itemId: 'plain-black' }, pleb);
+  assert.equal(wear.body.equipped, 'plain-black');
+  assert.equal(wear.body.profile.capeAnimation, undefined);
+  assert.equal((await json('/v1/store/me', { headers: { Authorization: `Bearer ${pleb}` } })).body.equipped, 'plain-black');
+
+  const edit = await req('PATCH', '/v1/admin/store/items/galaxy-swirl', { name: 'Galaxy', hidden: true, fps: 15 });
+  assert.equal(edit.body.item.name, 'Galaxy');
+  assert.equal(edit.body.item.fps, 15);
+  catalog = (await json('/v1/store/catalog')).body;
+  assert.equal(catalog.items.some((i) => i.id === 'galaxy-swirl'), false);
+  assert.equal((await json('/v1/store/items/galaxy-swirl')).body.item.hidden, true);
+  assert.equal((await post('/v1/store/claim', { itemId: 'galaxy-swirl' }, pleb)).status, 410);
+
+  const del = await req('DELETE', '/v1/admin/store/items/plain-black');
+  assert.equal(del.status, 200);
+  assert.equal((await json('/v1/store/items/plain-black')).status, 404);
+  assert.equal((await json('/v1/store/me', { headers: { Authorization: `Bearer ${pleb}` } })).body.owned.some((o) => o.id === 'plain-black'), false);
 });
 
 test('store: catalogue is public, equip needs a session, equip/unequip are live', async () => {

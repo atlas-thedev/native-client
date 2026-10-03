@@ -183,9 +183,10 @@ function saveProfile(profile, req, owner) {
         model: profile.model === 'slim' ? 'slim' : 'default',
         skinUrl: profile.skin ? `${origin}/csl/textures/${profile.skin}` : null,
         capeUrl: profile.cape ? `${origin}/csl/textures/${profile.cape}` : null,
-        capeAnimation: profile.capeAnim && profile.capeAnim.strip
-          ? { url: `${origin}/csl/textures/${profile.capeAnim.strip}`, frames: profile.capeAnim.frames, fps: profile.capeAnim.fps }
-          : null,
+        capeAnimation: (() => {
+          const anim = storeRoutes.animationFor(profile);
+          return anim ? { url: `${origin}/csl/textures/${anim.strip}`, frames: anim.frames, fps: anim.fps } : null;
+        })(),
         capeStore: profile.capeStore || null,
         updatedAt: profile.updatedAt
       };
@@ -323,11 +324,13 @@ function customSkinProfile(profile, origin) {
   };
   // Animated capes: `cape` above is the first frame (a normal cape for anything
   // that cannot animate); clients that can animate read the whole strip here.
-  if (profile.capeAnim && profile.capeAnim.strip) {
+  // Only Noctra store capes animate; anything else is shown as its still first frame.
+  const anim = storeRoutes.animationFor(profile);
+  if (anim) {
     document.capeAnimation = {
-      url: textureUrl(origin, profile.capeAnim.strip),
-      frames: profile.capeAnim.frames,
-      fps: profile.capeAnim.fps
+      url: textureUrl(origin, anim.strip),
+      frames: anim.frames,
+      fps: anim.fps
     };
   }
   if (profile.capeStore) document.capeStore = profile.capeStore;
@@ -556,6 +559,7 @@ async function handler(req, res) {
       let cape = body.cape !== undefined ? (body.cape ? textureHash(pngBuffer(body.cape)) : null) : (existing?.cape ?? null);
       let capeAnim = existing?.capeAnim ?? null;
       let capeStore = existing?.capeStore ?? null;
+      let animationRefused = false;
       // Older launchers re-send the (static) first frame on every sync. Only a
       // genuinely different cape, or an explicit capeAnim field, drops the animation.
       const capeChanged = body.cape !== undefined && cape !== (existing?.cape ?? null);
@@ -570,9 +574,19 @@ async function handler(req, res) {
           const still = body.cape ? pngBuffer(body.cape) : null;
           if (!strip || !still) throw new Error('An animated cape needs its frame strip and its first frame.');
           const described = capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
-          capeAnim = { strip: textureHash(strip), frames: described.frames, fps: described.fps };
-          // The same store cape re-sent by the launcher stays a store cape.
-          if (existing?.capeStore && existing.capeAnim?.strip === capeAnim.strip && existing.cape === cape) capeStore = existing.capeStore;
+          // Animated capes are Noctra store capes only: the strip must be a store item this
+          // account owns. Anything else keeps its still first frame as a normal cape.
+          const stripHash = crypto.createHash('sha256').update(strip).digest('hex');
+          let sessionUser = null;
+          if (sessionAuthorized) { try { sessionUser = db.getUserByUsername(username); } catch {} }
+          const storeId = storeRoutes.authorizeAnimation({ stripHash, user: sessionUser, existing });
+          const item = storeId ? storeRoutes.findItem(storeId) : null;
+          if (item && item.still === cape) {
+            capeAnim = { strip: item.strip, frames: item.frames, fps: item.fps };
+            capeStore = item.id;
+          } else {
+            animationRefused = true;
+          }
         } catch (error) {
           return send(res, 400, { ok: false, error: error.message || 'Invalid animated cape.' });
         }
@@ -596,7 +610,8 @@ async function handler(req, res) {
         model: profile.model,
         skins: profile.skin ? [profile.skin] : [],
         capes: profile.cape ? [profile.cape] : [],
-        animated: Boolean(profile.capeAnim),
+        animated: Boolean(storeRoutes.animationFor(profile)),
+        ...(animationRefused ? { notice: 'Animated capes come from the Noctra Store. Your cape was saved as a still image.' } : {}),
         profile: customSkinProfile(profile, originOf(req))
       });
     }
@@ -1310,6 +1325,7 @@ function applyTimeouts(server) {
 }
 
 function createServer() {
+  try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Noctra Store] catalogue failed to load:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }
 

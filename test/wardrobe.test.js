@@ -329,43 +329,18 @@ test('without a CustomSkinLoader config the Noctra API is added through ExtraLis
   }
 });
 
-test('animated capes: strip + first frame are stored, the still is the normal cape, bad strips are refused', async () => {
+test('animated capes only come from the Noctra Store; players can still upload static capes', async () => {
   const { account, userData } = makeAccount();
   try {
-    // 4 frames of 64×32 stacked: 64×128, and its first frame.
     const strip = pngBuffer(64, 128).toString('base64');
     const still = pngBuffer(64, 32).toString('base64');
-
-    assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'X', anim: { frames: 5, fps: 10 }, stillDataUrl: still }), /divide into 5 frames/);
-    assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'X', anim: { frames: 4, fps: 10 }, stillDataUrl: pngBuffer(64, 31).toString('base64') }), /must match one frame/);
-    assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'X', anim: { frames: 1, fps: 10 }, stillDataUrl: still }), /between 2 and 240/);
-    assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'skin', dataUrl: strip, name: 'X', anim: { frames: 4, fps: 10 }, stillDataUrl: still }), /Only capes/);
-
-    let state = wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Dance', anim: { frames: 4, fps: 99 }, stillDataUrl: still });
-    const cape = state.capes[0];
-    assert.equal(cape.animated, true);
-    assert.deepEqual(cape.anim, { frames: 4, fps: 30 }); // speed is clamped
-    assert.equal(cape.url, `data:image/png;base64,${still}`); // static consumers get the first frame
-    assert.equal(state.active.capeUrl, cape.url);
-    assert.equal(state.active.capeAnim.frames, 4);
-    assert.equal(state.active.capeAnim.stripUrl, `data:image/png;base64,${strip}`);
-
-    // The game gets the normal cape; syncing also carries the strip.
-    await wardrobe.prepareFabricInstance({ id: 'inst-a', version: '1.21.1' }, account);
-    const written = fs.readFileSync(path.join(userData, 'minecraft', 'instances', 'inst-a', 'CustomSkinLoader', 'LocalSkin', 'capes', 'Notch.png'));
-    assert.equal(written.toString('base64'), still);
-
-    // A different plain cape under the same name drops the animation.
-    state = wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: pngBuffer(64, 32).toString('base64'), name: 'Dance' });
+    for (const anim of [{ frames: 4, fps: 10 }, { frames: 5, fps: 10 }]) {
+      assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'X', anim, stillDataUrl: still }), /Noctra Store/);
+    }
+    const state = wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: still, name: 'Plain' });
     assert.equal(state.capes[0].animated, undefined);
     assert.equal(state.active.capeAnim, null);
-
-    // Removing an animated cape removes both files.
-    state = wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Again', anim: { frames: 4, fps: 12 }, stillDataUrl: still });
-    const dir = path.join(userData, 'wardrobe', fs.readdirSync(path.join(userData, 'wardrobe'))[0]);
-    assert.equal(fs.readdirSync(dir).filter((f) => f.endsWith('.still.png')).length, 1);
-    wardrobe.removeItem(account, state.capes.find((c) => c.name === 'Again').id);
-    assert.equal(fs.readdirSync(dir).filter((f) => f.endsWith('.still.png')).length, 0);
+    assert.equal(state.active.capeUrl, `data:image/png;base64,${still}`);
   } finally {
     fs.rmSync(userData, { recursive: true, force: true });
   }

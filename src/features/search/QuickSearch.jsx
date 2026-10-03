@@ -221,6 +221,7 @@ export default function QuickSearch({
     page('versions', 'Versions', 'Browse Minecraft releases', Blocks, ['releases', 'snapshots', 'minecraft versions', 'update']);
     page('discover', 'Discover', 'Mods, modpacks, shaders and packs', Compass, ['browse', 'modrinth', 'mods', 'modpacks', 'shaders', 'resource packs', 'store']);
     page('skins', 'Locker', 'Skins and capes', User, ['skin', 'cape', 'wardrobe', 'cosmetics']);
+    page('store', 'Store', 'Animated capes from Noctra', User, ['store', 'shop', 'cape', 'animated', 'buy']);
     page('relay', 'Relay', hasNoctra ? 'Friends and chat' : 'Friends and chat · needs Noctra', MessageSquare, ['chat', 'friends', 'messages', 'social', 'dm']);
     page('guides', 'How to', 'Video guides and answers', BookOpen, ['help', 'tutorial', 'guide', 'videos', 'faq', 'learn']);
     page('settings', 'Settings', 'Launcher, Minecraft, Java, storage', Settings, ['preferences', 'options', 'config']);

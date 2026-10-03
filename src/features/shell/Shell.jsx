@@ -7,6 +7,7 @@ import BrowseView from '../browser/BrowseView.jsx';
 
 import ClusterDetailView from '../cluster/ClusterDetailView.jsx';
 import LockerView from '../skins/LockerView.jsx';
+import StoreView from '../store/StoreView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
 import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
@@ -700,6 +701,7 @@ export default function Shell({
             <LockerView
               account={account}
               onWardrobeChanged={onWardrobeChanged}
+              onOpenStore={() => setCurrentTab('store')}
               onNotify={notify}
               online={networkStatus?.state === 'online'}
             />
@@ -710,6 +712,16 @@ export default function Shell({
               onBackHome={() => setCurrentTab('home')}
             />
           )
+        )}
+
+        {currentTab === 'store' && (
+          <StoreView
+            account={account}
+            onNotify={notify}
+            onWardrobeChanged={onWardrobeChanged}
+            onOpenLocker={() => setCurrentTab('skins')}
+            onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
+          />
         )}
 
         {currentTab === 'relay' && (

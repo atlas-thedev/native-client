@@ -8,6 +8,7 @@ import {
   Search
 } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
+import AdminStore from './AdminStore.jsx';
 import '../instances/InstancesView.css';
 import './AdminView.css';
 
@@ -159,7 +160,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
 
   const tabs = [
     ['overview', 'Overview', null],
-    ['users', 'Users', formatNumber(pagination.total)]
+    ['users', 'Users', formatNumber(pagination.total)],
+    ['store', 'Store', null]
   ];
 
   return (
@@ -167,7 +169,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       <header className="instances-header admin-header">
         <div className="instances-heading-group">
           <h1 className="instances-title page-title">Administration</h1>
-          <p className="instances-subtitle">Manage Noctra users, badges, and database health.</p>
+          <p className="instances-subtitle">Manage Noctra users, badges, Store capes, and database health.</p>
         </div>
         <div className="instances-header-actions">
           <span className="admin-access-label">Admin only</span>
@@ -188,7 +190,9 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         ))}
       </nav>
 
-      {section === 'overview' ? (
+      {section === 'store' ? (
+        <AdminStore onNotify={onNotify} onError={setError}/>
+      ) : section === 'overview' ? (
         <div className="admin-scroll">
           <div className="admin-overview">
             <p className="admin-lead">

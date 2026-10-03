@@ -76,7 +76,10 @@ const api = {
   store: {
     catalog: (options) => ipcRenderer.invoke('store:catalog', options),
     strip: (itemId) => ipcRenderer.invoke('store:strip', itemId),
-    equip: (account, itemId) => ipcRenderer.invoke('store:equip', { account, itemId })
+    equip: (account, itemId) => ipcRenderer.invoke('store:equip', { account, itemId }),
+    me: (account) => ipcRenderer.invoke('store:me', account),
+    claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
+    unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId })
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),
@@ -254,7 +257,11 @@ const api = {
     status: () => ipcRenderer.invoke('admin:status'),
     overview: () => ipcRenderer.invoke('admin:overview'),
     listUsers: (options) => ipcRenderer.invoke('admin:listUsers', options),
-    setBadge: (userId, badge, granted) => ipcRenderer.invoke('admin:setBadge', userId, badge, granted)
+    setBadge: (userId, badge, granted) => ipcRenderer.invoke('admin:setBadge', userId, badge, granted),
+    storeItems: () => ipcRenderer.invoke('admin:storeItems'),
+    storeCreate: (item) => ipcRenderer.invoke('admin:storeCreate', item),
+    storeUpdate: (id, patch) => ipcRenderer.invoke('admin:storeUpdate', id, patch),
+    storeDelete: (id) => ipcRenderer.invoke('admin:storeDelete', id)
   },
   discord: {
     setTab: (tab) => ipcRenderer.send('discord:setTab', tab),

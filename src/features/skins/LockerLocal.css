@@ -53,3 +53,22 @@
 }
 .capestore-equip:disabled { opacity: 0.6; cursor: default; }
 .capestore-remove { align-self: center; background: transparent; color: var(--fg-secondary); border: 1px solid var(--lk-line-strong); }
+
+/* Remove a self-uploaded static cape from the locker. */
+.locker-cape-remove {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--fg-muted);
+  background: var(--lk-tile, rgba(0, 0, 0, 0.4));
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.locker-cape-card:hover .locker-cape-remove,
+.locker-cape-remove:focus-visible { opacity: 1; }
+.locker-cape-remove:hover { color: #f87171; }

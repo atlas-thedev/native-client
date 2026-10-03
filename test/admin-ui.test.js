@@ -31,5 +31,5 @@ process.stdout.write(renderToString(React.createElement(AdminView, {})));
   assert.match(html, /Admin only/);
   assert.match(html, /Database/);
   assert.match(html, /Passwords, salts, tokens, and verification codes are never returned/);
-  assert.match(html, /Manage Noctra users, badges, and database health/);
+  assert.match(html, /Manage Noctra users, badges, Store capes, and database health/);
 });

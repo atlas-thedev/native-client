@@ -45,8 +45,11 @@ function entryFor(profile) {
     const user = db.getUserByUsername(profile.username);
     mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
   } catch { /* the database may be unavailable in tests */ }
-  const anim = profile.capeAnim && HASH.test(profile.capeAnim.strip || '') && HASH.test(profile.cape || '')
-    ? { h: profile.capeAnim.strip, f: Number(profile.capeAnim.frames) || 0, p: Number(profile.capeAnim.fps) || 0 }
+  // Only Noctra store capes animate (see store-routes.animationFor).
+  let allowed = null;
+  try { allowed = require('./store-routes').animationFor(profile); } catch {}
+  const anim = allowed && HASH.test(profile.cape || '')
+    ? { h: allowed.strip, f: Number(allowed.frames) || 0, p: Number(allowed.fps) || 0 }
     : null;
   return {
     n: profile.username,

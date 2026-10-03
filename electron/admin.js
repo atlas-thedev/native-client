@@ -56,6 +56,10 @@ function init() {
     });
     return adminFetch(`/users?${query.toString()}`);
   });
+  handle('admin:storeItems', () => adminFetch('/store/items'));
+  handle('admin:storeCreate', (item = {}) => adminFetch('/store/items', { method: 'POST', body: item, timeout: 60_000 }));
+  handle('admin:storeUpdate', (id, patch = {}) => adminFetch(`/store/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, timeout: 60_000 }));
+  handle('admin:storeDelete', (id) => adminFetch(`/store/items/${encodeURIComponent(id)}`, { method: 'DELETE' }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

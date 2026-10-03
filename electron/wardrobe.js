@@ -306,7 +306,8 @@ function stripDataUrl(account, id) {
 /* ── public state ────────────────────────────────────────────── */
 
 function publicItem(account, item, metadata) {
-  const animated = Boolean(item.anim && item.stillFile);
+  // Only Noctra store capes animate; a self-made animation from an older launcher shows its first frame.
+  const animated = Boolean(item.anim && item.stillFile && item.storeId);
   return {
     id: item.id,
     kind: item.kind,
@@ -317,7 +318,7 @@ function publicItem(account, item, metadata) {
     ageDays: Math.max(0, Math.floor((Date.now() - item.createdAt) / 86_400_000)),
     active: (item.kind === 'skin' ? metadata.activeSkin : metadata.activeCape) === item.id,
     // Animated capes expose their first frame as `url`, so anything that cannot animate shows a normal cape.
-    url: dataUrl(account, animated ? item.stillFile : item.file),
+    url: dataUrl(account, item.anim && item.stillFile ? item.stillFile : item.file),
     ...(animated ? { animated: true, anim: { ...item.anim }, ...(item.storeId ? { storeId: item.storeId } : {}) } : {})
   };
 }
@@ -546,11 +547,8 @@ function addItemFromBase64(account, { kind, dataUrl: value, name, model, anim, s
   if (!account?.id) throw new Error('Sign in to use the locker.');
   if (kind !== 'skin' && kind !== 'cape') throw new Error('Invalid locker item.');
   if (anim) {
-    if (kind !== 'cape') throw new Error('Only capes can be animated.');
-    const strip = decodeBase64Texture(value, { animated: true });
-    const still = decodeBase64Texture(stillDataUrl);
-    const spec = validateAnimatedCape(strip, still, anim);
-    return storeItem(account, kind, strip, { name, model, anim: { frames: spec.frames, fps: spec.fps }, still });
+    // Animated capes are Noctra Store items: get them from the Store page, not from a file.
+    throw new Error('Animated capes come from the Noctra Store. You can upload static capes.');
   }
   return storeItem(account, kind, decodeBase64Texture(value), { name, model });
 }
@@ -650,10 +648,11 @@ function readActiveBuffers(account) {
     }
   };
   const capeItem = activeItem(metadata, 'cape');
-  const animated = Boolean(capeItem?.anim && capeItem.stillFile);
+  const hasStill = Boolean(capeItem?.anim && capeItem.stillFile);
   // `cape` is always a normal cape texture (the first frame of an animation); `capeAnim` carries the strip.
-  const cape = read(animated ? capeItem.stillFile : capeItem?.file);
-  const strip = animated && cape ? read(capeItem.file) : null;
+  // Only Noctra store capes are sent animated - the server refuses anything else anyway.
+  const cape = read(hasStill ? capeItem.stillFile : capeItem?.file);
+  const strip = hasStill && capeItem.storeId && cape ? read(capeItem.file) : null;
   return {
     metadata,
     skin: read(activeItem(metadata, 'skin')?.file),
@@ -699,14 +698,16 @@ async function fetchStoreStrip(itemId) {
   const catalog = await fetchStoreCatalog();
   const item = catalog.items.find((entry) => entry.id === itemId);
   if (!item) throw new Error('That store item does not exist.');
-  if (stripCache.has(item.stripUrl)) return stripCache.get(item.stripUrl);
-  const response = await fetch(item.stripUrl, { signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error('Couldn’t download that animation.');
+  const url = item.stripUrl || item.stillUrl;
+  if (!url) throw new Error('That store item has no texture.');
+  if (stripCache.has(url)) return stripCache.get(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+  if (!response.ok) throw new Error('Couldn’t download that cape.');
   const bytes = Buffer.from(await response.arrayBuffer());
-  pngInfoBuffer(bytes, 'animation', { animated: true });
+  pngInfoBuffer(bytes, item.stripUrl ? 'animation' : 'cape', { animated: Boolean(item.stripUrl) });
   const value = `data:image/png;base64,${bytes.toString('base64')}`;
   if (stripCache.size > 12) stripCache.delete(stripCache.keys().next().value);
-  stripCache.set(item.stripUrl, value);
+  stripCache.set(url, value);
   return value;
 }
 
@@ -739,6 +740,49 @@ async function equipStoreItem(account, itemId) {
   metadata.lastModifiedAt = 0;
   saveMetadata(account, metadata);
   return (await pullRemoteWardrobe(account, { authoritative: true })) || publicState(account);
+}
+
+function storeHeaders(account) {
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Noctra-Token': account.token };
+}
+
+function requireStoreAccount(account) {
+  if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
+    throw new Error('Sign in with a Noctra account to use store items.');
+  }
+  if (!isOnline()) throw new Error('You’re offline. Connect to the internet to use the store.');
+}
+
+/** `{ equipped, owned: [{ id, acquiredAt }] }` for the signed-in Noctra account. */
+async function fetchStoreMe(account) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/store/me`, { headers: storeHeaders(account), signal: AbortSignal.timeout(10_000) });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
+  return { equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
+}
+
+/** Adds a store item to (or, with remove, takes it out of) the account's locker. */
+async function claimStoreItem(account, itemId, { remove = false } = {}) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/store/${remove ? 'unclaim' : 'claim'}`, {
+    method: 'POST',
+    headers: storeHeaders(account),
+    body: JSON.stringify({ itemId }),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t do that (HTTP ${response.status}).`);
+  let state = null;
+  if (remove && body.profile) {
+    const metadata = loadMetadata(account);
+    metadata.lastModifiedAt = 0;
+    saveMetadata(account, metadata);
+    state = (await pullRemoteWardrobe(account, { authoritative: true })) || publicState(account);
+  }
+  return { owned: body.owned || [], equipped: body.equipped || null, state };
 }
 
 async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
@@ -1599,6 +1643,15 @@ function init(dependencies, ipcMain) {
   });
   ipcMain.handle('store:strip', async (_event, itemId) => {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:me', async (_event, account) => {
+    try { return { ok: true, ...(await fetchStoreMe(account)) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:claim', async (_event, { account, itemId }) => {
+    try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipcMain.handle('store:unclaim', async (_event, { account, itemId }) => {
+    try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipcMain.handle('store:equip', async (_event, { account, itemId }) => {
     try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }

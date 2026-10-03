@@ -69,7 +69,7 @@ const tr = {
 };
 
 Object.assign(en, {
-  'account.logInWith':'Log in with','account.viewCode':'View code','account.backHome':'Back to Home','account.community':'Community','account.privacy':'Privacy Policy','account.terms':'Terms of Service','account.support':'Support','nav.locker':'Locker','nav.friends':'Friends','nav.relay':'Relay',
+  'account.logInWith':'Log in with','account.viewCode':'View code','account.backHome':'Back to Home','account.community':'Community','account.privacy':'Privacy Policy','account.terms':'Terms of Service','account.support':'Support','nav.locker':'Locker','nav.store':'Store','nav.friends':'Friends','nav.relay':'Relay',
   'account.native':'Noctra Account','account.noctra':'Noctra Account','account.nativeSubtitle':'Play with custom username and synced skin support','account.createNative':'Create Noctra Account','account.createNoctra':'Create Noctra Account','account.playWithNative':'Play with Noctra Account','account.model':'Player Model','account.modelClassic':'Classic (Steve)','account.modelSlim':'Slim (Alex)',
   'account.logInWithNoctra':'Log in with Noctra','account.noctraLogin':'Log In to Noctra','account.loginOrEmail':'Username or Email','account.password':'Password','account.email':'Email Address','account.dontHaveAccount':'Don’t have an account?','account.createNoctraLink':'Create one','account.alreadyHaveAccount':'Already have an account?','account.logInLink':'Log in','account.sendCode':'Send Verification Code','account.verifyCodeTitle':'Verify Your Email','account.verifyCodeSubtitle':'Enter the 6-digit code sent to {email}','account.verifyAndPlay':'Verify & Start Playing','account.resendCode':'Resend code','account.resendIn':'Resend code in {seconds}s','account.changeEmail':'Change email','account.invalidCode':'Please enter the 6-digit code sent to your email.',
   'account.signedInAs':'Signed in as','account.empty':'No accounts yet. Add one to start playing.','account.switch':'Switch account','account.remove':'Remove account','account.add':'Add an account','account.signInMicrosoft':'Sign in with Microsoft','account.offlineUsername':'Offline username','account.addButton':'Add','account.offlineHint':'Offline accounts can only join servers that allow them.',
@@ -86,7 +86,7 @@ Object.assign(en, {
 });
 
 Object.assign(es, {
-  'nav.locker':'Armario','nav.friends':'Amigos','nav.relay':'Relay',
+  'nav.locker':'Armario','nav.store':'Tienda','nav.friends':'Amigos','nav.relay':'Relay',
   'account.signedInAs':'Sesión iniciada como','account.empty':'Aún no hay cuentas. Añade una para empezar a jugar.','account.switch':'Cambiar cuenta','account.remove':'Quitar cuenta','account.add':'Añadir una cuenta','account.signInMicrosoft':'Iniciar sesión con Microsoft','account.offlineUsername':'Usuario sin conexión','account.addButton':'Añadir','account.offlineHint':'Las cuentas sin conexión solo pueden entrar en servidores compatibles.',
   'back.home':'Volver a Inicio','back.instances':'Volver a Instancias','back.versions':'Volver a Versiones','back.stats':'Volver a Estadísticas','back.browse':'Volver a Explorar','notify.launching':'Iniciando juego','notify.starting':'Iniciando {name} — {version}','notify.created':'Instancia creada','notify.modpackInstalled':'Modpack instalado','notify.ready':'{name} está listo para jugar','notify.duplicated':'Instancia duplicada',
   'create.subtitle':'Elige una versión y un cargador de mods. Podrás cambiar el resto después.','create.namePlaceholder':'Mi mundo survival','create.duplicateName':'Ya tienes una instancia con este nombre.','create.showSnapshots':'Mostrar snapshots','create.searchVersions':'Buscar versiones','create.noVersionsMatch':'Ninguna versión coincide con la búsqueda.','create.offlineCache':'Sin conexión: se muestra la última lista guardada.','create.preview':'Vista previa','create.untitled':'Instancia sin título','create.version':'Versión','create.notSelected':'Sin seleccionar','create.loader':'Cargador','create.edition':'Edición','create.javaEdition':'Edición Java',
@@ -96,7 +96,7 @@ Object.assign(es, {
 });
 
 Object.assign(de, {
-  'nav.locker':'Garderobe','nav.friends':'Freunde','nav.relay':'Relay',
+  'nav.locker':'Garderobe','nav.store':'Shop','nav.friends':'Freunde','nav.relay':'Relay',
   'account.signedInAs':'Angemeldet als','account.empty':'Noch keine Konten. Füge eines hinzu, um zu spielen.','account.switch':'Konto wechseln','account.remove':'Konto entfernen','account.add':'Konto hinzufügen','account.signInMicrosoft':'Mit Microsoft anmelden','account.offlineUsername':'Offline-Benutzername','account.addButton':'Hinzufügen','account.offlineHint':'Offline-Konten können nur kompatiblen Servern beitreten.',
   'back.home':'Zurück zum Start','back.instances':'Zurück zu Instanzen','back.versions':'Zurück zu Versionen','back.stats':'Zurück zur Statistik','back.browse':'Zurück zu Entdecken','notify.launching':'Spiel wird gestartet','notify.starting':'{name} wird gestartet — {version}','notify.created':'Instanz erstellt','notify.modpackInstalled':'Modpack installiert','notify.ready':'{name} ist spielbereit','notify.duplicated':'Instanz dupliziert',
   'create.subtitle':'Wähle eine Version und einen Mod-Loader. Alles Weitere kann später geändert werden.','create.namePlaceholder':'Meine Survival-Welt','create.duplicateName':'Eine Instanz mit diesem Namen existiert bereits.','create.showSnapshots':'Snapshots anzeigen','create.searchVersions':'Versionen suchen','create.noVersionsMatch':'Keine Versionen entsprechen der Suche.','create.offlineCache':'Offline: Die zuletzt gespeicherte Versionsliste wird angezeigt.','create.preview':'Vorschau','create.untitled':'Unbenannte Instanz','create.version':'Version','create.notSelected':'Nicht ausgewählt','create.loader':'Loader','create.edition':'Edition','create.javaEdition':'Java Edition',
@@ -106,7 +106,7 @@ Object.assign(de, {
 });
 
 Object.assign(fr, {
-  'nav.locker':'Vestiaire','nav.friends':'Amis','nav.relay':'Relay',
+  'nav.locker':'Vestiaire','nav.store':'Boutique','nav.friends':'Amis','nav.relay':'Relay',
   'account.signedInAs':'Connecté en tant que','account.empty':'Aucun compte. Ajoutez-en un pour commencer à jouer.','account.switch':'Changer de compte','account.remove':'Retirer le compte','account.add':'Ajouter un compte','account.signInMicrosoft':'Se connecter avec Microsoft','account.offlineUsername':'Nom hors ligne','account.addButton':'Ajouter','account.offlineHint':'Les comptes hors ligne ne peuvent rejoindre que les serveurs compatibles.',
   'back.home':'Retour à l’accueil','back.instances':'Retour aux instances','back.versions':'Retour aux versions','back.stats':'Retour aux statistiques','back.browse':'Retour à Parcourir','notify.launching':'Lancement du jeu','notify.starting':'Lancement de {name} — {version}','notify.created':'Instance créée','notify.modpackInstalled':'Modpack installé','notify.ready':'{name} est prêt à jouer','notify.duplicated':'Instance dupliquée',
   'create.subtitle':'Choisissez une version et un chargeur de mods. Le reste pourra être modifié plus tard.','create.namePlaceholder':'Mon monde survie','create.duplicateName':'Une instance porte déjà ce nom.','create.showSnapshots':'Afficher les snapshots','create.searchVersions':'Rechercher des versions','create.noVersionsMatch':'Aucune version ne correspond à la recherche.','create.offlineCache':'Hors ligne : dernière liste enregistrée affichée.','create.preview':'Aperçu','create.untitled':'Instance sans nom','create.version':'Version','create.notSelected':'Non sélectionnée','create.loader':'Chargeur','create.edition':'Édition','create.javaEdition':'Édition Java',
@@ -116,7 +116,7 @@ Object.assign(fr, {
 });
 
 Object.assign(ptBR, {
-  'nav.locker':'Guarda-roupa','nav.friends':'Amigos','nav.relay':'Relay',
+  'nav.locker':'Guarda-roupa','nav.store':'Loja','nav.friends':'Amigos','nav.relay':'Relay',
   'account.signedInAs':'Conectado como',
   'account.empty':'Nenhuma conta ainda. Adicione uma para começar a jogar.','account.switch':'Trocar conta','account.remove':'Remover conta','account.add':'Adicionar uma conta','account.signInMicrosoft':'Entrar com a Microsoft','account.offlineUsername':'Usuário offline','account.addButton':'Adicionar','account.offlineHint':'Contas offline só podem entrar em servidores compatíveis.',
   'back.home':'Voltar ao Início','back.instances':'Voltar às Instâncias','back.versions':'Voltar às Versões','back.stats':'Voltar às Estatísticas','back.browse':'Voltar a Explorar','notify.launching':'Iniciando jogo','notify.starting':'Iniciando {name} — {version}','notify.created':'Instância criada','notify.modpackInstalled':'Modpack instalado','notify.ready':'{name} está pronta para jogar','notify.duplicated':'Instância duplicada',
@@ -127,7 +127,7 @@ Object.assign(ptBR, {
 });
 
 Object.assign(tr, {
-  'nav.locker':'Dolap','nav.friends':'Arkadaşlar','nav.relay':'Relay',
+  'nav.locker':'Dolap','nav.store':'Mağaza','nav.friends':'Arkadaşlar','nav.relay':'Relay',
   'account.signedInAs':'Oturum açıldı','account.empty':'Henüz hesap yok. Oynamak için bir hesap ekle.','account.switch':'Hesap değiştir','account.remove':'Hesabı kaldır','account.add':'Hesap ekle','account.signInMicrosoft':'Microsoft ile oturum aç','account.offlineUsername':'Çevrimdışı kullanıcı adı','account.addButton':'Ekle','account.offlineHint':'Çevrimdışı hesaplar yalnızca izin veren sunuculara katılabilir.',
   'back.home':'Ana Sayfaya dön','back.instances':'Kurulumlara dön','back.versions':'Sürümlere dön','back.stats':'İstatistiklere dön','back.browse':'Keşfet’e dön','notify.launching':'Oyun başlatılıyor','notify.starting':'{name} başlatılıyor — {version}','notify.created':'Kurulum oluşturuldu','notify.modpackInstalled':'Mod paketi kuruldu','notify.ready':'{name} oynamaya hazır','notify.duplicated':'Kurulum çoğaltıldı',
   'create.subtitle':'Bir sürüm ve mod yükleyici seç. Diğer her şeyi daha sonra değiştirebilirsin.','create.namePlaceholder':'Hayatta kalma dünyam','create.duplicateName':'Bu adda bir kurulum zaten var.','create.showSnapshots':'Snapshot sürümlerini göster','create.searchVersions':'Sürümlerde ara','create.noVersionsMatch':'Aramayla eşleşen sürüm yok.','create.offlineCache':'Çevrimdışı: son kaydedilen sürüm listesi gösteriliyor.','create.preview':'Önizleme','create.untitled':'Adsız kurulum','create.version':'Sürüm','create.notSelected':'Seçilmedi','create.loader':'Yükleyici','create.edition':'Sürüm türü','create.javaEdition':'Java Edition',
