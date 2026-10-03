@@ -4,6 +4,7 @@ import earlySupporterBadge from '../../assets/badges/early-supporter.png';
 import bugHunterBadge from '../../assets/badges/bug-hunter.png';
 import staffBadge from '../../assets/badges/staff.png';
 import './Badges.css';
+import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
 
 /* Noctra+ badge: a gold pixel crown (inline so it works everywhere). */
 const plusBadge = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><rect width="16" height="16" rx="4" fill="#ffd68c"/><path fill="#1a1306" d="M3 5h2v2h1V5h1V4h2v1h1v2h1V5h2v7H3z"/><path fill="#ffd68c" d="M5 10h6v1H5z"/></svg>')}`;
@@ -51,18 +52,9 @@ export const BADGE_DEFS = {
 /** True when the server has granted the Noctra+ badge. */
 export const isPlusUser = (user) => getUserBadges(user).includes('plus');
 
-/** Small gold crown shown next to Noctra+ members' names across Relay. */
+/** The Noctra+ mark shown next to members' names across Relay. */
 export function PlusMark({ size = 14, className = '' }) {
-  return (
-    <img
-      src={plusBadge}
-      alt="Noctra+"
-      title="Noctra+ member"
-      draggable="false"
-      className={`noctra-plus-mark ${className}`}
-      style={{ width: size, height: size, flex: 'none', borderRadius: Math.round(size / 4), imageRendering: 'pixelated', verticalAlign: 'middle' }}
-    />
-  );
+  return <NoctraPlusIcon size={size} className={`noctra-plus-mark ${className}`.trim()} title="Noctra+ member" />;
 }
 
 /**

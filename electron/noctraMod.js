@@ -169,6 +169,16 @@ function writeHandoff(gameDir, { ticket, api, expiresAt, account }) {
   writeFileAtomic(handoffPath(gameDir), JSON.stringify(body, null, 2), 0o600);
 }
 
+/**
+ * Tells the mod where the launcher's shared texture cache lives (<gameDir>/.noctra/launcher.json),
+ * so capes the launcher already downloaded are read from disk instead of the network.
+ */
+function writeLauncherInfo(gameDir, { textureCache } = {}) {
+  try {
+    writeFileAtomic(path.join(gameDir, '.noctra', 'launcher.json'), JSON.stringify({ v: 1, launcher: 'noctra-client', textureCache: textureCache || null }, null, 2));
+  } catch { /* optional */ }
+}
+
 function clearHandoff(gameDir) {
   try { fs.rmSync(handoffPath(gameDir), { force: true }); } catch { /* already gone */ }
 }
@@ -184,7 +194,7 @@ function clearHandoff(gameDir) {
  *
  * @returns {{installed:boolean, version?:string, filename?:string, signedIn?:boolean, warning?:string, reason?:string}}
  */
-async function prepare({ instance, identity, gameDir, cacheDir, roots, fetchImpl = fetch, onState = () => {} }) {
+async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCache = null, fetchImpl = fetch, onState = () => {} }) {
   const loader = instance?.loader || instance?.mc_loader;
   const mcVersion = String(instance?.version || instance?.mc_version || '');
   if (!supportsLoader(loader)) return { installed: false, reason: 'loader' };
@@ -202,12 +212,14 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, fetchImpl
     const existing = findInstalled(path.join(gameDir, 'mods'));
     if (!existing) return { installed: false, warning: error.message, reason: 'unavailable' };
     clearHandoff(gameDir);
+    writeLauncherInfo(gameDir, { textureCache });
     const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
     return { installed: true, filename: existing, signedIn, warning: `Using the installed mod: ${error.message}` };
   }
 
   const filename = installJar(jarPath, path.join(gameDir, 'mods'));
   clearHandoff(gameDir);
+  writeLauncherInfo(gameDir, { textureCache });
   const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
   return { installed: true, version: manifest.version, filename, signedIn };
 }
@@ -234,6 +246,7 @@ module.exports = {
   installJar,
   requestTicket,
   writeHandoff,
+  writeLauncherInfo,
   supportsLoader,
   supportsMinecraft,
   validateManifest,

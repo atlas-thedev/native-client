@@ -961,3 +961,52 @@
 :root[data-motion='reduced'] .noctra-connect-node,
 :root[data-motion='reduced'] .noctra-connect-badge,
 :root[data-motion='reduced'] .noctra-connect-wire i { animation: none !important; }
+
+/* Linked accounts: a Microsoft account nests under the Noctra account it signs into. */
+.account-login-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  overflow: hidden;
+}
+.account-login-group:has(.account-login-item.active) { border-color: var(--component-border-hover, rgba(255, 255, 255, 0.18)); }
+.account-login-group > .account-login-item { border: 0; border-radius: 0; }
+.account-login-children {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 6px 6px 30px;
+}
+.account-login-children::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 0;
+  bottom: 35px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.account-login-item.is-child {
+  position: relative;
+  min-height: 42px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.025);
+}
+.account-login-item.is-child::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: calc(50% - 8px);
+  width: 10px;
+  height: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom-left-radius: 7px;
+}
+.account-login-item.is-child:hover { background: rgba(255, 255, 255, 0.05); border-color: transparent; }
+.account-login-item.is-child.active { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.16); }

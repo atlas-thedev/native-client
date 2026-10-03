@@ -20,6 +20,33 @@ const COMMUNITY = {
 
 const LEGAL = 'https://nativelaunch.xyz';
 
+/**
+ * Saved accounts with each linked Microsoft account nested under the Noctra account it signs
+ * into (matched by user id, then email, then name). Unmatched accounts stay top-level.
+ */
+function groupLinkedAccounts(accounts) {
+  const list = Array.isArray(accounts) ? accounts : [];
+  const noctra = list.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
+  const parentOf = (acc) => {
+    const link = acc.type === 'microsoft' && acc.noctraLink?.connected ? acc.noctraLink : null;
+    if (!link) return null;
+    const lower = (v) => String(v || '').toLowerCase();
+    return noctra.find((n) => link.userId && n.id === link.userId)
+      || noctra.find((n) => link.email && lower(n.email) === lower(link.email))
+      || noctra.find((n) => link.name && lower(n.name) === lower(link.name))
+      || null;
+  };
+  const childrenOf = new Map();
+  const nested = new Set();
+  for (const acc of list) {
+    const parent = parentOf(acc);
+    if (!parent) continue;
+    nested.add(acc.id);
+    childrenOf.set(parent.id, [...(childrenOf.get(parent.id) || []), acc]);
+  }
+  return list.filter((acc) => !nested.has(acc.id)).map((acc) => ({ parent: acc, children: childrenOf.get(acc.id) || [] }));
+}
+
 export default function AccountSwitcherModal({
   open,
   firstRun = false,
@@ -565,7 +592,8 @@ export default function AccountSwitcherModal({
                         <small>{accounts.length}</small>
                       </div>
                       <div className="account-login-list">
-                        {accounts.map((acc) => {
+                        {groupLinkedAccounts(accounts).map(({ parent, children }) => {
+                          const renderRow = (acc, { child = false } = {}) => {
                           const active = acc.id === activeId;
                           const choose = () => {
                             onSwitchAccount?.(acc.id);
@@ -574,7 +602,7 @@ export default function AccountSwitcherModal({
                           return (
                             <div
                               key={acc.id}
-                              className={`account-login-item ${active ? 'active' : ''}`}
+                              className={`account-login-item ${active ? 'active' : ''}${child ? ' is-child' : ''}`}
                               role="button"
                               tabIndex={0}
                               onClick={choose}
@@ -582,12 +610,12 @@ export default function AccountSwitcherModal({
                                 if (e.key === 'Enter' || e.key === ' ') choose();
                               }}
                             >
-                              <PlayerAvatar account={acc} kind="avatar" size={30} />
+                              <PlayerAvatar account={acc} kind="avatar" size={child ? 26 : 30} />
                               <div className="account-login-item-text">
                                 <strong>{acc.name}</strong>
                                 <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-noctra is-native'}>
                                   {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.noctra') || t('account.native'))}
-                                  {acc.type === 'microsoft' && acc.noctraLink?.connected && (
+                                  {acc.type === 'microsoft' && acc.noctraLink?.connected && !child && (
                                     <span className="account-login-item-link" title={`Signs into Noctra as ${acc.noctraLink.name}`}>
                                       <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.noctraLink.name}
                                     </span>
@@ -622,6 +650,16 @@ export default function AccountSwitcherModal({
                               >
                                 <NativeIcon name="trash" size={13} />
                               </button>
+                            </div>
+                          );
+                        };
+                          if (!children.length) return renderRow(parent);
+                          return (
+                            <div key={`group-${parent.id}`} className="account-login-group">
+                              {renderRow(parent)}
+                              <div className="account-login-children">
+                                {children.map((acc) => renderRow(acc, { child: true }))}
+                              </div>
                             </div>
                           );
                         })}

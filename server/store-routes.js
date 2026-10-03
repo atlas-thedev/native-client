@@ -135,6 +135,19 @@ function ownerCounts() {
 
 const current = () => catalog || (storeTexture ? ensureCatalog() : { items: [] });
 const findItem = (id) => current().items.find((item) => item.id === id) || null;
+const allItems = () => current().items.slice();
+
+/** Noctra+ members get every paid cape in their locker automatically (source 'plus'). */
+function grantPlusCapes(userId) {
+  if (!userId || !billing.hasPlus(userId)) return 0;
+  let added = 0;
+  for (const item of current().items) {
+    if (item.hidden || !billing.isPaid(item) || owns(userId, item.id)) continue;
+    billing.grantItem(userId, item.id, 'plus');
+    added += 1;
+  }
+  return added;
+}
 /**
  * Capes players may wear: the bundled classic capes (sha256 of the PNG, the same files ship with the
  * launcher and the website) and Noctra Store capes. Players cannot upload capes of their own.
@@ -328,6 +341,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const worn = profile?.capeStore ? findItem(profile.capeStore) : null;
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
+    try { grantPlusCapes(user.id); } catch (error) { console.warn('[Noctra Store] Plus capes:', error.message); }
     send(res, 200, { ok: true, equipped, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
     return true;
   }
@@ -605,4 +619,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, isStoreStill, capeAllowed, owns, grant, resetCatalog };
+module.exports = { MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };

@@ -68,6 +68,16 @@ function SpotBackdrop() {
 
 const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'noctra';
 
+/* Cached store billing state (localStorage): shown instantly, then refreshed from the server. */
+const BILLING_CACHE = 'noctra.store.billing.v1';
+const plusCacheKey = (account) => `noctra.store.plus.v1.${account?.id || account?.name || 'me'}`;
+function readCache(key) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function writeCache(key, value) {
+  try { if (value == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ }
+}
+
 /**
  * The Noctra Store: browse capes, add them to your locker, wear them.
  * Most capes are free; paid ones can be bought or come with Noctra+.
@@ -88,8 +98,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const canvases = useRef(new Map());
   const images = useRef(new Map()); // id -> { image, frames, fps }
   const signedIn = isStoreAccount(account);
-  const [billing, setBilling] = useState({ enabled: false, plus: null });
-  const [plus, setPlus] = useState(null); // { active, plan, renewsAt, endsAt }
+  // Last known billing config + membership, so the Noctra+ banner shows the right state at once.
+  const [billing, setBillingState] = useState(() => readCache(BILLING_CACHE) || { enabled: false, plus: null });
+  const [plus, setPlusState] = useState(() => (isStoreAccount(account) ? readCache(plusCacheKey(account)) : null)); // { active, plan, renewsAt, endsAt }
+  const setBilling = useCallback((next) => { setBillingState(next); writeCache(BILLING_CACHE, next); }, []);
+  const setPlus = useCallback((next) => { setPlusState(next); if (isStoreAccount(account)) writeCache(plusCacheKey(account), next); }, [account]);
+  useEffect(() => { setPlusState(isStoreAccount(account) ? readCache(plusCacheKey(account)) : null); }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pending, setPending] = useState(null); // checkout waiting in the browser
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [code, setCode] = useState('');
@@ -338,7 +352,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (!owned && item.paid) {
       const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
       if (plus?.active) {
-        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} ring="transparent" />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
+        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}{compact ? 'Add with Plus' : 'Add with Noctra+'}</button>;
       }
       if (!billing.enabled) {
         return <span className="store-exclusive-pill" title="Payments are switched on soon.">{`$${Number(item.price).toFixed(2)} · soon`}</span>;
@@ -380,9 +394,9 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <div className="store-spot-badges">
         {kicker}
         {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
-        {item.isNew && <span className="store-badge solid">New</span>}
+        {item.isNew && <span className="store-badge is-new"><i className="store-badge-dot" />New</span>}
         {item.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
-        {item.animated && <span className="store-badge">Animated</span>}
+        {item.animated && <span className="store-badge is-anim"><i className="store-badge-dot" />Animated</span>}
         {ownedIds.has(item.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
       </div>
       <Heading className="store-spot-name">{item.name}</Heading>
@@ -493,7 +507,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
           {billing.enabled && (
             <section className={`store-plus${plus?.active ? ' is-member' : ''}`} aria-label="Noctra+">
-              <span className="store-plus-mark is-plus"><NoctraPlusIcon size={22} title="Noctra+" ring="#0b0b0f" /></span>
+              <span className="store-plus-mark is-plus"><NoctraPlusIcon size={30} title="Noctra+" /></span>
               <div className="store-plus-copy">
                 <strong>{plus?.active ? 'You’re a Noctra+ member' : 'Noctra+'}</strong>
                 <span>
@@ -508,7 +522,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 {!signedIn ? (
                   <button type="button" className="store-btn ghost" onClick={onOpenAccountSwitcher}><Lock size={13} />Sign in with Noctra</button>
                 ) : plus?.active && plus.gifted ? (
-                  <span className="store-plus-gift"><NoctraPlusIcon size={14} ring="transparent" />Gift</span>
+                  <span className="store-plus-gift"><NoctraPlusIcon size={14} />Gift</span>
                 ) : plus?.active ? (
                   <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={manageBilling}>{busy === 'portal' ? <Loader2 size={13} className="is-spinning" /> : null}Manage</button>
                 ) : pending?.kind === 'plus' ? (
@@ -516,7 +530,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 ) : (
                   <>
                     <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => joinPlus('monthly')}>{busy === 'plus:monthly' ? <Loader2 size={13} className="is-spinning" /> : null}${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month</button>
-                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} ring="transparent" />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
+                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NoctraPlusIcon size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
                   </>
                 )}
               </div>
@@ -558,8 +572,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                       <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
                       <div className="store-card-badges">
                         {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />Exclusive</span>}
-                        {item.isNew && !item.exclusive && <span className="store-badge solid">New</span>}
-                        {item.animated && !item.exclusive && <span className="store-badge">Anim</span>}
+                        {item.isNew && !item.exclusive && <span className="store-badge is-new"><i className="store-badge-dot" />New</span>}
+                        {item.animated && !item.exclusive && <span className="store-badge is-anim"><i className="store-badge-dot" />Anim</span>}
                       </div>
                       {owned && <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>}
                     </div>

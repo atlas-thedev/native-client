@@ -1,11 +1,12 @@
+import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import Logo from '../../components/ui/Logo.jsx';
 import './IdentitySwitcher.css';
 
-export function PlusTag({ className = '' }) {
-  return <span className={`plus-tag ${className}`} title="Noctra+">+</span>;
+export function PlusTag({ className = '', size = 18 }) {
+  return <NoctraPlusIcon size={size} className={`plus-tag ${className}`.trim()} title="Noctra+" />;
 }
 
 function MicrosoftLogo({ size = 14 }) {

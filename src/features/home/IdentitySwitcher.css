@@ -20,11 +20,8 @@
 .idsw-logo.is-noctra .native-mark,
 .idsw-logo.is-noctra img { filter: grayscale(1) brightness(3); }
 
-.plus-tag {
-  flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px;
-  font-size: 13px; font-weight: 900; line-height: 1; color: #000; background: #f2b632;
-}
-.home-greeting-name .plus-tag { margin-left: 8px; vertical-align: 3px; }
+.plus-tag { color: #fff; }
+.home-greeting-name .plus-tag { margin-left: 8px; vertical-align: -1px; }
 
 .idsw-menu {
   position: absolute; top: calc(100% + 8px); left: -10px; z-index: 40; min-width: 230px; padding: 4px;

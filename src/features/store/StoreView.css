@@ -132,12 +132,23 @@
 .store-card-state.is-worn { background: #fff; color: #0b0b0f; border-color: #fff; }
 .store-card-state i { width: 6px; height: 6px; border-radius: 50%; background: #1fbf63; }
 .store-badge {
-  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--radius-full);
-  border: 1px solid var(--st-line-strong); background: #000; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-primary);
+  --badge: rgba(255, 255, 255, 0.82);
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; box-sizing: border-box;
+  border-radius: 6px; border: 1px solid color-mix(in srgb, var(--badge) 26%, transparent);
+  background: color-mix(in srgb, var(--badge) 11%, rgba(10, 10, 14, 0.82));
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font: 700 9.5px/1 var(--font-sans); letter-spacing: 0.07em; text-transform: uppercase; color: var(--badge); white-space: nowrap;
 }
-.store-badge.solid { background: #fff; color: #0b0b0f; border-color: transparent; }
+.store-badge-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+.store-badge.solid { --badge: #ffffff; }
+.store-badge.is-new { --badge: #5ee69a; }
+.store-badge.is-anim { --badge: #b9a4ff; }
+.store-badge.is-anim .store-badge-dot { animation: store-badge-pulse 1.6s ease-in-out infinite; }
+@keyframes store-badge-pulse { 50% { opacity: 0.35; box-shadow: none; } }
 .store-badge.wearing i { width: 6px; height: 6px; border-radius: 50%; background: #1fbf63; }
-.store-badge.wearing, .store-badge.owned { color: var(--fg-primary-hover); }
+.store-badge.wearing, .store-badge.owned { --badge: #5ee69a; }
+:root .store-badge svg, :root .store-badge svg * { color: var(--badge) !important; fill: var(--badge) !important; stroke: none !important; }
+:root .store-badge.owned svg, :root .store-badge.owned svg * { fill: none !important; stroke: var(--badge) !important; }
 .store-card-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px 8px 8px; }
 .store-card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .store-card-title strong { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg-primary-hover); }
@@ -167,9 +178,7 @@
   height: 34px; padding: 0 15px; border: 1px dashed var(--st-line-strong); border-radius: var(--radius-full);
   color: var(--fg-secondary); font: 700 12.5px var(--font-sans); white-space: nowrap; cursor: default;
 }
-.store-badge.exclusive { background: #ffd68c; color: #160f2a; border-color: transparent; gap: 3px; }
-:root .store-badge.exclusive svg, :root .store-badge.exclusive svg * { color: #160f2a !important; fill: #160f2a !important; stroke: none !important; }
-:root .store-badge.solid svg, :root .store-badge.solid svg * { color: #0b0b0f !important; fill: #0b0b0f !important; }
+.store-badge.exclusive { --badge: #ffd27a; }
 .store-exclusive-note { display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px; border: 1px solid var(--st-line); border-radius: var(--radius-md, 10px); background: transparent; color: var(--fg-secondary); font-size: 12px; line-height: 1.45; }
 .store-exclusive-note svg { flex: none; margin-top: 2px; color: #ffd68c; }
 
@@ -259,8 +268,8 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 @keyframes store-spot-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .store-card { cursor: zoom-in; }
 
-/* Noctra+ mark: the N+ icon on a dark tile. */
-.store-plus-mark.is-plus { background: #0b0b0f; color: #fff; border: 1px solid rgba(255, 214, 140, 0.45); }
+/* Noctra+ mark: the bare N+ icon. */
+.store-plus-mark.is-plus { width: auto; height: auto; padding: 0 4px; background: none; border: 0; border-radius: 0; color: #fff; }
 .store-plus-gift { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 214, 140, 0.45); color: #ffd68c; font-size: 12px; font-weight: 600; }
 .store-btn .noctra-plus-icon { margin-right: 1px; }
 

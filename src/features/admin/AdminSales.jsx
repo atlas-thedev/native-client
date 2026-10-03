@@ -165,7 +165,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
         </section>
 
         <section className="admin-card admin-plus-card">
-          <div className="admin-card-head"><h3><NoctraPlusIcon size={15} ring="transparent" />Give Noctra+</h3><span>Free membership, no payment</span></div>
+          <div className="admin-card-head"><h3><NoctraPlusIcon size={15} />Give Noctra+</h3><span>Free membership, no payment</span></div>
           <form className="admin-code-form" onSubmit={givePlus}>
             <label className="admin-field is-wide"><span>Player</span><input value={gift.username} onChange={(event) => setGift((current) => ({ ...current, username: event.target.value }))} placeholder="Noctra username" maxLength={32} autoComplete="off" spellCheck={false} /></label>
             <label className="admin-field"><span>How long</span>
@@ -180,7 +180,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
               : !gifts.length ? <p className="admin-note">Nobody has a given Noctra+ yet.</p>
                 : gifts.map((row) => (
                   <div key={row.userId} className="admin-code-row">
-                    <span className="admin-plus-chip"><NoctraPlusIcon size={16} ring="#0b0b0f" /></span>
+                    <span className="admin-plus-chip"><NoctraPlusIcon size={16} /></span>
                     <div className="admin-code-main">
                       <strong>{row.username || row.userId}</strong>
                       <small>{row.expiresAt ? `ends in ${Math.max(1, Math.ceil((row.expiresAt - Date.now()) / 86_400_000))}d · ${formatDate(row.expiresAt)}` : 'forever'}{row.grantedBy ? ` · by ${row.grantedBy}` : ''}{row.note ? ` · ${row.note}` : ''}{row.subscribed ? ' · also subscribed' : ''}</small>

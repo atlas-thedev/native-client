@@ -4,6 +4,7 @@ const path = require('path');
 const { dialog, net, shell } = require('electron');
 const { downloadFile, writeFileAtomic } = require('./download');
 const safeFile = require('./safeFile');
+const textureCache = require('./textureCache');
 
 /**
  * Locker / wardrobe storage (main process).
@@ -665,6 +666,15 @@ function readActiveBuffers(account) {
   };
 }
 
+/** Copies the account's worn skin, cape and cape animation into the shared texture cache (for the mod). */
+function warmTextureCache(account) {
+  try {
+    const { skin, cape, capeAnim } = readActiveBuffers(account);
+    for (const bytes of [skin, cape, capeAnim?.strip]) if (bytes) textureCache.write(bytes);
+  } catch { /* best-effort */ }
+  return textureCache.dir();
+}
+
 /* ── cape store (website + launcher) ─────────────────────────── */
 
 let catalogCache = { at: 0, data: null };
@@ -705,9 +715,9 @@ async function fetchStoreStrip(itemId) {
   const url = item.stripUrl || item.stillUrl;
   if (!url) throw new Error('That store item has no texture.');
   if (stripCache.has(url)) return stripCache.get(url);
-  const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error('Couldn’t download that cape.');
-  const bytes = Buffer.from(await response.arrayBuffer());
+  // Saved to the shared texture cache, so wearing it later (or seeing it in game) needs no new download.
+  const bytes = await textureCache.fetchCached(url, { maxBytes: MAX_ANIM_BYTES, timeoutMs: 25_000 });
+  if (!bytes) throw new Error('Couldn’t download that cape.');
   pngInfoBuffer(bytes, item.stripUrl ? 'animation' : 'cape', { animated: Boolean(item.stripUrl) });
   const value = `data:image/png;base64,${bytes.toString('base64')}`;
   if (stripCache.size > 12) stripCache.delete(stripCache.keys().next().value);
@@ -948,18 +958,8 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
     const sha = (value) => crypto.createHash('sha256').update(value).digest('hex').toLowerCase();
     const hashOf = (url) => (String(url || '').match(/\/textures\/([a-f0-9]{64})/i) || [])[1]?.toLowerCase() || null;
     const readItemFile = (file) => { try { return fs.readFileSync(itemPath(account, file)); } catch { return null; } };
-    const download = async (url, limit, ms) => {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), ms);
-      try {
-        const response = await fetch(url, { signal: ctrl.signal });
-        if (!response.ok) return null;
-        const bytes = Buffer.from(await response.arrayBuffer());
-        return bytes.length > 24 && bytes.length <= limit ? bytes : null;
-      } finally {
-        clearTimeout(timer);
-      }
-    };
+    // Store textures are content-addressed: reuse (and fill) the shared cache the mod reads too.
+    const download = (url, limit, ms) => textureCache.fetchCached(url, { maxBytes: limit, timeoutMs: ms });
 
     if (authoritative && !remoteSpec && !remoteCapeUrl && metadata.activeCape) {
       // The cloud copy has no cape any more (taken off on the website / another device).
@@ -1623,6 +1623,7 @@ async function artifactMatches(filePath, { sha1, size }) {
 
 function init(dependencies, ipcMain) {
   deps = dependencies;
+  try { textureCache.init(deps.app.getPath('userData')); } catch { /* cache is optional */ }
   const profileResult = (operation) => async (...args) => {
     try { return { ok: true, profile: await operation(...args) }; }
     catch (error) {
@@ -1748,6 +1749,7 @@ function init(dependencies, ipcMain) {
 
 module.exports = {
   init,
+  warmTextureCache,
   publicState,
   pngInfo,
   pngInfoBuffer,

@@ -579,6 +579,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           gameDir: instanceDir(instance.id),
           cacheDir: path.join(deps.app.getPath('userData'), 'noctra-mod'),
           roots: socialMod.API_ROOTS,
+          textureCache: (() => { try { return wardrobeMod.warmTextureCache(account); } catch { return null; } })(),
           onState: (detail) => setState('preparing', detail)
         });
         if (modResult.warning) launcher.emit('debug', `[Noctra Client]: Noctra mod: ${modResult.warning}`);

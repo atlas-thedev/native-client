@@ -422,7 +422,7 @@ async function handler(req, res) {
     }
 
     try {
-      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem });
+      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems });
       if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
     } catch (billingError) {
       console.error('[Noctra Billing]', billingError);

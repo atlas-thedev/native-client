@@ -187,7 +187,7 @@ function grantItem(userId, itemId, source) {
 }
 
 /* hooks set by the server (profile storage lives there) */
-let hooks = { readProfile: null, saveProfile: null, findItem: null };
+let hooks = { readProfile: null, saveProfile: null, findItem: null, allItems: null };
 function setHooks(next) { hooks = { ...hooks, ...next }; }
 
 function takeOffIfWearing(user, itemIds) {
@@ -208,6 +208,11 @@ function syncPlus(userId) {
   if (!user) return;
   const active = hasPlus(userId);
   setPlusBadge(userId, active);
+  if (active && hooks.allItems) {
+    for (const item of hooks.allItems()) {
+      if (!item.hidden && isPaid(item) && !ownedSource(userId, item.id)) grantItem(userId, item.id, 'plus');
+    }
+  }
   if (!active) {
     const rows = sql().prepare("SELECT item_id FROM store_owned WHERE user_id = ? AND source = 'plus'").all(String(userId));
     if (rows.length) {
