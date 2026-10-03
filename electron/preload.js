@@ -279,7 +279,11 @@ const api = {
     billingOverview: () => ipcRenderer.invoke('admin:billingOverview'),
     billingCodes: () => ipcRenderer.invoke('admin:billingCodes'),
     billingCreateCode: (payload) => ipcRenderer.invoke('admin:billingCreateCode', payload),
-    billingDeleteCode: (code) => ipcRenderer.invoke('admin:billingDeleteCode', code)
+    billingDeleteCode: (code) => ipcRenderer.invoke('admin:billingDeleteCode', code),
+    billingSettings: () => ipcRenderer.invoke('admin:billingSettings'),
+    billingSaveSettings: (payload) => ipcRenderer.invoke('admin:billingSaveSettings', payload),
+    billingSetup: (environment) => ipcRenderer.invoke('admin:billingSetup', environment),
+    billingActivate: (environment) => ipcRenderer.invoke('admin:billingActivate', environment)
   },
   discord: {
     setTab: (tab) => ipcRenderer.send('discord:setTab', tab),

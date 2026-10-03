@@ -10,6 +10,9 @@
  *   GET  /v1/admin/billing/overview         sales, refunds, members
  *   GET|POST /v1/admin/billing/codes        list / create redeem codes
  *   DELETE   /v1/admin/billing/codes/:code  delete a redeem code
+ *   GET|POST /v1/admin/billing/settings     Paddle keys per environment (secrets are write-only)
+ *   POST /v1/admin/billing/setup            { environment } create/find products, prices and the webhook in Paddle
+ *   POST /v1/admin/billing/activate         { environment } switch checkouts between sandbox and live
  *
  * How things are owned (all in store_owned):
  *   source 'purchase'  bought once, kept forever (removed again on refund / chargeback)
@@ -17,8 +20,9 @@
  *   source 'code'      redeemed with an event code
  *   source 'admin'     given by an admin
  *
- * Environment: PADDLE_ENV (sandbox|production), PADDLE_API_KEY, PADDLE_CLIENT_TOKEN,
- * PADDLE_WEBHOOK_SECRET, PADDLE_CAPE_PRODUCT, PADDLE_PLUS_MONTHLY_PRICE, PADDLE_PLUS_YEARLY_PRICE.
+ * Keys: saved from the admin page (billing_settings, per environment) or, as a fallback for the
+ * environment named by PADDLE_ENV, the env vars PADDLE_API_KEY, PADDLE_CLIENT_TOKEN, PADDLE_WEBHOOK_SECRET,
+ * PADDLE_CAPE_PRODUCT, PADDLE_PLUS_PRODUCT, PADDLE_PLUS_MONTHLY_PRICE, PADDLE_PLUS_YEARLY_PRICE.
  */
 const crypto = require('crypto');
 const db = require('./db');
@@ -32,26 +36,48 @@ const PLANS = {
 const CODE_RE = /^[A-Z0-9][A-Z0-9-]{2,31}$/;
 
 const env = (name) => String(process.env[name] || '').trim();
-const config = () => ({
-  environment: env('PADDLE_ENV') === 'production' ? 'production' : 'sandbox',
-  apiKey: env('PADDLE_API_KEY'),
-  clientToken: env('PADDLE_CLIENT_TOKEN'),
-  webhookSecret: env('PADDLE_WEBHOOK_SECRET'),
-  capeProduct: env('PADDLE_CAPE_PRODUCT'),
-  prices: { monthly: env(PLANS.monthly.env), yearly: env(PLANS.yearly.env) }
-});
-const enabled = () => {
-  const c = config();
-  return Boolean(c.apiKey && c.clientToken && c.webhookSecret && c.capeProduct);
+const ENVS = ['sandbox', 'production'];
+const envDefault = () => (env('PADDLE_ENV') === 'production' ? 'production' : 'sandbox');
+const WEBHOOK_URL = () => env('PADDLE_WEBHOOK_URL') || `${(env('PUBLIC_API_URL') || 'https://api.nativelaunch.xyz').replace(/\/$/, '')}/v1/billing/paddle/webhook`;
+const WEBHOOK_EVENTS = ['transaction.completed', 'subscription.created', 'subscription.updated', 'subscription.canceled', 'subscription.past_due', 'adjustment.created', 'adjustment.updated'];
+const FIELDS = { apiKey: 'PADDLE_API_KEY', clientToken: 'PADDLE_CLIENT_TOKEN', webhookSecret: 'PADDLE_WEBHOOK_SECRET', capeProduct: 'PADDLE_CAPE_PRODUCT', plusProduct: 'PADDLE_PLUS_PRODUCT', monthlyPrice: 'PADDLE_PLUS_MONTHLY_PRICE', yearlyPrice: 'PADDLE_PLUS_YEARLY_PRICE', notificationId: 'PADDLE_NOTIFICATION_ID' };
+
+function savedSettings() {
+  try { return Object.fromEntries(sql().prepare('SELECT key, value FROM billing_settings').all().map((row) => [row.key, row.value])); } catch { return {}; }
+}
+function saveSetting(key, value) {
+  if (value == null || value === '') sql().prepare('DELETE FROM billing_settings WHERE key = ?').run(key);
+  else sql().prepare('INSERT INTO billing_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at').run(key, String(value), Date.now());
+}
+const activeEnv = () => {
+  const saved = savedSettings().active;
+  return ENVS.includes(saved) ? saved : envDefault();
 };
-const apiBase = () => (config().environment === 'production' ? 'https://api.paddle.com' : 'https://sandbox-api.paddle.com');
+/** One environment's Paddle setup; saved values win over env vars. */
+function config(name = activeEnv()) {
+  const saved = savedSettings();
+  const pick = (field) => saved[`${name}.${field}`] || (name === envDefault() ? env(FIELDS[field]) : '');
+  return {
+    environment: name,
+    apiKey: pick('apiKey'),
+    clientToken: pick('clientToken'),
+    webhookSecret: pick('webhookSecret'),
+    capeProduct: pick('capeProduct'),
+    plusProduct: pick('plusProduct'),
+    notificationId: pick('notificationId'),
+    prices: { monthly: pick('monthlyPrice'), yearly: pick('yearlyPrice') }
+  };
+}
+const readyIn = (c) => Boolean(c.apiKey && c.clientToken && c.webhookSecret && c.capeProduct);
+const enabled = () => readyIn(config());
+const apiBase = (name = activeEnv()) => (name === 'production' ? 'https://api.paddle.com' : 'https://sandbox-api.paddle.com');
 
 /* ── database ──────────────────────────────────────────────────────── */
 
-let ready = false;
+let ready = null;
 function sql() {
   const handle = db.getDb();
-  if (!ready) {
+  if (ready !== handle) {
     handle.exec(`
       CREATE TABLE IF NOT EXISTS store_owned (
         user_id TEXT NOT NULL, item_id TEXT NOT NULL, acquired_at INTEGER NOT NULL,
@@ -84,11 +110,24 @@ function sql() {
         code TEXT PRIMARY KEY, item_id TEXT NOT NULL, max_uses INTEGER NOT NULL DEFAULT 1,
         uses INTEGER NOT NULL DEFAULT 0, expires_at INTEGER, note TEXT, created_by TEXT, created_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS billing_settings (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS billing_customer_ids (
+        user_id TEXT NOT NULL, environment TEXT NOT NULL, customer_id TEXT NOT NULL, created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, environment)
+      );
+      CREATE INDEX IF NOT EXISTS idx_billing_customer_ids_customer ON billing_customer_ids(customer_id);
       CREATE TABLE IF NOT EXISTS redeem_uses (
         code TEXT NOT NULL, user_id TEXT NOT NULL, used_at INTEGER NOT NULL, PRIMARY KEY (code, user_id)
       );
     `);
-    ready = true;
+    for (const table of ['billing_purchases', 'billing_subscriptions']) {
+      try { handle.exec(`ALTER TABLE ${table} ADD COLUMN environment TEXT`); } catch { /* already there */ }
+    }
+    // Customers saved before environments existed belong to the env-var environment.
+    handle.prepare('INSERT OR IGNORE INTO billing_customer_ids (user_id, environment, customer_id, created_at) SELECT user_id, ?, customer_id, created_at FROM billing_customers').run(envDefault());
+    ready = handle;
   }
   return handle;
 }
@@ -101,7 +140,7 @@ const toMs = (value) => {
 /* ── entitlements ──────────────────────────────────────────────────── */
 
 function plusFor(userId) {
-  const rows = sql().prepare('SELECT * FROM billing_subscriptions WHERE user_id = ? ORDER BY updated_at DESC').all(String(userId));
+  const rows = sql().prepare("SELECT * FROM billing_subscriptions WHERE user_id = ? AND COALESCE(environment, ?) = ? ORDER BY updated_at DESC").all(String(userId), envDefault(), activeEnv());
   const live = rows.find((row) => PLUS_ACTIVE.has(row.status)) || null;
   const latest = live || rows[0] || null;
   return {
@@ -172,10 +211,12 @@ function notify(user) {
 
 /* ── Paddle API ────────────────────────────────────────────────────── */
 
-async function paddle(method, pathname, body) {
-  const response = await fetch(`${apiBase()}${pathname}`, {
+async function paddle(method, pathname, body, name = activeEnv(), apiKey = null) {
+  const key = apiKey || config(name).apiKey;
+  if (!key) throw Object.assign(new Error('No Paddle API key saved for this environment.'), { status: 400 });
+  const response = await fetch(`${apiBase(name)}${pathname}`, {
     method,
-    headers: { Authorization: `Bearer ${config().apiKey}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(15_000)
   });
@@ -190,8 +231,11 @@ async function paddle(method, pathname, body) {
   return payload.data;
 }
 
+const customerRow = (userId, name = activeEnv()) => sql().prepare('SELECT customer_id FROM billing_customer_ids WHERE user_id = ? AND environment = ?').get(String(userId), name);
+
 async function customerFor(user) {
-  const row = sql().prepare('SELECT customer_id FROM billing_customers WHERE user_id = ?').get(String(user.id));
+  const name = activeEnv();
+  const row = customerRow(user.id, name);
   if (row) return row.customer_id;
   let id = null;
   try {
@@ -201,7 +245,7 @@ async function customerFor(user) {
     if (!match) throw error;
     id = match[0];
   }
-  sql().prepare('INSERT OR REPLACE INTO billing_customers (user_id, customer_id, created_at) VALUES (?, ?, ?)').run(String(user.id), id, Date.now());
+  sql().prepare('INSERT OR REPLACE INTO billing_customer_ids (user_id, environment, customer_id, created_at) VALUES (?, ?, ?, ?)').run(String(user.id), name, id, Date.now());
   return id;
 }
 
@@ -230,20 +274,22 @@ function userForPaddle(data) {
     if (row) return db.getUserById(row.user_id);
   }
   if (data?.customer_id) {
-    const row = sql().prepare('SELECT user_id FROM billing_customers WHERE customer_id = ?').get(data.customer_id);
+    const row = sql().prepare('SELECT user_id FROM billing_customer_ids WHERE customer_id = ?').get(data.customer_id);
     if (row) return db.getUserById(row.user_id);
   }
   return null;
 }
 
 const planOf = (priceId) => {
-  const { prices } = config();
-  if (priceId && priceId === prices.monthly) return 'monthly';
-  if (priceId && priceId === prices.yearly) return 'yearly';
+  for (const name of ENVS) {
+    const { prices } = config(name);
+    if (priceId && priceId === prices.monthly) return 'monthly';
+    if (priceId && priceId === prices.yearly) return 'yearly';
+  }
   return null;
 };
 
-function onTransactionCompleted(data) {
+function onTransactionCompleted(data, name) {
   const user = userForPaddle(data);
   if (!user) return { ignored: 'no matching user' };
   const custom = data.custom_data || {};
@@ -254,12 +300,12 @@ function onTransactionCompleted(data) {
   const totals = data.details?.totals || {};
   const now = Date.now();
   sql().prepare(`INSERT OR IGNORE INTO billing_purchases
-    (transaction_id, user_id, kind, item_id, plan, amount_cents, currency, status, subscription_id, customer_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, ?)`).run(
+    (transaction_id, user_id, kind, item_id, plan, amount_cents, currency, status, subscription_id, customer_id, created_at, updated_at, environment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, ?, ?)`).run(
     data.id, String(user.id), kind, itemId, plan, Number(totals.grand_total || totals.total || 0), String(data.currency_code || totals.currency_code || 'USD'),
-    data.subscription_id || null, data.customer_id || null, toMs(data.billed_at) || now, now);
+    data.subscription_id || null, data.customer_id || null, toMs(data.billed_at) || now, now, name);
   if (data.customer_id) {
-    sql().prepare('INSERT OR IGNORE INTO billing_customers (user_id, customer_id, created_at) VALUES (?, ?, ?)').run(String(user.id), data.customer_id, now);
+    sql().prepare('INSERT OR IGNORE INTO billing_customer_ids (user_id, environment, customer_id, created_at) VALUES (?, ?, ?, ?)').run(String(user.id), name, data.customer_id, now);
   }
   if (kind === 'cape' && itemId) {
     grantItem(user.id, itemId, 'purchase');
@@ -268,17 +314,17 @@ function onTransactionCompleted(data) {
   return { ok: true };
 }
 
-function onSubscription(data) {
+function onSubscription(data, name) {
   const user = userForPaddle(data);
   if (!user) return { ignored: 'no matching user' };
   const now = Date.now();
   const cancelAt = data.scheduled_change?.action === 'cancel' ? toMs(data.scheduled_change.effective_at) : null;
-  sql().prepare(`INSERT INTO billing_subscriptions (subscription_id, user_id, status, plan, current_period_end, cancel_at, customer_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  sql().prepare(`INSERT INTO billing_subscriptions (subscription_id, user_id, status, plan, current_period_end, cancel_at, customer_id, created_at, updated_at, environment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(subscription_id) DO UPDATE SET status = excluded.status, plan = COALESCE(excluded.plan, billing_subscriptions.plan),
       current_period_end = excluded.current_period_end, cancel_at = excluded.cancel_at, updated_at = excluded.updated_at`).run(
     data.id, String(user.id), String(data.status || 'active'), planOf(data.items?.[0]?.price?.id),
-    toMs(data.current_billing_period?.ends_at), cancelAt, data.customer_id || null, toMs(data.created_at) || now, now);
+    toMs(data.current_billing_period?.ends_at), cancelAt, data.customer_id || null, toMs(data.created_at) || now, now, name);
   syncPlus(user.id);
   return { ok: true };
 }
@@ -300,15 +346,15 @@ function onAdjustment(data) {
   return { ok: true };
 }
 
-function handleEvent(event) {
+function handleEvent(event, name = activeEnv()) {
   const id = String(event?.event_id || '');
   const type = String(event?.event_type || '');
   if (id) {
     const seen = sql().prepare('INSERT OR IGNORE INTO billing_events (event_id, type, received_at) VALUES (?, ?, ?)').run(id, type, Date.now());
     if (!seen.changes) return { duplicate: true };
   }
-  if (type === 'transaction.completed') return onTransactionCompleted(event.data || {});
-  if (type.startsWith('subscription.')) return onSubscription(event.data || {});
+  if (type === 'transaction.completed') return onTransactionCompleted(event.data || {}, name);
+  if (type.startsWith('subscription.')) return onSubscription(event.data || {}, name);
   if (type.startsWith('adjustment.')) return onAdjustment(event.data || {});
   return { ignored: type };
 }
@@ -380,14 +426,20 @@ async function handleBillingRoutes(req, res, ctx) {
   if (req.method === 'POST' && url.pathname === '/v1/billing/paddle/webhook') {
     let raw = '';
     try { raw = await readRaw(req); } catch { send(res, 413, { ok: false }); return true; }
-    if (!verifySignature(raw, req.headers['paddle-signature'], c.webhookSecret)) {
+    // Sandbox and live both post here; the secret that matches tells us which one sent it.
+    const from = ENVS.find((name) => verifySignature(raw, req.headers['paddle-signature'], config(name).webhookSecret));
+    if (!from) {
       send(res, 401, { ok: false, error: 'Bad signature.' });
+      return true;
+    }
+    if (from === 'sandbox' && activeEnv() === 'production') {
+      send(res, 200, { ok: true, ignored: 'sandbox event while live' }); // never grant real things for test payments
       return true;
     }
     let event = null;
     try { event = JSON.parse(raw); } catch { send(res, 400, { ok: false, error: 'Bad JSON.' }); return true; }
     try {
-      const result = handleEvent(event);
+      const result = handleEvent(event, from);
       send(res, 200, { ok: true, ...result });
     } catch (error) {
       console.error('[Noctra Billing] webhook failed:', error);
@@ -479,7 +531,7 @@ async function handleBillingRoutes(req, res, ctx) {
 
   if (req.method === 'POST' && url.pathname === '/v1/billing/portal') {
     if (!hit('billing-portal', user.id, 20, 10 * 60_000)) { tooMany(res, 600); return true; }
-    const row = sql().prepare('SELECT customer_id FROM billing_customers WHERE user_id = ?').get(String(user.id));
+    const row = customerRow(user.id);
     if (!row) { send(res, 404, { ok: false, error: 'You haven’t bought anything yet.' }); return true; }
     try {
       const plus = plusFor(user.id);
@@ -500,6 +552,98 @@ async function handleBillingRoutes(req, res, ctx) {
   return true;
 }
 
+/* ── admin: Paddle settings + one-click setup ─────────────────────── */
+
+const hint = (value) => (value ? `…${value.slice(-4)}` : null);
+function publicSettings() {
+  const saved = savedSettings();
+  const envs = {};
+  for (const name of ENVS) {
+    const c = config(name);
+    envs[name] = {
+      apiKey: hint(c.apiKey), // never the key itself
+      clientToken: c.clientToken || null, // public by design (it ships in the page)
+      webhookSecret: Boolean(c.webhookSecret),
+      capeProduct: c.capeProduct || null,
+      plusProduct: c.plusProduct || null,
+      monthlyPrice: c.prices.monthly || null,
+      yearlyPrice: c.prices.yearly || null,
+      notificationId: c.notificationId || null,
+      fromEnvFile: name === envDefault() && !saved[`${name}.apiKey`] && Boolean(env('PADDLE_API_KEY')),
+      ready: readyIn(c)
+    };
+  }
+  return { active: activeEnv(), webhookUrl: WEBHOOK_URL(), environments: envs };
+}
+
+async function listAll(name, pathname) {
+  const out = [];
+  let next = `${pathname}${pathname.includes('?') ? '&' : '?'}per_page=200`;
+  for (let page = 0; page < 10 && next; page += 1) {
+    const response = await fetch(`${apiBase(name)}${next}`, { headers: { Authorization: `Bearer ${config(name).apiKey}` }, signal: AbortSignal.timeout(15_000) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(payload?.error?.detail || `Paddle request failed (${response.status}).`), { status: response.status });
+    out.push(...(payload.data || []));
+    const nextUrl = payload.meta?.pagination?.has_more ? payload.meta.pagination.next : null;
+    next = nextUrl ? nextUrl.replace(/^https:\/\/[^/]+/, '') : null;
+  }
+  return out;
+}
+
+/** Finds or creates everything Noctra needs in one Paddle environment and saves the ids. */
+async function setupPaddle(name) {
+  const steps = [];
+  const c = config(name);
+  const call = (method, pathname, body) => paddle(method, pathname, body, name);
+  const products = await listAll(name, '/products?status=active');
+  const product = async (field, tag, spec) => {
+    let found = (c[field] && products.find((p) => p.id === c[field])) || products.find((p) => p.custom_data?.noctra === tag) || products.find((p) => p.name === spec.name);
+    if (!found) { found = await call('POST', '/products', { ...spec, custom_data: { noctra: tag } }); steps.push(`Created product ${spec.name}`); }
+    else steps.push(`Found product ${found.name}`);
+    saveSetting(`${name}.${field}`, found.id);
+    return found.id;
+  };
+  await product('capeProduct', 'cape', { name: 'Noctra cape', description: 'A cosmetic cape for your Noctra account.', tax_category: 'standard' });
+  const plusId = await product('plusProduct', 'plus', { name: 'Noctra+', description: 'Every paid Noctra cape and the Noctra+ badge while subscribed.', tax_category: 'standard' });
+
+  const prices = await listAll(name, `/prices?product_id=${plusId}&status=active`);
+  for (const plan of ['monthly', 'yearly']) {
+    const field = plan === 'monthly' ? 'monthlyPrice' : 'yearlyPrice';
+    const cents = String(Math.round(PLANS[plan].amount * 100));
+    let found = (c.prices[plan] && prices.find((p) => p.id === c.prices[plan] && p.unit_price?.amount === cents))
+      || prices.find((p) => p.billing_cycle?.interval === PLANS[plan].interval && p.billing_cycle?.frequency === 1 && p.unit_price?.amount === cents && p.unit_price?.currency_code === 'USD');
+    if (!found) {
+      found = await call('POST', '/prices', {
+        product_id: plusId, name: `Noctra+ ${plan}`, description: `Noctra+ — billed ${plan}`,
+        unit_price: { amount: cents, currency_code: 'USD' }, billing_cycle: { interval: PLANS[plan].interval, frequency: 1 },
+        quantity: { minimum: 1, maximum: 1 }, custom_data: { noctra: `plus-${plan}` }
+      });
+      steps.push(`Created ${plan} price $${PLANS[plan].amount}`);
+    } else {
+      if (found.quantity?.maximum !== 1) await call('PATCH', `/prices/${found.id}`, { quantity: { minimum: 1, maximum: 1 } });
+      steps.push(`Found ${plan} price $${PLANS[plan].amount}`);
+    }
+    saveSetting(`${name}.${field}`, found.id);
+  }
+
+  const destination = WEBHOOK_URL();
+  const settings = await call('GET', '/notification-settings');
+  let hook = (settings || []).find((n) => n.destination === destination && n.type === 'url');
+  if (hook) {
+    const have = new Set((hook.subscribed_events || []).map((e) => e.name || e));
+    if (WEBHOOK_EVENTS.some((e) => !have.has(e)) || !hook.active) {
+      hook = await call('PATCH', `/notification-settings/${hook.id}`, { active: true, subscribed_events: [...new Set([...have, ...WEBHOOK_EVENTS])] });
+    }
+    steps.push('Found webhook');
+  } else {
+    hook = await call('POST', '/notification-settings', { description: 'Noctra server', destination, type: 'url', subscribed_events: WEBHOOK_EVENTS, api_version: 1, include_sensitive_fields: false, traffic_source: 'platform' });
+    steps.push('Created webhook');
+  }
+  saveSetting(`${name}.notificationId`, hook.id);
+  if (hook.endpoint_secret_key) saveSetting(`${name}.webhookSecret`, hook.endpoint_secret_key);
+  return steps;
+}
+
 async function handleAdmin(req, res, ctx, url, user) {
   const { send } = ctx;
   const noStore = { 'Cache-Control': 'no-store' };
@@ -509,15 +653,17 @@ async function handleAdmin(req, res, ctx, url, user) {
 
   if (req.method === 'GET' && url.pathname === '/v1/admin/billing/overview') {
     const since = Date.now() - 30 * 86_400_000;
+    const inEnv = `COALESCE(environment, '${envDefault()}') = '${activeEnv()}'`; // both values are from ENVS
     const one = (query, ...args) => sql().prepare(query).get(...args) || {};
-    const paid = one("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status = 'paid'");
-    const recent30 = one("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status = 'paid' AND created_at >= ?", since);
-    const refunds = one("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status != 'paid'");
-    const members = sql().prepare("SELECT plan, COUNT(*) AS n FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') GROUP BY plan").all();
+    const paid = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status = 'paid' AND ${inEnv}`);
+    const recent30 = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status = 'paid' AND created_at >= ? AND ${inEnv}`, since);
+    const refunds = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents FROM billing_purchases WHERE status != 'paid' AND ${inEnv}`);
+    const members = sql().prepare(`SELECT plan, COUNT(*) AS n FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') AND ${inEnv} GROUP BY plan`).all();
     const recent = sql().prepare('SELECT * FROM billing_purchases ORDER BY created_at DESC LIMIT 25').all().map((row) => ({
       transactionId: row.transaction_id, userId: row.user_id, username: nameOf(row.user_id), kind: row.kind, itemId: row.item_id,
       itemName: row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
-      amount: row.amount_cents / 100, currency: row.currency, status: row.status, createdAt: row.created_at
+      amount: row.amount_cents / 100, currency: row.currency, status: row.status, createdAt: row.created_at,
+      environment: row.environment || envDefault()
     }));
     send(res, 200, {
       ok: true,
@@ -570,11 +716,73 @@ async function handleAdmin(req, res, ctx, url, user) {
     return true;
   }
 
+
+  if (url.pathname === '/v1/admin/billing/settings') {
+    if (req.method === 'POST') {
+      const body = await ctx.readJson(req);
+      const name = ENVS.includes(body.environment) ? body.environment : null;
+      if (!name) { send(res, 400, { ok: false, error: 'Pick sandbox or live.' }); return true; }
+      const clean = (value, re) => {
+        const text = String(value ?? '').trim();
+        if (!text) return null;
+        if (!re.test(text)) throw new Error('bad');
+        return text;
+      };
+      const live = name === 'production';
+      const rules = {
+        apiKey: live ? /^pdl_live_apikey_[A-Za-z0-9_]{20,200}$/ : /^pdl_sdbx_apikey_[A-Za-z0-9_]{20,200}$/,
+        clientToken: live ? /^live_[a-f0-9]{20,64}$/ : /^test_[a-f0-9]{20,64}$/,
+        webhookSecret: /^pdl_ntfset_[A-Za-z0-9_]{10,200}$/
+      };
+      const labels = { apiKey: 'API key', clientToken: 'client-side token', webhookSecret: 'webhook secret' };
+      for (const field of Object.keys(rules)) {
+        let value;
+        try { value = clean(body[field], rules[field]); } catch {
+          send(res, 400, { ok: false, error: `That ${labels[field]} doesn’t look like a ${live ? 'live' : 'sandbox'} Paddle ${labels[field]}.` });
+          return true;
+        }
+        if (value) saveSetting(`${name}.${field}`, value);
+      }
+      for (const field of Array.isArray(body.clear) ? body.clear : []) {
+        if (FIELDS[field]) saveSetting(`${name}.${field}`, null);
+      }
+      console.log(`[Noctra Billing] ${user.username} updated ${name} Paddle settings`);
+    }
+    send(res, 200, { ok: true, settings: publicSettings() }, noStore);
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/admin/billing/setup') {
+    const body = await ctx.readJson(req);
+    const name = ENVS.includes(body.environment) ? body.environment : null;
+    if (!name) { send(res, 400, { ok: false, error: 'Pick sandbox or live.' }); return true; }
+    if (!config(name).apiKey) { send(res, 400, { ok: false, error: 'Save an API key for this environment first.' }); return true; }
+    try {
+      const steps = await setupPaddle(name);
+      console.log(`[Noctra Billing] ${user.username} ran Paddle setup for ${name}`);
+      send(res, 200, { ok: true, steps, settings: publicSettings() }, noStore);
+    } catch (error) {
+      console.error('[Noctra Billing] setup failed:', error.message);
+      send(res, error.status === 401 || error.status === 403 ? 400 : 502, { ok: false, error: error.status === 401 || error.status === 403 ? 'Paddle rejected that API key. Check it has read and write permissions for products, prices, customers, transactions, subscriptions and notification settings.' : `Paddle setup failed: ${error.message}` });
+    }
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/admin/billing/activate') {
+    const body = await ctx.readJson(req);
+    const name = ENVS.includes(body.environment) ? body.environment : null;
+    if (!name) { send(res, 400, { ok: false, error: 'Pick sandbox or live.' }); return true; }
+    if (!readyIn(config(name))) { send(res, 400, { ok: false, error: `Finish ${name === 'production' ? 'live' : 'sandbox'} setup first (keys + Set up Paddle).` }); return true; }
+    saveSetting('active', name);
+    console.log(`[Noctra Billing] ${user.username} switched checkouts to ${name}`);
+    send(res, 200, { ok: true, settings: publicSettings() }, noStore);
+    return true;
+  }
   send(res, 404, { ok: false, error: 'Admin billing endpoint not found.' });
   return true;
 }
 
 module.exports = {
   handleBillingRoutes, setHooks, hasPlus, plusFor, isPaid, ownedSource, grantItem, syncPlus,
-  verifySignature, handleEvent, redeem, enabled
+  verifySignature, handleEvent, redeem, enabled, config, activeEnv, publicSettings, saveSetting
 };

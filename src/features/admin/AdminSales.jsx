@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, Crown, DollarSign, LoaderCircle, Receipt, RotateCcw, Ticket, Trash2 } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
+import AdminPayments from './AdminPayments.jsx';
 import { adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
 
 const money = (value, currency = 'USD') => {
@@ -82,7 +83,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
   return (
     <div className="admin-scroll">
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
-      {overview && !overview.enabled && <div className="admin-error" role="status"><span>Payments are off: the Paddle keys aren’t set on the server yet.</span></div>}
+      {overview && !overview.enabled && <div className="admin-error" role="status"><span>Payments are off: add your Paddle keys in Paddle setup below.</span></div>}
 
       <div className="admin-kpis">
         <div className="admin-kpi"><span className="admin-kpi-icon"><DollarSign size={15} /></span><span className="admin-kpi-label">Sales, all time</span><strong className="admin-kpi-value">{overview ? money(overview.sales.total) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${formatNumber(overview.sales.count)} payments` : ''}</span></div>
@@ -148,6 +149,8 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
           </div>
         </section>
       </div>
+
+      <AdminPayments onNotify={onNotify} onAccessRevoked={onAccessRevoked} onChanged={() => load().catch(() => {})} />
     </div>
   );
 }

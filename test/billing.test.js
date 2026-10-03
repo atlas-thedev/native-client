@@ -110,3 +110,36 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     fs.rmSync(DATA_DIR, { recursive: true, force: true });
   }
 });
+
+test('admin Paddle settings: secrets are write-only, live needs setup, sandbox events are ignored while live', async () => {
+  const boss = db.getUserByUsername('Boss') || db.createUser({ email: 'boss@test.local', username: 'Boss', password: 'password123' });
+  const token = db.createSession(boss.id).token;
+  const server = await listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, pathname, body) => fetch(`${base}${pathname}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  try {
+    let r = await call('POST', '/v1/admin/billing/settings', { environment: 'production', apiKey: 'pdl_sdbx_apikey_wrongwrongwrongwrongwrong' });
+    assert.equal(r.status, 400);
+    r = await call('POST', '/v1/admin/billing/settings', { environment: 'production', apiKey: 'pdl_live_apikey_01abcdefghijklmnopqrstuvwxyz_SECRET', clientToken: 'live_0123456789abcdef0123456789' });
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    assert.equal(JSON.stringify(body).includes('SECRET'), false);
+    assert.equal(body.settings.environments.production.apiKey, '…CRET');
+    assert.equal(body.settings.environments.production.ready, false);
+    r = await call('POST', '/v1/admin/billing/activate', { environment: 'production' });
+    assert.equal(r.status, 400);
+
+    // pretend setup ran, then go live
+    const billing = require('../server/billing');
+    for (const [k, v] of Object.entries({ webhookSecret: 'pdl_ntfset_live_secret', capeProduct: 'pro_live' })) billing.saveSetting(`production.${k}`, v);
+    r = await call('POST', '/v1/admin/billing/activate', { environment: 'production' });
+    assert.equal(r.status, 200);
+    assert.equal((await (await fetch(`${base}/v1/billing/config`)).json()).environment, 'production');
+    const raw = JSON.stringify({ event_id: 'evt_sbx_after_live', event_type: 'transaction.completed', data: { id: 'txn_x', custom_data: { userId: boss.id, kind: 'cape', itemId: 'aurora' } } });
+    r = await fetch(`${base}/v1/billing/paddle/webhook`, { method: 'POST', headers: { 'Paddle-Signature': sign(raw) }, body: raw });
+    assert.equal((await r.json()).ignored, 'sandbox event while live');
+    await call('POST', '/v1/admin/billing/activate', { environment: 'sandbox' });
+  } finally {
+    server.close();
+  }
+});

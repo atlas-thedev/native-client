@@ -77,6 +77,10 @@ function init() {
   handle('admin:billingCodes', () => adminFetch('/billing/codes'));
   handle('admin:billingCreateCode', (payload = {}) => adminFetch('/billing/codes', { method: 'POST', body: payload }));
   handle('admin:billingDeleteCode', (code) => adminFetch(`/billing/codes/${encodeURIComponent(code)}`, { method: 'DELETE' }));
+  handle('admin:billingSettings', () => adminFetch('/billing/settings'));
+  handle('admin:billingSaveSettings', (payload = {}) => adminFetch('/billing/settings', { method: 'POST', body: payload }));
+  handle('admin:billingSetup', (environment) => adminFetch('/billing/setup', { method: 'POST', body: { environment } }));
+  handle('admin:billingActivate', (environment) => adminFetch('/billing/activate', { method: 'POST', body: { environment } }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',
