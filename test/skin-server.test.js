@@ -70,15 +70,20 @@ test('skin API rejects non-PNG uploads', () => {
 
 /* ---------- profile document shape ---------- */
 
+const VANILLA_HASH = 'f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4';
+const VANILLA_PNG = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'assets', 'capes', 'vanilla.png'));
+
 test('CustomSkinAPI documents use absolute texture URLs and follow the model', () => {
   const origin = 'https://api.example.test';
   const classic = customSkinProfile(
-    { username: 'Notch', model: 'default', skin: 'a'.repeat(64), cape: 'b'.repeat(64) },
+    { username: 'Notch', model: 'default', skin: 'a'.repeat(64), cape: VANILLA_HASH },
     origin
   );
   assert.equal(classic.skins.default, `${origin}/csl/textures/${'a'.repeat(64)}`);
   assert.equal(classic.skins.slim, undefined);
-  assert.equal(classic.capes.default, `${origin}/csl/textures/${'b'.repeat(64)}`);
+  assert.equal(classic.capes.default, `${origin}/csl/textures/${VANILLA_HASH}`);
+  // Capes players made themselves are never served.
+  assert.deepEqual(customSkinProfile({ username: 'Notch', model: 'default', cape: 'b'.repeat(64) }, origin).capes, {});
 
   const slim = customSkinProfile({ username: 'Notch', model: 'slim', skin: 'c'.repeat(64), cape: null }, origin);
   assert.equal(slim.skins.slim, `${origin}/csl/textures/${'c'.repeat(64)}`);
@@ -98,12 +103,12 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   const base = `http://127.0.0.1:${server.address().port}`;
   const key = crypto.randomBytes(32).toString('hex');
   const skin = makePng(0x11);
-  const cape = makePng(0x22);
+  const cape = VANILLA_PNG;
 
   const publish = await fetch(`${base}/v1/wardrobe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ username: 'Notch', model: 'slim', skin: skin.toString('base64'), cape: cape.toString('base64') })
+    body: JSON.stringify({ username: 'Notch', model: 'slim', skin: skin.toString('base64'), skinName: 'Night Walker', cape: cape.toString('base64') })
   });
   assert.equal(publish.status, 200);
 
@@ -113,6 +118,7 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   const profile = await profileRes.json();
   assert.equal(profile.username, 'Notch');
   assert.equal(profile.model, 'slim');
+  assert.equal(profile.skinName, 'Night Walker'); // the locker name travels with the skin
   assert.match(profile.skins.slim, new RegExp(`^${base}/csl/textures/[a-f0-9]{64}$`));
   assert.match(profile.capes.default, new RegExp(`^${base}/csl/textures/[a-f0-9]{64}$`));
 

@@ -150,6 +150,9 @@ function atomicWrite(filePath, data) {
   fs.renameSync(temporary, filePath);
 }
 
+const capeAllowed = (hash) => storeRoutes.capeAllowed(hash);
+const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape) ? profile.cape : null);
+
 function textureHash(buffer) {
   if (!buffer) return null;
   const hash = crypto.createHash('sha256').update(buffer).digest('hex');
@@ -182,7 +185,7 @@ function saveProfile(profile, req, owner) {
         name: profile.username,
         model: profile.model === 'slim' ? 'slim' : 'default',
         skinUrl: profile.skin ? `${origin}/csl/textures/${profile.skin}` : null,
-        capeUrl: profile.cape ? `${origin}/csl/textures/${profile.cape}` : null,
+        capeUrl: shownCape(profile) ? `${origin}/csl/textures/${profile.cape}` : null,
         capeAnimation: (() => {
           const anim = storeRoutes.animationFor(profile);
           return anim ? { url: `${origin}/csl/textures/${anim.strip}`, frames: anim.frames, fps: anim.fps } : null;
@@ -301,7 +304,7 @@ function withSkin(entry, origin) {
 /** CustomSkinLoader's CustomSkinAPI document. */
 function customSkinProfile(profile, origin) {
   const skin = textureUrl(origin, profile.skin);
-  const cape = textureUrl(origin, profile.cape);
+  const cape = textureUrl(origin, shownCape(profile));
   const slim = profile.model === 'slim';
 
   const skins = {};
@@ -320,6 +323,7 @@ function customSkinProfile(profile, origin) {
     capes: capeMap,
     skin,
     cape,
+    ...(profile.skinName && skin ? { skinName: profile.skinName } : {}),
     updatedAt: profile.updatedAt
   };
   // Animated capes: `cape` above is the first frame (a normal cape for anything
@@ -556,13 +560,20 @@ async function handler(req, res) {
       }
 
       const skin = body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
-      let cape = body.cape !== undefined ? (body.cape ? textureHash(pngBuffer(body.cape)) : null) : (existing?.cape ?? null);
+      let cape = existing?.cape ?? null;
+      let capeRefused = false;
+      if (body.cape !== undefined) {
+        const capeBuffer = body.cape ? pngBuffer(body.cape) : null;
+        const capeHash = capeBuffer ? crypto.createHash('sha256').update(capeBuffer).digest('hex') : null;
+        if (capeAllowed(capeHash)) cape = capeHash ? textureHash(capeBuffer) : null;
+        else { capeRefused = true; cape = capeAllowed(cape) ? cape : null; }
+      }
       let capeAnim = existing?.capeAnim ?? null;
       let capeStore = existing?.capeStore ?? null;
       let animationRefused = false;
       // Older launchers re-send the (static) first frame on every sync. Only a
       // genuinely different cape, or an explicit capeAnim field, drops the animation.
-      const capeChanged = body.cape !== undefined && cape !== (existing?.cape ?? null);
+      const capeChanged = cape !== (existing?.cape ?? null);
       if (body.capeAnim !== undefined || capeChanged) {
         capeStore = null;
         capeAnim = null;
@@ -592,10 +603,16 @@ async function handler(req, res) {
         }
       }
       if (!cape) { capeAnim = null; capeStore = null; }
+      // The name the player gave this skin in their locker, so every device shows the same one.
+      const cleanSkinName = (value) => String(value ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) || null;
+      const skinName = !skin ? null
+        : body.skinName !== undefined ? cleanSkinName(body.skinName)
+        : (skin === (existing?.skin ?? null) ? (existing?.skinName ?? null) : null);
       const profile = {
         username,
         model: body.model === 'slim' ? 'slim' : 'default',
         skin,
+        ...(skinName ? { skinName } : {}),
         cape,
         ...(capeAnim ? { capeAnim } : {}),
         ...(capeStore ? { capeStore } : {}),
@@ -609,9 +626,9 @@ async function handler(req, res) {
         username,
         model: profile.model,
         skins: profile.skin ? [profile.skin] : [],
-        capes: profile.cape ? [profile.cape] : [],
+        capes: shownCape(profile) ? [profile.cape] : [],
         animated: Boolean(storeRoutes.animationFor(profile)),
-        ...(animationRefused ? { notice: 'Animated capes come from the Noctra Store. Your cape was saved as a still image.' } : {}),
+        ...(capeRefused ? { notice: 'Only Noctra capes can be worn. Pick one from your locker.' } : animationRefused ? { notice: 'Animated capes come from the Noctra Store. Your cape was saved as a still image.' } : {}),
         profile: customSkinProfile(profile, originOf(req))
       });
     }

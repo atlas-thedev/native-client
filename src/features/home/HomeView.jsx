@@ -12,7 +12,6 @@ import './HomeView.css';
 import './HomeSelection.css';
 
 import useVersionBanners from '../../lib/useVersionBanners.js';
-const LOW_RES_WIDTH = 1100;
 const loadersOf = (instance) => instance?.mc_loader || instance?.loader || 'Vanilla';
 const versionOf = (instance) => instance?.mc_version || instance?.version || '';
 
@@ -59,11 +58,6 @@ export default function HomeView({
   }, [selectedCluster, instances, isStarterMode, selectedStarterId]);
 
   const backgroundArt = getClusterArt(cluster);
-  // Mojang only publishes a 540x540 thumbnail for the newest releases. Stretched over
-  // the whole screen it is a blur, so small pictures are shown as a crisp framed
-  // picture on top of a softened copy of themselves instead.
-  const [artSize, setArtSize] = useState({ src: null, width: 0 });
-  const lowResArt = artSize.src === backgroundArt && artSize.width > 0 && artSize.width < LOW_RES_WIDTH;
   const isInstalled = useIsInstalled(isStarterMode ? null : cluster, launcherState?.status);
 
   const activeIndex = useMemo(() => {
@@ -175,14 +169,10 @@ export default function HomeView({
         <img
           key={backgroundArt}
           src={backgroundArt}
-          alt={lowResArt ? '' : (cluster?.name || 'Minecraft')}
-          className={`home-bg-img ${lowResArt ? 'is-backdrop' : ''}`}
-          onLoad={(event) => setArtSize({ src: backgroundArt, width: event.currentTarget.naturalWidth })}
+          alt={cluster?.name || 'Minecraft'}
+          className="home-bg-img"
         />
         <div className="home-bg-overlay" />
-        {lowResArt && (
-          <img key={`${backgroundArt}-sharp`} src={backgroundArt} alt={cluster?.name || 'Minecraft'} className="home-bg-sharp" />
-        )}
         <div className="home-bg-fade" />
       </div>
 

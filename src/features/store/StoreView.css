@@ -137,3 +137,20 @@
   .store-card { transition: none; }
   .store-card:hover { transform: none; }
 }
+
+/* Owned / worn: a quiet mark on the art instead of a label. */
+.store-card-art { position: relative; }
+.store-card-mark {
+  position: absolute; right: 8px; bottom: 8px; display: grid; place-items: center; width: 20px; height: 20px;
+  border-radius: 50%; color: var(--fg-primary); background: var(--st-line-strong); box-shadow: 0 0 0 2px var(--page);
+}
+.store-card-mark.is-worn { color: var(--page); background: var(--accent-text); }
+.store-card.is-worn { border-color: var(--accent-text); }
+
+.store-coming {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  min-height: 360px; padding: 40px; text-align: center; border: 1px dashed var(--st-line-strong); border-radius: var(--radius-xl);
+}
+.store-coming-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--st-line-strong); color: var(--fg-primary); }
+.store-coming h2 { margin: 6px 0 0; font-size: 20px; }
+.store-coming p { max-width: 420px; margin: 0 0 8px; color: var(--fg-secondary); font-size: 13px; line-height: 1.5; }

@@ -47,7 +47,8 @@ function entryFor(profile) {
   } catch { /* the database may be unavailable in tests */ }
   // Only Noctra store capes animate (see store-routes.animationFor).
   let allowed = null;
-  try { allowed = require('./store-routes').animationFor(profile); } catch {}
+  let capeOk = true;
+  try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape); } catch {}
   const anim = allowed && HASH.test(profile.cape || '')
     ? { h: allowed.strip, f: Number(allowed.frames) || 0, p: Number(allowed.fps) || 0 }
     : null;
@@ -56,7 +57,7 @@ function entryFor(profile) {
     m: profile.model === 'slim' ? 'slim' : 'default',
     s: HASH.test(profile.skin || '') ? profile.skin : null,
     // For an animated cape `c` is its first frame: the game loads it as an ordinary cape.
-    c: HASH.test(profile.cape || '') ? profile.cape : null,
+    c: HASH.test(profile.cape || '') && capeOk ? profile.cape : null,
     // Animation: strip hash, frame count, frames per second.
     a: anim && anim.f >= 2 && anim.p > 0 ? anim : null,
     u: mcUuid,

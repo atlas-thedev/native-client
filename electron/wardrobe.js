@@ -607,6 +607,8 @@ function renameItem(account, id, name) {
   const item = findItem(metadata, id);
   if (!item) throw new Error('That locker item no longer exists.');
   item.name = cleanName(name, item.kind === 'cape' ? 'Cape' : 'Skin');
+  // Renaming the skin you wear changes what other devices see, so it counts as a local change to sync.
+  if (item.kind === 'skin' && metadata.activeSkin === item.id) metadata.lastModifiedAt = Date.now();
   saveMetadata(account, metadata);
   return publicState(account);
 }
@@ -653,9 +655,11 @@ function readActiveBuffers(account) {
   // Only Noctra store capes are sent animated - the server refuses anything else anyway.
   const cape = read(hasStill ? capeItem.stillFile : capeItem?.file);
   const strip = hasStill && capeItem.storeId && cape ? read(capeItem.file) : null;
+  const skinItem = activeItem(metadata, 'skin');
   return {
     metadata,
-    skin: read(activeItem(metadata, 'skin')?.file),
+    skin: read(skinItem?.file),
+    skinName: skinItem?.name || null,
     cape,
     capeAnim: strip ? { strip, frames: capeItem.anim.frames, fps: capeItem.anim.fps } : null
   };
@@ -826,6 +830,12 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
       const remoteHash = hashMatch ? hashMatch[1].toLowerCase() : null;
       const currentActiveSkin = activeItem(metadata, 'skin');
       let needsDownload = true;
+      const autoName = `${username}'s Skin`;
+      const remoteSkinName = typeof remote.skinName === 'string' && remote.skinName.trim() ? cleanName(remote.skinName, 'Skin') : null;
+      // Use the name the player gave the skin (kept on the server), not the generic one.
+      const adoptName = (it) => {
+        if (it && remoteSkinName && it.name !== remoteSkinName) { it.name = remoteSkinName; changed = true; }
+      };
 
       if (currentActiveSkin) {
         try {
@@ -833,6 +843,7 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
           const currentHash = crypto.createHash('sha256').update(currentBuf).digest('hex').toLowerCase();
           if (remoteHash && currentHash === remoteHash) {
             needsDownload = false;
+            adoptName(currentActiveSkin);
           }
         } catch {}
       }
@@ -861,6 +872,7 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
               }
 
               if (existingItem) {
+                adoptName(existingItem);
                 metadata.activeSkin = existingItem.id;
                 metadata.model = model;
                 changed = true;
@@ -873,7 +885,7 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
                   id,
                   kind: 'skin',
                   file,
-                  name: `${username}'s Skin`,
+                  name: remoteSkinName || autoName,
                   model,
                   createdAt: Date.now(),
                   favorite: false
@@ -1098,7 +1110,7 @@ async function syncWardrobe(account) {
   } catch {}
 
   // Otherwise, push local outfit to the server
-  const { skin, cape, capeAnim } = readActiveBuffers(account);
+  const { skin, skinName, cape, capeAnim } = readActiveBuffers(account);
   metadata = loadMetadata(account);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -1124,6 +1136,7 @@ async function syncWardrobe(account) {
         username: account.name,
         model: metadata.model,
         skin: skin ? skin.toString('base64') : null,
+        ...(skin ? { skinName } : {}),
         cape: cape ? cape.toString('base64') : null,
         ...(capeAnim ? { capeAnim: { strip: capeAnim.strip.toString('base64'), frames: capeAnim.frames, fps: capeAnim.fps } } : {})
       }),
@@ -1623,7 +1636,11 @@ function init(dependencies, ipcMain) {
     return state;
   });
   ipcMain.handle('wardrobe:favorite', (_event, { account, id, favorite }) => setFavorite(account, id, favorite));
-  ipcMain.handle('wardrobe:rename', (_event, { account, id, name }) => renameItem(account, id, name));
+  ipcMain.handle('wardrobe:rename', (_event, { account, id, name }) => {
+    const state = renameItem(account, id, name);
+    syncWardrobeInBackground(account);
+    return state;
+  });
   ipcMain.handle('wardrobe:remove', (_event, { account, id }) => {
     const state = removeItem(account, id);
     syncWardrobeInBackground(account);

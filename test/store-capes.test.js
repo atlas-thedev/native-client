@@ -85,14 +85,13 @@ test('only Noctra store capes animate: own strips become still capes, owned stor
   const bad = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(png(128, 32)), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
   assert.equal(bad.status, 400);
 
-  // A self-made animation is refused: the still first frame is saved as a normal cape.
+  // A self-made cape (animated or not) is refused: players can't upload capes of their own.
   const own = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
   assert.equal(own.status, 200);
   assert.equal(own.body.animated, false);
-  assert.match(own.body.notice, /Noctra Store/);
-  assert.match(own.body.profile.cape, /\/csl\/textures\/[a-f0-9]{64}$/);
+  assert.match(own.body.notice, /Only Noctra capes/);
+  assert.equal(own.body.profile.cape, null);
   assert.equal(own.body.profile.capeAnimation, undefined);
-  assert.equal((await json('/v1/skins/directory')).body.entries.find((e) => e.n === 'AnimUser').a, null);
 
   // A store strip the account does not own is refused too...
   const storeStrip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8').trim();
@@ -117,8 +116,9 @@ test('only Noctra store capes animate: own strips become still capes, owned stor
   const resync = await post('/v1/wardrobe', { username: 'AnimUser', cape: storeStill, model: 'slim' }, session.token);
   assert.equal(resync.body.animated, true);
 
-  // A different static cape drops it.
-  const swap = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(png(64, 32, 200)) }, session.token);
+  // A different (classic) cape drops it.
+  const vanilla = fs.readFileSync(path.join(__dirname, '..', 'src', 'assets', 'capes', 'vanilla.png'));
+  const swap = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(vanilla) }, session.token);
   assert.equal(swap.body.animated, false);
   assert.equal((await json('/csl/AnimUser.json')).body.capeAnimation, undefined);
 
@@ -130,7 +130,7 @@ test('only Noctra store capes animate: own strips become still capes, owned stor
   assert.equal((await json('/csl/AnimUser.json')).body.cape, null);
 });
 
-test('legacy self-made animations on disk are shown as still capes', async () => {
+test('legacy self-made capes on disk are not served', async () => {
   const strip = png(64, 32 * 3, 40);
   const hash = (buf) => require('node:crypto').createHash('sha256').update(buf).digest('hex');
   fs.mkdirSync(path.join(DATA_DIR, 'profiles'), { recursive: true });
@@ -138,7 +138,7 @@ test('legacy self-made animations on disk are shown as still capes', async () =>
     username: 'LegacyAnim', model: 'default', skin: null, cape: hash(png(64, 32, 40)), capeAnim: { strip: hash(strip), frames: 3, fps: 10 }, updatedAt: new Date().toISOString()
   }));
   const csl = await json('/csl/LegacyAnim.json');
-  assert.ok(csl.body.cape);
+  assert.equal(csl.body.cape, null);
   assert.equal(csl.body.capeAnimation, undefined);
 });
 

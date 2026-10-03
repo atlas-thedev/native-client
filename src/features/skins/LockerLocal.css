@@ -18,12 +18,12 @@
 .animcape-wait { display: grid; place-items: center; height: 100%; color: var(--fg-muted); }
 .animcape-modal .import-form-field input[type="range"] { padding: 0; min-height: 24px; }
 .locker-cape-actions { display: flex; align-items: center; gap: 8px; }
-.locker-cape-actions button {
+.locker-cape-actions > button {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
   border: 1px solid var(--lk-line-strong); border-radius: var(--radius-full);
   background: var(--lk-well); color: var(--fg-secondary); font: 600 11.5px var(--font-sans); cursor: pointer;
 }
-.locker-cape-actions button:hover { color: var(--fg-primary-hover); border-color: rgba(255, 255, 255, 0.3); }
+.locker-cape-actions > button:hover { color: var(--fg-primary-hover); border-color: rgba(255, 255, 255, 0.3); }
 .locker-cape-anim {
   position: absolute; top: 5px; right: 5px; padding: 1px 5px; border-radius: 6px;
   background: var(--accent-text); color: var(--page); font: 800 8px var(--font-sans); letter-spacing: 0.06em; font-style: normal;
@@ -54,21 +54,14 @@
 .capestore-equip:disabled { opacity: 0.6; cursor: default; }
 .capestore-remove { align-self: center; background: transparent; color: var(--fg-secondary); border: 1px solid var(--lk-line-strong); }
 
-/* Remove a self-uploaded static cape from the locker. */
-.locker-cape-remove {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  color: var(--fg-muted);
-  background: var(--lk-tile, rgba(0, 0, 0, 0.4));
-  opacity: 0;
-  transition: opacity 120ms ease, color 120ms ease;
+/* Compact search in the locker row headers. */
+.locker-search {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; width: 150px; padding: 0 10px;
+  border: 1px solid var(--lk-line-strong); border-radius: var(--radius-full); background: var(--lk-well);
+  color: var(--fg-muted); transition: width 0.18s var(--ease), border-color 0.14s var(--ease);
 }
-.locker-cape-card:hover .locker-cape-remove,
-.locker-cape-remove:focus-visible { opacity: 1; }
-.locker-cape-remove:hover { color: #f87171; }
+.locker-search:focus-within, .locker-search.has-value { width: 190px; border-color: rgba(255, 255, 255, 0.3); color: var(--fg-secondary); }
+.locker-search input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--fg-primary); font: 500 11.5px var(--font-sans); }
+.locker-search input::placeholder { color: var(--fg-muted); }
+.locker-search button { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--fg-muted); cursor: pointer; }
+.locker-search button:hover { color: var(--fg-primary-hover); }

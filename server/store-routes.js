@@ -126,6 +126,22 @@ function ownerCounts() {
 
 const current = () => catalog || (storeTexture ? ensureCatalog() : { items: [] });
 const findItem = (id) => current().items.find((item) => item.id === id) || null;
+/**
+ * Capes players may wear: the bundled classic capes (sha256 of the PNG, the same files ship with the
+ * launcher and the website) and Noctra Store capes. Players cannot upload capes of their own.
+ */
+const PRESET_CAPE_HASHES = new Set([
+  '0b4f4ee1bf094876a8454838b7cd07184dce86428b3cab4122b3bb7d67e530b6', // 15th Anniversary
+  'be05a2d92dd043034c9ae6d7c8415e8bc990080ba4dc4c70e9ea92cf9a89705c', // Cherry Blossom
+  '77065df71efe39771d3af4832ed62803c551772cc2f78e744d52822ae949f6c6', // Followers
+  '99aba02ef05ec6aa4d42db8ee43796d6cd50e4b2954ab29f0caeb85f96bf52a1', // Founders
+  '2340c0e03dd24a11b15a8b33c2a7e9e32abb2051b2481d0ba7defd635ca7a933', // Migrator
+  '6836989ef37c72e84552410f178740a3d630ed4ecdce14029e6e9e155980d06c', // Purple Heart
+  'f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4' // Vanilla
+]);
+/** Players can't upload capes: only the classic presets and Noctra Store capes are worn/served. */
+const capeAllowed = (hash) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash);
+const isStoreStill = (hash) => Boolean(hash) && current().items.some((item) => item.still === hash);
 const findByStrip = (hash) => current().items.find((item) => item.animated && item.strip === hash) || null;
 
 /**
@@ -442,4 +458,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, owns, grant, resetCatalog };
+module.exports = { handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, isStoreStill, capeAllowed, owns, grant, resetCatalog };

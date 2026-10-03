@@ -172,9 +172,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (!owned) {
       return <button type="button" className="store-btn" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); claim(item); }}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Plus size={13} />}Add to locker</button>;
     }
-    if (compact) return <span className={`store-owned${wearing ? ' wearing' : ''}`}><Check size={12} />{wearing ? 'Wearing' : 'In locker'}</span>;
+    if (compact) {
+      return wearing
+        ? <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); wear(null); }}>{busy === 'wear:off' ? <Loader2 size={13} className="is-spinning" /> : null}Take off</button>
+        : <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); wear(item); }}>{busy === `wear:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Shirt size={13} />}Wear</button>;
+    }
     return wearing
-      ? <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => wear(null)}>{busy === 'wear:off' ? <Loader2 size={13} className="is-spinning" /> : <Check size={13} />}Wearing · Take off</button>
+      ? <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => wear(null)}>{busy === 'wear:off' ? <Loader2 size={13} className="is-spinning" /> : null}Take off</button>
       : <button type="button" className="store-btn" disabled={busy !== null} onClick={() => wear(item)}>{busy === `wear:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Shirt size={13} />}Wear now</button>;
   };
 
@@ -194,7 +198,16 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       {error && <div className="store-note is-error" role="alert">{error}</div>}
       {!catalog && !error && <div className="store-note"><Loader2 size={14} className="is-spinning" /> Loading the store…</div>}
 
-      {catalog && (
+      {catalog && !(catalog.items || []).length && (
+        <div className="store-coming">
+          <span className="store-coming-icon"><Sparkles size={20} /></span>
+          <h2>New capes are on the way</h2>
+          <p>The first Noctra capes are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
+          <button type="button" className="store-btn ghost" onClick={() => load(true)}><RefreshCw size={13} />Check again</button>
+        </div>
+      )}
+
+      {catalog && (catalog.items || []).length > 0 && (
         <div className="store-body">
           <aside className="store-detail">
             {selected ? (
@@ -210,7 +223,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   </div>
                   <p>{selected.description}</p>
                   <div className="store-tags">
-                    {selected.animated && <span className="store-tag strong">Animated · {selected.frames} frames</span>}
+                    {selected.animated && <span className="store-tag strong">Animated</span>}
                     {(selected.tags || []).filter((tag) => tag !== 'animated').map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
                   </div>
                   <div className="store-stats"><Users size={13} />{selected.owners || 0} {selected.owners === 1 ? 'player has' : 'players have'} this · by {selected.author || 'Noctra'}</div>
@@ -256,13 +269,14 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             ) : (
               <div className="store-grid">
                 {items.map((item) => (
-                  <article key={item.id} className={`store-card${selected?.id === item.id ? ' active' : ''}`} onClick={() => setSelectedId(item.id)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') setSelectedId(item.id); }}>
+                  <article key={item.id} className={`store-card${selected?.id === item.id ? ' active' : ''}${me.equipped === item.id ? ' is-worn' : ''}`} onClick={() => setSelectedId(item.id)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') setSelectedId(item.id); }}>
                     <div className="store-card-art">
                       <canvas ref={(node) => { if (node) canvases.current.set(item.id, node); else canvases.current.delete(item.id); }} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
                       <div className="store-card-badges">
                         {item.isNew && <span className="store-badge solid">NEW</span>}
                         {item.animated && <span className="store-badge">ANIM</span>}
                       </div>
+                      {ownedIds.has(item.id) && <span className={`store-card-mark${me.equipped === item.id ? ' is-worn' : ''}`} title={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'} aria-label={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'}><Check size={11} strokeWidth={3} /></span>}
                     </div>
                     <div className="store-card-meta">
                       <strong>{item.name}</strong>

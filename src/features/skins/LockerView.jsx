@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Star, Store, Trash2, Upload, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Star, Store, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { CAPE_PRESETS } from './capePresets.js';
 import useOfficialCapes from './useOfficialCapes.js';
@@ -37,7 +37,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [storeBusy, setStoreBusy] = useState(null);
   const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const capeInputRef = useRef(null);
+  const [capeQuery, setCapeQuery] = useState('');
+  const [skinQuery, setSkinQuery] = useState('');
 
   const publishState = (next) => {
     setWardrobe(next);
@@ -205,18 +206,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       animated: Boolean(item.animated),
       active: wornStoreId === item.id
     }));
-    // Static capes the player uploaded themselves.
-    const presetNames = new Set(CAPE_PRESETS.map((cape) => cape.name));
-    const custom = (wardrobe?.capes || []).filter((item) => !item.storeId && !presetNames.has(item.name)).map((item) => ({
-      key: `own:${item.id}`,
-      kind: 'wardrobe',
-      name: item.name,
-      textureUrl: item.url,
-      item,
-      removable: true,
-      active: Boolean(item.active) && !wornStoreId
-    }));
-    const animated = [...owned, ...custom];
+    const animated = owned;
     const presets = CAPE_PRESETS.map((cape) => ({
       key: cape.id,
       kind: cape.id === 'none' ? 'none' : 'preset',
@@ -228,10 +218,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     return [...presets.slice(0, 1), ...animated, ...presets.slice(1)];
   }, [showOfficialCards, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, wardrobe?.active?.cape?.storeId, wardrobe?.capes, activeCapeName, storeCapes, t]);
 
-  const capePages = Math.max(1, Math.ceil(capeCards.length / CAPES_PER_PAGE));
-  const skinPages = Math.max(1, Math.ceil(skinItems.length / SKINS_PER_PAGE));
-  const visibleCapes = capeCards.slice(capePage * CAPES_PER_PAGE, (capePage + 1) * CAPES_PER_PAGE);
-  const visibleSkins = skinItems.slice(skinPage * SKINS_PER_PAGE, (skinPage + 1) * SKINS_PER_PAGE);
+  const matches = (name, query) => !query.trim() || String(name || '').toLowerCase().includes(query.trim().toLowerCase());
+  const shownCapes = useMemo(() => capeCards.filter((card) => matches(card.name, capeQuery)), [capeCards, capeQuery]);
+  const shownSkins = useMemo(() => skinItems.filter((item) => matches(item.name, skinQuery)), [skinItems, skinQuery]);
+  const capePages = Math.max(1, Math.ceil(shownCapes.length / CAPES_PER_PAGE));
+  const skinPages = Math.max(1, Math.ceil(shownSkins.length / SKINS_PER_PAGE));
+  const visibleCapes = shownCapes.slice(capePage * CAPES_PER_PAGE, (capePage + 1) * CAPES_PER_PAGE);
+  const visibleSkins = shownSkins.slice(skinPage * SKINS_PER_PAGE, (skinPage + 1) * SKINS_PER_PAGE);
+  useEffect(() => { setCapePage(0); }, [capeQuery]);
+  useEffect(() => { setSkinPage(0); }, [skinQuery]);
 
   useEffect(() => {
     setCapePage((page) => Math.min(page, capePages - 1));
@@ -354,27 +349,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip cape.'); }
   };
 
-  // Static capes only: a 64x32-style cape PNG (2:1, 22:17 or 46:22). Animated capes come from the Store.
-  const processCapeFile = async (file) => {
-    if (!file || !account) return;
-    if (!file.name.toLowerCase().endsWith('.png') && file.type !== 'image/png') { onNotify?.('Invalid File', t('locker.uploadNotPng')); return; }
-    if (file.size > 5 * 1024 * 1024) { onNotify?.(t('locker.capes'), 'That file is too large (5 MB max).'); return; }
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      const size = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight }); img.onerror = () => reject(new Error('Could not read that image.')); img.src = dataUrl; });
-      const ratioOk = size.w === size.h * 2 || size.w * 17 === size.h * 22 || size.w * 11 === size.h * 23;
-      if (!ratioOk) {
-        onNotify?.(t('locker.capes'), size.h > size.w ? 'That looks like an animated strip. Animated capes come from the Noctra Store — upload a single static cape (e.g. 64×32).' : `A cape must be 2:1 (like 64×32). That image is ${size.w}×${size.h}.`);
-        return;
-      }
-      const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim() || 'My cape';
-      const next = await window.native?.wardrobe?.upload?.(account, 'cape', dataUrl, { name });
-      if (next) publishState(next);
-      window.native?.wardrobe?.sync?.(account).catch(() => {});
-      onNotify?.(t('locker.title'), `${name} is now your cape.`);
-    } catch (error) { onNotify?.('Upload Error', error?.message || 'Could not upload that cape.'); }
-  };
-
   const wearStoreCape = async (item) => {
     if (!account || storeBusy) return;
     setStoreBusy(item.id);
@@ -384,15 +358,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (res.state) publishState(res.state);
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip that cape.'); }
     finally { setStoreBusy(null); }
-  };
-
-  const removeCustomCape = async (card, event) => {
-    event?.stopPropagation();
-    if (!card?.item?.id) return;
-    try {
-      const next = await window.native?.wardrobe?.remove?.(account, card.item.id);
-      if (next) publishState(next);
-    } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not remove that cape.'); }
   };
 
   // Routes a cape card to the right backend: owned Minecraft capes go through the
@@ -447,24 +412,27 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <section className="locker-row locker-skins-row"><div className="locker-row-header"><div><span className="locker-kicker">{t('locker.favorites')}</span><h2>{t('locker.latest')}</h2></div><CarouselControls page={skinPage} pages={skinPages} setPage={setSkinPage}/></div><div className="locker-skin-strip">
+        <section className="locker-row locker-skins-row"><div className="locker-row-header"><div><span className="locker-kicker">{t('locker.favorites')}</span><h2>{t('locker.latest')}</h2></div><div className="locker-cape-actions"><LockerSearch value={skinQuery} onChange={setSkinQuery} label="Search skins"/><CarouselControls page={skinPage} pages={skinPages} setPage={setSkinPage}/></div></div><div className="locker-skin-strip">
           <button type="button" className="locker-upload-card" onClick={() => fileInputRef.current?.click()}><span className="locker-upload-plus"><Plus size={18}/></span><strong>{t('locker.uploadSkin')}</strong><small>{t('locker.dragDrop')}</small></button>
           {skeleton && [0, 1, 2, 3].map((n) => <div key={`skel-${n}`} className="locker-skel locker-skel-card" style={{ animationDelay: `${n * 120}ms` }}/>)}
           {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
           {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
         </div></section>
-        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Noctra Store"><Store size={13}/>Store</button>}{!showOfficialCards && <button type="button" onClick={() => capeInputRef.current?.click()} title="Upload your own static cape (PNG, 2:1 like 64×32)"><Upload size={13}/>Upload</button>}{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
+        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Noctra Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
           {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
-          {!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{card.animated && <em className="locker-cape-anim">ANIM</em>}{card.kind === 'store' && !card.animated && <em className="locker-cape-anim">NOCTRA</em>}{card.removable && !card.active && <span role="button" tabIndex={-1} className="locker-cape-remove" onClick={(event) => removeCustomCape(card, event)} title="Remove"><Trash2 size={11}/></span>}{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
+          {!capesSkeleton && capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No capes match “{capeQuery.trim()}”.</p>}{!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
           {showOfficialCards && <p className="locker-cape-hint">{t('locker.officialHint')}</p>}
         </section>
       </main>
     </div>
-    <input ref={capeInputRef} type="file" accept="image/png,.png" hidden onChange={(event) => { processCapeFile(event.target.files?.[0]); event.target.value=''; }}/>
     <input ref={fileInputRef} type="file" accept="image/png,.png" hidden onChange={(event) => { processFile(event.target.files?.[0]); event.target.value=''; }}/>
     {importOpen && importData && <div className="locker-modal-overlay" onClick={() => setImportOpen(false)}><div className="locker-import-modal" onClick={(event) => event.stopPropagation()}><button type="button" className="import-modal-close" onClick={() => setImportOpen(false)}><X size={16}/></button><div className="import-modal-preview"><SkinViewer3D account={{...account,skinUrl:importData.dataUrl,model:importData.model}} width={170} height={230} animation="idle" autoRotate/></div><div className="import-modal-form"><div className="import-modal-head"><h3>{t('locker.importTitle')}</h3><p>{t('locker.importSubtitle')}</p></div><label className="import-form-field"><span>{t('locker.fieldName')}</span><input value={importData.name} onChange={(event) => setImportData({...importData,name:event.target.value})}/></label><div className="import-form-field"><span>{t('locker.fieldFile')}</span><button type="button" className="import-file-display" onClick={() => fileInputRef.current?.click()}><span>{importData.fileName}</span><Folder size={14}/></button></div><div className="import-form-field"><span>{t('locker.model')}</span><div className="import-model-grid">{['classic','slim'].map((model) => <button key={model} type="button" className={`import-model-card${importData.model===model?' active':''}`} onClick={() => setImportData({...importData,model})}><ModelArmGlyph model={model}/><strong>{model==='classic'?t('locker.modelClassic'):t('locker.modelSlim')}</strong><small>{model==='classic'?t('locker.modelClassicDesc'):t('locker.modelSlimDesc')}</small>{importData.detected===model && <em className="import-model-detected">{t('locker.modelDetected')}</em>}{importData.model===model && <span className="import-model-check"><Check size={12}/></span>}</button>)}</div></div><button type="button" className="import-save-btn" onClick={saveImport} disabled={importSaving}><Check size={15}/>{importSaving?t('common.loading'):t('common.save')}</button></div></div></div>}
   </div>;
+}
+
+function LockerSearch({ value, onChange, label }) {
+  return <label className={`locker-search ${value ? 'has-value' : ''}`}><Search size={13}/><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={label} aria-label={label}/>{value && <button type="button" onClick={() => onChange('')} aria-label="Clear search"><X size={12}/></button>}</label>;
 }
 
 function CarouselControls({ page, pages, setPage }) {
