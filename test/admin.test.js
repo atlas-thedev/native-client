@@ -78,6 +78,50 @@ test('admin API is role-protected and lets the configured admin manage sanitized
       body: JSON.stringify({ badge: 'owner_of_everything', granted: true })
     });
     assert.equal(invalidBadge.status, 400);
+
+    const post = (pathname, body, token = ownerSession.token) => fetch(`${base}${pathname}`, {
+      method: 'POST', headers: authHeaders(token, true), body: JSON.stringify(body)
+    });
+
+    // Admin role management: promote, demote, never demote yourself.
+    const selfDemote = await post(`/v1/admin/users/${owner.id}/admin`, { isAdmin: false });
+    assert.equal(selfDemote.status, 400);
+    const promote = await post(`/v1/admin/users/${regular.id}/admin`, { isAdmin: true });
+    assert.equal((await promote.json()).user.isAdmin, true);
+    const demote = await post(`/v1/admin/users/${regular.id}/admin`, { isAdmin: false });
+    assert.equal((await demote.json()).user.isAdmin, false);
+    const regularPromote = await post(`/v1/admin/users/${regular.id}/admin`, { isAdmin: true }, regularSession.token);
+    assert.equal(regularPromote.status, 403);
+
+    // Per-user cape management from the user panel.
+    const itemsResponse = await fetch(`${base}/v1/admin/store/items`, { headers: authHeaders(ownerSession.token) });
+    const { items } = await itemsResponse.json();
+    const detailResponse = await fetch(`${base}/v1/admin/store/users/${regular.id}`, { headers: authHeaders(ownerSession.token) });
+    const detail = await detailResponse.json();
+    assert.equal(detail.user.username, 'RegularPlayer');
+    assert.equal(typeof detail.user.sessionCount, 'number');
+    assert.equal(detail.user.passwordHash, undefined);
+    assert.deepEqual(detail.user.owned, []);
+    if (items.length) {
+      const capeId = items[0].id;
+      const equip = await (await post(`/v1/admin/store/users/${regular.id}/capes`, { itemId: capeId, action: 'equip' })).json();
+      assert.equal(equip.user.equipped, capeId);
+      assert.ok(equip.user.owned.some((entry) => entry.id === capeId), 'equipping attaches the cape first');
+      const off = await (await post(`/v1/admin/store/users/${regular.id}/capes`, { action: 'unequip' })).json();
+      assert.equal(off.user.equipped, null);
+      const revoked = await (await post(`/v1/admin/store/users/${regular.id}/capes`, { itemId: capeId, action: 'revoke' })).json();
+      assert.ok(!revoked.user.owned.some((entry) => entry.id === capeId));
+    }
+    const badAction = await post(`/v1/admin/store/users/${regular.id}/capes`, { itemId: 'x', action: 'steal' });
+    assert.equal(badAction.status, 400);
+
+    // Signing a user out everywhere kills their sessions.
+    const selfRevoke = await post(`/v1/admin/users/${owner.id}/sessions/revoke`, {});
+    assert.equal(selfRevoke.status, 400);
+    const revokeSessions = await (await post(`/v1/admin/users/${regular.id}/sessions/revoke`, {})).json();
+    assert.ok(revokeSessions.revoked >= 1);
+    const afterRevoke = await fetch(`${base}/v1/admin/status`, { headers: authHeaders(regularSession.token) });
+    assert.equal(afterRevoke.status, 401);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.closeDb();

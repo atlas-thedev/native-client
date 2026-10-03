@@ -20,6 +20,8 @@
  *   GET    /v1/admin/store/items/:id/owners   who has this item
  *   POST   /v1/admin/store/items/:id/grant    { username }  give an item (the only way to get exclusive ones)
  *   POST   /v1/admin/store/items/:id/revoke   { username }  take it back (and off, if worn)
+ *   GET    /v1/admin/store/users/:id       one account: profile facts, owned capes, worn cape
+ *   POST   /v1/admin/store/users/:id/capes { itemId, action: grant|revoke|equip|unequip }
  *
  * Exclusive items (`exclusive: true`, e.g. Beta Tester) are listed in the store but can't be
  * claimed or equipped by just anyone: an admin grants them.
@@ -425,6 +427,66 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     persist();
     send(res, 200, { ok: true, item: publicItem(item, textureBase), items: list() }, noStore);
     return true;
+  }
+
+  const userMatch = url.pathname.match(/^\/v1\/admin\/store\/users\/([^/]+)(\/capes)?$/);
+  if (userMatch) {
+    let target = null;
+    try { target = db.getUserById(decodeURIComponent(userMatch[1])); } catch {}
+    if (!target) { send(res, 404, { ok: false, error: 'User not found.' }); return true; }
+    const detail = () => {
+      let facts = null;
+      try { facts = db.getAdminUserDetail ? db.getAdminUserDetail(target.id) : null; } catch {}
+      const profile = ctx.readProfile(target.username);
+      return {
+        ...(facts || { id: target.id, username: target.username, email: target.email, isAdmin: Boolean(target.is_admin), createdAt: target.created_at }),
+        owned: ownedBy(target.id).filter((entry) => findItem(entry.id)),
+        equipped: profile?.capeStore || null,
+        hasCustomCape: Boolean(profile?.cape && !profile?.capeStore)
+      };
+    };
+    if (req.method === 'GET' && !userMatch[2]) {
+      send(res, 200, { ok: true, user: detail() }, noStore);
+      return true;
+    }
+    if (req.method === 'POST' && userMatch[2]) {
+      const body = await ctx.readJson(req);
+      const action = String(body.action || 'grant');
+      if (!['grant', 'revoke', 'equip', 'unequip'].includes(action)) { send(res, 400, { ok: false, error: 'Unknown cape action.' }); return true; }
+      const existing = ctx.readProfile(target.username) || {
+        username: target.username,
+        model: target.model === 'slim' ? 'slim' : 'default',
+        skin: null,
+        cape: null,
+        authHash: null
+      };
+      const stamp = () => new Date().toISOString();
+      if (action === 'unequip') {
+        if (existing.capeStore) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
+      } else {
+        const item = findItem(String(body.itemId || ''));
+        if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+        if (action === 'grant') grant(target.id, item.id, 'admin');
+        if (action === 'revoke') {
+          revoke(target.id, item.id);
+          if (existing.capeStore === item.id) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
+        }
+        if (action === 'equip') {
+          if (!owns(target.id, item.id)) grant(target.id, item.id, 'admin');
+          ctx.saveProfile({
+            ...existing,
+            cape: item.still,
+            capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
+            capeStore: item.id,
+            updatedAt: stamp()
+          }, req, target);
+        }
+      }
+      const user = detail();
+      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: user.equipped, owned: true });
+      send(res, 200, { ok: true, user, items: list() }, noStore);
+      return true;
+    }
   }
 
   const ownersMatch = url.pathname.match(/^\/v1\/admin\/store\/items\/([^/]+)\/(owners|grant|revoke)$/);

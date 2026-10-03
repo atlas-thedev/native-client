@@ -123,6 +123,9 @@ module.exports = {
   getAdminOverview: () => adminMod.getOverview(getDb()),
   listAdminUsers: (options) => adminMod.listUsers(getDb(), options),
   setUserBadge: (userId, badgeId, granted) => adminMod.setUserBadge(getDb(), userId, badgeId, granted),
+  getAdminUserDetail: (userId) => adminMod.getUserDetail(getDb(), userId),
+  setUserAdmin: (userId, isAdmin) => adminMod.setUserAdmin(getDb(), userId, isAdmin),
+  revokeUserSessions: (userId) => adminMod.revokeUserSessions(getDb(), userId),
 
   // Social & Presence
   updatePresence: (userId, data) => socialMod.updatePresence(getDb(), userId, data),

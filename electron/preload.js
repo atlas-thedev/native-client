@@ -264,7 +264,11 @@ const api = {
     storeDelete: (id) => ipcRenderer.invoke('admin:storeDelete', id),
     storeOwners: (id) => ipcRenderer.invoke('admin:storeOwners', id),
     storeGrant: (id, username) => ipcRenderer.invoke('admin:storeGrant', id, username),
-    storeRevoke: (id, username) => ipcRenderer.invoke('admin:storeRevoke', id, username)
+    storeRevoke: (id, username) => ipcRenderer.invoke('admin:storeRevoke', id, username),
+    getUser: (userId) => ipcRenderer.invoke('admin:getUser', userId),
+    userCape: (userId, itemId, action) => ipcRenderer.invoke('admin:userCape', userId, itemId, action),
+    setAdmin: (userId, isAdmin) => ipcRenderer.invoke('admin:setAdmin', userId, isAdmin),
+    revokeSessions: (userId) => ipcRenderer.invoke('admin:revokeSessions', userId)
   },
   discord: {
     setTab: (tab) => ipcRenderer.send('discord:setTab', tab),

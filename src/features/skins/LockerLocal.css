@@ -24,10 +24,6 @@
   background: var(--lk-well); color: var(--fg-secondary); font: 600 11.5px var(--font-sans); cursor: pointer;
 }
 .locker-cape-actions > button:hover { color: var(--fg-primary-hover); border-color: rgba(255, 255, 255, 0.3); }
-.locker-cape-anim {
-  position: absolute; top: 5px; right: 5px; padding: 1px 5px; border-radius: 6px;
-  background: var(--accent-text); color: var(--page); font: 800 8px var(--font-sans); letter-spacing: 0.06em; font-style: normal;
-}
 .locker-cape-card { position: relative; }
 .capestore-modal {
   box-sizing: border-box; position: relative; display: flex; flex-direction: column; gap: 16px;

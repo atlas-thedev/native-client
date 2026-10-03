@@ -20,6 +20,29 @@ const SORTS = [
   { id: 'name', label: 'A – Z' }
 ];
 
+/** A bright accent colour pulled from the first frame of a cape, used to light its card. */
+function capeTint(image, frames) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 20; canvas.height = 32;
+    drawCapeFront(canvas, image, frames, 0);
+    const { data } = canvas.getContext('2d').getImageData(0, 0, 20, 32);
+    let r = 0; let g = 0; let b = 0; let weight = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue;
+      const max = Math.max(data[i], data[i + 1], data[i + 2]);
+      const min = Math.min(data[i], data[i + 1], data[i + 2]);
+      const w = 0.15 + (max - min) / 255 + max / 510; // favour vivid, bright pixels
+      r += data[i] * w; g += data[i + 1] * w; b += data[i + 2] * w; weight += w;
+    }
+    if (!weight) return null;
+    let rgb = [r / weight, g / weight, b / weight];
+    const peak = Math.max(...rgb, 1);
+    rgb = rgb.map((v) => Math.round(Math.min(255, (v / peak) * 235)));
+    return rgb.join(', ');
+  } catch { return null; }
+}
+
 const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'noctra';
 
 /**
@@ -37,6 +60,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [selectedId, setSelectedId] = useState(null);
   const [wardrobe, setWardrobe] = useState(null);
   const [previews, setPreviews] = useState({}); // id -> data URL (strip or still)
+  const [tints, setTints] = useState({}); // id -> 'r, g, b' accent pulled from the cape art
   const canvases = useRef(new Map());
   const images = useRef(new Map()); // id -> { image, frames, fps }
   const signedIn = isStoreAccount(account);
@@ -77,6 +101,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           const image = await loadStripImage(res.url);
           images.current.set(item.id, { image, frames: item.animated ? item.frames : 1, fps: item.animated ? item.fps : 0 });
           setPreviews((current) => ({ ...current, [item.id]: res.url }));
+          const tint = capeTint(image, item.animated ? item.frames : 1);
+          if (tint) setTints((current) => ({ ...current, [item.id]: tint }));
         } catch { /* the card keeps its placeholder */ }
       }
     })();
@@ -187,15 +213,35 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       : <button type="button" className="store-btn" disabled={busy !== null} onClick={() => wear(item)}>{busy === `wear:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Shirt size={13} />}Wear now</button>;
   };
 
+  const capes = (catalog?.items || []).filter((item) => item.section === 'capes' || !item.section);
+  const counts = {
+    all: capes.length,
+    animated: capes.filter((item) => item.animated).length,
+    static: capes.filter((item) => !item.animated).length,
+    new: capes.filter((item) => item.isNew).length,
+    owned: capes.filter((item) => ownedIds.has(item.id)).length
+  };
+  const wornItem = capes.find((item) => item.id === me.equipped) || null;
+  const priceOf = (item) => (item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free');
+  const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
+  const tintStyle = (id) => (tints[id] ? { '--tint': tints[id] } : undefined);
+
   return (
     <div className="store-view">
       <header className="store-header">
-        <div>
+        <div className="store-header-copy">
+          <span className="store-kicker"><PixelCape size={13} />Noctra Store</span>
           <h1 className="store-title page-title">Store</h1>
           <p className="store-subtitle">Capes made by Noctra. Add one to your locker and wear it everywhere — the launcher, the website and in game. Everything is free right now.</p>
         </div>
         <div className="store-header-actions">
-          {signedIn && <button type="button" className="store-btn ghost" onClick={onOpenLocker}><Package size={13} />My locker · {me.owned.length}</button>}
+          {signedIn && capes.length > 0 && (
+            <div className="store-collection" title="Store capes in your locker">
+              <div className="store-collection-top"><span>Collection</span><strong>{counts.owned}<small>/{capes.length}</small></strong></div>
+              <div className="store-collection-bar"><i style={{ width: `${capes.length ? Math.round((counts.owned / capes.length) * 100) : 0}%` }} /></div>
+            </div>
+          )}
+          {signedIn && <button type="button" className="store-btn ghost" onClick={onOpenLocker}><Package size={13} />My locker</button>}
           <button type="button" className="store-icon-btn" onClick={() => load(true)} title="Refresh" aria-label="Refresh the store"><RefreshCw size={14} /></button>
         </div>
       </header>
@@ -213,87 +259,101 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       )}
 
       {catalog && (catalog.items || []).length > 0 && (
-        <div className="store-body">
-          <aside className="store-detail">
-            {selected ? (
-              <>
-                <div className="store-stage">
-                  {previewAccount && <SkinViewer3D key={`${selected.id}:${previews[selected.id] ? 1 : 0}`} account={previewAccount} width={300} height={360} animation="walk" autoRotate />}
-                  {selected.featured && <span className="store-badge solid"><PixelStar size={10} />Featured</span>}
+        <div className="store-scroll">
+          {selected && (
+            <section className="store-spot" style={tintStyle(selected.id)} aria-label={`${selected.name} details`}>
+              <div className="store-spot-glow" aria-hidden="true" />
+              <div className="store-spot-info">
+                <div className="store-spot-badges">
+                  {selected.featured && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
+                  {selected.isNew && <span className="store-badge solid">New</span>}
+                  {selected.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
+                  {selected.animated && <span className="store-badge">Animated</span>}
+                  {me.equipped === selected.id && <span className="store-badge wearing"><i />Wearing</span>}
+                  {me.equipped !== selected.id && ownedIds.has(selected.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
                 </div>
-                <div className="store-detail-meta">
-                  <div className="store-detail-row">
-                    <h2>{selected.name}</h2>
-                    <span className={`store-price${selected.exclusive ? ' is-exclusive' : ''}`}>{selected.exclusive ? 'Exclusive' : selected.price > 0 ? `$${selected.price}` : 'Free'}</span>
-                  </div>
-                  <p>{selected.description}</p>
-                  {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold and can’t be claimed. The Noctra team gives it to beta testers.'}</span></div>}
+                <h2 className="store-spot-name">{selected.name}</h2>
+                <p className="store-spot-desc">{selected.description}</p>
+                {selected.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(selected.id) ? 'You’re one of the few who have this. Thanks for testing Noctra!' : 'Not sold and can’t be claimed. The Noctra team gives it to beta testers.'}</span></div>}
+                <dl className="store-spot-facts">
+                  <div><dt>Price</dt><dd>{priceOf(selected)}</dd></div>
+                  <div><dt>Owners</dt><dd>{selected.owners || 0}</dd></div>
+                  <div><dt>Type</dt><dd>{selected.animated ? `${selected.frames || 1} frames · ${selected.fps || 0} fps` : 'Static'}</dd></div>
+                  <div><dt>By</dt><dd>{selected.author || 'Noctra'}</dd></div>
+                </dl>
+                {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').length > 0 && (
                   <div className="store-tags">
-                    {selected.exclusive && <span className="store-tag strong">Exclusive</span>}
-                    {selected.animated && <span className="store-tag strong">Animated</span>}
                     {(selected.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive').map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
                   </div>
-                  <div className="store-stats"><Users size={13} />{selected.owners || 0} {selected.owners === 1 ? 'player has' : 'players have'} this · by {selected.author || 'Noctra'}</div>
-                  <div className="store-detail-actions">
-                    {actionFor(selected)}
-                    {signedIn && ownedIds.has(selected.id) && !selected.exclusive && <button type="button" className="store-icon-btn" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker" aria-label="Remove from locker"><Trash2 size={14} /></button>}
-                  </div>
+                )}
+                <div className="store-detail-actions">
+                  {actionFor(selected)}
+                  {signedIn && ownedIds.has(selected.id) && !selected.exclusive && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(selected)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
                 </div>
-              </>
-            ) : <div className="store-note">Nothing here yet.</div>}
-          </aside>
-
-          <section className="store-main">
-            {featured && filter === 'all' && !query && (
-              <button type="button" className={`store-hero${selected?.id === featured.id ? ' active' : ''}`} onClick={() => setSelectedId(featured.id)}>
-                <canvas ref={(node) => { if (node) canvases.current.set(`hero:${featured.id}`, node); else canvases.current.delete(`hero:${featured.id}`); }} width={80} height={128} className="store-hero-canvas" aria-hidden="true" />
-                <div>
-                  <span className="store-badge solid"><PixelStar size={10} />New · Featured</span>
-                  <h3>{featured.name}</h3>
-                  <p>{featured.description}</p>
-                </div>
-                <div className="store-hero-action">{actionFor(featured, true)}</div>
-              </button>
-            )}
-
-            <div className="store-toolbar">
-              <label className="store-search">
-                <Search size={14} aria-hidden="true" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capes" aria-label="Search capes" />
-              </label>
-              <div className="store-chips" role="tablist" aria-label="Filter">
-                {FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => (
-                  <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`store-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
-                ))}
               </div>
-              <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((s) => ({ value: s.id, label: s.label }))} />
-            </div>
+              <div className="store-spot-stage">
+                {previewAccount && <SkinViewer3D key={`${selected.id}:${previews[selected.id] ? 1 : 0}`} account={previewAccount} width={280} height={330} animation="walk" autoRotate />}
+                <span className="store-spot-floor" aria-hidden="true" />
+              </div>
+              <div className="store-spot-art" aria-hidden="true">
+                <canvas ref={bindCanvas(`hero:${selected.id}`)} width={80} height={128} />
+                <span>{selected.animated ? 'Live preview' : 'Cape art'}</span>
+              </div>
+            </section>
+          )}
 
-            {items.length === 0 ? (
-              <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? 'Your locker has no store capes yet.' : 'No capes match that.'}</span></div>
-            ) : (
-              <div className="store-grid">
-                {items.map((item) => (
-                  <article key={item.id} className={`store-card${selected?.id === item.id ? ' active' : ''}${me.equipped === item.id ? ' is-worn' : ''}`} onClick={() => setSelectedId(item.id)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') setSelectedId(item.id); }}>
+          <div className="store-toolbar">
+            <div className="store-chips" role="tablist" aria-label="Filter">
+              {FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => (
+                <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`store-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
+                  {f.label}<span className="store-chip-count">{counts[f.id]}</span>
+                </button>
+              ))}
+            </div>
+            <label className="store-search">
+              <Search size={14} aria-hidden="true" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capes" aria-label="Search capes" />
+            </label>
+            <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((s) => ({ value: s.id, label: s.label }))} />
+          </div>
+
+          {items.length === 0 ? (
+            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? 'Your locker has no store capes yet.' : 'No capes match that.'}</span></div>
+          ) : (
+            <div className="store-grid">
+              {items.map((item) => {
+                const owned = ownedIds.has(item.id);
+                const worn = me.equipped === item.id;
+                return (
+                  <article
+                    key={item.id}
+                    style={tintStyle(item.id)}
+                    className={`store-card${selected?.id === item.id ? ' active' : ''}${worn ? ' is-worn' : ''}${owned ? ' is-owned' : ''}`}
+                    onClick={() => setSelectedId(item.id)}
+                    tabIndex={0}
+                    aria-pressed={selected?.id === item.id}
+                    onKeyDown={(event) => { if (event.key === 'Enter') setSelectedId(item.id); }}
+                  >
                     <div className="store-card-art">
-                      <canvas ref={(node) => { if (node) canvases.current.set(item.id, node); else canvases.current.delete(item.id); }} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
+                      <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
                       <div className="store-card-badges">
-                        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />EXCLUSIVE</span>}
-                        {item.isNew && !item.exclusive && <span className="store-badge solid">NEW</span>}
-                        {item.animated && !item.exclusive && <span className="store-badge">ANIM</span>}
+                        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />Exclusive</span>}
+                        {item.isNew && !item.exclusive && <span className="store-badge solid">New</span>}
+                        {item.animated && !item.exclusive && <span className="store-badge">Anim</span>}
                       </div>
-                      {ownedIds.has(item.id) && <span className={`store-card-mark${me.equipped === item.id ? ' is-worn' : ''}`} title={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'} aria-label={me.equipped === item.id ? 'You’re wearing this' : 'In your locker'}><Check size={11} strokeWidth={3} /></span>}
+                      {(owned || worn) && <span className={`store-card-state${worn ? ' is-worn' : ''}`}>{worn ? <><i />Wearing</> : <><Check size={10} strokeWidth={3} />Owned</>}</span>}
                     </div>
                     <div className="store-card-meta">
-                      <strong>{item.name}</strong>
-                      <small><Users size={11} />{item.owners || 0} · {item.exclusive ? 'Exclusive' : item.price > 0 ? `$${item.price}` : 'Free'}</small>
+                      <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
+                      <small><Users size={11} />{item.owners || 0} {item.owners === 1 ? 'owner' : 'owners'} · {item.author || 'Noctra'}</small>
                     </div>
                     <div className="store-card-action">{actionFor(item, true)}</div>
                   </article>
-                ))}
-              </div>
-            )}
-          </section>
+                );
+              })}
+            </div>
+          )}
+          {wornItem && signedIn && <p className="store-footnote"><Shirt size={12} />You’re wearing <strong>{wornItem.name}</strong>. Players on Noctra see it in game.</p>}
         </div>
       )}
     </div>

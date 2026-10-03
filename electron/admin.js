@@ -63,6 +63,16 @@ function init() {
   handle('admin:storeOwners', (id) => adminFetch(`/store/items/${encodeURIComponent(id)}/owners`));
   handle('admin:storeGrant', (id, username) => adminFetch(`/store/items/${encodeURIComponent(id)}/grant`, { method: 'POST', body: { username: String(username || '') } }));
   handle('admin:storeRevoke', (id, username) => adminFetch(`/store/items/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: { username: String(username || '') } }));
+  handle('admin:getUser', (userId) => adminFetch(`/store/users/${encodeURIComponent(userId)}`));
+  handle('admin:userCape', (userId, itemId, action = 'grant') =>
+    adminFetch(`/store/users/${encodeURIComponent(userId)}/capes`, {
+      method: 'POST',
+      body: { itemId: itemId == null ? null : String(itemId), action: String(action || 'grant') }
+    }));
+  handle('admin:setAdmin', (userId, isAdmin) =>
+    adminFetch(`/users/${encodeURIComponent(userId)}/admin`, { method: 'POST', body: { isAdmin: Boolean(isAdmin) } }));
+  handle('admin:revokeSessions', (userId) =>
+    adminFetch(`/users/${encodeURIComponent(userId)}/sessions/revoke`, { method: 'POST', body: {} }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

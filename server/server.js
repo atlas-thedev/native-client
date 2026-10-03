@@ -969,6 +969,38 @@ async function handler(req, res) {
         return send(res, 200, { ok: true, user: result }, { 'Cache-Control': 'no-store' });
       }
 
+      const adminMatch = url.pathname.match(/^\/v1\/admin\/users\/([^/]+)\/admin$/);
+      if (req.method === 'POST' && adminMatch) {
+        const body = await readJson(req);
+        if (typeof body.isAdmin !== 'boolean') {
+          return send(res, 400, { ok: false, error: 'Admin state must be a boolean.' });
+        }
+        const targetId = decodeURIComponent(adminMatch[1]);
+        if (targetId === authUser.id && !body.isAdmin) {
+          return send(res, 400, { ok: false, error: 'You can’t remove your own admin access.' });
+        }
+        try {
+          const result = db.setUserAdmin(targetId, body.isAdmin);
+          return send(res, 200, { ok: true, user: result }, { 'Cache-Control': 'no-store' });
+        } catch (error) {
+          return send(res, 404, { ok: false, error: error.message || 'User not found.' });
+        }
+      }
+
+      const sessionsMatch = url.pathname.match(/^\/v1\/admin\/users\/([^/]+)\/sessions\/revoke$/);
+      if (req.method === 'POST' && sessionsMatch) {
+        const targetId = decodeURIComponent(sessionsMatch[1]);
+        if (targetId === authUser.id) {
+          return send(res, 400, { ok: false, error: 'Sign yourself out from Settings instead.' });
+        }
+        try {
+          const result = db.revokeUserSessions(targetId);
+          return send(res, 200, { ok: true, ...result }, { 'Cache-Control': 'no-store' });
+        } catch (error) {
+          return send(res, 404, { ok: false, error: error.message || 'User not found.' });
+        }
+      }
+
       return send(res, 404, { ok: false, error: 'Admin endpoint not found.' });
     }
 
