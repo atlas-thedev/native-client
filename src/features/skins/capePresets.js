@@ -18,3 +18,5 @@ export const CAPE_PRESETS = [
   { id: 'vanilla', name: 'Vanilla Cape', textureUrl: vanillaCape },
   { id: 'migrator', name: 'Migrator Cape', textureUrl: migratorCape }
 ];
+
+export { presetTextureDataUrl } from './presetTexture.js';

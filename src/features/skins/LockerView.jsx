@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Star, Store, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
-import { CAPE_PRESETS } from './capePresets.js';
+import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
@@ -330,9 +330,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (!cape.textureUrl) {
         next = await window.native?.wardrobe?.clearActive?.(account, 'cape');
       } else {
-        const response = await fetch(cape.textureUrl);
-        if (!response.ok) throw new Error(`Could not load ${cape.name}`);
-        const textureDataUrl = await readFileAsDataUrl(await response.blob());
+        const textureDataUrl = await presetTextureDataUrl(cape);
         next = await window.native?.wardrobe?.upload?.(account, 'cape', textureDataUrl, { name: cape.name });
       }
       if (next) publishState(next);
