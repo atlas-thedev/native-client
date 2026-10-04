@@ -6,9 +6,9 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './SettingsPanels.css';
 
 const PRIMARY_RELEASES_API =
-  'https://api.github.com/repos/atlas-thedev/noctra-client/releases?per_page=12';
+  'https://api.github.com/repos/atlas-thedev/native-client/releases?per_page=12';
 const LEGACY_RELEASES_API =
-  'https://api.github.com/repos/ohllama0909-alt/noctra-client/releases?per_page=12';
+  'https://api.github.com/repos/ohllama0909-alt/native-client/releases?per_page=12';
 
 const CACHE_KEY = 'noctra.changelog.cache';
 function readCache() {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Noctra Client — local update server
+ * Native Client — local update server
  * Serves the release/ directory so electron-updater can check for and
  * download new builds.  Run this wherever your built artifacts live:
  *

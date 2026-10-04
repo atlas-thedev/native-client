@@ -17,7 +17,7 @@ test('managed content metadata keeps exact game and loader compatibility', () =>
 });
 
 function fixture(t, entry = { filename: 'example.jar', folder: 'mods' }) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-mods-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'native-mods-test-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const dir = path.join(root, 'minecraft/instances/test/mods');
   fs.mkdirSync(dir, { recursive: true });

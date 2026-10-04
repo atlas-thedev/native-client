@@ -109,9 +109,9 @@ export default function AppNavbar({
   isAccountOpen = false,
   onOpenNotifications,
   account,
-  isNoctra = false,
+  isNative = false,
   isPlus = false,
-  canUseLocker = isNoctra,
+  canUseLocker = isNative,
   notifications = 0,
   isMaximized,
   onMinimize,
@@ -141,13 +141,13 @@ export default function AppNavbar({
     <>
       <header className="noctra-titlebar">
         <div className="noctra-build">
-          <span className="noctra-wordmark"><Logo height={11} variant="mark" /> Noctra Client{isPlus && <em className="noctra-wordmark-plus">+</em>}</span>
+          <span className="noctra-wordmark"><Logo height={11} variant="mark" /> Native Client{isPlus && <em className="noctra-wordmark-plus">+</em>}</span>
           <i />
           <span>Build <b>{buildVersion}</b></span>
           {Number.isFinite(liveUserCount) && (
             <>
               <i />
-              <strong className="noctra-live-users" title={`${liveUserCount.toLocaleString()} Noctra users currently connected`} aria-live="polite">
+              <strong className="noctra-live-users" title={`${liveUserCount.toLocaleString()} Native users currently connected`} aria-live="polite">
                 <Radio size={11} aria-hidden="true" />
                 <b>{liveUserCount.toLocaleString()}</b> online
               </strong>
@@ -227,8 +227,8 @@ export default function AppNavbar({
           type="button"
           className={`noctra-rail-logo ${isPlus ? 'is-plus' : ''}`}
           onClick={() => onSelectTab('home')}
-          aria-label={isPlus ? 'Noctra+' : 'Noctra Client'}
-          data-tooltip={isPlus ? 'Noctra+' : 'Noctra Client'}
+          aria-label={isPlus ? 'Native+' : 'Native Client'}
+          data-tooltip={isPlus ? 'Native+' : 'Native Client'}
           data-tour="brand"
         >
           <Logo height={28} variant="mark" />
@@ -254,19 +254,19 @@ export default function AppNavbar({
 
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
           {PERSONAL_NAV_ITEMS.map(({ id, labelKey, icon }) => {
-            const isRestricted = id === 'skins' ? !canUseLocker : id === 'relay' && !isNoctra;
+            const isRestricted = id === 'skins' ? !canUseLocker : id === 'relay' && !isNative;
             return (
               <RailButton
                 key={id}
                 icon={icon}
-                badge={id === 'relay' && isNoctra ? friendsBadge : 0}
+                badge={id === 'relay' && isNative ? friendsBadge : 0}
                 active={currentTab === id}
                 onClick={() => onSelectTab(id)}
                 label={t(labelKey)}
                 className={id === 'relay' ? 'rail-relay-btn' : ''}
-                tone={id === 'relay' && isNoctra && friendsBadge > 0 ? 'alert' : null}
+                tone={id === 'relay' && isNative && friendsBadge > 0 ? 'alert' : null}
                 locked={isRestricted}
-                lockTooltip={isRestricted ? `${t(labelKey)} · Noctra Account Required` : null}
+                lockTooltip={isRestricted ? `${t(labelKey)} · Native Account Required` : null}
                 tourId={id}
               />
             );

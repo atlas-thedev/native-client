@@ -50,7 +50,7 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
           <header className="guides-head">
             <div className="guides-head-text">
               <span className="guides-eyebrow"><BookOpen size={13} aria-hidden="true" /> How to</span>
-              <h1>Learn Noctra in minutes</h1>
+              <h1>Learn Native in minutes</h1>
               <p>Short answers and screen-recorded videos for everything in the launcher.</p>
             </div>
             <label className="guides-search">
@@ -104,7 +104,7 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
           {visible.length === 0 ? (
             <div className="guides-empty">
               <strong>No guide matches “{query}”.</strong>
-              <span>Try fewer words, or ask in the Noctra Discord.</span>
+              <span>Try fewer words, or ask in the Native Discord.</span>
             </div>
           ) : (
             <div className="guides-grid">

@@ -76,7 +76,7 @@ test('animation validation accepts every standard cape size and odd ratios, reje
   assert.throws(() => capes.validateAnimation({ strip: Buffer.from('nope'), still: png(64, 32), frames: 2, fps: 10 }), /Invalid PNG/);
 });
 
-test('only Noctra store capes animate: own strips become still capes, owned store strips animate', async () => {
+test('only Native store capes animate: own strips become still capes, owned store strips animate', async () => {
   const user = db.createUser({ email: 'anim@example.com', username: 'AnimUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
   const strip = png(128, 64 * 4, 90);
@@ -89,7 +89,7 @@ test('only Noctra store capes animate: own strips become still capes, owned stor
   const own = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
   assert.equal(own.status, 200);
   assert.equal(own.body.animated, false);
-  assert.match(own.body.notice, /Only Noctra capes/);
+  assert.match(own.body.notice, /Only Native capes/);
   assert.equal(own.body.profile.cape, null);
   assert.equal(own.body.profile.capeAnimation, undefined);
 

@@ -3,7 +3,7 @@ const MODRINTH_API = 'https://api.modrinth.com/v2';
 export const PAGE_SIZE = 20;
 
 /**
- * Every content type Noctra can install, and where each one lands on disk.
+ * Every content type Native can install, and where each one lands on disk.
  * `folder` maps to the allow-list in the main process; modpacks go through the
  * dedicated .mrpack installer instead of a plain file download.
  */

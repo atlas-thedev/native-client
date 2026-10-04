@@ -12,8 +12,8 @@ const sha = crypto.createHash('sha256').update(JAR).digest('hex');
 const manifest = (over = {}) => ({
   schema: 1,
   version: '1.2.3',
-  file: 'noctra-client-1.2.3.jar',
-  url: 'https://github.com/atlas-thedev/noctra-mod/releases/download/v1.2.3/noctra-client-1.2.3.jar',
+  file: 'native-client-1.2.3.jar',
+  url: 'https://github.com/atlas-thedev/native-mod/releases/download/v1.2.3/native-client-1.2.3.jar',
   sha256: sha,
   size: JAR.length,
   loaders: ['fabric', 'quilt'],
@@ -39,7 +39,7 @@ function fakeFetch({ manifestBody = manifest(), jar = JAR, ticketStatus = 200, o
   return impl;
 }
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-mod-test-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-mod-test-'));
 
 test('supports Fabric/Quilt on 1.16+ and 26.x only', () => {
   assert.equal(noctraMod.supportsLoader('Fabric'), true);
@@ -54,7 +54,7 @@ test('supports Fabric/Quilt on 1.16+ and 26.x only', () => {
 
 test('manifest validation rejects foreign URLs, bad hashes and odd file names', () => {
   assert.ok(noctraMod.validateManifest(manifest()));
-  assert.equal(noctraMod.validateManifest(manifest({ url: 'https://evil.example/noctra-client-1.2.3.jar' })), null);
+  assert.equal(noctraMod.validateManifest(manifest({ url: 'https://evil.example/native-client-1.2.3.jar' })), null);
   assert.equal(noctraMod.validateManifest(manifest({ sha256: 'zz' })), null);
   assert.equal(noctraMod.validateManifest(manifest({ file: '../evil.jar' })), null);
   assert.equal(noctraMod.validateManifest(manifest({ schema: 2 })), null);
@@ -65,7 +65,7 @@ test('installs the mod, removes older copies and writes the ticket hand-off', as
   const root = tmp();
   const gameDir = path.join(root, 'instances', 'a');
   fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
-  fs.writeFileSync(path.join(gameDir, 'mods', 'noctra-client-1.0.0.jar'), 'old');
+  fs.writeFileSync(path.join(gameDir, 'mods', 'native-client-1.0.0.jar'), 'old');
   fs.writeFileSync(path.join(gameDir, 'mods', 'sodium.jar'), 'keep');
   const fetchImpl = fakeFetch();
   try {
@@ -75,7 +75,7 @@ test('installs the mod, removes older copies and writes the ticket hand-off', as
       gameDir, cacheDir: path.join(root, 'cache'), roots: ['https://api.example'], fetchImpl
     });
     assert.deepEqual({ installed: result.installed, signedIn: result.signedIn, version: result.version }, { installed: true, signedIn: true, version: '1.2.3' });
-    assert.deepEqual(fs.readdirSync(path.join(gameDir, 'mods')).sort(), ['noctra-client-1.2.3.jar', 'sodium.jar']);
+    assert.deepEqual(fs.readdirSync(path.join(gameDir, 'mods')).sort(), ['native-client-1.2.3.jar', 'sodium.jar']);
     const handoff = JSON.parse(fs.readFileSync(path.join(gameDir, '.noctra', 'session.json'), 'utf8'));
     assert.equal(handoff.ticket, 'nmt1.abc.def');
     assert.equal(handoff.api, 'https://api.example');
@@ -89,7 +89,7 @@ test('installs the mod, removes older copies and writes the ticket hand-off', as
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('guests (no Noctra session) get the mod but no hand-off; stale hand-off is removed', async () => {
+test('guests (no Native session) get the mod but no hand-off; stale hand-off is removed', async () => {
   const root = tmp();
   const gameDir = path.join(root, 'i');
   fs.mkdirSync(path.join(gameDir, '.noctra'), { recursive: true });
@@ -105,7 +105,7 @@ test('guests (no Noctra session) get the mod but no hand-off; stale hand-off is 
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('an expired Noctra session still installs the mod, as a guest', async () => {
+test('an expired Native session still installs the mod, as a guest', async () => {
   const root = tmp();
   try {
     const result = await noctraMod.prepare({
@@ -150,6 +150,6 @@ test('offline: cached manifest + jar keep working, and a first-ever offline laun
     fs.rmSync(path.join(root, 'i', 'mods'), { recursive: true, force: true });
     const warm = await noctraMod.prepare({ ...base, fetchImpl: fakeFetch({ offline: true }) });
     assert.equal(warm.installed, true);
-    assert.deepEqual(fs.readdirSync(path.join(root, 'i', 'mods')), ['noctra-client-1.2.3.jar']);
+    assert.deepEqual(fs.readdirSync(path.join(root, 'i', 'mods')), ['native-client-1.2.3.jar']);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

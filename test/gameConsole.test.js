@@ -71,8 +71,8 @@ test('console session splits chunks into lines and closes with an exit note', ()
     '[main/INFO]: hello',
     '[main/WARN]: second',
     'Exception in thread "main" java.lang.RuntimeException: x',
-    '[Noctra] Preparing game',
-    '[Noctra] Minecraft exited with code 1'
+    '[Native] Preparing game',
+    '[Native] Minecraft exited with code 1'
   ]);
   assert.deepEqual(data.lines.map((l) => l.n), [1, 2, 3, 4, 5]);
   assert.equal(data.counts.severe, 1);

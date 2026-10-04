@@ -37,7 +37,7 @@ test('client IP only trusts X-Real-IP from the local proxy', () => {
   assert.equal(clientIp(fake('::ffff:127.0.0.1', {})), '::ffff:127.0.0.1');
 });
 
-test('attachments must be Noctra uploads and are rebuilt on our origin', async (t) => {
+test('attachments must be Native uploads and are rebuilt on our origin', async (t) => {
   const { base, b, headers } = await setup(t);
   const upload = await (await fetch(`${base}/v1/social/upload`, { method: 'POST', headers, body: JSON.stringify({ data: PNG, name: 'shot.png' }) })).json();
   assert.equal(upload.ok, true);

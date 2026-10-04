@@ -161,7 +161,7 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   assert.equal((await fetch(`${base}/health`)).status, 200);
 });
 
-test('multi-device sync succeeds with a Noctra session token', async (t) => {
+test('multi-device sync succeeds with a Native session token', async (t) => {
   const authDb = require('../server/db');
   const server = await listen(0, '127.0.0.1');
   t.after(() => server.close());
@@ -175,7 +175,7 @@ test('multi-device sync succeeds with a Noctra session token', async (t) => {
 
   const upload = (token, skin, key = crypto.randomBytes(24).toString('hex')) => fetch(`${base}/v1/wardrobe`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Noctra-Token': token } : {}), Authorization: `Bearer ${key}` },
+    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Native-Token': token } : {}), Authorization: `Bearer ${key}` },
     body: JSON.stringify({ username: 'SteveTest', skin: skin.toString('base64') })
   });
 
@@ -206,7 +206,7 @@ test('the old guessable wardrobe key cannot take over an offline profile', async
 
   // Rotating a key: the old key authorises, the new key owns the profile afterwards.
   const rotated = crypto.randomBytes(24).toString('hex');
-  assert.equal((await post(owner, { 'X-Noctra-Rotate-Key': rotated })).status, 200);
+  assert.equal((await post(owner, { 'X-Native-Rotate-Key': rotated })).status, 200);
   assert.equal((await post(owner)).status, 403);
   assert.equal((await post(rotated)).status, 200);
 });

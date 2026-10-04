@@ -155,7 +155,7 @@ test('Unknown crash still returns a readable report', () => {
   const r = analyzeCrash({ log: 'nothing useful', exitCode: -805306369, instance, mods: [] });
   assert.equal(r.issues[0].id, 'unknown');
   assert.match(r.summary, /stopped responding/);
-  assert.match(reportToText(r, { instanceName: 'Test', version: '1.20.1' }), /Noctra crash report/);
+  assert.match(reportToText(r, { instanceName: 'Test', version: '1.20.1' }), /Native crash report/);
   assert.equal(exitMeaning(0), null);
 });
 

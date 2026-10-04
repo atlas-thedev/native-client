@@ -72,7 +72,7 @@ const TABS = [
   },
   {
     id: 'about',
-    title: 'About Noctra',
+    title: 'About Native',
     desc: 'System info & credits',
     icon: Info,
     group: 'System'
@@ -134,7 +134,7 @@ export default function SettingsView({
   const [prefs, setPrefs] = useState(readPrefs);
   const [notifyPrefs, setNotifyPrefs] = useState(() => readNotifyPrefs());
   const setNotify = (patch) => setNotifyPrefs(writeNotifyPrefs(patch));
-  const sendTestNotification = () => window.native?.showNotification?.('Noctra Relay', 'Notifications are working.');
+  const sendTestNotification = () => window.native?.showNotification?.('Native Relay', 'Notifications are working.');
   const [dataDir, setDataDir] = useState('');
   const [copiedPath, setCopiedPath] = useState(false);
   const [updates, setUpdates] = useState({
@@ -299,7 +299,7 @@ export default function SettingsView({
       { tab: 'launcher', icon: Monitor, title: t('settings.launchAction'), desc: t('settings.launchActionDesc'), keywords: 'minimize hide close launcher launch window reopen restore' },
       { tab: 'launcher', icon: Terminal, title: t('settings.keepLogs'), desc: t('settings.keepLogsDesc'), keywords: 'logs log session console' },
       { tab: 'launcher', icon: Folder, title: t('settings.dataLocation'), desc: 'Stores your downloaded Minecraft packages, assets, profiles, and runtime files.', keywords: 'data folder directory path open copy files' },
-      { tab: 'launcher', icon: RefreshCw, title: t('settings.checkUpdates'), desc: `Noctra Client Build v${buildVersion}`, keywords: 'update updates version build release channel' },
+      { tab: 'launcher', icon: RefreshCw, title: t('settings.checkUpdates'), desc: `Native Client Build v${buildVersion}`, keywords: 'update updates version build release channel' },
       { tab: 'launcher', icon: ShieldCheck, title: t('settings.checkOnStartup'), desc: t('settings.checkOnStartupDesc'), keywords: 'update startup automatic' },
       { tab: 'launcher', icon: History, title: t('settings.backgroundChecks'), desc: t('settings.backgroundChecksDesc'), keywords: 'update background periodic' },
       { tab: 'launcher', icon: Zap, title: t('settings.autoDownload'), desc: t('settings.autoDownloadDesc'), keywords: 'update download automatic install' },
@@ -311,7 +311,7 @@ export default function SettingsView({
       { tab: 'storage', icon: HardDrive, title: 'Storage usage', desc: 'Disk space used by each instance.', keywords: 'disk space mods worlds packs playtime rescan' },
       { tab: 'storage', icon: Database, title: 'Clear download caches', desc: 'Free space used by manifests, artwork and cached data.', keywords: 'cache clear delete manifest artwork' },
       { tab: 'changelog', icon: History, title: 'Release notes', desc: 'Version history and patch notes.', keywords: 'changelog patch notes versions history' },
-      { tab: 'about', icon: Info, title: 'About Noctra', desc: 'Launcher version, platform and credits.', keywords: 'about version platform architecture credits' },
+      { tab: 'about', icon: Info, title: 'About Native', desc: 'Launcher version, platform and credits.', keywords: 'about version platform architecture credits' },
       { tab: 'about', icon: ExternalLink, title: 'Community & support', desc: 'Discord and YouTube links.', keywords: 'discord youtube support community help' }
     ],
     [t, buildVersion]
@@ -695,7 +695,7 @@ export default function SettingsView({
                       </div>
                       <div className="setting-card-text">
                         <span className="setting-card-name">
-                          Noctra Client Build v{buildVersion}
+                          Native Client Build v{buildVersion}
                         </span>
                         <span className="setting-card-desc">
                           Production release channel. Click to check for launcher updates.
@@ -929,7 +929,7 @@ export default function SettingsView({
                     <Logo height={34} variant="mark" />
                   </div>
                   <div className="about-hero-titles">
-                    <h3>Noctra Client</h3>
+                    <h3>Native Client</h3>
                     <p>Next-generation, high-performance Minecraft launcher & modpack platform.</p>
                   </div>
                 </div>
@@ -994,8 +994,8 @@ export default function SettingsView({
                   className="noctra-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
-                      ? window.native.openExternal('https://www.youtube.com/@noctra-client')
-                      : window.open('https://www.youtube.com/@noctra-client', '_blank')
+                      ? window.native.openExternal('https://www.youtube.com/@native-client')
+                      : window.open('https://www.youtube.com/@native-client', '_blank')
                   }
                 >
                   <ExternalLink size={14} />

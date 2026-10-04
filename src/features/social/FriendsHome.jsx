@@ -183,7 +183,7 @@ export default function FriendsHome({
         {activeTab === 'add' ? (
           <div className="noctra-add-friend-panel">
             <h3>ADD FRIEND</h3>
-            <p>You can add friends with their exact Noctra or Minecraft username.</p>
+            <p>You can add friends with their exact Native or Minecraft username.</p>
             <form className="noctra-add-friend-form" onSubmit={handleSendRequest}>
               <div className="noctra-add-input-wrap">
                 <input

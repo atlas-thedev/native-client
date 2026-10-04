@@ -3,7 +3,7 @@ import { didAvatarFail, fallbackSkinFor, isAvatarReady, isLocalIdentity, preload
 
 /**
  * Cache of wardrobe-resolved skin data URLs, keyed by account. Local
- * (Noctra/offline) accounts have no premium texture on mc-heads, so their real
+ * (Native/offline) accounts have no premium texture on mc-heads, so their real
  * skin has to be pulled from the wardrobe. Successful lookups are cached module-
  * wide so reopening the account switcher shows the skin instantly, no flash.
  */

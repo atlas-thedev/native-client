@@ -148,7 +148,7 @@ app.whenReady().then(async () => {
     await screenshot('admin-overview');
     await click('.admin-tabs .instances-nav-tab:nth-child(2)'); await pause();
     assert.equal(await js(`document.querySelectorAll('.admin-user-row').length === 2`), true, 'Admin users tab renders user management rows');
-    await click('[title="Grant Noctra Staff"]'); await pause();
+    await click('[title="Grant Native Staff"]'); await pause();
     assert.equal(adminBadges.includes('staff'), true, 'Badge grant action reaches protected IPC');
     await screenshot('admin');
     console.log('PASS: compact gray title-bar logo, matching instance content headers without plus-prefixed titles, manager/preview, world artwork, protected admin pages, Browse controls, modal geometry, settings persistence, compact layout and Escape.');

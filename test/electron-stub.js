@@ -20,7 +20,7 @@ const stub = {
       if (name === 'appData') return os.tmpdir();
       return os.tmpdir();
     },
-    getName: () => 'Noctra Client',
+    getName: () => 'Native Client',
     getVersion: () => '0.0.0-test',
     setPath: () => {}
   },

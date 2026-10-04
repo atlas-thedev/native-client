@@ -22,7 +22,7 @@ const { downloadFile, writeFileAtomic } = require('./download');
 const MAX_LOG_CHARS = 1_500_000;
 const MAX_REPORTS = 30;
 const MODRINTH = 'https://api.modrinth.com/v2';
-const HEADERS = { 'User-Agent': 'NoctraClient (https://github.com/atlas-thedev/noctra-client)' };
+const HEADERS = { 'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)' };
 
 let deps = null;
 let session = null;
@@ -304,7 +304,7 @@ function modsDir(instanceId) {
 }
 
 function manifestFile(instanceId) {
-  return path.join(modsDir(instanceId), '.noctra-mods.json');
+  return path.join(modsDir(instanceId), '.native-mods.json');
 }
 
 function readManifest(instanceId) {
@@ -590,7 +590,7 @@ async function applyFix(id, fix) {
       break;
     }
     default:
-      throw new Error(`Noctra cannot apply "${fix.kind}" here`);
+      throw new Error(`Native cannot apply "${fix.kind}" here`);
   }
 
   if (result.ok && !result.silent) {
@@ -615,7 +615,7 @@ async function share(id) {
   const header = reportToText(record.report, { ...record.instance, instanceName: record.instance?.name, at: record.at });
   // mclo.gs keeps 25k lines / 10 MB; keep the head (crash report) and the tail.
   let lines = `${header}\n\n${text}`.split('\n');
-  if (lines.length > 24000) lines = [...lines.slice(0, 4000), '... (trimmed by Noctra) ...', ...lines.slice(-19000)];
+  if (lines.length > 24000) lines = [...lines.slice(0, 4000), '... (trimmed by Native) ...', ...lines.slice(-19000)];
   const body = new URLSearchParams({ content: lines.join('\n').slice(0, 9_000_000) });
   const response = await fetch('https://api.mclo.gs/1/log', { method: 'POST', body, headers: HEADERS });
   const json = await response.json().catch(() => null);

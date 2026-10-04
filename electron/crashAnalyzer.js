@@ -1,5 +1,5 @@
 /**
- * Noctra crash analyser.
+ * Native crash analyser.
  *
  * Pure function: game output + crash report + JVM error file + the mods on
  * disk in, a ranked diagnosis out. Every issue carries a plain-language
@@ -561,8 +561,8 @@ const Fix = {
   install: (slug, name, why) => slug && ({ kind: 'install-mod', slug, name, label: `Install ${name}`, detail: why || 'Compatible version from Modrinth' }),
   memory: (gb, why) => ({ kind: 'memory', maxGb: gb, label: `Allocate ${formatGb(gb)} of memory`, detail: why || 'Saved for this instance' }),
   java: (major, why) => ({ kind: 'java', major, label: `Use Java ${major}`, detail: why || 'Downloads it if needed and uses it for this instance' }),
-  javaAuto: () => ({ kind: 'java-auto', label: 'Let Noctra choose Java', detail: 'Removes the custom Java path from this instance' }),
-  jvmReset: () => ({ kind: 'jvm-reset', label: 'Remove custom JVM arguments', detail: 'Launch with Noctra\'s defaults' }),
+  javaAuto: () => ({ kind: 'java-auto', label: 'Let Native choose Java', detail: 'Removes the custom Java path from this instance' }),
+  jvmReset: () => ({ kind: 'jvm-reset', label: 'Remove custom JVM arguments', detail: 'Launch with Native\'s defaults' }),
   jvmAdd: (args, why) => ({ kind: 'jvm-add', args, label: `Add ${args}`, detail: why }),
   loaderLatest: (loader, why) => ({ kind: 'loader-latest', label: `Update ${loader} Loader`, detail: why || 'Use the newest stable loader for this version' }),
   resetConfig: (file) => ({ kind: 'reset-config', path: file, label: `Reset ${file.split(/[\\/]/).pop()}`, detail: 'A backup is kept; the mod writes a fresh file' }),
@@ -1262,7 +1262,7 @@ function ruleSystem(ctx) {
     ctx.add({
       id: 'file-access', category: 'system', severity: 'warning', confidence: 70,
       title: 'Minecraft was blocked from a file',
-      explanation: 'A file was locked or access was denied. Antivirus scanning, OneDrive syncing or a second copy of the game running are the usual causes. Close other Minecraft windows and allow Noctra in your antivirus.',
+      explanation: 'A file was locked or access was denied. Antivirus scanning, OneDrive syncing or a second copy of the game running are the usual causes. Close other Minecraft windows and allow Native in your antivirus.',
       evidence: [perm.index], culprits: [], fixes: [Fix.openFolder('', 'Open instance folder', 'Check the file is not read-only')]
     });
   }
@@ -1295,7 +1295,7 @@ function ruleSystem(ctx) {
     ctx.add({
       id: 'path-characters', category: 'system', severity: 'warning', confidence: 65,
       title: 'A file path contains characters Java cannot handle',
-      explanation: 'A folder or file name (often your Windows user name or a mod file) has characters Java misreads. Rename the file, or move Noctra\'s data to a plain folder.',
+      explanation: 'A folder or file name (often your Windows user name or a mod file) has characters Java misreads. Rename the file, or move Native\'s data to a plain folder.',
       evidence: [path.index], culprits: [], fixes: []
     });
   }
@@ -1571,7 +1571,7 @@ function analyzeCrash(input = {}) {
 /** Plain-text report for the clipboard and for pasting into support chats. */
 function reportToText(report, meta = {}) {
   const lines = [];
-  lines.push(`# Noctra crash report${meta.instanceName ? ` - ${meta.instanceName}` : ''}`);
+  lines.push(`# Native crash report${meta.instanceName ? ` - ${meta.instanceName}` : ''}`);
   if (meta.version) lines.push(`Minecraft ${meta.version}${meta.loader ? ` - ${meta.loader}${meta.loaderVersion ? ` ${meta.loaderVersion}` : ''}` : ''}`);
   if (meta.at) lines.push(`When: ${new Date(meta.at).toISOString()}`);
   if (report.exitCode !== null && report.exitCode !== undefined) lines.push(`Exit code: ${report.exitCode}${report.exitMeaning ? ` (${report.exitMeaning})` : ''}`);

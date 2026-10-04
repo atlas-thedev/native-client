@@ -33,10 +33,10 @@ function migrateLegacyDbIfPresent() {
         // Also copy WAL / SHM files if they exist
         if (fs.existsSync(`${legacyPath}-wal`)) fs.copyFileSync(`${legacyPath}-wal`, `${DB_PATH}-wal`);
         if (fs.existsSync(`${legacyPath}-shm`)) fs.copyFileSync(`${legacyPath}-shm`, `${DB_PATH}-shm`);
-        console.log(`[Noctra DB] Successfully migrated database from legacy path: ${legacyPath} -> ${DB_PATH}`);
+        console.log(`[Native DB] Successfully migrated database from legacy path: ${legacyPath} -> ${DB_PATH}`);
         break;
       } catch (err) {
-        console.error(`[Noctra DB] Failed to migrate legacy DB from ${legacyPath}:`, err);
+        console.error(`[Native DB] Failed to migrate legacy DB from ${legacyPath}:`, err);
       }
     }
   }

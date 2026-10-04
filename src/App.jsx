@@ -29,7 +29,7 @@ export default function App() {
   const activeAccount = accounts.find(a => a.id === activeId) ?? (accounts.length > 0 ? accounts[0] : null);
   // Cosmetics decorate the account; they must never overwrite its identity
   // (`active.skinId` is a skin id, not an account id).
-  // Microsoft accounts use their official Mojang skin, never a Noctra wardrobe one.
+  // Microsoft accounts use their official Mojang skin, never a Native wardrobe one.
   const cosmetics = (activeAccount && activeAccount.type !== 'microsoft' && wardrobe && wardrobe.accountId === activeAccount.id) ? wardrobe.active : null;
   const account = useMemo(() => {
     if (!activeAccount) return GUEST;
@@ -231,9 +231,9 @@ export default function App() {
     return res;
   };
 
-  const handleAddNoctra = async (payload) => {
+  const handleAddNative = async (payload) => {
     const bridge = window.noctra || window.native;
-    const res = await bridge?.accounts?.addNoctra?.(payload)
+    const res = await bridge?.accounts?.addNative?.(payload)
       || await bridge?.accounts?.addNative?.(payload)
       || await bridge?.accounts?.addOffline?.(typeof payload === 'string' ? payload : payload?.name);
     if (res?.ok) {
@@ -243,17 +243,17 @@ export default function App() {
     return res;
   };
 
-  const handleAddNative = handleAddNoctra;
+  const handleAddNoctra = handleAddNative;
 
-  const handleNoctraSendCode = async (payload) => {
+  const handleNativeSendCode = async (payload) => {
     return await window.native?.accounts?.noctraSendCode?.(payload);
   };
 
-  const handleNoctraResendCode = async (payload) => {
+  const handleNativeResendCode = async (payload) => {
     return await window.native?.accounts?.noctraResendCode?.(payload);
   };
 
-  const handleNoctraVerifyRegister = async (payload) => {
+  const handleNativeVerifyRegister = async (payload) => {
     const res = await window.native?.accounts?.noctraVerifyRegister?.(payload);
     if (res?.ok) {
       await refreshAccounts();
@@ -262,7 +262,7 @@ export default function App() {
     return res;
   };
 
-  const handleNoctraLogin = async (payload) => {
+  const handleNativeLogin = async (payload) => {
     const res = await window.native?.accounts?.noctraLogin?.(payload);
     if (res?.ok) {
       await refreshAccounts();
@@ -283,28 +283,28 @@ export default function App() {
     }
   };
 
-  // Premium ↔ Noctra: connect, disconnect, and keep a connected premium
-  // account signed into its Noctra account in the background.
-  const handleConnectNoctra = async (payload) => {
-    const res = await window.native?.accounts?.connectNoctra?.(payload);
+  // Premium ↔ Native: connect, disconnect, and keep a connected premium
+  // account signed into its Native account in the background.
+  const handleConnectNative = async (payload) => {
+    const res = await window.native?.accounts?.connectNative?.(payload);
     await refreshAccounts();
     return res || { ok: false, error: 'Connecting accounts is not available in this build.' };
   };
 
-  const handleDisconnectNoctra = async (microsoftAccountId) => {
-    const res = await window.native?.accounts?.disconnectNoctra?.(microsoftAccountId);
+  const handleDisconnectNative = async (microsoftAccountId) => {
+    const res = await window.native?.accounts?.disconnectNative?.(microsoftAccountId);
     await refreshAccounts();
     return res || { ok: false, error: 'Disconnecting accounts is not available in this build.' };
   };
 
   const ensuredPremiumRef = useRef(null);
   useEffect(() => {
-    if (!activeAccount || activeAccount.type !== 'microsoft' || !window.native?.accounts?.ensureNoctra) return undefined;
+    if (!activeAccount || activeAccount.type !== 'microsoft' || !window.native?.accounts?.ensureNative) return undefined;
     if (ensuredPremiumRef.current === activeAccount.id) return undefined;
     ensuredPremiumRef.current = activeAccount.id;
     let cancelled = false;
     const before = activeAccount.noctraLink?.userId || null;
-    window.native.accounts.ensureNoctra(activeAccount.id).then((res) => {
+    window.native.accounts.ensureNative(activeAccount.id).then((res) => {
       const after = res?.ok ? res.link?.userId || null : null;
       if (!cancelled && after !== before) refreshAccounts();
     }).catch(() => {});
@@ -351,7 +351,7 @@ export default function App() {
   }, [startup.ready]);
 
   if (!startup.ready) {
-    return <div className="window-frame" aria-label="Loading Noctra Client" />;
+    return <div className="window-frame" aria-label="Loading Native Client" />;
   }
 
   return (
@@ -373,16 +373,15 @@ export default function App() {
         initialInstances={startup.instances}
         onAddMicrosoft={handleAddMicrosoft}
         onAddOffline={handleAddOffline}
-        onAddNoctra={handleAddNoctra}
         onAddNative={handleAddNative}
-        onNoctraSendCode={handleNoctraSendCode}
-        onNoctraResendCode={handleNoctraResendCode}
-        onNoctraVerifyRegister={handleNoctraVerifyRegister}
-        onNoctraLogin={handleNoctraLogin}
+        onNativeSendCode={handleNativeSendCode}
+        onNativeResendCode={handleNativeResendCode}
+        onNativeVerifyRegister={handleNativeVerifyRegister}
+        onNativeLogin={handleNativeLogin}
         onSwitchAccount={handleSwitchAccount}
         onRemoveAccount={handleRemoveAccount}
-        onConnectNoctra={handleConnectNoctra}
-        onDisconnectNoctra={handleDisconnectNoctra}
+        onConnectNative={handleConnectNative}
+        onDisconnectNative={handleDisconnectNative}
         onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
         updateStatus={updater.status}
         networkStatus={network.status}

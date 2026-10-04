@@ -23,7 +23,7 @@ export default function SocialDrawer({ friends, account }) {
     <div className="friend-scroll">
       {online.length ? <><small className="social-count">{online.length} Online</small>{online.map(item => <FriendRow key={item.id || item.name} item={item}/>)}</> : null}
       {offline.length ? <><small className="social-count offline-count">{offline.length} Offline</small>{offline.map(item => <FriendRow key={item.id || item.name} item={item} offline/>)}</> : null}
-      {!visibleFriends.length ? <div className="social-empty"><UserRoundPlus size={20}/><p>Noctra Friends will appear here.</p></div> : null}
+      {!visibleFriends.length ? <div className="social-empty"><UserRoundPlus size={20}/><p>Native Friends will appear here.</p></div> : null}
     </div>
     {visibleFriends.length ? <div className="friend-scrollbar"/> : null}
   </aside>;

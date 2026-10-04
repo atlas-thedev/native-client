@@ -1,4 +1,4 @@
-# Noctra server – VPS setup
+# Native server – VPS setup
 
 Run behind nginx (TLS via Cloudflare). Environment variables (systemd `Environment=` or `.env`):
 
@@ -6,7 +6,7 @@ Run behind nginx (TLS via Cloudflare). Environment variables (systemd `Environme
 |---|---|
 | `NOCTRA_DATA_DIR` | Where the SQLite DB, skins and media are stored |
 | `NOCTRA_TRUST_PROXY=1` | Trust `X-Real-IP` from nginx |
-| `NOCTRA_SITE_KEY` | Long random secret shared with the website (`openssl rand -hex 32`). When set, requests from the website carrying `X-Noctra-Site-Key` may pass the visitor's IP in `X-Noctra-Client-IP`, so rate limits apply per visitor. Leave unset to disable. |
+| `NOCTRA_SITE_KEY` | Long random secret shared with the website (`openssl rand -hex 32`). When set, requests from the website carrying `X-Native-Site-Key` may pass the visitor's IP in `X-Native-Client-IP`, so rate limits apply per visitor. Leave unset to disable. |
 
 nginx must forward the custom headers (it does by default) and set `X-Real-IP`.
 
@@ -23,7 +23,7 @@ No GitHub secrets or inbound SSH are needed.
 One-time install on the VPS (already done for `api.nativelaunch.xyz`):
 
 ```bash
-git clone --depth 1 https://github.com/atlas-thedev/noctra-client /tmp/nc && bash /tmp/nc/server/deploy/install.sh
+git clone --depth 1 https://github.com/atlas-thedev/native-client /tmp/nc && bash /tmp/nc/server/deploy/install.sh
 ```
 
 Useful commands:
@@ -35,7 +35,7 @@ cat ~/noctra-server/.deploy/deployed-sha   # commit currently live
 ls ~/noctra-server/.deploy/backups         # last 5 code backups (restore: tar -xzf <file> -C ~/noctra-server)
 ```
 
-## Noctra Client mod endpoints
+## Native Client mod endpoints
 
 `GET /v1/skins/directory`, `GET /v1/skins/stream` (SSE), `POST /v1/auth/game-ticket`, `GET /v1/mod/me`
 (see `mod-routes.js`). Game tickets are signed with `NOCTRA_TICKET_SECRET` (optional; otherwise a random

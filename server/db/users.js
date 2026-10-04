@@ -263,7 +263,7 @@ function linkMinecraftAccount(db, userId, { uuid, name }) {
   }
 
   const owner = db.prepare('SELECT id FROM users WHERE minecraft_uuid = ? AND id != ?').get(cleanUuid, userId);
-  if (owner) throw new Error('That premium Minecraft account is already connected to another Noctra account.');
+  if (owner) throw new Error('That premium Minecraft account is already connected to another Native account.');
 
   const linkedAt = Date.now();
   db.prepare(`

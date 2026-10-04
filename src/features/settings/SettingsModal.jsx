@@ -59,7 +59,7 @@ export default function SettingsModal({
   const [prefs, setPrefs] = useState(readPrefs);
   const [notifyPrefs, setNotifyPrefs] = useState(() => readNotifyPrefs());
   const setNotify = (patch) => setNotifyPrefs(writeNotifyPrefs(patch));
-  const sendTestNotification = () => window.native?.showNotification?.('Noctra Relay', 'Notifications are working.');
+  const sendTestNotification = () => window.native?.showNotification?.('Native Relay', 'Notifications are working.');
   const [dataDir, setDataDir] = useState('');
   const [updates, setUpdates] = useState({ checkOnStartup: true, backgroundChecks: true, autoDownload: false });
 
@@ -199,7 +199,7 @@ export default function SettingsModal({
       >
         <aside className="settings-sidebar">
           <div className="settings-sidebar-header">
-            <span className="settings-sidebar-kicker">NOCTRA CLIENT</span>
+            <span className="settings-sidebar-kicker">NATIVE CLIENT</span>
             <span className="settings-sidebar-title">{t('common.settings')}</span>
             <span className="settings-sidebar-subtitle">Tune the launcher to your setup.</span>
           </div>
@@ -215,7 +215,7 @@ export default function SettingsModal({
             </button>
           ))}
           <div className="settings-sidebar-footer">
-            <span>Noctra Client</span>
+            <span>Native Client</span>
             <b>v{window.native?.version || '1.0.0'}</b>
           </div>
         </aside>
@@ -367,7 +367,7 @@ export default function SettingsModal({
                   <h4 className="settings-section-heading">{t('settings.updates')}</h4>
                   <div className="settings-row">
                     <div className="settings-row-info">
-                      <span className="settings-row-title">Noctra Client</span>
+                      <span className="settings-row-title">Native Client</span>
                       <span className="settings-row-desc">v{window.native?.version || '1.0.0'}</span>
                     </div>
                     <button className="sub-btn brand-btn settings-update-check-btn" onClick={onOpenUpdater}>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { Lock, Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import noctraIcon from '../../assets/noctra-icon.png';
-import { isNoctraCoreMod, noctraModVersion } from './coreMods.js';
+import { isNativeCoreMod, noctraModVersion } from './coreMods.js';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 import ContentHealth, { useContentHealth } from './ContentHealth.jsx';
 import { GlyphBump } from './HealthGlyphs.jsx';
@@ -83,11 +83,11 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
       })),
       ...files
         .filter((file) => !file.name.startsWith('.') && !tracked.some((entry) => entry.filename === file.name))
-        .map((file) => (folder === 'mods' && isNoctraCoreMod(file.name) ? {
-          // Noctra's own mod: the launcher installs and updates it on every launch. It can't be turned off.
+        .map((file) => (folder === 'mods' && isNativeCoreMod(file.name) ? {
+          // Native's own mod: the launcher installs and updates it on every launch. It can't be turned off.
           id: file.name,
           filename: file.name,
-          title: 'Noctra Client',
+          title: 'Native Client',
           size: file.size,
           enabled: true,
           core: true,
@@ -311,7 +311,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 {/* 36x36px Icon */}
                 <span className="im-file-icon">
                   {row.core ? (
-                    <img src={noctraIcon} alt="Noctra" />
+                    <img src={noctraIcon} alt="Native" />
                   ) : row.metadata?.iconUrl ? (
                     <img
                       src={row.metadata.iconUrl}
@@ -337,7 +337,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                   <strong title={row.title}>{row.title}</strong>
                   <small>
                     {row.core
-                      ? 'Required for Noctra skins, capes and friends · updated automatically'
+                      ? 'Required for Native skins, capes and friends · updated automatically'
                       : row.metadata?.author
                       ? `By ${row.metadata.author}`
                       : type === 'worlds'
@@ -375,7 +375,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 {/* Actions: Switch toggle & Delete */}
                 <div className="im-file-actions">
                   {row.core ? (
-                    <span className="im-core-pill" title="Noctra needs this mod. The launcher keeps it installed and up to date.">
+                    <span className="im-core-pill" title="Native needs this mod. The launcher keeps it installed and up to date.">
                       <Lock size={12} /> Required
                     </span>
                   ) : (<>

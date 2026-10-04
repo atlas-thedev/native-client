@@ -1,12 +1,12 @@
 const { ipcMain } = require('electron');
-const { getActiveNoctraAccount, API_ROOTS } = require('./social');
+const { getActiveNativeAccount, API_ROOTS } = require('./social');
 
 const ROOTS = API_ROOTS;
 
 async function adminFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
-  const account = getActiveNoctraAccount();
+  const account = getActiveNativeAccount();
   const token = account?.token || account?.sessionToken;
-  if (!token) return { ok: false, isAdmin: false, error: 'Sign in to a Noctra account.' };
+  if (!token) return { ok: false, isAdmin: false, error: 'Sign in to a Native account.' };
 
   let lastError = 'Admin service is unreachable.';
   for (const root of ROOTS) {

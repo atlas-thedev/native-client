@@ -1,4 +1,4 @@
-import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
+import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -6,7 +6,7 @@ import Logo from '../../components/ui/Logo.jsx';
 import './IdentitySwitcher.css';
 
 export function PlusTag({ className = '', size = 18 }) {
-  return <NoctraPlusIcon size={size} className={`plus-tag ${className}`.trim()} title="Noctra+" />;
+  return <NativePlusIcon size={size} className={`plus-tag ${className}`.trim()} title="Native+" />;
 }
 
 function MicrosoftLogo({ size = 14 }) {
@@ -23,13 +23,13 @@ function MicrosoftLogo({ size = 14 }) {
 
 function IdentityLogo({ id, size = 14 }) {
   return (
-    <span className={`idsw-logo is-${id}`} title={id === 'premium' ? 'Microsoft' : 'Noctra'}>
+    <span className={`idsw-logo is-${id}`} title={id === 'premium' ? 'Microsoft' : 'Native'}>
       {id === 'premium' ? <MicrosoftLogo size={size} /> : <Logo height={size + 3} variant="mark" />}
     </span>
   );
 }
 
-/** The home greeting name doubles as a switch between a linked premium and Noctra identity. */
+/** The home greeting name doubles as a switch between a linked premium and Native identity. */
 export default function IdentitySwitcher({ identity, isPlus = false, disabled = false, onSwitch }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);

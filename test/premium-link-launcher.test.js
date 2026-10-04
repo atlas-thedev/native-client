@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Launcher side of "premium ↔ Noctra": drives the real IPC handlers in
+ * Launcher side of "premium ↔ Native": drives the real IPC handlers in
  * electron/auth.js + electron/social.js against the real backend, with
  * Microsoft (msmc) and Minecraft Services replaced by local fakes.
  */
@@ -60,7 +60,7 @@ test.before(async () => {
   const deps = { app: stub.app, getWin: () => null };
   auth.init(deps, stub.ipcMain);
   social.init(deps, stub.ipcMain);
-  db.createUser({ email: 'player@test.local', username: 'NoctraPlayer', password: 'password123' });
+  db.createUser({ email: 'player@test.local', username: 'NativePlayer', password: 'password123' });
 });
 
 test.after(() => {
@@ -74,31 +74,31 @@ test.after(() => {
 
 const MS = { id: PROFILE.id, name: PROFILE.name, uuid: PROFILE.id, type: 'microsoft', refresh: 'refresh-blob' };
 
-test('connect once with a Noctra password, then the premium account is the Noctra identity', async () => {
+test('connect once with a Native password, then the premium account is the Native identity', async () => {
   writeAccounts({ activeId: MS.id, accounts: [MS] });
 
-  const before = await invoke('accounts:ensureNoctra', MS.id, { force: true });
+  const before = await invoke('accounts:ensureNative', MS.id, { force: true });
   assert.equal(before.ok, false);
   assert.equal(before.code, 'not_linked');
 
-  const wrong = await invoke('accounts:connectNoctra', { microsoftAccountId: MS.id, login: 'NoctraPlayer', password: 'nope' });
+  const wrong = await invoke('accounts:connectNative', { microsoftAccountId: MS.id, login: 'NativePlayer', password: 'nope' });
   assert.equal(wrong.ok, false);
 
-  const connected = await invoke('accounts:connectNoctra', { microsoftAccountId: MS.id, login: 'NoctraPlayer', password: 'password123' });
+  const connected = await invoke('accounts:connectNative', { microsoftAccountId: MS.id, login: 'NativePlayer', password: 'password123' });
   assert.equal(connected.ok, true, connected.error);
-  assert.equal(connected.link.name, 'NoctraPlayer');
+  assert.equal(connected.link.name, 'NativePlayer');
 
   // The renderer sees the connection, never the session token.
   const list = await invoke('accounts:list');
   const listed = list.accounts.find((a) => a.id === MS.id);
   assert.equal(listed.noctraLink.connected, true);
-  assert.equal(listed.noctraLink.name, 'NoctraPlayer');
+  assert.equal(listed.noctraLink.name, 'NativePlayer');
   assert.equal(listed.noctraToken, undefined);
-  assert.ok(!JSON.stringify(list).includes('noc_'), 'no Noctra session token reaches the renderer');
+  assert.ok(!JSON.stringify(list).includes('noc_'), 'no Native session token reaches the renderer');
 
-  // Social features act as the Noctra account while the premium account is active.
-  const identity = social.getActiveNoctraAccount();
-  assert.equal(identity.name, 'NoctraPlayer');
+  // Social features act as the Native account while the premium account is active.
+  const identity = social.getActiveNativeAccount();
+  assert.equal(identity.name, 'NativePlayer');
   assert.equal(identity.linkedFrom, MS.id);
   const friends = await invoke('social:getFriends');
   assert.equal(friends.ok, true);
@@ -106,16 +106,16 @@ test('connect once with a Noctra password, then the premium account is the Noctr
 
 test('a new device (no saved session) connects automatically from the Microsoft sign-in', async () => {
   writeAccounts({ activeId: MS.id, accounts: [MS] });
-  assert.equal(social.getActiveNoctraAccount(), null);
+  assert.equal(social.getActiveNativeAccount(), null);
 
-  const result = await invoke('accounts:ensureNoctra', MS.id);
+  const result = await invoke('accounts:ensureNative', MS.id);
   assert.equal(result.ok, true, result.error);
-  assert.equal(result.link.name, 'NoctraPlayer');
+  assert.equal(result.link.name, 'NativePlayer');
   assert.ok(readAccountsFile().accounts[0].noctraToken, 'session saved for the premium account');
-  assert.equal(social.getActiveNoctraAccount().name, 'NoctraPlayer');
+  assert.equal(social.getActiveNativeAccount().name, 'NativePlayer');
 });
 
-test('an expired Noctra session renews itself on the next request', async () => {
+test('an expired Native session renews itself on the next request', async () => {
   const data = readAccountsFile();
   db.getDb().prepare('DELETE FROM sessions WHERE token = ?').run(auth.readAccounts(userData).accounts[0].noctraToken);
   writeAccounts(data);
@@ -124,9 +124,9 @@ test('an expired Noctra session renews itself on the next request', async () => 
 });
 
 test('disconnecting stops automatic sign-in everywhere', async () => {
-  const result = await invoke('accounts:disconnectNoctra', MS.id);
+  const result = await invoke('accounts:disconnectNative', MS.id);
   assert.equal(result.ok, true, result.error);
-  assert.equal(social.getActiveNoctraAccount(), null);
-  const again = await invoke('accounts:ensureNoctra', MS.id, { force: true });
+  assert.equal(social.getActiveNativeAccount(), null);
+  const again = await invoke('accounts:ensureNative', MS.id, { force: true });
   assert.equal(again.code, 'not_linked');
 });

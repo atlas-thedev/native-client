@@ -6,7 +6,7 @@ const { enrichFolder } = require('./modMetadata');
 /**
  * Mod installation (main process).
  * Mod jars land in the instance's own mods/ folder; a small manifest
- * (.noctra-mods.json) tracks projectId -> filename so the UI can show
+ * (.native-mods.json) tracks projectId -> filename so the UI can show
  * installed state and cleanly remove mods later.
  */
 
@@ -42,7 +42,7 @@ const instanceDir = (instanceId) => resolveInside(instancesDir(), instanceId);
 const modsDir = (instanceId) => resolveInside(instanceDir(instanceId), 'mods');
 const manifestPath = (instanceId) => {
   const dir = modsDir(instanceId);
-  const primary = path.join(dir, '.noctra-mods.json');
+  const primary = path.join(dir, '.native-mods.json');
   const legacy = path.join(dir, '.native-mods.json');
   return fs.existsSync(primary) || !fs.existsSync(legacy) ? primary : legacy;
 };
@@ -57,7 +57,7 @@ function validateDestination(instanceId, folder, filename) {
 function readManifest(instanceId) {
   try {
     const dir = modsDir(instanceId);
-    const primary = path.join(dir, '.noctra-mods.json');
+    const primary = path.join(dir, '.native-mods.json');
     const legacy = path.join(dir, '.native-mods.json');
     const target = fs.existsSync(primary) ? primary : (fs.existsSync(legacy) ? legacy : primary);
     return JSON.parse(fs.readFileSync(target, 'utf8'));
@@ -69,7 +69,7 @@ function readManifest(instanceId) {
 function writeManifest(instanceId, manifest) {
   fs.mkdirSync(modsDir(instanceId), { recursive: true });
   const dir = modsDir(instanceId);
-  const primary = path.join(dir, '.noctra-mods.json');
+  const primary = path.join(dir, '.native-mods.json');
   const legacy = path.join(dir, '.native-mods.json');
   const payload = JSON.stringify(manifest, null, 2);
   writeFileAtomic(primary, payload);
@@ -143,7 +143,7 @@ function init(dependencies, ipcMain) {
 
   ipcMain.handle('mods:installed', (_event, instanceId) => readManifest(instanceId));
 
-  // Titles / icons / authors for files Noctra did not install itself
+  // Titles / icons / authors for files Native did not install itself
   // (modpack downloads, hand-copied jars). Returns { [filename]: metadata }.
   ipcMain.handle('mods:enrich', async (_event, instanceId, folder = 'mods') => {
     if (!ALLOWED_FOLDERS.has(folder)) throw new Error('Unsupported content folder');

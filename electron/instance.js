@@ -17,7 +17,7 @@ const rootDir = () => {
   try {
     if (deps?.app?.getPath) return path.join(deps.app.getPath('userData'), 'minecraft');
   } catch {}
-  return path.join(require('os').homedir(), '.config', 'Noctra Client', 'minecraft');
+  return path.join(require('os').homedir(), '.config', 'Native Client', 'minecraft');
 };
 const instancesDir = () => path.join(rootDir(), 'instances');
 

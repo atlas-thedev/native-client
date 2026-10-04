@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
-title Noctra Client - Git Push
+title Native Client - Git Push
 
 echo ========================================================
-echo               Noctra Client - Quick Push
+echo               Native Client - Quick Push
 echo ========================================================
 echo.
 

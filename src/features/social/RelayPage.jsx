@@ -893,14 +893,14 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     ? Boolean(!activeThreadState?.loaded && (!activeThreadState?.messages || activeThreadState.messages.length === 0) && relayGroups.loadingThread)
     : Boolean(activeThreadState?.loading) || Boolean(activeEntity && !activeThreadState?.loaded);
 
-  if (social && social.isNoctra === false) {
+  if (social && social.isNative === false) {
     return (
       <div className="relay-page relay-page-gate">
         <div className="relay-empty-chat">
           <div className="relay-empty-icon"><MessageSquare size={38} strokeWidth={1.6} /></div>
-          <h3 className="relay-empty-title">Noctra account required</h3>
+          <h3 className="relay-empty-title">Native account required</h3>
           <p className="relay-empty-desc">
-            Sign in with your Noctra account to use Relay messaging, friends and presence.
+            Sign in with your Native account to use Relay messaging, friends and presence.
           </p>
         </div>
       </div>

@@ -13,7 +13,7 @@ test('changelog markdown parses headings, bullets, bold, and code blocks', () =>
 npm run build
 \`\`\`
 
-Here is \`inline code\` and a [link](https://github.com/ohllama0909-alt/noctra-client).
+Here is \`inline code\` and a [link](https://github.com/ohllama0909-alt/native-client).
 `;
 
   // Normalize unicode bullets
@@ -25,5 +25,5 @@ Here is \`inline code\` and a [link](https://github.com/ohllama0909-alt/noctra-c
   assert.match(parsed, /<strong>frosted glass<\/strong>/);
   assert.match(parsed, /<pre><code.*>npm run build\n<\/code><\/pre>/);
   assert.match(parsed, /<code>inline code<\/code>/);
-  assert.match(parsed, /<a href="https:\/\/github\.com\/ohllama0909-alt\/noctra-client">link<\/a>/);
+  assert.match(parsed, /<a href="https:\/\/github\.com\/ohllama0909-alt\/native-client">link<\/a>/);
 });

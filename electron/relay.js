@@ -1,5 +1,5 @@
 const { ipcMain } = require('electron');
-const { getActiveNoctraAccount, API_ROOTS, isOnline } = require('./social');
+const { getActiveNativeAccount, API_ROOTS, isOnline } = require('./social');
 
 /**
  * IPC bridge for the Relay group + reply API.
@@ -11,9 +11,9 @@ const { getActiveNoctraAccount, API_ROOTS, isOnline } = require('./social');
 const ROOTS = API_ROOTS;
 
 async function relayFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
-  const account = getActiveNoctraAccount();
+  const account = getActiveNativeAccount();
   const token = account?.token || account?.sessionToken;
-  if (!token) return { ok: false, error: 'Sign in to a Noctra account to use Relay.' };
+  if (!token) return { ok: false, error: 'Sign in to a Native account to use Relay.' };
   if (!isOnline()) return { ok: false, offline: true, error: 'You are offline.' };
 
   let lastError = 'Relay is unreachable.';

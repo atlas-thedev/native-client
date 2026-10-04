@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra Client — titlebar + navigation rail
+   Native Client — titlebar + navigation rail
    The rail is a single column of icon targets: destinations on
    top, account and settings pinned to the bottom.
    ============================================================ */
@@ -517,7 +517,7 @@
   .noctra-live-users { display: none !important; }
 }
 
-/* Noctra+ : the rail N gets a gold plus. */
+/* Native+ : the rail N gets a gold plus. */
 .noctra-rail-plus {
   position: absolute; top: 3px; right: 2px; width: 16px; height: 16px; display: grid; place-items: center;
   border-radius: 5px; font-size: 14px; font-weight: 900; line-height: 1; color: #1b1405;

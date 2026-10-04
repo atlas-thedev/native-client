@@ -40,9 +40,13 @@ test('screenshot manager lists, reads, validates and deletes local captures', ()
     assert.throws(() => instance.screenshotData('instance-1', '../secret.png'), /Invalid screenshot filename/);
 
     const linked = path.join(screenshots, 'linked.png');
-    fs.symlinkSync(path.join(screenshots, rows[0].name), linked);
-    assert.throws(() => instance.screenshotData('instance-1', 'linked.png'), /links are not supported/);
-    fs.rmSync(linked);
+    try {
+      fs.symlinkSync(path.join(screenshots, rows[0].name), linked);
+      assert.throws(() => instance.screenshotData('instance-1', 'linked.png'), /links are not supported/);
+      fs.rmSync(linked);
+    } catch (err) {
+      if (err.code !== 'EPERM') throw err;
+    }
 
     instance.deleteScreenshot('instance-1', rows[0].name);
     assert.deepEqual(instance.screenshotList('instance-1'), []);
@@ -72,8 +76,12 @@ test('screenshot manager refuses a linked screenshots directory', () => {
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-outside-screenshots-'));
   try {
     fs.rmSync(path.join(gameDir, 'screenshots'), { recursive: true });
-    fs.symlinkSync(outside, path.join(gameDir, 'screenshots'));
-    assert.throws(() => instance.screenshotList('instance-1'), /Invalid screenshots directory/);
+    try {
+      fs.symlinkSync(outside, path.join(gameDir, 'screenshots'));
+      assert.throws(() => instance.screenshotList('instance-1'), /Invalid screenshots directory/);
+    } catch (err) {
+      if (err.code !== 'EPERM') throw err;
+    }
   } finally {
     fs.rmSync(userData, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });

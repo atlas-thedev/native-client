@@ -112,7 +112,7 @@ function getFriends(db, userId) {
         }
         return b;
       })(),
-      // Every Noctra account completes email verification at signup, so a row
+      // Every Native account completes email verification at signup, so a row
       // in `users` is exactly what the verified badge represents.
       isVerified: true,
       // Linked Microsoft/Minecraft (premium) account, shown under Connections in Relay.

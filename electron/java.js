@@ -237,7 +237,7 @@ function pickRuntime(list, slot) {
       Number(b.arch === host) - Number(a.arch === host)
       || Number(b.bits !== 32) - Number(a.bits !== 32)
       || (a.major - slot) - (b.major - slot)
-      || Number(b.source === 'Noctra') - Number(a.source === 'Noctra'))[0] || null;
+      || Number(b.source === 'Native') - Number(a.source === 'Native'))[0] || null;
 }
 
 /** A runtime that is fine to reuse for `slot` (right version, can run here). */
@@ -250,7 +250,7 @@ function usable(info, slot) {
 /**
  * Work out which Java a launch would use without downloading anything.
  * Returns { requiredMajor, slot, path, runtime, source } — path is null when
- * Noctra would have to download one.
+ * Native would have to download one.
  */
 async function resolveAuto(mcVersion, { scan = true } = {}) {
   const major = await requiredMajor(mcVersion).catch(() => fallbackMajor(mcVersion));
@@ -335,7 +335,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('java:host', () => ({ arch: javaRuntime.hostArch(), platform: process.platform }));
   ipcMain.handle('java:presets', () => javaRuntime.GC_PRESETS);
 
-  // The Java each slot resolves to right now (configured, Noctra-managed or detected).
+  // The Java each slot resolves to right now (configured, Native-managed or detected).
   ipcMain.handle('java:slots', async () => {
     const configured = settingsMod.get().java?.paths || {};
     return Promise.all(SLOTS.map(async (slot) => {
@@ -375,7 +375,7 @@ async function checkLaunch({ javaPath = null, mcVersion, loader = 'vanilla', mem
   }
   const flags = javaRuntime.buildJvmArgs({ preset, args, major: runtime?.major ?? requirement.slot, memoryMaxGb });
   const compat = source === 'download'
-    ? { status: 'ok', issues: [{ level: 'info', code: 'will-download', message: `Noctra will download Java ${requirement.slot} on first launch.` }] }
+    ? { status: 'ok', issues: [{ level: 'info', code: 'will-download', message: `Native will download Java ${requirement.slot} on first launch.` }] }
     : javaRuntime.checkCompat({ runtime, requiredMajor: requirement.requiredMajor, mcVersion, loader, memoryMaxGb, jvmArgs: flags.join(' '), preset });
   return {
     requiredMajor: requirement.requiredMajor,

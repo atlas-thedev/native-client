@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title Noctra Client - Git Pull
+title Native Client - Git Pull
 
 echo ========================================================
-echo               Noctra Client - Quick Pull
+echo               Native Client - Quick Pull
 echo ========================================================
 echo.
 

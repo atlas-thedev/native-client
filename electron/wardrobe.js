@@ -12,7 +12,7 @@ const textureCache = require('./textureCache');
  * Every skin and cape the player uploads is kept as a library item in
  * `{userData}/wardrobe/{accountKey}/`. One skin and one cape are *active*; the
  * active pair is what CustomSkinLoader renders in game and what gets published
- * to the Noctra wardrobe API (api.nativelaunch.xyz, see skin-server/).
+ * to the Native wardrobe API (api.nativelaunch.xyz, see skin-server/).
  *
  * Older profiles stored three fixed "slots" (skin + cape + model each). Those
  * are migrated on read: every filled slot becomes a library item and the
@@ -22,7 +22,7 @@ const textureCache = require('./textureCache');
 const API_ROOT = 'https://api.nativelaunch.xyz';
 
 /**
- * The wardrobe API usually runs on Noctra Cloud (scripts/api.nativelaunch.xyz.nginx
+ * The wardrobe API usually runs on Native Cloud (scripts/api.nativelaunch.xyz.nginx
  * proxies it to skin-server/server.js on port 3418). Set NATIVE_WARDROBE_API to
  * point a build at a self-hosted instance, e.g. http://127.0.0.1:3418 for the
  * server started by `npm run skin-server`.
@@ -307,7 +307,7 @@ function stripDataUrl(account, id) {
 /* ── public state ────────────────────────────────────────────── */
 
 function publicItem(account, item, metadata) {
-  // Only Noctra store capes animate; a self-made animation from an older launcher shows its first frame.
+  // Only Native store capes animate; a self-made animation from an older launcher shows its first frame.
   const animated = Boolean(item.anim && item.stillFile && item.storeId);
   return {
     id: item.id,
@@ -333,10 +333,10 @@ const warmingSkins = new Map();
  * in-flight fetch so the background warm (from `publicState`) and an awaited
  * caller (the `wardrobe:avatar` handler) never fetch twice.
  */
-// Skin cache files are keyed per identity. A Microsoft account and a Noctra
+// Skin cache files are keyed per identity. A Microsoft account and a Native
 // account can share a username, so a bare `<username>.png` let one account
 // show the other's skin.
-// Offline accounts are local-only: their wardrobe never touches the Noctra API
+// Offline accounts are local-only: their wardrobe never touches the Native API
 // (anyone could otherwise publish skins under a name they do not own).
 function isLocalOnlyAccount(account) {
   return account?.type === 'offline' || String(account?.id || '').startsWith('offline-');
@@ -364,9 +364,9 @@ function warmSkinCache(account) {
   const task = (async () => {
     fs.mkdirSync(cacheDir(), { recursive: true });
 
-    // 1. Try Noctra wardrobe server first (local accounts only — the server
+    // 1. Try Native wardrobe server first (local accounts only — the server
     // looks skins up by username, which would hand a Microsoft account the
-    // skin of a Noctra account with the same name).
+    // skin of a Native account with the same name).
     if (!isMicrosoftAccount(account) && !isLocalOnlyAccount(account)) try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);
@@ -548,8 +548,8 @@ function addItemFromBase64(account, { kind, dataUrl: value, name, model, anim, s
   if (!account?.id) throw new Error('Sign in to use the locker.');
   if (kind !== 'skin' && kind !== 'cape') throw new Error('Invalid locker item.');
   if (anim) {
-    // Animated capes are Noctra Store items: get them from the Store page, not from a file.
-    throw new Error('Animated capes come from the Noctra Store. You can upload static capes.');
+    // Animated capes are Native Store items: get them from the Store page, not from a file.
+    throw new Error('Animated capes come from the Native Store. You can upload static capes.');
   }
   return storeItem(account, kind, decodeBase64Texture(value), { name, model });
 }
@@ -653,7 +653,7 @@ function readActiveBuffers(account) {
   const capeItem = activeItem(metadata, 'cape');
   const hasStill = Boolean(capeItem?.anim && capeItem.stillFile);
   // `cape` is always a normal cape texture (the first frame of an animation); `capeAnim` carries the strip.
-  // Only Noctra store capes are sent animated - the server refuses anything else anyway.
+  // Only Native store capes are sent animated - the server refuses anything else anyway.
   const cape = read(hasStill ? capeItem.stillFile : capeItem?.file);
   const strip = hasStill && capeItem.storeId && cape ? read(capeItem.file) : null;
   const skinItem = activeItem(metadata, 'skin');
@@ -725,15 +725,15 @@ async function fetchStoreStrip(itemId) {
   return value;
 }
 
-/** Equip (or, with itemId null, remove) a store cape on the signed-in Noctra account, then mirror it locally. */
+/** Equip (or, with itemId null, remove) a store cape on the signed-in Native account, then mirror it locally. */
 async function equipStoreItem(account, itemId) {
   if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
-    throw new Error('Sign in with a Noctra account to use store items.');
+    throw new Error('Sign in with a Native account to use store items.');
   }
   if (!isOnline()) throw new Error('You’re offline. Connect to the internet to change your cape.');
   const response = await fetch(`${apiRoot()}/v1/store/equip`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Noctra-Token': account.token },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Native-Token': account.token },
     body: JSON.stringify({ itemId: itemId || null }),
     signal: AbortSignal.timeout(15_000)
   });
@@ -757,17 +757,17 @@ async function equipStoreItem(account, itemId) {
 }
 
 function storeHeaders(account) {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Noctra-Token': account.token };
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${account.token}`, 'X-Native-Token': account.token };
 }
 
 function requireStoreAccount(account) {
   if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
-    throw new Error('Sign in with a Noctra account to use store items.');
+    throw new Error('Sign in with a Native account to use store items.');
   }
   if (!isOnline()) throw new Error('You’re offline. Connect to the internet to use the store.');
 }
 
-/** `{ equipped, owned: [{ id, acquiredAt }] }` for the signed-in Noctra account. */
+/** `{ equipped, owned: [{ id, acquiredAt }] }` for the signed-in Native account. */
 async function fetchStoreMe(account) {
   requireStoreAccount(account);
   const response = await fetch(`${apiRoot()}/v1/store/me`, { headers: storeHeaders(account), signal: AbortSignal.timeout(10_000) });
@@ -777,7 +777,7 @@ async function fetchStoreMe(account) {
   return { equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
 }
 
-/** A premium account connected to Noctra (or its linked identity) uses the Noctra session stored in main. */
+/** A premium account connected to Native (or its linked identity) uses the Native session stored in main. */
 function resolveBillingAccount(account) {
   if (account?.token && account?.type === 'noctra') return account;
   const id = account?.linkedFrom || (account?.type === 'microsoft' ? account.id : null);
@@ -804,7 +804,7 @@ async function billingRequest(account, pathname, { method = 'GET', body = null }
   return payload;
 }
 
-/** Only ever hand Paddle / Noctra pages to the system browser. */
+/** Only ever hand Paddle / Native pages to the system browser. */
 function openBillingPage(url) {
   let parsed = null;
   try { parsed = new URL(String(url || '')); } catch { return false; }
@@ -839,7 +839,7 @@ async function claimStoreItem(account, itemId, { remove = false } = {}) {
 
 async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
   if (!account?.name || account.name === 'guest') return null;
-  // The Noctra server resolves wardrobes by username: never pull another
+  // The Native server resolves wardrobes by username: never pull another
   // account's cosmetics into a Microsoft profile that happens to share it.
   if (isMicrosoftAccount(account) || isLocalOnlyAccount(account)) return null;
   if (!isOnline()) return null;
@@ -1086,7 +1086,7 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
 }
 
 /**
- * Live refresh: the Noctra server says this account's locker changed (website, another PC, a store
+ * Live refresh: the Native server says this account's locker changed (website, another PC, a store
  * equip). Pulls only when the cloud copy is newer than both our last sync and our own edits, so a change
  * we just made is never overwritten by the echo of an older one.
  */
@@ -1162,10 +1162,10 @@ async function syncWardrobe(account) {
     // Replace a guessable legacy key with a random one on the next upload.
     if (isLegacySyncKey(account, metadata.syncKey)) {
       rotatedKey = newSyncKey();
-      headers['X-Noctra-Rotate-Key'] = rotatedKey;
+      headers['X-Native-Rotate-Key'] = rotatedKey;
     }
     if (account?.token) {
-      headers['X-Noctra-Token'] = account.token;
+      headers['X-Native-Token'] = account.token;
     }
     response = await fetch(`${apiRoot()}/v1/wardrobe`, {
       method: 'POST',
@@ -1414,7 +1414,7 @@ async function exportItem(account, id = null) {
 
 // Bump when the install logic changes so existing instances re-resolve the jar.
 const CSL_TRACKER_SCHEMA = 2;
-const CSL_SITE_NAME = 'Noctra Client Wardrobe';
+const CSL_SITE_NAME = 'Native Client Wardrobe';
 
 function removeStrayLoaders(modsDir, jars, keep) {
   for (const jar of jars) {
@@ -1426,13 +1426,13 @@ function removeStrayLoaders(modsDir, jars, keep) {
 /**
  * CustomSkinLoader asks each site in its load list in order and stops at the
  * first one that knows the player. Its defaults put Mojang ahead of LocalSkin,
- * so an offline/Noctra name that also exists on Mojang (or a stale profile on
+ * so an offline/Native name that also exists on Mojang (or a stale profile on
  * any site) wins over the outfit picked in the Locker. Keep the order:
  *   1. LocalSkin   – the active Locker outfit, written right before launch
- *   2. Noctra API  – everyone else's Noctra outfit
+ *   2. Native API  – everyone else's Native outfit
  *   3. whatever CSL had (Mojang, OptiFine capes, …)
  * On the very first run CSL has no config yet; the ExtraList entry adds the
- * Noctra API and the next launch settles the full order.
+ * Native API and the next launch settles the full order.
  */
 function configureSkinLoader(cslDir, model) {
   const configPath = path.join(cslDir, 'CustomSkinLoader.json');
@@ -1459,22 +1459,22 @@ function configureSkinLoader(cslDir, model) {
     const rest = config.loadlist.filter((site) => site && site.name !== 'LocalSkin' && !isOurApi(site));
     config.loadlist = [{ ...(existingLocal || {}), ...localSite }, apiSite, ...rest];
     writeFileAtomic(configPath, JSON.stringify(config, null, 2));
-    for (const file of ['NoctraWardrobe.json', 'NativeWardrobe.json']) {
+    for (const file of ['NativeWardrobe.json', 'NoctraWardrobe.json']) {
       fs.rmSync(path.join(extraDir, file), { force: true });
     }
     return { managed: true };
   }
 
   const payload = JSON.stringify(apiSite, null, 2);
-  writeFileAtomic(path.join(extraDir, 'NoctraWardrobe.json'), payload);
-  fs.rmSync(path.join(extraDir, 'NativeWardrobe.json'), { force: true });
+  writeFileAtomic(path.join(extraDir, 'NativeWardrobe.json'), payload);
+  fs.rmSync(path.join(extraDir, 'NoctraWardrobe.json'), { force: true });
   return { managed: false };
 }
 
 /**
  * Prepare an instance's CustomSkinLoader folder:
  *  - the active skin/cape as LocalSkin textures,
- *  - an ExtraList entry pointing at the Noctra wardrobe API so other players
+ *  - an ExtraList entry pointing at the Native wardrobe API so other players
  *    (and other machines) resolve the same textures over the network,
  *  - the CustomSkinLoader mod itself, pinned to the instance's MC version and loader.
  */
@@ -1586,7 +1586,7 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
 
 /**
  * Drops the CustomSkinLoader copy this launcher installed (tracked by
- * `.noctra-loader.json`) once the Noctra Client mod takes over skins. A copy the
+ * `.noctra-loader.json`) once the Native Client mod takes over skins. A copy the
  * player added by hand is left alone.
  */
 function removeSkinLoader(instance) {
@@ -1638,9 +1638,9 @@ function init(dependencies, ipcMain) {
 
   ipcMain.handle('wardrobe:get', (_event, account) => publicState(account));
   // Lightweight skin/cape resolver for avatar UIs (the account switcher list,
-  // onboarding, etc.). Local accounts (Noctra/offline) aren't on mc-heads, so
+  // onboarding, etc.). Local accounts (Native/offline) aren't on mc-heads, so
   // their real texture lives in the wardrobe: return the active skin, warming
-  // the on-disk cache from the Noctra server first when nothing is active yet.
+  // the on-disk cache from the Native server first when nothing is active yet.
   ipcMain.handle('wardrobe:avatar', async (_event, account) => {
     let state = publicState(account);
     if (!state.active.skinUrl && account?.name && account.name !== 'guest') {

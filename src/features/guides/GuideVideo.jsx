@@ -23,7 +23,7 @@ async function classifyFailure(src) {
 }
 
 /**
- * Streams a how-to video from the Noctra server. Shows the poster with a play
+ * Streams a how-to video from the Native server. Shows the poster with a play
  * button until started, then the native player; chapters seek the video.
  */
 export default function GuideVideo({ video, title, autoPlay = false, compact = false }) {

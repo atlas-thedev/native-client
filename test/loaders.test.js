@@ -130,12 +130,12 @@ test('disabling mods renames jars and updates the manifest', () => {
   try {
     fs.writeFileSync(path.join(dir, 'jei.jar'), 'x');
     fs.writeFileSync(path.join(dir, 'keep.jar'), 'x');
-    fs.writeFileSync(path.join(dir, '.noctra-mods.json'), JSON.stringify({ jei: { filename: 'jei.jar', folder: 'mods', enabled: true } }));
+    fs.writeFileSync(path.join(dir, '.native-mods.json'), JSON.stringify({ jei: { filename: 'jei.jar', folder: 'mods', enabled: true } }));
     const result = loaders.disableMods(dir, ['jei.jar', '../evil.jar', 'missing.jar']);
     assert.deepEqual(result, [{ file: 'jei.jar', disabledFile: 'jei.jar.disabled' }]);
     assert.equal(fs.existsSync(path.join(dir, 'jei.jar.disabled')), true);
     assert.equal(fs.existsSync(path.join(dir, 'keep.jar')), true);
-    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.noctra-mods.json'), 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.native-mods.json'), 'utf8'));
     assert.deepEqual(manifest.jei, { filename: 'jei.jar.disabled', folder: 'mods', enabled: false });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

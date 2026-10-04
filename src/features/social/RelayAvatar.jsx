@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
 import fallbackSkin from '../../assets/steve.png';
 
-// Relay is a Noctra-only surface. Avatars resolve from the CustomSkinLoader API
+// Relay is a Native-only surface. Avatars resolve from the CustomSkinLoader API
 // and deliberately never contact Mojang head-rendering proxy services.
 const noctraSkinCache = new Map();
 const inFlightRequests = new Map();
@@ -15,7 +15,7 @@ function cachedSkin(key) {
   return undefined;
 }
 
-export function resolveNoctraSkin(name) {
+export function resolveNativeSkin(name) {
   const key = String(name || '').toLowerCase().trim();
   if (!key || key === 'guest') return Promise.resolve(null);
 
@@ -99,7 +99,7 @@ export default function RelayAvatar({
 
     setSkinUrl(cachedSkin(key) || null);
     if (key) {
-      resolveNoctraSkin(key).then((url) => {
+      resolveNativeSkin(key).then((url) => {
         if (active) setSkinUrl(url);
       });
     }

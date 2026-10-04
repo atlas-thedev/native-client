@@ -1,5 +1,5 @@
 /**
- * Noctra Client Database Schema & Migration Engine
+ * Native Client Database Schema & Migration Engine
  * Uses Node.js native SQLite (DatabaseSync) with WAL mode, foreign keys,
  * and optimized compound indexes for instant queries.
  *

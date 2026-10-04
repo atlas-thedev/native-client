@@ -6,7 +6,7 @@ const ENV_LABEL = { sandbox: 'Sandbox', production: 'Live' };
 const EMPTY = { apiKey: '', clientToken: '', webhookSecret: '' };
 
 /**
- * Paddle keys per environment + one-click setup. Secrets go straight to the Noctra server and
+ * Paddle keys per environment + one-click setup. Secrets go straight to the Native server and
  * can never be read back — the server only returns the last 4 characters.
  */
 export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) {
@@ -115,7 +115,7 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
       {cur && (
         <div className="admin-pay-checks">
           {row('Cape product', cur.capeProduct, cur.capeProduct)}
-          {row('Noctra+ product', cur.plusProduct, cur.plusProduct)}
+          {row('Native+ product', cur.plusProduct, cur.plusProduct)}
           {row('Monthly $2.99', cur.monthlyPrice, cur.monthlyPrice)}
           {row('Yearly $24.99', cur.yearlyPrice, cur.yearlyPrice)}
           {row('Webhook', cur.notificationId, cur.notificationId && cur.webhookSecret)}
@@ -123,7 +123,7 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
       )}
       {steps.length > 0 && <p className="admin-note">{steps.join(' · ')}</p>}
       <p className="admin-note">
-        Keys are stored only on the Noctra server and can’t be read back. Set up Paddle creates or finds the products, prices and the webhook
+        Keys are stored only on the Native server and can’t be read back. Set up Paddle creates or finds the products, prices and the webhook
         ({settings?.webhookUrl || 'api.nativelaunch.xyz'}). Keep the API key in place while selling — the server needs it to start checkouts; rotate it here any time.
         Go live only after Paddle has approved nativelaunch.xyz.
       </p>

@@ -28,8 +28,8 @@ const api = {
   accounts: {
     list:                 ()        => ipcRenderer.invoke('accounts:list'),
     addOffline:           (name)    => ipcRenderer.invoke('accounts:addOffline', name),
-    addNoctra:            (payload) => ipcRenderer.invoke('accounts:addNoctra', payload),
-    addNative:            (payload) => ipcRenderer.invoke('accounts:addNoctra', payload),
+    addNative:            (payload) => ipcRenderer.invoke('accounts:addNative', payload),
+    addNative:            (payload) => ipcRenderer.invoke('accounts:addNative', payload),
     addMicrosoft:         ()        => ipcRenderer.invoke('accounts:addMicrosoft'),
     noctraSendCode:       (payload) => ipcRenderer.invoke('accounts:noctraSendCode', payload),
     noctraResendCode:     (payload) => ipcRenderer.invoke('accounts:noctraResendCode', payload),
@@ -40,11 +40,11 @@ const api = {
     getPremiumLink:       (id)      => ipcRenderer.invoke('accounts:getPremiumLink', id),
     linkPremium:          (payload) => ipcRenderer.invoke('accounts:linkPremium', payload),
     unlinkPremium:        (id)      => ipcRenderer.invoke('accounts:unlinkPremium', id),
-    // Premium ↔ Noctra: a connected Microsoft account signs into Noctra on its own.
+    // Premium ↔ Native: a connected Microsoft account signs into Native on its own.
     premiumStatus:        (id)      => ipcRenderer.invoke('accounts:premiumStatus', id),
-    ensureNoctra:         (id, options) => ipcRenderer.invoke('accounts:ensureNoctra', id, options || {}),
-    connectNoctra:        (payload) => ipcRenderer.invoke('accounts:connectNoctra', payload),
-    disconnectNoctra:     (id)      => ipcRenderer.invoke('accounts:disconnectNoctra', id),
+    ensureNative:         (id, options) => ipcRenderer.invoke('accounts:ensureNative', id, options || {}),
+    connectNative:        (payload) => ipcRenderer.invoke('accounts:connectNative', payload),
+    disconnectNative:     (id)      => ipcRenderer.invoke('accounts:disconnectNative', id),
     setActive:            (id)      => ipcRenderer.invoke('accounts:setActive', id),
     remove:               (id)      => ipcRenderer.invoke('accounts:remove', id),
     getAvatar:            (uuid)    => ipcRenderer.invoke('accounts:getAvatar', uuid)

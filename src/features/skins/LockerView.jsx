@@ -18,7 +18,7 @@ const normalizeCapeName = (value) => String(value || '').toLowerCase().replace(/
 
 export default function LockerView({ account, onWardrobeChanged, onNotify, onOpenStore, online = true }) {
   const { t } = useI18n();
-  // Offline accounts keep their skins on this PC only; nothing is sent to Noctra.
+  // Offline accounts keep their skins on this PC only; nothing is sent to Native.
   const localOnly = account?.type === 'offline';
   const [wardrobe, setWardrobe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [importOpen, setImportOpen] = useState(false);
   const [importData, setImportData] = useState(null);
   const [importSaving, setImportSaving] = useState(false);
-  // Noctra Store capes this account owns: [{ item, acquiredAt }]
+  // Native Store capes this account owns: [{ item, acquiredAt }]
   const [storeCapes, setStoreCapes] = useState([]);
   const [storeBusy, setStoreBusy] = useState(null);
   const viewerRef = useRef(null);
@@ -47,7 +47,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     return next;
   };
 
-  // Accounts whose locker lives in the Noctra cloud: Noctra accounts, and premium
+  // Accounts whose locker lives in the Native cloud: Native accounts, and premium
   // accounts connected to one. Everyone else only has this PC's copy.
   const cloudAccount = !localOnly && (account?.type === 'noctra' || (account?.type === 'microsoft' && Boolean(account?.noctraLink?.connected)));
   const onlineRef = useRef(online);
@@ -102,7 +102,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     return () => window.removeEventListener('noctra:wardrobe-refreshed', refresh);
   }, [account?.id]);
 
-  // Noctra Store capes this account owns (claimed in the Store page or on the website).
+  // Native Store capes this account owns (claimed in the Store page or on the website).
   const storeSeq = useRef(0);
   const loadStoreCapes = async () => {
     if (!account?.token || account?.type !== 'noctra' || localOnly) { setStoreCapes([]); return; }
@@ -196,7 +196,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         .map((preset) => ({ key: `lock:${preset.id}`, kind: 'locked', name: preset.name, textureUrl: preset.textureUrl, active: false }));
       return [none, ...owned, ...locked];
     }
-    // Noctra Store capes in this account's locker sit right after "no cape" (animated ones only come from the Store).
+    // Native Store capes in this account's locker sit right after "no cape" (animated ones only come from the Store).
     const wornStoreId = wardrobe?.active?.cape?.storeId || null;
     const owned = storeCapes.map(({ item }) => ({
       key: `store:${item.id}`,
@@ -268,7 +268,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         const updated = await window.native?.wardrobe?.get?.(account);
         if (updated) publishState(updated);
       }
-      onNotify?.(t('locker.title'), 'All cosmetics synchronized with Noctra Cloud.');
+      onNotify?.(t('locker.title'), 'All cosmetics synchronized with Native Cloud.');
     } catch (error) {
       onNotify?.(t('locker.title'), error?.message || 'Cloud sync completed locally.');
     } finally { setSyncing(false); }
@@ -384,7 +384,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           <HardDrive size={14} aria-hidden="true" />
           <div>
             <strong>Saved on this PC only</strong>
-            <span>Offline accounts aren't synced with Noctra, so other players can't see your skin. Sign in with a Noctra account to share it.</span>
+            <span>Offline accounts aren't synced with Native, so other players can't see your skin. Sign in with a Native account to share it.</span>
           </div>
         </div>
       ) : (
@@ -417,7 +417,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
           {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
         </div></section>
-        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Noctra Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
+        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Native Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
           {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
           {!capesSkeleton && capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No capes match “{capeQuery.trim()}”.</p>}{!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}

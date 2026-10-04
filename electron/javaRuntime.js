@@ -259,8 +259,8 @@ async function candidatePaths() {
     for (const p of out) add(p, label);
   };
 
-  // Runtimes Noctra downloaded itself.
-  if (userDataDir) addTree(path.join(userDataDir, 'java'), 2, 'Noctra');
+  // Runtimes Native downloaded itself.
+  if (userDataDir) addTree(path.join(userDataDir, 'java'), 2, 'Native');
 
   // PATH and JAVA_HOME
   for (const dir of String(process.env.PATH || '').split(path.delimiter)) {
@@ -415,7 +415,7 @@ function checkCompat({ runtime, requiredMajor, mcVersion, loader = 'vanilla', me
   const loaderId = String(loader || 'vanilla').toLowerCase();
 
   if (!runtime) {
-    push('error', 'not-runnable', 'This Java could not be started. Check the path, or let Noctra pick Java automatically.');
+    push('error', 'not-runnable', 'This Java could not be started. Check the path, or let Native pick Java automatically.');
     return { status: 'error', issues };
   }
   const major = runtime.major;

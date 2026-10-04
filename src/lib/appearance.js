@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra — appearance store
+   Native — appearance store
 
    Single source of truth for the launcher's look. Persists to
    localStorage, applies itself to <html> as data-attributes +

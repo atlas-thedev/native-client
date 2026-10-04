@@ -5,7 +5,7 @@ const { safeStorage, net } = require('electron');
 const safeFile = require('./safeFile');
 
 /**
- * Noctra Social & Friends System (Main Process).
+ * Native Social & Friends System (Main Process).
  *
  * Provides:
  * - A persistent Server-Sent-Events connection to the Relay backend, so
@@ -14,7 +14,7 @@ const safeFile = require('./safeFile');
  * - Friends list, request handling, direct messaging, blocking and unblocking
  * - Bulk conversation preloading (every thread, not just the open one)
  * - Local fallback caching for instant frame-1 rendering
- * - Strict authentication against Noctra accounts only
+ * - Strict authentication against Native accounts only
  */
 
 const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
@@ -60,7 +60,7 @@ function removeLegacyCache() {
 }
 
 function readCache() {
-  const account = getActiveNoctraAccount();
+  const account = getActiveNativeAccount();
   if (!account?.id) return EMPTY_CACHE();
   const stored = safeFile.readJson(cachePath(account.id), null);
   if (!stored) return EMPTY_CACHE();
@@ -75,7 +75,7 @@ function readCache() {
 
 function writeCache(updater) {
   try {
-    const account = getActiveNoctraAccount();
+    const account = getActiveNativeAccount();
     if (!account?.id) return;
     const current = readCache();
     const updated = typeof updater === 'function' ? updater(current) : { ...current, ...updater };
@@ -89,7 +89,7 @@ function writeCache(updater) {
   } catch {}
 }
 
-function getActiveNoctraAccount() {
+function getActiveNativeAccount() {
   try {
     // auth.js owns accounts.json (and decrypts the stored session token).
     const data = require('./auth').readAccounts(deps.app.getPath('userData'));
@@ -97,7 +97,7 @@ function getActiveNoctraAccount() {
     if (active && active.type === 'noctra' && (active.token || active.sessionToken)) {
       return active;
     }
-    // A premium account connected to Noctra acts as that Noctra account.
+    // A premium account connected to Native acts as that Native account.
     const linked = active ? require('./auth').linkedIdentity(active) : null;
     if (linked) return linked;
   } catch {}
@@ -110,9 +110,9 @@ function tokenOf(account) {
 
 async function socialFetch(endpoint, options = {}) {
   const result = await socialFetchOnce(endpoint, options);
-  // A connected premium account renews its Noctra session on its own.
+  // A connected premium account renews its Native session on its own.
   if (result && result.status === 401 && !options.token) {
-    const account = getActiveNoctraAccount();
+    const account = getActiveNativeAccount();
     if (account?.linkedFrom) {
       const renewed = await require('./auth').ensurePremiumLink(account.linkedFrom, { force: true }).catch(() => null);
       if (renewed?.ok) return stripStatus(await socialFetchOnce(endpoint, options));
@@ -137,10 +137,10 @@ function isOnline() {
 async function socialFetchOnce(endpoint, { method = 'GET', body = null, token = null } = {}) {
   // Offline: answer immediately so the UI falls back to its saved copy instead of waiting on a timeout.
   if (!isOnline()) return { ok: false, offline: true, error: 'You are offline.' };
-  const account = getActiveNoctraAccount();
+  const account = getActiveNativeAccount();
   const authToken = token || tokenOf(account);
   if (!authToken) {
-    return { ok: false, error: 'No active Noctra account session found.' };
+    return { ok: false, error: 'No active Native account session found.' };
   }
 
   const headers = {
@@ -148,7 +148,7 @@ async function socialFetchOnce(endpoint, { method = 'GET', body = null, token = 
     'Authorization': `Bearer ${authToken}`
   };
 
-  let lastError = 'Could not connect to Noctra Social service.';
+  let lastError = 'Could not connect to Native Social service.';
   for (const root of API_ROOTS) {
     try {
       const res = await fetch(`${root}${endpoint}`, {
@@ -165,15 +165,15 @@ async function socialFetchOnce(endpoint, { method = 'GET', body = null, token = 
         // Only server/transport failures try the next root.
         if (res.status === 401 && !Array.isArray(payload)) return { ...payload, status: 401, __withStatus: true };
         if (res.status < 500) return payload;
-        lastError = payload.error || `Noctra Social returned HTTP ${res.status}.`;
+        lastError = payload.error || `Native Social returned HTTP ${res.status}.`;
         continue;
       }
-      lastError = `Noctra Social returned HTTP ${res.status}.`;
+      lastError = `Native Social returned HTTP ${res.status}.`;
       if (res.status < 500) return { ok: false, error: lastError };
     } catch (err) {
       lastError = err?.name === 'TimeoutError' || err?.name === 'AbortError'
-        ? 'Noctra Social took too long to respond.'
-        : 'Could not connect to Noctra Social service.';
+        ? 'Native Social took too long to respond.'
+        : 'Could not connect to Native Social service.';
     }
   }
   return { ok: false, error: lastError };
@@ -270,7 +270,7 @@ async function streamLoop(generation) {
   const alive = () => generation === streamGeneration;
 
   while (alive()) {
-    const account = getActiveNoctraAccount();
+    const account = getActiveNativeAccount();
     const token = tokenOf(account);
     if (!token) {
       setStreamStatus('signed-out');
@@ -334,7 +334,7 @@ function stopStream() {
 
 /** Reconnect when the active account changes (sign in / account switch). */
 function syncStreamWithAccount() {
-  const account = getActiveNoctraAccount();
+  const account = getActiveNativeAccount();
   const id = account?.id || null;
   if (id === streamAccountId && streamRunning) return;
   stopStream();
@@ -366,7 +366,7 @@ function pushPresence() {
     try {
       while (presenceDirty) {
         presenceDirty = false;
-        const token = tokenOf(getActiveNoctraAccount());
+        const token = tokenOf(getActiveNativeAccount());
         if (!token) break;
         await socialFetch('/v1/social/presence', {
           method: 'POST',
@@ -390,7 +390,7 @@ function init(dependencies, ipcMain) {
   removeLegacyCache();
 
   // Send initial presence immediately
-  const initialToken = tokenOf(getActiveNoctraAccount());
+  const initialToken = tokenOf(getActiveNativeAccount());
   if (initialToken) {
     socialFetch('/v1/social/presence', {
       method: 'POST',
@@ -569,7 +569,7 @@ module.exports = {
   init,
   setPresence,
   getPresence,
-  getActiveNoctraAccount,
+  getActiveNativeAccount,
   startStream,
   stopStream
 };

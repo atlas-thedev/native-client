@@ -19,7 +19,7 @@ const { listen } = require('../server/server');
 
 const sign = (body, ts = Math.floor(Date.now() / 1000)) => `ts=${ts};h1=${crypto.createHmac('sha256', SECRET).update(`${ts}:${body}`).digest('hex')}`;
 
-test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async () => {
+test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async () => {
   const buyer = db.createUser({ email: 'buyer@test.local', username: 'Buyer', password: 'password123' });
   const boss = db.createUser({ email: 'boss@test.local', username: 'Boss', password: 'password123' });
   const buyerSession = db.createSession(buyer.id);
@@ -72,7 +72,7 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     await hook({ event_id: 'evt_2', event_type: 'adjustment.updated', data: { id: 'adj_1', action: 'refund', status: 'approved', transaction_id: 'txn_1' } });
     assert.ok(!(await owned()).some((entry) => entry.id === paid.id));
 
-    // Noctra+ unlocks paid capes while active.
+    // Native+ unlocks paid capes while active.
     await hook({ event_id: 'evt_3', event_type: 'subscription.created', data: {
       id: 'sub_1', status: 'active', customer_id: 'ctm_1', custom_data: { userId: buyer.id, kind: 'plus', plan: 'monthly' },
       items: [{ price: { id: 'pri_month' } }], current_billing_period: { ends_at: new Date(Date.now() + 864e5 * 30).toISOString() }
@@ -80,12 +80,12 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     const me = await (await call('GET', '/v1/billing/me', null, buyerSession.token)).json();
     assert.equal(me.plus.active, true);
     assert.equal(me.plus.plan, 'monthly');
-    assert.ok(db.getUserById(buyer.id).badges.includes('plus'), 'members get the Noctra+ badge');
+    assert.ok(db.getUserById(buyer.id).badges.includes('plus'), 'members get the Native+ badge');
     const wear = await (await call('POST', '/v1/store/equip', { itemId: paid.id }, buyerSession.token)).json();
     assert.equal(wear.equipped, paid.id);
     assert.ok((await owned()).some((entry) => entry.id === paid.id && entry.source === 'plus'));
 
-    // Ending Noctra+ takes plus capes back off.
+    // Ending Native+ takes plus capes back off.
     await hook({ event_id: 'evt_4', event_type: 'subscription.canceled', data: { id: 'sub_1', status: 'canceled', customer_id: 'ctm_1', items: [{ price: { id: 'pri_month' } }] } });
     assert.ok(!(await owned()).some((entry) => entry.id === paid.id));
     assert.equal((await (await call('GET', '/v1/store/me', null, buyerSession.token)).json()).equipped, null);
@@ -105,12 +105,12 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     assert.equal(overview.refunds.count, 1);
     assert.equal(overview.recent[0].username, 'Buyer');
 
-    // Admins can give Noctra+ without a payment, for a while or forever, and take it back.
+    // Admins can give Native+ without a payment, for a while or forever, and take it back.
     const friend = db.createUser({ email: 'friend@test.local', username: 'Friendo', password: 'password123' });
     const friendSession = db.createSession(friend.id);
     const plusOf = async () => (await (await call('GET', '/v1/billing/me', null, friendSession.token)).json()).plus;
     assert.equal((await plusOf()).active, false);
-    assert.equal((await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 30 }, buyerSession.token)).status, 403, 'only admins give Noctra+');
+    assert.equal((await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 30 }, buyerSession.token)).status, 403, 'only admins give Native+');
     assert.equal((await call('POST', '/v1/admin/billing/plus', { username: 'NobodyHere', days: 30 }, bossSession.token)).status, 404);
     const given = await (await call('POST', '/v1/admin/billing/plus', { username: 'friendo', days: 30, note: 'giveaway' }, bossSession.token)).json();
     assert.equal(given.ok, true);
@@ -118,7 +118,7 @@ test('Paddle webhooks sell capes, run Noctra+, refund, and redeem codes', async 
     const gifted = await plusOf();
     assert.equal(gifted.active, true);
     assert.equal(gifted.gifted, true);
-    assert.ok(db.getUserById(friend.id).badges.includes('plus'), 'gift adds the Noctra+ badge');
+    assert.ok(db.getUserById(friend.id).badges.includes('plus'), 'gift adds the Native+ badge');
     const friendClaim = await call('POST', '/v1/store/claim', { itemId: paid.id }, friendSession.token);
     assert.equal(friendClaim.status, 200, 'a gifted member gets paid capes');
     const more = await (await call('POST', '/v1/admin/billing/plus', { username: 'Friendo', days: 30 }, bossSession.token)).json();

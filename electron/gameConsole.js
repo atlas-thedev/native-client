@@ -19,7 +19,7 @@ const MAX_LINES = 20000;
 const MAX_LINE_CHARS = 4000;
 const MAX_SESSIONS = 6;
 const FLUSH_MS = 120;
-const HEADERS = { 'User-Agent': 'NoctraClient (https://github.com/atlas-thedev/noctra-client)' };
+const HEADERS = { 'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)' };
 
 let deps = null;
 const sessions = new Map(); // instanceId -> session
@@ -45,7 +45,7 @@ const HEADER_SHORT = /^\[(\d{1,2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+(TRACE|DEBUG|INFO|W
 const HEADER_LEGACY = /^(?:\d{4}-\d{2}-\d{2}\s+)?(\d{1,2}:\d{2}:\d{2})\s+\[(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|SEVERE|FINE|FINER|FINEST|CONFIG)\]/i;
 // [main/INFO]: …  (no timestamp)
 const HEADER_BARE = /^\[([^\]]{1,60}?)\/(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|SEVERE)\]/i;
-const LAUNCHER_LINE = /^\[(MCLC|Noctra)\]/i;
+const LAUNCHER_LINE = /^\[(MCLC|Native)\]/i;
 
 // Stack trace continuation: "\tat x.y(Z.java:1)", "Caused by: …", "\t... 12 more", "Suppressed: …"
 const CONTINUATION = /^(?:\s+at\s|\s*at\s+[\w$.<>/]+\(|\s*Caused by:|\s*Suppressed:|\s*\.\.\.\s*\d+\s+more|\s+\S)/;
@@ -279,13 +279,13 @@ function pushGame(chunk, stream = 'stdout', instanceId = activeId) {
   }
 }
 
-/** A launcher status line (MCLC debug output, Noctra messages). */
+/** A launcher status line (MCLC debug output, Native messages). */
 function pushLauncher(text, instanceId = activeId) {
   const session = sessions.get(instanceId);
   if (!session) return;
   for (const raw of String(text).split('\n')) {
     if (!raw.trim()) continue;
-    const tagged = LAUNCHER_LINE.test(raw) ? raw : `[Noctra] ${raw}`;
+    const tagged = LAUNCHER_LINE.test(raw) ? raw : `[Native] ${raw}`;
     const level = /\b(?:error|failed|couldn't|could not)\b/i.test(raw) ? 'warn' : 'info';
     addLine(session, { level, source: 'launcher', text: tagged }, 'launcher');
   }
@@ -302,10 +302,10 @@ function end(instanceId = activeId, { code = null, signal = null, killed = false
     session.partial[key] = '';
   }
   if (note) {
-    addLine(session, { level: 'warn', source: 'launcher', text: `[Noctra] ${note}` }, 'launcher');
+    addLine(session, { level: 'warn', source: 'launcher', text: `[Native] ${note}` }, 'launcher');
   } else {
     const how = killed ? 'was stopped from the launcher' : signal ? `was stopped (${signal})` : `exited with code ${code}`;
-    addLine(session, { level: code && code !== 0 && !killed ? 'warn' : 'info', source: 'launcher', text: `[Noctra] Minecraft ${how}` }, 'launcher');
+    addLine(session, { level: code && code !== 0 && !killed ? 'warn' : 'info', source: 'launcher', text: `[Native] Minecraft ${how}` }, 'launcher');
   }
   session.running = false;
   session.endedAt = Date.now();
@@ -398,7 +398,7 @@ function textFor(instanceId, header = true) {
   if (!header) return { data, text: body };
   const inst = sessions.get(instanceId)?.instance;
   const top = [
-    '# Noctra Client console',
+    '# Native Client console',
     inst ? `# Instance: ${inst.name} · Minecraft ${inst.version || '?'} · ${inst.loader}${inst.loaderVersion ? ` ${inst.loaderVersion}` : ''}` : null,
     data.startedAt ? `# Started: ${new Date(data.startedAt).toISOString()}` : data.source === 'file' ? '# Source: logs/latest.log' : null,
     `# Platform: ${process.platform} ${process.arch}`
@@ -414,7 +414,7 @@ const SERVICES = {
     async upload(text) {
       let lines = text.split('\n');
       // mclo.gs keeps 25k lines / 10 MB: keep the start (boot info) and the end.
-      if (lines.length > 24000) lines = [...lines.slice(0, 4000), '... (trimmed by Noctra) ...', ...lines.slice(-19000)];
+      if (lines.length > 24000) lines = [...lines.slice(0, 4000), '... (trimmed by Native) ...', ...lines.slice(-19000)];
       const body = new URLSearchParams({ content: lines.join('\n').slice(0, 9_000_000) });
       const response = await fetch('https://api.mclo.gs/1/log', { method: 'POST', body, headers: HEADERS });
       const json = await response.json().catch(() => null);

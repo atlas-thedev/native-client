@@ -4,9 +4,9 @@ import earlySupporterBadge from '../../assets/badges/early-supporter.png';
 import bugHunterBadge from '../../assets/badges/bug-hunter.png';
 import staffBadge from '../../assets/badges/staff.png';
 import './Badges.css';
-import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
+import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 
-/* Noctra+ badge: a gold pixel crown (inline so it works everywhere). */
+/* Native+ badge: a gold pixel crown (inline so it works everywhere). */
 const plusBadge = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges"><rect width="16" height="16" rx="4" fill="#ffd68c"/><path fill="#1a1306" d="M3 5h2v2h1V5h1V4h2v1h1v2h1V5h2v7H3z"/><path fill="#ffd68c" d="M5 10h6v1H5z"/></svg>')}`;
 
 const badgeIcon = (src) => <img src={src} alt="" aria-hidden="true" draggable="false"/>;
@@ -15,14 +15,14 @@ export const BADGE_DEFS = {
   developer: {
     id: 'developer',
     name: 'Active Developer',
-    description: 'Verified Noctra Core Developer',
+    description: 'Verified Native Core Developer',
     gradient: 'linear-gradient(135deg, #5865f2 0%, #3ba55d 100%)',
     icon: badgeIcon(developerBadge)
   },
   early_supporter: {
     id: 'early_supporter',
     name: 'Early Supporter',
-    description: 'Supported Noctra Client in its earliest days',
+    description: 'Supported Native Client in its earliest days',
     gradient: 'linear-gradient(135deg, #f47b67 0%, #faa61a 100%)',
     icon: badgeIcon(earlySupporterBadge)
   },
@@ -35,26 +35,26 @@ export const BADGE_DEFS = {
   },
   staff: {
     id: 'staff',
-    name: 'Noctra Staff',
-    description: 'Official Noctra Client Staff Team',
+    name: 'Native Staff',
+    description: 'Official Native Client Staff Team',
     gradient: 'linear-gradient(135deg, #5865f2 0%, #eb459e 100%)',
     icon: badgeIcon(staffBadge)
   },
   plus: {
     id: 'plus',
-    name: 'Noctra+',
-    description: 'Noctra+ member',
+    name: 'Native+',
+    description: 'Native+ member',
     gradient: 'linear-gradient(135deg, #ffd68c 0%, #f5b94a 100%)',
     icon: badgeIcon(plusBadge)
   }
 };
 
-/** True when the server has granted the Noctra+ badge. */
+/** True when the server has granted the Native+ badge. */
 export const isPlusUser = (user) => getUserBadges(user).includes('plus');
 
-/** The Noctra+ mark shown next to members' names across Relay. */
+/** The Native+ mark shown next to members' names across Relay. */
 export function PlusMark({ size = 14, className = '' }) {
-  return <NoctraPlusIcon size={size} className={`noctra-plus-mark ${className}`.trim()} title="Noctra+ member" />;
+  return <NativePlusIcon size={size} className={`noctra-plus-mark ${className}`.trim()} title="Native+ member" />;
 }
 
 /**

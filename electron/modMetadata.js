@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
 /**
- * Content metadata (title, icon, author, version) for files that Noctra did not
+ * Content metadata (title, icon, author, version) for files that Native did not
  * install itself: modpack downloads, mods dropped into the folder by hand, etc.
  *
  * Resolution order per file:
@@ -22,7 +22,7 @@ const MAX_ICON_BYTES = 256 * 1024;
 const CHUNK = 50;
 
 const headers = {
-  'User-Agent': 'NoctraClient (https://github.com/atlas-thedev/noctra-client)',
+  'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)',
   'Content-Type': 'application/json'
 };
 

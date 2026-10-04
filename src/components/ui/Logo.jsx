@@ -2,11 +2,11 @@ import React from 'react';
 import noctraLogo from '../../assets/noctra-icon.png';
 import './Logo.css';
 
-export function NoctraMark({ size = 32, className = '', style }) {
+export function NativeMark({ size = 32, className = '', style }) {
   return (
     <img
       src={noctraLogo}
-      alt="Noctra Client"
+      alt="Native Client"
       width={size}
       height={size}
       className={`noctra-mark native-mark ${className}`.trim()}
@@ -22,21 +22,21 @@ export function NoctraMark({ size = 32, className = '', style }) {
   );
 }
 
-export const NativeMark = NoctraMark;
+export const NoctraMark = NativeMark;
 
 export default function Logo({
   height = 32,
   variant = 'full',
   className = '',
   style,
-  wordmark = 'Noctra Client'
+  wordmark = 'Native Client'
 }) {
   return (
     <span
       className={`noctra-logo native-logo noctra-logo-${variant} native-logo-${variant} ${className}`.trim()}
       style={style}
     >
-      <NoctraMark size={height} />
+      <NativeMark size={height} />
       {variant === 'full' && (
         <span
           className="noctra-logo-text native-logo-text"

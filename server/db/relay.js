@@ -35,7 +35,7 @@ function cleanIcon(value) {
   if (value == null || value === '') return null;
   const url = String(value).trim();
   if (url.length > 600) throw new Error('Group image URL is too long.');
-  // Only images uploaded through Noctra; never arbitrary third-party URLs.
+  // Only images uploaded through Native; never arbitrary third-party URLs.
   return require('../media').normalizeIconUrl(url);
 }
 

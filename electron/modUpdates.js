@@ -8,7 +8,7 @@ const loaders = require('./loaders');
  * Batch content updates, dependency resolution and pre-launch conflict checks.
  *
  * Updates work by file hash, so they cover every file Modrinth knows — not
- * only ones Noctra installed: modpack downloads and hand-copied jars too.
+ * only ones Native installed: modpack downloads and hand-copied jars too.
  *
  *   check     hash folder -> /version_files (what is installed)
  *                         -> /version_files/update (newest build for this
@@ -23,7 +23,7 @@ const API = 'https://api.modrinth.com/v2';
 const META_CACHE = '.noctra-meta-cache.json';
 const CONTENT = /\.(jar|zip)(\.disabled)?$/i;
 const HEADERS = {
-  'User-Agent': 'NoctraClient (https://github.com/atlas-thedev/noctra-client)',
+  'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)',
   'Content-Type': 'application/json'
 };
 
@@ -273,7 +273,7 @@ function safeName(name) {
 }
 
 function readManifest(modsDir) {
-  for (const file of ['.noctra-mods.json', '.native-mods.json']) {
+  for (const file of ['.native-mods.json', '.native-mods.json']) {
     try {
       return JSON.parse(fs.readFileSync(path.join(modsDir, file), 'utf8'));
     } catch {}
@@ -347,7 +347,7 @@ async function applyUpdates({ dir, folder = 'mods', updates = [], installs = [],
   }
 
   if (done.updated.length || done.installed.length) {
-    writeFileAtomic(path.join(dir, '.noctra-mods.json'), JSON.stringify(manifest, null, 2));
+    writeFileAtomic(path.join(dir, '.native-mods.json'), JSON.stringify(manifest, null, 2));
   }
   return done;
 }

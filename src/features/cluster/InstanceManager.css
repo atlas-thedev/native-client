@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra Client — Instance Manager
+   Native Client — Instance Manager
    Solid surfaces, theme tokens only (accent / surface / radius
    are user-configurable). No gradients, no glows.
    ============================================================ */
@@ -932,7 +932,7 @@
   flex-shrink: 0;
 }
 
-/* Noctra's own mod: always on, managed by the launcher. */
+/* Native's own mod: always on, managed by the launcher. */
 .im-core-pill {
   display: inline-flex;
   align-items: center;

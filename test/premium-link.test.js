@@ -60,8 +60,8 @@ test('premium sign-in: a bad Minecraft token never signs in', async () => {
   assert.equal(short.status, 400);
 });
 
-test('premium sign-in: once connected, the premium account signs into its Noctra account', async () => {
-  const user = db.createUser({ email: 'alex@test.local', username: 'AlexNoctra', password: 'password123' });
+test('premium sign-in: once connected, the premium account signs into its Native account', async () => {
+  const user = db.createUser({ email: 'alex@test.local', username: 'AlexNative', password: 'password123' });
   const session = db.createSession(user.id).token;
 
   const link = await post('/v1/account/minecraft', { minecraftAccessToken: ALEX }, session);
@@ -73,21 +73,21 @@ test('premium sign-in: once connected, the premium account signs into its Noctra
   const body = await signIn.json();
   assert.equal(body.ok, true);
   assert.equal(body.account.id, user.id);
-  assert.equal(body.account.name, 'AlexNoctra');
+  assert.equal(body.account.name, 'AlexNative');
   assert.match(body.token, /^noc_[a-f0-9]{64}$/);
   assert.notEqual(body.token, session, 'the premium account gets its own session');
 
-  // The new session is a real Noctra session.
+  // The new session is a real Native session.
   const status = await fetch(`${base}/v1/account/minecraft`, { headers: { Authorization: `Bearer ${body.token}` } });
   assert.equal((await status.json()).profile.uuid, '0f8b3c1e2d4a4b5c9e6f7a8b9c0d1e2f');
 
-  // Another premium account can't sign into Alex's Noctra account.
+  // Another premium account can't sign into Alex's Native account.
   const other = await post('/v1/auth/minecraft', { minecraftAccessToken: SAM });
   assert.equal(other.status, 404);
 });
 
-test('premium sign-in: one premium account connects to one Noctra account, and disconnecting stops auto sign-in', async () => {
-  const owner = db.createUser({ email: 'sam@test.local', username: 'SamNoctra', password: 'password123' });
+test('premium sign-in: one premium account connects to one Native account, and disconnecting stops auto sign-in', async () => {
+  const owner = db.createUser({ email: 'sam@test.local', username: 'SamNative', password: 'password123' });
   const thief = db.createUser({ email: 'thief@test.local', username: 'Thief', password: 'password123' });
   const ownerSession = db.createSession(owner.id).token;
   const thiefSession = db.createSession(thief.id).token;

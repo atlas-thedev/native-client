@@ -57,7 +57,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists, reusing it."
           else
-            gh release create "$TAG" --draft --title "Noctra Client $TAG" --generate-notes --target "$GITHUB_SHA"
+            gh release create "$TAG" --draft --title "Native Client $TAG" --generate-notes --target "$GITHUB_SHA"
           fi
 
   build:

@@ -13,7 +13,7 @@ const skinIdentifier = new Function(`${source}; return skinIdentifier;`)();
 const isLocalIdentity = new Function(`${source}; return isLocalIdentity;`)();
 const loadSkinTexture = new Function(`${source}; return loadSkinTexture;`)();
 
-test('Noctra and offline accounts default to Steve or Alex until a skin is uploaded', () => {
+test('Native and offline accounts default to Steve or Alex until a skin is uploaded', () => {
   assert.equal(skinIdentifier({ type: 'noctra', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName' }), 'MHF_Steve');
   assert.equal(skinIdentifier({ type: 'noctra', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName', model: 'slim' }), 'MHF_Alex');
   assert.equal(skinIdentifier({ type: 'offline', id: 'offline-1', uuid: 'generated-uuid', name: 'OfflineName' }), 'MHF_Steve');

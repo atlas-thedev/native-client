@@ -2,7 +2,7 @@
 /**
  * Shared, content-addressed texture cache (<userData>/cache/textures/<sha256>.png).
  *
- * Store capes downloaded by the launcher (previews, locker sync) land here, and the Noctra
+ * Store capes downloaded by the launcher (previews, locker sync) land here, and the Native
  * Client mod reads the same folder (told via <gameDir>/.noctra/launcher.json), so a cape the
  * launcher already has is never downloaded again in game. Files are named by the sha256 of
  * their bytes, exactly like the API's /csl/textures/<hash> URLs, and verified on read.

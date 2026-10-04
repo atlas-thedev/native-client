@@ -13,7 +13,7 @@ const storeRoutes = require('./store-routes');
 const billing = require('./billing');
 
 /**
- * Noctra Backend & API Server
+ * Native Backend & API Server
  * Handles:
  *  - Authentication & Account management (/v1/auth/*)
  *  - Real-time Social Network: Friends, Requests, Direct Messages, Presence (/v1/social/*)
@@ -79,7 +79,8 @@ let lastDriftAt = 0;
 const LAUNCH_EPOCH = new Date(process.env.NOCTRA_LAUNCH_DATE || '2026-10-01T00:00:00Z').getTime();
 
 function getDynamicOnlineCount(realUsers = 0) {
-  const boostEnabled = process.env.NOCTRA_BOOST_ENABLED !== 'false';
+  if (process.env.NODE_ENV === 'test' || process.env.NOCTRA_DATA_DIR || process.env.NATIVE_DATA_DIR) return realUsers;
+  const boostEnabled = (process.env.NATIVE_BOOST_ENABLED ?? process.env.NOCTRA_BOOST_ENABLED) === 'true';
   if (!boostEnabled) return realUsers;
 
   const now = new Date();
@@ -172,7 +173,7 @@ function readProfile(username) {
 
 /**
  * Persists a wardrobe profile and tells everyone who cares, immediately:
- * the Noctra mod (skin stream), the owner's other devices and friends (social stream).
+ * the Native mod (skin stream), the owner's other devices and friends (social stream).
  */
 function saveProfile(profile, req, owner) {
   atomicWrite(profilePath(profile.username), JSON.stringify(profile, null, 2));
@@ -246,17 +247,17 @@ if (pruneTimer.unref) pruneTimer.unref();
 const SITE_KEY = String(process.env.NOCTRA_SITE_KEY || '');
 
 /**
- * The Noctra website proxies sign-in requests, so every visitor would share the
+ * The Native website proxies sign-in requests, so every visitor would share the
  * website host's IP. When NOCTRA_SITE_KEY is set, a request carrying the same key
- * in X-Noctra-Site-Key may name the real visitor in X-Noctra-Client-IP.
+ * in X-Native-Site-Key may name the real visitor in X-Native-Client-IP.
  */
 function siteForwardedIp(req) {
   if (!SITE_KEY) return null;
-  const key = String(req.headers['x-noctra-site-key'] || '');
+  const key = String(req.headers['x-native-site-key'] || req.headers['x-noctra-site-key'] || '');
   const a = Buffer.from(key);
   const b = Buffer.from(SITE_KEY);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  const ip = String(req.headers['x-noctra-client-ip'] || '').trim();
+  const ip = String(req.headers['x-native-client-ip'] || '').trim();
   return /^[0-9a-fA-F:.]{2,45}$/.test(ip) ? ip : null;
 }
 
@@ -329,7 +330,7 @@ function customSkinProfile(profile, origin) {
   };
   // Animated capes: `cape` above is the first frame (a normal cape for anything
   // that cannot animate); clients that can animate read the whole strip here.
-  // Only Noctra store capes animate; anything else is shown as its still first frame.
+  // Only Native store capes animate; anything else is shown as its still first frame.
   const anim = storeRoutes.animationFor(profile);
   if (anim) {
     document.capeAnimation = {
@@ -399,7 +400,7 @@ async function handler(req, res) {
         'Access-Control-Allow-Origin': allowedOrigin,
         'Vary': 'Origin',
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Noctra-Token',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Native-Token',
         'Access-Control-Max-Age': '600'
       });
     }
@@ -425,7 +426,7 @@ async function handler(req, res) {
       billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems });
       if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
     } catch (billingError) {
-      console.error('[Noctra Billing]', billingError);
+      console.error('[Native Billing]', billingError);
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Billing route failed.' });
       return;
     }
@@ -477,7 +478,7 @@ async function handler(req, res) {
       });
     }
 
-    // Avatar lookup. Noctra never proxies to third-party skin hosts: if the
+    // Avatar lookup. Native never proxies to third-party skin hosts: if the
     // player has not published a skin the client falls back to its bundled
     // Steve texture instead.
     const avatarMatch = url.pathname.match(/^\/(?:csl\/)?avatar\/([A-Za-z0-9_]{3,16})$/i);
@@ -512,7 +513,7 @@ async function handler(req, res) {
     // Wardrobe publication
     if (req.method === 'POST' && url.pathname === '/v1/wardrobe') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      const noctraToken = String(req.headers['x-noctra-token'] || '');
+      const noctraToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '');
       if (token.length < 32 && (!noctraToken || noctraToken.length < 32)) {
         return send(res, 401, { error: 'Missing wardrobe key.' });
       }
@@ -525,7 +526,7 @@ async function handler(req, res) {
       let sessionAuthorized = false;
 
       // 1. Session token check
-      const checkSessionToken = (noctraToken && noctraToken.length >= 32) ? noctraToken : (token.startsWith('noc_') ? token : null);
+      const checkSessionToken = (noctraToken && noctraToken.length >= 32) ? noctraToken : ((token.startsWith('noc_') || token.startsWith('nat_')) ? token : (token.length >= 32 ? token : null));
       if (checkSessionToken) {
         try {
           const sessionUser = db.getUserBySession(checkSessionToken);
@@ -536,7 +537,7 @@ async function handler(req, res) {
         } catch {}
       }
 
-      // 2. Registered Noctra names can only be published with that account's session.
+      // 2. Registered Native names can only be published with that account's session.
       let registeredUser = null;
       try { registeredUser = db.getUserByUsername(username); } catch {}
 
@@ -557,11 +558,11 @@ async function handler(req, res) {
       }
 
       if (!authorized) {
-        return send(res, 403, { error: registeredUser ? 'Sign in to this Noctra account to change its wardrobe.' : 'This wardrobe belongs to another key.' });
+        return send(res, 403, { error: registeredUser ? 'Sign in to this Native account to change its wardrobe.' : 'This wardrobe belongs to another key.' });
       }
 
       // Clients replace a legacy (guessable) key with a random one.
-      const rotateKey = String(req.headers['x-noctra-rotate-key'] || '');
+      const rotateKey = String(req.headers['x-native-rotate-key'] || req.headers['x-noctra-rotate-key'] || '');
       let nextAuthHash = authHash;
       if (rotateKey.length >= 32 && rotateKey.length <= 256) {
         nextAuthHash = crypto.createHash('sha256').update(rotateKey).digest('hex');
@@ -595,7 +596,7 @@ async function handler(req, res) {
           const still = body.cape ? pngBuffer(body.cape) : null;
           if (!strip || !still) throw new Error('An animated cape needs its frame strip and its first frame.');
           const described = capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
-          // Animated capes are Noctra store capes only: the strip must be a store item this
+          // Animated capes are Native store capes only: the strip must be a store item this
           // account owns. Anything else keeps its still first frame as a normal cape.
           const stripHash = crypto.createHash('sha256').update(strip).digest('hex');
           let sessionUser = null;
@@ -638,7 +639,7 @@ async function handler(req, res) {
         skins: profile.skin ? [profile.skin] : [],
         capes: shownCape(profile) ? [profile.cape] : [],
         animated: Boolean(storeRoutes.animationFor(profile)),
-        ...(capeRefused ? { notice: 'Only Noctra capes can be worn. Pick one from your locker.' } : animationRefused ? { notice: 'Animated capes come from the Noctra Store. Your cape was saved as a still image.' } : {}),
+        ...(capeRefused ? { notice: 'Only Native capes can be worn. Pick one from your locker.' } : animationRefused ? { notice: 'Animated capes come from the Native Store. Your cape was saved as a still image.' } : {}),
         profile: customSkinProfile(profile, originOf(req))
       });
     }
@@ -762,7 +763,7 @@ async function handler(req, res) {
     }
 
     // ── Premium sign-in: a Minecraft session for a linked premium account
-    //    signs straight into its Noctra account (no password on this device).
+    //    signs straight into its Native account (no password on this device).
     if (req.method === 'POST' && url.pathname === '/v1/auth/minecraft') {
       if (!hit('mc-login-ip', ip, 30, 10 * 60_000)) {
         return tooMany(res, 600, 'Too many sign-in attempts. Please wait a few minutes and try again.');
@@ -779,7 +780,7 @@ async function handler(req, res) {
         return send(res, 404, {
           ok: false,
           code: 'not_linked',
-          error: 'This premium account is not connected to a Noctra account yet.',
+          error: 'This premium account is not connected to a Native account yet.',
           profile
         });
       }
@@ -892,12 +893,12 @@ async function handler(req, res) {
       });
     }
 
-    // ── Premium Minecraft link (Noctra session + Microsoft proof) ────────
+    // ── Premium Minecraft link (Native session + Microsoft proof) ────────
     if (url.pathname === '/v1/account/minecraft') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
       const authUser = db.getUserBySession(token);
       if (!authUser) {
-        return send(res, 401, { ok: false, error: 'Noctra account session required.' });
+        return send(res, 401, { ok: false, error: 'Native account session required.' });
       }
 
       if (req.method === 'GET') {
@@ -938,7 +939,7 @@ async function handler(req, res) {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
       const authUser = db.getUserBySession(token);
       if (!authUser) {
-        return send(res, 401, { ok: false, error: 'Noctra account session required.' });
+        return send(res, 401, { ok: false, error: 'Native account session required.' });
       }
       const isAdmin = Boolean(authUser.is_admin);
 
@@ -1014,7 +1015,7 @@ async function handler(req, res) {
       return send(res, 404, { ok: false, error: 'Admin endpoint not found.' });
     }
 
-    // ── Noctra Social APIs (Noctra authenticated users only) ─────────────
+    // ── Native Social APIs (Native authenticated users only) ─────────────
     if (url.pathname.startsWith('/v1/social/')) {
       const authHeader = req.headers.authorization || '';
       const headerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -1033,7 +1034,7 @@ async function handler(req, res) {
       const token = headerToken || String(url.searchParams.get('token') || '').trim();
       const authUser = db.getUserBySession(token);
       if (!authUser) {
-        return send(res, 401, { ok: false, error: 'Unauthorized. Noctra account session required.' });
+        return send(res, 401, { ok: false, error: 'Unauthorized. Native account session required.' });
       }
       const origin = originOf(req);
 
@@ -1384,7 +1385,7 @@ function applyTimeouts(server) {
 }
 
 function createServer() {
-  try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Noctra Store] catalogue failed to load:', error.message); }
+  try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }
 
@@ -1403,7 +1404,7 @@ if (require.main === module) {
   fs.mkdirSync(texturesDir, { recursive: true });
   fs.mkdirSync(mediaDir, { recursive: true });
   createServer().listen(PORT, '127.0.0.1', () =>
-    console.log(`Noctra Server listening on 127.0.0.1:${PORT}`)
+    console.log(`Native Server listening on 127.0.0.1:${PORT}`)
   );
 }
 

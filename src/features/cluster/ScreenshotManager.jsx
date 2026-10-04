@@ -299,10 +299,10 @@ export default function ScreenshotManager({ cluster, query = '', sortAlphabetica
     catch (reason) { setError(reason?.message || 'Could not open screenshots folder.'); }
   };
 
-  const canShare = Boolean(social?.isNoctra && social?.uploadMedia && social?.sendMessage);
+  const canShare = Boolean(social?.isNative && social?.uploadMedia && social?.sendMessage);
   const requestShare = (shot) => {
     if (!canShare) {
-      onNotify?.('Noctra account required', 'Sign in to Noctra to share screenshots with Relay friends and groups.');
+      onNotify?.('Native account required', 'Sign in to Native to share screenshots with Relay friends and groups.');
       return;
     }
     setPreview(null);
@@ -384,7 +384,7 @@ export default function ScreenshotManager({ cluster, query = '', sortAlphabetica
                 <div className="sm-card-gradient"/>
                 <div className="sm-card-info"><strong title={shot.name}>{shot.name}</strong><small>{formatDate(shot.modified)} · {formatSize(shot.size)}</small></div>
                 <div className="sm-card-actions">
-                  <button onClick={() => requestShare(shot)} title={canShare ? 'Share to Relay' : 'Sign in to Noctra to share'}><Share2 size={14}/></button>
+                  <button onClick={() => requestShare(shot)} title={canShare ? 'Share to Relay' : 'Sign in to Native to share'}><Share2 size={14}/></button>
                   <button onClick={() => reveal(shot)} title="Show in folder"><FolderOpen size={14}/></button>
                   <button className="is-danger" disabled={busyName === shot.name} onClick={() => remove(shot)} title="Delete screenshot"><Trash2 size={14}/></button>
                 </div>

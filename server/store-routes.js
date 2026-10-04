@@ -1,11 +1,11 @@
 'use strict';
 /**
- * The Noctra cape store.
+ * The Native cape store.
  *
  * Public
  *   GET  /v1/store/catalog         visible items (newest/featured first) with texture URLs + owner counts
  *   GET  /v1/store/items/:id       one item (hidden items too, so retired capes still have a page)
- * Signed in (Bearer or X-Noctra-Token)
+ * Signed in (Bearer or X-Native-Token)
  *   GET  /v1/store/me              { equipped, owned: [{ id, acquiredAt }] }
  *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
  *   POST /v1/store/unclaim         { itemId }  remove it from your locker (takes it off if worn)
@@ -87,7 +87,7 @@ function ensureCatalog(textureFn) {
       deleted: [],
       items: bundled.items.map((item, index) => ({ ...item, hidden: false, order: index, createdAt: now - index * 1000, updatedAt: now }))
     };
-    try { persist(); } catch (error) { console.warn('[Noctra Store] Could not save the catalogue:', error.message); }
+    try { persist(); } catch (error) { console.warn('[Native Store] Could not save the catalogue:', error.message); }
   }
   return catalog;
 }
@@ -137,7 +137,7 @@ const current = () => catalog || (storeTexture ? ensureCatalog() : { items: [] }
 const findItem = (id) => current().items.find((item) => item.id === id) || null;
 const allItems = () => current().items.slice();
 
-/** Noctra+ members get every paid cape in their locker automatically (source 'plus'). */
+/** Native+ members get every paid cape in their locker automatically (source 'plus'). */
 function grantPlusCapes(userId) {
   if (!userId || !billing.hasPlus(userId)) return 0;
   let added = 0;
@@ -150,7 +150,7 @@ function grantPlusCapes(userId) {
 }
 /**
  * Capes players may wear: the bundled classic capes (sha256 of the PNG, the same files ship with the
- * launcher and the website) and Noctra Store capes. Players cannot upload capes of their own.
+ * launcher and the website) and Native Store capes. Players cannot upload capes of their own.
  */
 const PRESET_CAPE_HASHES = new Set([
   '0b4f4ee1bf094876a8454838b7cd07184dce86428b3cab4122b3bb7d67e530b6', // 15th Anniversary
@@ -162,7 +162,7 @@ const PRESET_CAPE_HASHES = new Set([
   'f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4' // Vanilla
 ]);
 /**
- * Players can't upload capes: only the classic presets and Noctra Store capes are worn/served.
+ * Players can't upload capes: only the classic presets and Native Store capes are worn/served.
  * Exclusive capes (e.g. Beta Tester) only count for a profile that wears them through the store
  * (`capeStore`), which only an owner can do; their PNG alone never unlocks them.
  */
@@ -201,7 +201,7 @@ function authorizeAnimation({ stripHash, user, existing }) {
 /* ── http ──────────────────────────────────────────────────────────── */
 
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
-  || String(req.headers['x-noctra-token'] || '').trim();
+  || String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '').trim();
 
 function publicItem(item, textureBase, counts) {
   return {
@@ -341,7 +341,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const worn = profile?.capeStore ? findItem(profile.capeStore) : null;
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
-    try { grantPlusCapes(user.id); } catch (error) { console.warn('[Noctra Store] Plus capes:', error.message); }
+    try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
     send(res, 200, { ok: true, equipped, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
     return true;
   }
@@ -355,10 +355,10 @@ async function handleStoreRoutes(req, res, ctx) {
     let profile = null;
     if (url.pathname === '/v1/store/claim') {
       if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cape is no longer available.' }); return true; }
-      if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
+      if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
       if (!owns(user.id, item.id)) {
         if (billing.isPaid(item)) {
-          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Noctra+.` }); return true; }
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Native+.` }); return true; }
           grant(user.id, item.id, 'plus');
         } else {
           grant(user.id, item.id, 'free');
@@ -397,10 +397,10 @@ async function handleStoreRoutes(req, res, ctx) {
       const item = findItem(String(body.itemId));
       if (!item) { send(res, 404, { ok: false, error: 'That store item does not exist.' }); return true; }
       if (!owns(user.id, item.id)) {
-        if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Noctra team gives it out.` }); return true; }
+        if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
         if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cape to your locker first.' }); return true; }
         if (billing.isPaid(item)) {
-          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Noctra+.` }); return true; }
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Native+.` }); return true; }
           grant(user.id, item.id, 'plus');
         } else {
           grant(user.id, item.id, 'free');
@@ -427,7 +427,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   const { send } = ctx;
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   const user = token ? db.getUserBySession(token) : null;
-  if (!user) { send(res, 401, { ok: false, error: 'Noctra account session required.' }); return true; }
+  if (!user) { send(res, 401, { ok: false, error: 'Native account session required.' }); return true; }
   if (!user.is_admin) { send(res, 403, { ok: false, error: 'Administrator access required.' }); return true; }
   const noStore = { 'Cache-Control': 'no-store' };
   const list = () => sorted(cat.items).map((item) => ({ ...publicItem(item, textureBase, ownerCounts()), order: Number(item.order) || 0 }));
@@ -454,7 +454,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       name,
       description: cleanText(body.description, 200),
       tags: cleanTags(body.tags),
-      author: cleanText(body.author, 40) || 'Noctra',
+      author: cleanText(body.author, 40) || 'Native',
       featured: Boolean(body.featured),
       hidden: Boolean(body.hidden),
       exclusive: Boolean(body.exclusive),
@@ -550,7 +550,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       const name = cleanText(body.username, 32);
       let target = null;
       try { target = name ? db.getUserByUsername(name) : null; } catch {}
-      if (!target) { send(res, 404, { ok: false, error: `No Noctra account called "${name || '?'}".` }); return true; }
+      if (!target) { send(res, 404, { ok: false, error: `No Native account called "${name || '?'}".` }); return true; }
       if (ownersMatch[2] === 'grant') {
         billing.grantItem(target.id, item.id, 'admin');
       } else {
@@ -580,7 +580,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       }
       if (body.description !== undefined) next.description = cleanText(body.description, 200);
       if (body.tags !== undefined) next.tags = cleanTags(body.tags);
-      if (body.author !== undefined) next.author = cleanText(body.author, 40) || 'Noctra';
+      if (body.author !== undefined) next.author = cleanText(body.author, 40) || 'Native';
       if (body.featured !== undefined) {
         next.featured = Boolean(body.featured);
         if (next.featured && !item.featured && featuredCount(cat.items, item.id) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }

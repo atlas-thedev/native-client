@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * How-to guides. Each guide answers one question with short steps, an
  * optional "do it now" action, and (for most) a screen-recorded video that
- * is hosted on the Noctra API server, so videos can be re-recorded without a
+ * is hosted on the Native API server, so videos can be re-recorded without a
  * launcher update. The manifest overrides the built-in URLs when available.
  */
 
@@ -22,16 +22,16 @@ export const GUIDES = [
   {
     id: 'how-noctra-works',
     category: 'start',
-    title: 'How does Noctra work?',
+    title: 'How does Native work?',
     summary: 'A full walkthrough of the launcher: instances, versions, Discover, launching, Locker, Relay, accounts and settings.',
     video: 'full-tour',
     featured: true,
     tags: ['tour', 'overview', 'walkthrough', 'start', 'basics', 'video'],
     steps: [
-      { title: 'Sign in', body: 'Use a Microsoft account for official servers, or a Noctra account for offline play and cloud features.' },
+      { title: 'Sign in', body: 'Use a Microsoft account for official servers, or a Native account for offline play and cloud features.' },
       { title: 'Create an instance', body: 'An instance is one Minecraft install with its own version, mod loader, mods and worlds.' },
       { title: 'Add content', body: 'Open Discover to install mods, modpacks, shaders and resource packs into an instance.' },
-      { title: 'Launch', body: 'Pick the instance on Home and press Launch. Noctra downloads everything the first time.' }
+      { title: 'Launch', body: 'Pick the instance on Home and press Launch. Native downloads everything the first time.' }
     ],
     action: { label: 'Take the quick tour', kind: 'tour' }
   },
@@ -90,7 +90,7 @@ export const GUIDES = [
     steps: [
       { title: 'Open Discover', body: 'Switch the content type to Modpacks.' },
       { title: 'Pick a pack', body: 'Open it to read the description and choose a version.' },
-      { title: 'Install', body: 'Noctra creates a new instance with the pack, verifies every file and adds it to Home.' }
+      { title: 'Install', body: 'Native creates a new instance with the pack, verifies every file and adds it to Home.' }
     ],
     action: { label: 'Browse modpacks', kind: 'discover', contentType: 'modpack' }
   },
@@ -110,17 +110,17 @@ export const GUIDES = [
   {
     id: 'connect-premium',
     category: 'account',
-    title: 'How do I connect my premium account to Noctra?',
-    summary: 'Connect once, and every time you sign in with Microsoft you are signed into Noctra too.',
+    title: 'How do I connect my premium account to Native?',
+    summary: 'Connect once, and every time you sign in with Microsoft you are signed into Native too.',
     video: 'connect-premium',
     tags: ['premium', 'microsoft', 'link', 'connect', 'noctra account', 'auto', 'sign in', 'relay'],
     steps: [
       { title: 'Sign in with Microsoft', body: 'Add your premium (Microsoft) account in Accounts.' },
       { title: 'Press Connect', body: 'Next to the Microsoft account, press Connect.' },
-      { title: 'Sign into Noctra', body: 'Choose a signed-in Noctra account or enter your Noctra login. Noctra checks with Microsoft that you own the game.' },
+      { title: 'Sign into Native', body: 'Choose a signed-in Native account or enter your Native login. Native checks with Microsoft that you own the game.' },
       { title: 'Done', body: 'From now on, Relay, friends and chat work while you play with your premium account, on every PC.' }
     ],
-    action: { label: 'Connect Noctra', kind: 'accounts', connect: true }
+    action: { label: 'Connect Native', kind: 'accounts', connect: true }
   },
   {
     id: 'locker',
@@ -130,9 +130,9 @@ export const GUIDES = [
     video: 'locker',
     tags: ['skin', 'cape', 'locker', 'wardrobe', 'avatar', '3d', 'slim', 'classic'],
     steps: [
-      { title: 'Open Locker', body: 'Click Locker in the sidebar. It needs a Noctra account.' },
+      { title: 'Open Locker', body: 'Click Locker in the sidebar. It needs a Native account.' },
       { title: 'Add a skin', body: 'Drop a skin PNG or choose one, and pick the classic or slim model.' },
-      { title: 'Apply', body: 'Select a skin or cape to wear it. Other Noctra players see it in game.' }
+      { title: 'Apply', body: 'Select a skin or cape to wear it. Other Native players see it in game.' }
     ],
     action: { label: 'Open Locker', kind: 'tab', tab: 'skins' }
   },
@@ -140,12 +140,12 @@ export const GUIDES = [
     id: 'relay',
     category: 'account',
     title: 'How do I add friends and chat?',
-    summary: 'Relay is Noctra’s chat: friends, groups, presence and one-click server joining.',
+    summary: 'Relay is Native’s chat: friends, groups, presence and one-click server joining.',
     video: 'relay',
     tags: ['friends', 'chat', 'relay', 'message', 'group', 'dm', 'add friend', 'social'],
     steps: [
-      { title: 'Open Relay', body: 'Click Relay in the sidebar. You need a Noctra account, or a premium account connected to one.' },
-      { title: 'Add a friend', body: 'Search their Noctra name and send a request. They accept it from their Relay.' },
+      { title: 'Open Relay', body: 'Click Relay in the sidebar. You need a Native account, or a premium account connected to one.' },
+      { title: 'Add a friend', body: 'Search their Native name and send a request. They accept it from their Relay.' },
       { title: 'Chat', body: 'Send messages, images and GIFs, or make a group for your crew.' }
     ],
     action: { label: 'Open Relay', kind: 'tab', tab: 'relay' }
@@ -159,7 +159,7 @@ export const GUIDES = [
     tags: ['join', 'server', 'friend', 'multiplayer', 'presence'],
     steps: [
       { title: 'Check presence', body: 'Friends who are playing show what they are doing, like "In-game: Hypixel".' },
-      { title: 'Join', body: 'Right-click the friend and choose Join server. Noctra launches your instance and connects.' }
+      { title: 'Join', body: 'Right-click the friend and choose Join server. Native launches your instance and connects.' }
     ],
     action: { label: 'Open Relay', kind: 'tab', tab: 'relay' }
   },
@@ -195,7 +195,7 @@ export const GUIDES = [
     id: 'crash',
     category: 'help',
     title: 'The game crashed. What now?',
-    summary: 'Noctra reads the crash log, explains the cause and offers one-click fixes.',
+    summary: 'Native reads the crash log, explains the cause and offers one-click fixes.',
     tags: ['crash', 'error', 'exit code', 'broken', 'fix', 'not starting', 'log'],
     steps: [
       { title: 'Read the report', body: 'After a crash, a report opens with the likely cause in plain words.' },
@@ -207,10 +207,10 @@ export const GUIDES = [
     id: 'java',
     category: 'help',
     title: 'Which Java do I need?',
-    summary: 'Noctra picks and installs the right Java automatically for every version.',
+    summary: 'Native picks and installs the right Java automatically for every version.',
     tags: ['java', 'jdk', 'jre', 'runtime', 'version', '17', '21', '8'],
     steps: [
-      { title: 'Automatic', body: 'Minecraft 1.20.5+ needs Java 21, 1.17–1.20.4 Java 17, and older versions Java 8. Noctra downloads it for you.' },
+      { title: 'Automatic', body: 'Minecraft 1.20.5+ needs Java 21, 1.17–1.20.4 Java 17, and older versions Java 8. Native downloads it for you.' },
       { title: 'Custom', body: 'To use your own Java, go to Settings → Java & Arguments.' }
     ],
     action: { label: 'Open Java settings', kind: 'settings', tab: 'java' }
@@ -230,8 +230,8 @@ export const GUIDES = [
   {
     id: 'update',
     category: 'help',
-    title: 'How do I update Noctra?',
-    summary: 'Noctra updates itself. You only need to restart.',
+    title: 'How do I update Native?',
+    summary: 'Native updates itself. You only need to restart.',
     tags: ['update', 'upgrade', 'new version', 'release notes', 'changelog'],
     steps: [
       { title: 'Automatic', body: 'When an update is ready, a pill appears in the title bar.' },

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-/** Fired by the Store (and anything else that learns the Noctra+ state) so the shell updates at once. */
+/** Fired by the Store (and anything else that learns the Native+ state) so the shell updates at once. */
 export const PLUS_EVENT = 'noctra:plus-changed';
 export const announcePlus = (active) => {
   try { window.dispatchEvent(new CustomEvent(PLUS_EVENT, { detail: { active: Boolean(active) } })); } catch {}
@@ -9,7 +9,7 @@ export const announcePlus = (active) => {
 const cacheKey = (account) => `noctra.plus.${account?.id || account?.uuid || 'none'}`;
 
 /**
- * Whether the signed-in account has Noctra+. Cached per account so the N+ logo shows instantly,
+ * Whether the signed-in account has Native+. Cached per account so the N+ logo shows instantly,
  * refreshed on focus (at most once a minute) and whenever the Store reports a change.
  */
 export default function usePlus(account, enabled = true) {

@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-mod-api-'));
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-mod-api-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 process.env.NOCTRA_DATA_DIR = DATA_DIR;
 process.env.NOCTRA_DB_PATH = path.join(DATA_DIR, 'noctra.db');

@@ -81,7 +81,7 @@ function CapeOwners({ item, onNotify, onChanged }) {
     <section className="admin-cape-owners">
       <h3>Give this cape <small>{owners ? `${owners.length} ${owners.length === 1 ? 'owner' : 'owners'}` : ''}</small></h3>
       <form className="admin-cape-grant" onSubmit={(event) => { event.preventDefault(); act('grant', name); }}>
-        <input value={name} maxLength={32} onChange={(event) => setName(event.target.value)} placeholder="Noctra username"/>
+        <input value={name} maxLength={32} onChange={(event) => setName(event.target.value)} placeholder="Native username"/>
         <button type="submit" disabled={!name.trim() || Boolean(busy)}>{busy.startsWith('grant:') ? <LoaderCircle size={13} className="is-spinning"/> : <Gift size={13}/>}Give</button>
       </form>
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
@@ -101,9 +101,9 @@ function CapeOwners({ item, onNotify, onChanged }) {
 
 /** Matches the server: the Store hero rotates through at most 5 featured capes. */
 const MAX_FEATURED = 5;
-const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Noctra', order: '', featured: false, hidden: false, exclusive: false, price: '', fps: 12, frames: 1, texture: null });
+const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Native', order: '', featured: false, hidden: false, exclusive: false, price: '', fps: 12, frames: 1, texture: null });
 
-/** Admin -> Store: add, edit, hide, feature and delete Noctra capes. */
+/** Admin -> Store: add, edit, hide, feature and delete Native capes. */
 export default function AdminStore({ onNotify, onError }) {
   const [items, setItems] = useState(null);
   const [query, setQuery] = useState('');
@@ -161,7 +161,7 @@ export default function AdminStore({ onNotify, onError }) {
 
   const openNew = () => { setDraft(emptyDraft()); setFileError(''); setEditing('new'); };
   const openEdit = (item) => {
-    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Noctra', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), price: item.price > 0 ? String(item.price) : '', fps: item.fps || 12, frames: item.frames || 1, texture: null });
+    setDraft({ name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Native', order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), price: item.price > 0 ? String(item.price) : '', fps: item.fps || 12, frames: item.frames || 1, texture: null });
     setFileError('');
     setEditing(item.id);
   };
@@ -205,7 +205,7 @@ export default function AdminStore({ onNotify, onError }) {
       name: draft.name.trim(),
       description: draft.description.trim(),
       tags: draft.tags,
-      author: draft.author.trim() || 'Noctra',
+      author: draft.author.trim() || 'Native',
       featured: draft.featured,
       hidden: draft.hidden,
       exclusive: draft.exclusive,
@@ -298,7 +298,7 @@ export default function AdminStore({ onNotify, onError }) {
                   {item.hidden && <em className="admin-tag is-hidden">Hidden</em>}
                   {item.isNew && <em className="admin-tag">New</em>}
                 </div>
-                <small><code>{item.id}</code> · by {item.author || 'Noctra'} · {item.owners || 0} in lockers · order {item.order ?? 0}</small>
+                <small><code>{item.id}</code> · by {item.author || 'Native'} · {item.owners || 0} in lockers · order {item.order ?? 0}</small>
                 {item.description && <small className="admin-user-meta">{item.description}</small>}
               </div>
               <div className="admin-store-actions">
@@ -348,7 +348,7 @@ export default function AdminStore({ onNotify, onError }) {
 
             {editingItem && <CapeOwners item={editingItem} onNotify={onNotify} onChanged={(next) => next && setItems(next)}/>}
 
-            <p className="admin-note">{draft.exclusive ? 'Event cape: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Noctra+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
+            <p className="admin-note">{draft.exclusive ? 'Event cape: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Native+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
             {fileError && <div className="admin-error" role="alert"><span>{fileError}</span></div>}
 
             <footer>

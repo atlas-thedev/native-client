@@ -84,10 +84,10 @@ function mergeMessages(existing, incoming) {
 
 export function useSocial(account) {
   // A connected premium account carries no token here: the main process holds it.
-  const isNoctra = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken || account?.linkedPremium));
+  const isNative = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken || account?.linkedPremium));
   const selfId = account?.id || null;
 
-  const initialCache = useMemo(() => (isNoctra ? readSocialCache(selfId) : null), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const initialCache = useMemo(() => (isNative ? readSocialCache(selfId) : null), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [friends, setFriends] = useState(() => initialCache?.friends || []);
   const [requests, setRequests] = useState({ received: [], sent: [] });
   const [conversations, setConversations] = useState(() => initialCache?.conversations || {});
@@ -130,12 +130,12 @@ export function useSocial(account) {
 
   const loadFriends = useCallback(async () => {
     const api = social();
-    if (!api || !isNoctra) return;
+    if (!api || !isNative) return;
     const res = await api.getFriends();
     if (Array.isArray(res?.friends)) setFriends(res.friends);
     if (res?.ok === false && res?.error) setSocialError(res.error);
     else setSocialError(null);
-  }, [isNoctra]);
+  }, [isNative]);
 
   const loadStats = useCallback(async () => {
     const api = social();
@@ -154,14 +154,14 @@ export function useSocial(account) {
 
   const loadRequests = useCallback(async () => {
     const api = social();
-    if (!api || !isNoctra) return;
+    if (!api || !isNative) return;
     const res = await api.getRequests();
     if (res?.requests) setRequests(res.requests);
-  }, [isNoctra]);
+  }, [isNative]);
 
   const loadConversations = useCallback(async () => {
     const api = social();
-    if (!api || !isNoctra) return;
+    if (!api || !isNative) return;
     const res = await api.getConversations(PER_FRIEND_PRELOAD);
     if (res?.conversations) {
       setConversations((previous) => {
@@ -187,14 +187,14 @@ export function useSocial(account) {
       }
       cursorRef.current = newest;
     }
-  }, [isNoctra]);
+  }, [isNative]);
 
   const loadBlocked = useCallback(async () => {
     const api = social();
-    if (!api || !isNoctra) return;
+    if (!api || !isNative) return;
     const res = await api.getBlocked?.();
     if (Array.isArray(res?.blocked)) setBlocked(res.blocked);
-  }, [isNoctra]);
+  }, [isNative]);
 
   /**
    * Fetch the newest page of a single conversation.
@@ -250,14 +250,14 @@ export function useSocial(account) {
 
   // Keep a saved copy so the inbox opens instantly next time, and works offline.
   useEffect(() => {
-    if (!isNoctra || !selfId || initialLoading) return undefined;
+    if (!isNative || !selfId || initialLoading) return undefined;
     const timer = setTimeout(() => writeSocialCache(selfId, friends, conversations), 1500);
     return () => clearTimeout(timer);
-  }, [isNoctra, selfId, initialLoading, friends, conversations]);
+  }, [isNative, selfId, initialLoading, friends, conversations]);
 
   const refresh = useCallback(async () => {
     loadStats();
-    if (!isNoctra) {
+    if (!isNative) {
       setFriends([]);
       setRequests({ received: [], sent: [] });
       setConversations({});
@@ -266,11 +266,11 @@ export function useSocial(account) {
     }
     await Promise.all([loadFriends(), loadRequests(), loadConversations(), loadBlocked()]);
     setInitialLoading(false);
-  }, [isNoctra, loadFriends, loadRequests, loadConversations, loadBlocked, loadStats]);
+  }, [isNative, loadFriends, loadRequests, loadConversations, loadBlocked, loadStats]);
 
   useEffect(() => {
     // A saved copy means there is nothing to wait for: refresh quietly behind it.
-    const saved = isNoctra ? readSocialCache(selfId) : null;
+    const saved = isNative ? readSocialCache(selfId) : null;
     if (saved) {
       setFriends((current) => (current.length ? current : saved.friends));
       setConversations((current) => (Object.keys(current).length ? current : saved.conversations || {}));
@@ -290,13 +290,13 @@ export function useSocial(account) {
   useEffect(() => {
     const timer = setInterval(() => {
       loadStats();
-      if (isNoctra) {
+      if (isNative) {
         loadFriends();
         loadRequests();
       }
     }, RECONCILE_INTERVAL);
     return () => clearInterval(timer);
-  }, [isNoctra, loadFriends, loadRequests, loadStats]);
+  }, [isNative, loadFriends, loadRequests, loadStats]);
 
   // Realtime -----------------------------------------------------------------
 
@@ -828,7 +828,7 @@ export function useSocial(account) {
   const badgeTotal = unreadTotal + pendingRequestsTotal;
 
   return {
-    isNoctra,
+    isNative,
     selfId,
     friends,
     requests,

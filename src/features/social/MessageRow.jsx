@@ -65,7 +65,7 @@ export function MessageRow({
   const isEditing = draft !== null;
   const groups = countReactions(msg.reactions);
   const canEdit = isMine && !msg.isDeleted && !msg.pending && Boolean(msg.content) && !msg.mediaUrl;
-  // Only Noctra uploads (and the built-in GIFs) are ever loaded.
+  // Only Native uploads (and the built-in GIFs) are ever loaded.
   const mediaUrl = safeMediaUrl(msg.mediaUrl);
   const blockedMedia = Boolean(msg.mediaUrl) && !mediaUrl;
   const canDelete = (isMine || (isGroup && canModerate)) && !msg.isDeleted && !msg.pending && !msg.isUploading;
@@ -271,7 +271,7 @@ export function MessageRow({
               </div>
             )}
             {blockedMedia && (
-              <span className="rm-file rm-file-blocked" title="This attachment points outside Noctra and was not loaded.">
+              <span className="rm-file rm-file-blocked" title="This attachment points outside Native and was not loaded.">
                 <FileText size={16} />
                 <span>Attachment unavailable</span>
               </span>

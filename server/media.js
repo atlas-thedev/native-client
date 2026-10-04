@@ -101,7 +101,7 @@ function normalizeAttachment(body, origin) {
     };
   }
   const file = mediaFileFromUrl(raw);
-  if (!file) throw new Error('Attachments must be uploaded through Noctra.');
+  if (!file) throw new Error('Attachments must be uploaded through Native.');
   if (!fs.existsSync(mediaPath(file))) throw new Error('Attachment not found. Please upload it again.');
   const requestedKind = String(source.mediaKind ?? source.media_kind ?? '').toLowerCase();
   const mediaKind = KINDS.has(requestedKind) ? requestedKind : (IMAGE_FILE.test(file) ? 'image' : 'file');
@@ -118,7 +118,7 @@ function normalizeAttachment(body, origin) {
 function normalizeIconUrl(value, origin) {
   if (value == null || value === '') return null;
   const file = mediaFileFromUrl(value);
-  if (!file || !IMAGE_FILE.test(file)) throw new Error('Group image must be an image uploaded through Noctra.');
+  if (!file || !IMAGE_FILE.test(file)) throw new Error('Group image must be an image uploaded through Native.');
   return origin ? `${origin}/v1/social/media/${file}` : String(value).trim();
 }
 

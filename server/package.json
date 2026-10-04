@@ -1,7 +1,7 @@
 ﻿{
   "name": "noctra-server",
   "version": "1.0.0",
-  "description": "Noctra Backend Server",
+  "description": "Native Backend Server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

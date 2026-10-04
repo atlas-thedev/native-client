@@ -25,7 +25,7 @@ const userDataDir = () => deps.app.getPath('userData');
 const accountsPath = (dir = userDataDir()) => path.join(dir, 'accounts.json');
 const legacyPath  = (dir = userDataDir()) => path.join(dir, 'account.json');
 
-// Secrets at rest: Microsoft refresh data and Noctra session tokens are
+// Secrets at rest: Microsoft refresh data and Native session tokens are
 // encrypted with the OS keychain (safeStorage) whenever it is available.
 const SECRET_FIELDS = ['token', 'sessionToken', 'noctraToken'];
 
@@ -123,7 +123,7 @@ function microsoftAuthCode(authManager) {
       fullscreenable: false,
       backgroundColor: '#f4f4f4',
       icon: appIcon,
-      title: 'Sign in to Microsoft — Noctra Client',
+      title: 'Sign in to Microsoft — Native Client',
       autoHideMenuBar: true,
       webPreferences: {
         contextIsolation: true,
@@ -215,7 +215,7 @@ async function performMicrosoftLogin() {
     uuid: profile.uuid,
     type: 'microsoft',
     refresh: xbox.save(),
-    // Re-signing into Microsoft keeps the connected Noctra account.
+    // Re-signing into Microsoft keeps the connected Native account.
     ...(previous?.noctraToken ? { noctraToken: previous.noctraToken, noctraLink: previous.noctraLink } : {})
   });
   data.activeId = id;
@@ -337,7 +337,7 @@ function offlineAuthorization(name, uuid = null) {
  * The session a launch should use. Never blocks a launch on the network:
  *   - Microsoft: a live session when Microsoft is reachable, otherwise the
  *     saved premium profile in offline mode (singleplayer / LAN / offline servers).
- *   - Offline and Noctra accounts: always a local session.
+ *   - Offline and Native accounts: always a local session.
  * Returns { authorization, mode: 'microsoft' | 'microsoft-offline' | 'offline' }.
  */
 async function getLaunchAuth(account = {}) {
@@ -374,7 +374,7 @@ async function getMinecraftProfile(accountId, options = {}) {
 
 async function noctraAccountFetch(noctraAccount, endpoint, { method = 'GET', body } = {}) {
   const token = noctraAccount?.token || noctraAccount?.sessionToken;
-  if (!token) return { ok: false, error: 'Log in to this Noctra account again before connecting Minecraft.' };
+  if (!token) return { ok: false, error: 'Log in to this Native account again before connecting Minecraft.' };
 
   const request = async (root) => {
     const response = await fetch(`${root}${endpoint}`, {
@@ -394,7 +394,7 @@ async function noctraAccountFetch(noctraAccount, endpoint, { method = 'GET', bod
       return await request(root);
     } catch { /* try the next configured root */ }
   }
-  return { ok: false, error: 'Could not connect to the Noctra account service.' };
+  return { ok: false, error: 'Could not connect to the Native account service.' };
 }
 
 // Hosted API, plus a self-hosted one only when NOCTRA_LOCAL_API is set.
@@ -403,10 +403,10 @@ function apiRoots() {
   return require('./social').API_ROOTS;
 }
 
-// ── Premium ↔ Noctra connection ───────────────────────────────────────────
-// A Microsoft account can carry a Noctra session (`noctraToken`, encrypted at
-// rest) for the Noctra account it is connected to. While that premium account
-// is active, Relay, friends and every other Noctra feature use that session,
+// ── Premium ↔ Native connection ───────────────────────────────────────────
+// A Microsoft account can carry a Native session (`noctraToken`, encrypted at
+// rest) for the Native account it is connected to. While that premium account
+// is active, Relay, friends and every other Native feature use that session,
 // so the player never has to switch accounts. The server only hands such a
 // session out to someone who proves they own the premium account (a live
 // Minecraft access token), so connecting once works on every device.
@@ -416,7 +416,7 @@ const NOT_LINKED_RECHECK_MS = 6 * 60 * 60 * 1000;
 const cleanUuid = (value) => String(value || '').replace(/-/g, '').toLowerCase();
 
 async function apiRequest(endpoint, { method = 'POST', body, token } = {}) {
-  let last = { status: 0, data: { ok: false, error: 'Could not connect to Noctra. Check your connection and try again.' } };
+  let last = { status: 0, data: { ok: false, error: 'Could not connect to Native. Check your connection and try again.' } };
   for (const root of apiRoots()) {
     try {
       const response = await fetch(`${root}${endpoint}`, {
@@ -431,7 +431,7 @@ async function apiRequest(endpoint, { method = 'POST', body, token } = {}) {
       const text = await response.text();
       let data = null;
       try { data = text ? JSON.parse(text) : {}; } catch { data = null; }
-      last = { status: response.status, data: data || { ok: false, error: `Noctra returned HTTP ${response.status}.` } };
+      last = { status: response.status, data: data || { ok: false, error: `Native returned HTTP ${response.status}.` } };
       if (response.status < 500) return last;
     } catch { /* try the next configured root */ }
   }
@@ -445,7 +445,7 @@ function publicLink(account) {
   return { connected: true, userId, name, email: email || null, uuid: uuid || null, model: model || 'classic', linkedAt: linkedAt || null };
 }
 
-/** The Noctra identity a connected premium account acts as. */
+/** The Native identity a connected premium account acts as. */
 function linkedIdentity(account) {
   const link = publicLink(account);
   if (!link) return null;
@@ -498,7 +498,7 @@ function clearLink(microsoftId, { notLinked = false } = {}) {
   });
 }
 
-/** Sign into the Noctra account connected to this premium account. */
+/** Sign into the Native account connected to this premium account. */
 async function premiumSignIn(microsoftId) {
   let minecraftAccessToken = await getMinecraftAccessToken(microsoftId);
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -521,13 +521,13 @@ async function premiumSignIn(microsoftId) {
       minecraftAccessToken = null;
       continue;
     }
-    return { ok: false, code: status === 0 ? 'offline' : 'error', error: data?.error || 'Could not connect to Noctra.' };
+    return { ok: false, code: status === 0 ? 'offline' : 'error', error: data?.error || 'Could not connect to Native.' };
   }
-  return { ok: false, code: 'error', error: 'Could not connect to Noctra.' };
+  return { ok: false, code: 'error', error: 'Could not connect to Native.' };
 }
 
 /**
- * Makes sure a premium account is signed into its connected Noctra account:
+ * Makes sure a premium account is signed into its connected Native account:
  * keeps a working session, renews an expired one, and picks up a connection
  * made on another device. `force` skips the "not connected" back-off.
  */
@@ -559,8 +559,8 @@ async function ensurePremiumLink(microsoftId, { force = false } = {}) {
   return premiumSignIn(microsoftId);
 }
 
-/** Connect a premium account to a Noctra account (saved, or by password). */
-async function connectNoctra({ microsoftAccountId, noctraAccountId, login, password } = {}) {
+/** Connect a premium account to a Native account (saved, or by password). */
+async function connectNative({ microsoftAccountId, noctraAccountId, login, password } = {}) {
   const accounts = readAccounts().accounts;
   const microsoftAccount = accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
   if (!microsoftAccount) return { ok: false, error: 'Choose a Microsoft account to connect.' };
@@ -572,13 +572,13 @@ async function connectNoctra({ microsoftAccountId, noctraAccountId, login, passw
     const saved = accounts.find((a) => a.id === noctraAccountId && a.type === 'noctra');
     noctraToken = saved?.token || saved?.sessionToken || null;
     noctraAccount = saved || null;
-    if (!noctraToken) return { ok: false, error: 'Sign in to that Noctra account again, then connect.' };
+    if (!noctraToken) return { ok: false, error: 'Sign in to that Native account again, then connect.' };
   } else {
     if (!String(login || '').trim() || !password) {
-      return { ok: false, error: 'Enter your Noctra username or email and password.' };
+      return { ok: false, error: 'Enter your Native username or email and password.' };
     }
     const { data } = await apiRequest('/v1/auth/login', { body: { login: String(login).trim(), password: String(password) } });
-    if (!data?.ok || !data.token || !data.account) return { ok: false, error: data?.error || 'Could not sign in to Noctra.' };
+    if (!data?.ok || !data.token || !data.account) return { ok: false, error: data?.error || 'Could not sign in to Native.' };
     noctraToken = data.token;
     noctraAccount = data.account;
     ownSession = true;
@@ -598,20 +598,20 @@ async function connectNoctra({ microsoftAccountId, noctraAccountId, login, passw
   if (ownSession) {
     return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
   }
-  // A saved Noctra account: give the premium account its own session so
+  // A saved Native account: give the premium account its own session so
   // signing out of one never signs out the other.
   const signedIn = await premiumSignIn(microsoftAccountId);
   if (signedIn.ok) return { ...signedIn, profile: linked.profile };
   return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
 }
 
-async function disconnectNoctra(microsoftAccountId) {
+async function disconnectNative(microsoftAccountId) {
   const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
   if (!account) return { ok: false, error: 'Microsoft account not found.' };
   if (account.noctraToken) {
     const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'DELETE', token: account.noctraToken });
     if (status === 0 || status >= 500) {
-      return { ok: false, error: data?.error || 'Could not reach Noctra. Try again when you are online.' };
+      return { ok: false, error: data?.error || 'Could not reach Native. Try again when you are online.' };
     }
   }
   clearLink(microsoftAccountId, { notLinked: true });
@@ -636,7 +636,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('auth:login', async () => {
     try {
       const profile = await loginMicrosoft();
-      // Premium accounts connected to Noctra (on any device) sign in automatically.
+      // Premium accounts connected to Native (on any device) sign in automatically.
       const link = await ensurePremiumLink(profile.id, { force: true }).catch(() => null);
       return { ok: true, profile, link: link?.ok ? link.link : null };
     } catch (err) {
@@ -676,7 +676,7 @@ function init(dependencies, ipcMain) {
   });
 
 
-  const handleAddNoctraAccount = (_event, payload) => {
+  const handleAddNativeAccount = (_event, payload) => {
     const rawName = typeof payload === 'string' ? payload : payload?.name;
     const name = String(rawName || '').trim();
     const model = payload?.model === 'slim' ? 'slim' : 'classic';
@@ -691,8 +691,8 @@ function init(dependencies, ipcMain) {
     return { ok: true, account };
   };
 
-  ipcMain.handle('accounts:addNoctra', handleAddNoctraAccount);
-  ipcMain.handle('accounts:addNative', handleAddNoctraAccount);
+  ipcMain.handle('accounts:addNative', handleAddNativeAccount);
+  ipcMain.handle('accounts:addNative', handleAddNativeAccount);
 
   const authFetch = async (endpoint, payload) => {
     const options = {
@@ -704,10 +704,10 @@ function init(dependencies, ipcMain) {
       try {
         const res = await fetch(`${root}${endpoint}`, { ...options, signal: AbortSignal.timeout(20_000) });
         const text = await res.text();
-        try { return JSON.parse(text); } catch { return { ok: false, error: `Noctra Auth returned HTTP ${res.status}.` }; }
+        try { return JSON.parse(text); } catch { return { ok: false, error: `Native Auth returned HTTP ${res.status}.` }; }
       } catch { /* try the next configured root */ }
     }
-    return { ok: false, error: 'Could not connect to Noctra Auth server.' };
+    return { ok: false, error: 'Could not connect to Native Auth server.' };
   };
 
   ipcMain.handle('accounts:noctraSendCode', async (_event, payload) => {
@@ -821,7 +821,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:getPremiumLink', async (_event, noctraAccountId) => {
     const data = readAccounts();
     const noctraAccount = data.accounts.find((account) => account.id === noctraAccountId && account.type === 'noctra');
-    if (!noctraAccount) return { ok: false, error: 'Noctra account not found.' };
+    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
     return noctraAccountFetch(noctraAccount, '/v1/account/minecraft');
   });
 
@@ -830,7 +830,7 @@ function init(dependencies, ipcMain) {
     const noctraAccount = data.accounts.find(
       (account) => account.id === payload.noctraAccountId && account.type === 'noctra'
     );
-    if (!noctraAccount) return { ok: false, error: 'Noctra account not found.' };
+    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
 
     let microsoftAccountId = payload.microsoftAccountId;
     if (!microsoftAccountId) {
@@ -863,7 +863,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:unlinkPremium', async (_event, noctraAccountId) => {
     const data = readAccounts();
     const noctraAccount = data.accounts.find((account) => account.id === noctraAccountId && account.type === 'noctra');
-    if (!noctraAccount) return { ok: false, error: 'Noctra account not found.' };
+    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
     return noctraAccountFetch(noctraAccount, '/v1/account/minecraft', { method: 'DELETE' });
   });
 
@@ -871,10 +871,10 @@ function init(dependencies, ipcMain) {
     const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
     return { ok: Boolean(account), link: publicLink(account) };
   });
-  ipcMain.handle('accounts:ensureNoctra', async (_event, microsoftAccountId, options = {}) =>
+  ipcMain.handle('accounts:ensureNative', async (_event, microsoftAccountId, options = {}) =>
     ensurePremiumLink(microsoftAccountId, { force: Boolean(options?.force) }));
-  ipcMain.handle('accounts:connectNoctra', async (_event, payload = {}) => connectNoctra(payload));
-  ipcMain.handle('accounts:disconnectNoctra', async (_event, microsoftAccountId) => disconnectNoctra(microsoftAccountId));
+  ipcMain.handle('accounts:connectNative', async (_event, payload = {}) => connectNative(payload));
+  ipcMain.handle('accounts:disconnectNative', async (_event, microsoftAccountId) => disconnectNative(microsoftAccountId));
 
   ipcMain.handle('accounts:getAvatar', async (_event, uuid) => {
     const avatarUuid = uuid || 'MHF_Steve';
@@ -928,8 +928,8 @@ module.exports = {
   linkedIdentity,
   publicLink,
   ensurePremiumLink,
-  connectNoctra,
-  disconnectNoctra,
+  connectNative,
+  disconnectNative,
   premiumSignIn,
   init,
   getMclcAuth,

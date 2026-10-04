@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, Crown, DollarSign, Gift, LoaderCircle, Receipt, RotateCcw, Ticket, Trash2 } from 'lucide-react';
-import NoctraPlusIcon from '../../components/ui/NoctraPlusIcon.jsx';
+import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import AdminPayments from './AdminPayments.jsx';
 import { adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
@@ -18,7 +18,7 @@ const PLUS_LENGTHS = [
   { value: '0', label: 'Forever' }
 ];
 
-/** Sales, Noctra+ members (paid and given), refunds, and redeem codes for event capes. */
+/** Sales, Native+ members (paid and given), refunds, and redeem codes for event capes. */
 export default function AdminSales({ items, onNotify, onAccessRevoked }) {
   const [overview, setOverview] = useState(null);
   const [codes, setCodes] = useState(null);
@@ -73,13 +73,13 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
     setError('');
     try {
       const result = await window.native?.admin?.givePlus?.({ username, days: Number(gift.days) || 0, note: gift.note.trim() });
-      if (!result?.ok) throw adminError(result, 'Could not give Noctra+.', onAccessRevoked);
+      if (!result?.ok) throw adminError(result, 'Could not give Native+.', onAccessRevoked);
       setGifts(result.gifts || []);
       setGift((current) => ({ ...current, username: '', note: '' }));
-      onNotify?.('Noctra+', `${result.username} has Noctra+ ${result.expiresAt ? `until ${formatDate(result.expiresAt)}` : 'forever'}.`);
+      onNotify?.('Native+', `${result.username} has Native+ ${result.expiresAt ? `until ${formatDate(result.expiresAt)}` : 'forever'}.`);
       load().catch(() => {});
     } catch (reason) {
-      setError(reason?.message || 'Could not give Noctra+.');
+      setError(reason?.message || 'Could not give Native+.');
     } finally {
       setBusy('');
     }
@@ -91,11 +91,11 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
     setBusy(`plus:${row.userId}`);
     try {
       const result = await window.native?.admin?.removePlus?.(row.userId);
-      if (!result?.ok) throw adminError(result, 'Could not take Noctra+ away.', onAccessRevoked);
+      if (!result?.ok) throw adminError(result, 'Could not take Native+ away.', onAccessRevoked);
       setGifts(result.gifts || []);
       load().catch(() => {});
     } catch (reason) {
-      setError(reason?.message || 'Could not take Noctra+ away.');
+      setError(reason?.message || 'Could not take Native+ away.');
     } finally {
       setBusy('');
       setCopied('');
@@ -137,7 +137,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
       <div className="admin-kpis">
         <div className="admin-kpi"><span className="admin-kpi-icon"><DollarSign size={15} /></span><span className="admin-kpi-label">Sales, all time</span><strong className="admin-kpi-value">{overview ? money(overview.sales.total) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${formatNumber(overview.sales.count)} payments` : ''}</span></div>
         <div className="admin-kpi"><span className="admin-kpi-icon"><Receipt size={15} /></span><span className="admin-kpi-label">Last 30 days</span><strong className="admin-kpi-value">{overview ? money(overview.sales.last30) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${formatNumber(overview.sales.last30Count)} payments` : ''}</span></div>
-        <div className="admin-kpi"><span className="admin-kpi-icon"><Crown size={15} /></span><span className="admin-kpi-label">Noctra+ members</span><strong className="admin-kpi-value">{overview ? formatNumber(overview.plus.active) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${overview.plus.monthly} monthly · ${overview.plus.yearly} yearly${overview.plus.gifted ? ` · ${overview.plus.gifted} given` : ''}` : ''}</span></div>
+        <div className="admin-kpi"><span className="admin-kpi-icon"><Crown size={15} /></span><span className="admin-kpi-label">Native+ members</span><strong className="admin-kpi-value">{overview ? formatNumber(overview.plus.active) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${overview.plus.monthly} monthly · ${overview.plus.yearly} yearly${overview.plus.gifted ? ` · ${overview.plus.gifted} given` : ''}` : ''}</span></div>
         <div className="admin-kpi"><span className="admin-kpi-icon"><RotateCcw size={15} /></span><span className="admin-kpi-label">Refunds & chargebacks</span><strong className="admin-kpi-value">{overview ? formatNumber(overview.refunds.count) : '—'}</strong><span className="admin-kpi-hint">{overview ? money(overview.refunds.total) : ''}</span></div>
       </div>
 
@@ -153,7 +153,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
                 : overview.recent.map((row) => (
                   <div key={row.transactionId} className={`admin-sale-row${row.status !== 'paid' ? ' is-refunded' : ''}`}>
                     <div className="admin-sale-main">
-                      <strong>{row.kind === 'plus' ? `Noctra+ ${row.plan || ''}`.trim() : (row.itemName || row.itemId || 'Cape')}</strong>
+                      <strong>{row.kind === 'plus' ? `Native+ ${row.plan || ''}`.trim() : (row.itemName || row.itemId || 'Cape')}</strong>
                       <small>{row.username || 'Unknown player'} · <span title={formatDate(row.createdAt)}>{formatAgo(row.createdAt)}</span></small>
                     </div>
                     {row.status !== 'paid' && <span className="admin-chip is-refund">{row.status}</span>}
@@ -165,27 +165,27 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
         </section>
 
         <section className="admin-card admin-plus-card">
-          <div className="admin-card-head"><h3><NoctraPlusIcon size={15} />Give Noctra+</h3><span>Free membership, no payment</span></div>
+          <div className="admin-card-head"><h3><NativePlusIcon size={15} />Give Native+</h3><span>Free membership, no payment</span></div>
           <form className="admin-code-form" onSubmit={givePlus}>
-            <label className="admin-field is-wide"><span>Player</span><input value={gift.username} onChange={(event) => setGift((current) => ({ ...current, username: event.target.value }))} placeholder="Noctra username" maxLength={32} autoComplete="off" spellCheck={false} /></label>
+            <label className="admin-field is-wide"><span>Player</span><input value={gift.username} onChange={(event) => setGift((current) => ({ ...current, username: event.target.value }))} placeholder="Native username" maxLength={32} autoComplete="off" spellCheck={false} /></label>
             <label className="admin-field"><span>How long</span>
               <Dropdown className="admin-dropdown" value={gift.days} onChange={(value) => setGift((current) => ({ ...current, days: value?.target ? value.target.value : value }))} options={PLUS_LENGTHS} />
             </label>
             <label className="admin-field"><span>Note</span><input value={gift.note} onChange={(event) => setGift((current) => ({ ...current, note: event.target.value }))} placeholder="Giveaway winner" maxLength={120} /></label>
-            <button type="submit" className="admin-btn primary" disabled={!gift.username.trim() || Boolean(busy)}>{busy === 'gift' ? <LoaderCircle size={13} className="is-spinning" /> : <Gift size={13} />}Give Noctra+</button>
+            <button type="submit" className="admin-btn primary" disabled={!gift.username.trim() || Boolean(busy)}>{busy === 'gift' ? <LoaderCircle size={13} className="is-spinning" /> : <Gift size={13} />}Give Native+</button>
           </form>
-          <p className="admin-note">Giving more time to someone who already has a gift adds to what they have left. They get every paid cape and the Noctra+ badge right away.</p>
+          <p className="admin-note">Giving more time to someone who already has a gift adds to what they have left. They get every paid cape and the Native+ badge right away.</p>
           <div className="admin-code-list">
             {!gifts ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading…</p>
-              : !gifts.length ? <p className="admin-note">Nobody has a given Noctra+ yet.</p>
+              : !gifts.length ? <p className="admin-note">Nobody has a given Native+ yet.</p>
                 : gifts.map((row) => (
                   <div key={row.userId} className="admin-code-row">
-                    <span className="admin-plus-chip"><NoctraPlusIcon size={16} /></span>
+                    <span className="admin-plus-chip"><NativePlusIcon size={16} /></span>
                     <div className="admin-code-main">
                       <strong>{row.username || row.userId}</strong>
                       <small>{row.expiresAt ? `ends in ${Math.max(1, Math.ceil((row.expiresAt - Date.now()) / 86_400_000))}d · ${formatDate(row.expiresAt)}` : 'forever'}{row.grantedBy ? ` · by ${row.grantedBy}` : ''}{row.note ? ` · ${row.note}` : ''}{row.subscribed ? ' · also subscribed' : ''}</small>
                     </div>
-                    <button type="button" className={`admin-icon-btn${copied === `plus:${row.userId}` ? ' is-danger' : ''}`} onClick={() => removePlus(row)} title={copied === `plus:${row.userId}` ? 'Click again to take Noctra+ away' : 'Take Noctra+ away'} aria-label="Take Noctra+ away">
+                    <button type="button" className={`admin-icon-btn${copied === `plus:${row.userId}` ? ' is-danger' : ''}`} onClick={() => removePlus(row)} title={copied === `plus:${row.userId}` ? 'Click again to take Native+ away' : 'Take Native+ away'} aria-label="Take Native+ away">
                       {busy === `plus:${row.userId}` ? <LoaderCircle size={13} className="is-spinning" /> : <Trash2 size={13} />}
                     </button>
                   </div>

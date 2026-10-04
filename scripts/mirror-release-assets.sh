@@ -2,12 +2,12 @@
 #
 # Post-build release helper (local publish flow, mirrors the v3.9.x layout).
 #
-# electron-builder emits space-named artifacts ("Noctra Client-*") and yml feeds
+# electron-builder emits space-named artifacts ("Native Client-*") and yml feeds
 # that reference them. This script, for the current package.json version:
-#   1. makes URL-safe hyphenated copies ("Noctra-Client-*"),
+#   1. makes URL-safe hyphenated copies ("Native-Client-*"),
 #   2. rewrites latest.yml / latest-linux.yml to point at the hyphenated names,
 #   3. uploads to every target repo both the space-named originals (GitHub stores
-#      them as "Noctra.Client-*") and the hyphenated copies plus the two ymls,
+#      them as "Native.Client-*") and the hyphenated copies plus the two ymls,
 #      producing the established 12-asset set per release.
 #
 # Requires: gh (authed, repo scope). Drafts must already exist (ensure-release.js).
@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.."
 
 VERSION="$(node -p "require('./package.json').version")"
 TAG="v${VERSION}"
-REPOS=(ohllama0909-alt/noctra-client ohllama0909-alt/native-launcher)
+REPOS=(ohllama0909-alt/native-client ohllama0909-alt/native-launcher)
 REL=release
 
 echo "==> version ${VERSION} (${TAG})"
@@ -34,8 +34,8 @@ fi
 
 for f in "${ARTIFACTS[@]}"; do
   base="$(basename "$f")"
-  if [[ "$base" == *"Noctra Client-"* ]]; then
-    hy="${base//Noctra Client-/Noctra-Client-}"
+  if [[ "$base" == *"Native Client-"* ]]; then
+    hy="${base//Native Client-/Native-Client-}"
     if [[ ! -f "$REL/$hy" ]]; then
       cp -p "$f" "$REL/$hy"
       echo "   + $hy"
@@ -49,7 +49,7 @@ for y in latest.yml latest-linux.yml; do
   node -e '
     const fs=require("fs"); const p=process.argv[1];
     let t=fs.readFileSync(p,"utf8");
-    t=t.replace(/Noctra Client-/g,"Noctra-Client-").replace(/Noctra%20Client-/g,"Noctra-Client-");
+    t=t.replace(/Native Client-/g,"Native-Client-").replace(/Native%20Client-/g,"Native-Client-");
     fs.writeFileSync(p,t);
   ' "$REL/$y"
   echo "   ~ $y -> hyphenated refs"

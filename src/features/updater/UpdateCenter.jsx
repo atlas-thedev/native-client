@@ -243,7 +243,7 @@ function statusDetail(status, currentVersion, t) {
     case 'checking': return 'Comparing your build with the latest stable release.';
     case 'not-available': return `Version ${currentVersion} is the newest stable release.`;
     case 'preparing': return 'Selecting the smallest compatible package for this device.';
-    case 'installing': return 'Noctra will restart automatically when it is ready.';
+    case 'installing': return 'Native will restart automatically when it is ready.';
     case 'disabled': return status.message || t('update.desktopText');
     default: return 'Updates are checked securely in the background.';
   }

@@ -72,7 +72,7 @@ function QuickGive({ items, strips, onNotify, onDone }) {
       <div className="admin-quick-give-body">
         <div className="admin-quick-give-art">{item ? <CapeThumb key={`${item.id}:${strips[item.id] ? 1 : 0}`} src={strips[item.id] || item.stillUrl} frames={strips[item.id] ? item.frames : 1} fps={item.fps} width={45} height={72} /> : <Shirt size={18} />}</div>
         <div className="admin-quick-give-fields">
-          <label className="admin-field"><span>Player</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Noctra username" maxLength={32} /></label>
+          <label className="admin-field"><span>Player</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Native username" maxLength={32} /></label>
           <label className="admin-field"><span>Cape</span>
             <Dropdown className="admin-dropdown" value={itemId} onChange={setItemId} placeholder={items ? 'Pick a cape' : 'Loading…'} options={(items || []).map((entry) => ({ value: entry.id, label: `${entry.name}${entry.exclusive ? ' · Exclusive' : ''}` }))} />
           </label>
@@ -211,7 +211,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       <header className="admin-header">
         <div className="admin-heading">
           <h1 className="admin-title page-title">Administration</h1>
-          <p className="admin-subtitle">Manage Noctra users, badges, Store capes, and database health.</p>
+          <p className="admin-subtitle">Manage Native users, badges, Store capes, and database health.</p>
         </div>
         <div className="admin-header-actions">
           <span className="admin-access-label"><i />Admin only</span>

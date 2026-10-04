@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Animated capes + the Noctra cape store.
+ * Animated capes + the Native cape store.
  *
  * An animated cape is published as TWO textures so nothing that only knows
  * static capes can ever break:
@@ -103,7 +103,7 @@ function loadCatalog(storeTexture) {
         name: item.name,
         description: item.description || '',
         tags: Array.isArray(item.tags) ? item.tags : [],
-        author: item.author || 'Noctra',
+        author: item.author || 'Native',
         featured: Boolean(item.featured),
         exclusive: Boolean(item.exclusive),
         price: 0,
@@ -116,7 +116,7 @@ function loadCatalog(storeTexture) {
         still: storeTexture(still)
       });
     } catch (error) {
-      console.warn(`[Noctra Store] Skipping "${item.id}": ${error.message}`);
+      console.warn(`[Native Store] Skipping "${item.id}": ${error.message}`);
     }
   }
   return { sections: meta.sections || [], items };

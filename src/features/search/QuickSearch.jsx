@@ -81,8 +81,8 @@ const SETTINGS_TABS = [
   { id: 'minecraft', title: 'Minecraft settings', subtitle: 'Memory, resolution, JVM', icon: Blocks, keywords: ['ram', 'memory', 'gb', 'resolution', 'fullscreen', 'jvm', 'arguments'] },
   { id: 'java', title: 'Java settings', subtitle: 'Java runtimes', icon: Coffee, keywords: ['jre', 'jdk', 'runtime', 'path'] },
   { id: 'storage', title: 'Storage', subtitle: 'Folders and cache', icon: HardDrive, keywords: ['disk', 'cache', 'folder', 'data', 'clear'] },
-  { id: 'changelog', title: 'Changelog', subtitle: "What's new in Noctra", icon: RefreshCw, keywords: ['whats new', 'release notes', 'changes', 'version'] },
-  { id: 'about', title: 'About Noctra', subtitle: 'Version and credits', icon: Info, keywords: ['version', 'credits', 'license', 'build'] }
+  { id: 'changelog', title: 'Changelog', subtitle: "What's new in Native", icon: RefreshCw, keywords: ['whats new', 'release notes', 'changes', 'version'] },
+  { id: 'about', title: 'About Native', subtitle: 'Version and credits', icon: Info, keywords: ['version', 'credits', 'license', 'build'] }
 ];
 
 const MAX_INSTANCES = 200;
@@ -137,7 +137,7 @@ export default function QuickSearch({
   onCommand,
   instances = [],
   friends = [],
-  hasNoctra = false,
+  hasNative = false,
   isAdmin = false,
   account = null,
   runningInstanceId = null
@@ -221,8 +221,8 @@ export default function QuickSearch({
     page('versions', 'Versions', 'Browse Minecraft releases', Blocks, ['releases', 'snapshots', 'minecraft versions', 'update']);
     page('discover', 'Discover', 'Mods, modpacks, shaders and packs', Compass, ['browse', 'modrinth', 'mods', 'modpacks', 'shaders', 'resource packs', 'store']);
     page('skins', 'Locker', 'Skins and capes', User, ['skin', 'cape', 'wardrobe', 'cosmetics']);
-    page('store', 'Store', 'Animated capes from Noctra', User, ['store', 'shop', 'cape', 'animated', 'buy']);
-    page('relay', 'Relay', hasNoctra ? 'Friends and chat' : 'Friends and chat · needs Noctra', MessageSquare, ['chat', 'friends', 'messages', 'social', 'dm']);
+    page('store', 'Store', 'Animated capes from Native', User, ['store', 'shop', 'cape', 'animated', 'buy']);
+    page('relay', 'Relay', hasNative ? 'Friends and chat' : 'Friends and chat · needs Native', MessageSquare, ['chat', 'friends', 'messages', 'social', 'dm']);
     page('guides', 'How to', 'Video guides and answers', BookOpen, ['help', 'tutorial', 'guide', 'videos', 'faq', 'learn']);
     page('settings', 'Settings', 'Launcher, Minecraft, Java, storage', Settings, ['preferences', 'options', 'config']);
     if (isAdmin) page('admin', 'Admin control room', 'Moderation and live stats', ShieldCheck, ['admin', 'moderation', 'ban', 'users']);
@@ -237,7 +237,7 @@ export default function QuickSearch({
     action('tour', 'Quick tour', 'Replay the animated launcher tour', CircleHelp, ['tutorial', 'help', 'intro', 'walkthrough', 'onboarding']);
     action('accounts', 'Switch account', account?.name ? `Signed in as ${account.name}` : 'Add or switch accounts', UserRound, ['account', 'login', 'sign in', 'logout', 'microsoft', 'offline', 'profile']);
     if (account?.type === 'microsoft') {
-      action('connect-noctra', account.noctraLink?.connected ? 'Noctra connection' : 'Connect Noctra account',
+      action('connect-noctra', account.noctraLink?.connected ? 'Native connection' : 'Connect Native account',
         account.noctraLink?.connected ? `Connected to ${account.noctraLink.name}` : 'Use Relay and friends with your premium account',
         Link2, ['link', 'premium', 'microsoft', 'noctra', 'connect', 'relay']);
     }
@@ -276,7 +276,7 @@ export default function QuickSearch({
       });
     }
 
-    if (hasNoctra) {
+    if (hasNative) {
       for (const friend of friends.slice(0, MAX_FRIENDS)) {
         if (!friend?.id) continue;
         const name = friend.nickname || friend.name || 'Friend';
@@ -308,7 +308,7 @@ export default function QuickSearch({
       });
     }
     return items;
-  }, [instances, friends, hasNoctra, isAdmin, account?.name, account?.type, account?.noctraLink?.connected, account?.noctraLink?.name, runningInstanceId]);
+  }, [instances, friends, hasNative, isAdmin, account?.name, account?.type, account?.noctraLink?.connected, account?.noctraLink?.name, runningInstanceId]);
 
   const versionItems = useMemo(() => {
     const q = query.trim().toLowerCase();

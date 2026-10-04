@@ -74,8 +74,8 @@ test.after(() => {
   social.stopStream();
   child?.kill();
   setTimeout(() => process.exit(0), 50).unref();
-  fs.rmSync(serverDir, { recursive: true, force: true });
-  fs.rmSync(userData, { recursive: true, force: true });
+  try { fs.rmSync(serverDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch {}
+  try { fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch {}
 });
 
 test('every preload relay and social channel has a main-process handler', () => {

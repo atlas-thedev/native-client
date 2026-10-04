@@ -1,10 +1,10 @@
 /**
- * Noctra billing: Paddle Billing checkout, webhooks, Noctra+ and redeem codes.
+ * Native billing: Paddle Billing checkout, webhooks, Native+ and redeem codes.
  *
  *   GET  /v1/billing/config                 public: is billing on, Paddle client token, prices
  *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'plus', plan: 'monthly'|'yearly' } -> { url }
- *   GET  /v1/billing/me                     Noctra+ status and purchases of the signed-in account
- *   POST /v1/billing/portal                 Paddle customer portal link (receipts, cancel Noctra+)
+ *   GET  /v1/billing/me                     Native+ status and purchases of the signed-in account
+ *   POST /v1/billing/portal                 Paddle customer portal link (receipts, cancel Native+)
  *   POST /v1/billing/paddle/webhook         Paddle notifications (signature checked)
  *   POST /v1/store/redeem                   { code } event / gift codes
  *   GET  /v1/admin/billing/overview         sales, refunds, members
@@ -13,16 +13,16 @@
  *   GET|POST /v1/admin/billing/settings     Paddle keys per environment (secrets are write-only)
  *   POST /v1/admin/billing/setup            { environment } create/find products, prices and the webhook in Paddle
  *   POST /v1/admin/billing/activate         { environment } switch checkouts between sandbox and live
- *   GET|POST /v1/admin/billing/plus         list / give Noctra+ to a player { username, days (0 = forever), note }
- *   DELETE   /v1/admin/billing/plus/:userId take a given Noctra+ away again
+ *   GET|POST /v1/admin/billing/plus         list / give Native+ to a player { username, days (0 = forever), note }
+ *   DELETE   /v1/admin/billing/plus/:userId take a given Native+ away again
  *
  * How things are owned (all in store_owned):
  *   source 'purchase'  bought once, kept forever (removed again on refund / chargeback)
- *   source 'plus'      added while a Noctra+ member; removed when the membership ends
+ *   source 'plus'      added while a Native+ member; removed when the membership ends
  *   source 'code'      redeemed with an event code
  *   source 'admin'     given by an admin
  *
- * Noctra+ comes from a Paddle subscription or from an admin (plus_grants, optionally until a date).
+ * Native+ comes from a Paddle subscription or from an admin (plus_grants, optionally until a date).
  *
  * Keys: saved from the admin page (billing_settings, per environment) or, as a fallback for the
  * environment named by PADDLE_ENV, the env vars PADDLE_API_KEY, PADDLE_CLIENT_TOKEN, PADDLE_WEBHOOK_SECRET,
@@ -146,7 +146,7 @@ const toMs = (value) => {
 
 /* ── entitlements ──────────────────────────────────────────────────── */
 
-/** An admin-given Noctra+ that hasn't run out yet. */
+/** An admin-given Native+ that hasn't run out yet. */
 function giftFor(userId) {
   const row = sql().prepare('SELECT * FROM plus_grants WHERE user_id = ?').get(String(userId));
   return row && (!row.expires_at || row.expires_at > Date.now()) ? row : null;
@@ -171,7 +171,7 @@ function plusFor(userId) {
 }
 const hasPlus = (userId) => plusFor(userId).active;
 
-/** A cape you pay for (or get with Noctra+). Event capes are never sold. */
+/** A cape you pay for (or get with Native+). Event capes are never sold. */
 const isPaid = (item) => Boolean(item) && !item.exclusive && Number(item.price) > 0;
 
 function ownedSource(userId, itemId) {
@@ -202,7 +202,7 @@ function setPlusBadge(userId, on) {
   try { db.setUserBadge(userId, 'plus', on); } catch { /* badge list may be older */ }
 }
 
-/** Brings a member's locker and badge in line with their Noctra+ status. */
+/** Brings a member's locker and badge in line with their Native+ status. */
 function syncPlus(userId) {
   const user = db.getUserById(userId);
   if (!user) return;
@@ -233,7 +233,7 @@ function sweepGifts() {
       sql().prepare('DELETE FROM plus_grants WHERE user_id = ?').run(row.user_id);
       syncPlus(row.user_id);
     }
-  } catch (error) { console.warn('[Noctra Billing] Gift sweep failed:', error.message); }
+  } catch (error) { console.warn('[Native Billing] Gift sweep failed:', error.message); }
 }
 function startGiftSweep() {
   if (sweepTimer) return;
@@ -424,7 +424,7 @@ function redeem(user, rawCode) {
 /* ── http ──────────────────────────────────────────────────────────── */
 
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
-  || String(req.headers['x-noctra-token'] || '').trim();
+  || String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '').trim();
 
 async function readRaw(req, limit = 1024 * 1024) {
   const chunks = [];
@@ -483,7 +483,7 @@ async function handleBillingRoutes(req, res, ctx) {
       const result = handleEvent(event, from);
       send(res, 200, { ok: true, ...result });
     } catch (error) {
-      console.error('[Noctra Billing] webhook failed:', error);
+      console.error('[Native Billing] webhook failed:', error);
       send(res, 500, { ok: false, error: 'Webhook failed.' }); // Paddle retries
     }
     return true;
@@ -508,7 +508,7 @@ async function handleBillingRoutes(req, res, ctx) {
 
   if (isAdmin) return handleAdmin(req, res, ctx, url, user);
 
-  if (!user) { send(res, 401, { ok: false, error: 'Sign in with your Noctra account first.' }); return true; }
+  if (!user) { send(res, 401, { ok: false, error: 'Sign in with your Native account first.' }); return true; }
 
   if (req.method === 'POST' && isRedeem) {
     if (!hit('store-redeem', user.id, 10, 10 * 60_000)) { tooMany(res, 600); return true; }
@@ -542,7 +542,7 @@ async function handleBillingRoutes(req, res, ctx) {
         quantity: 1,
         price: {
           name: item.name,
-          description: `${item.name} cape for Noctra`,
+          description: `${item.name} cape for Native`,
           product_id: c.capeProduct,
           unit_price: { amount: String(Math.round(Number(item.price) * 100)), currency_code: 'USD' },
           quantity: { minimum: 1, maximum: 1 },
@@ -552,8 +552,8 @@ async function handleBillingRoutes(req, res, ctx) {
       custom = { userId: String(user.id), kind, itemId: item.id };
     } else {
       const plan = body.plan === 'yearly' ? 'yearly' : 'monthly';
-      if (!c.prices[plan]) { send(res, 503, { ok: false, error: 'Noctra+ isn’t available yet.' }); return true; }
-      if (hasPlus(user.id)) { send(res, 409, { ok: false, error: 'You’re already a Noctra+ member.' }); return true; }
+      if (!c.prices[plan]) { send(res, 503, { ok: false, error: 'Native+ isn’t available yet.' }); return true; }
+      if (hasPlus(user.id)) { send(res, 409, { ok: false, error: 'You’re already a Native+ member.' }); return true; }
       items = [{ price_id: c.prices[plan], quantity: 1 }];
       custom = { userId: String(user.id), kind, plan };
     }
@@ -564,7 +564,7 @@ async function handleBillingRoutes(req, res, ctx) {
         .run(txn.id, String(user.id), kind, custom.itemId || null, custom.plan || null, Date.now());
       send(res, 200, { ok: true, transactionId: txn.id, url: txn.checkout?.url || null }, noStore);
     } catch (error) {
-      console.error('[Noctra Billing] checkout failed:', error.message);
+      console.error('[Native Billing] checkout failed:', error.message);
       send(res, 502, { ok: false, error: 'Couldn’t start the checkout. Try again in a moment.' });
     }
     return true;
@@ -583,7 +583,7 @@ async function handleBillingRoutes(req, res, ctx) {
         cancelUrl: session.urls?.subscriptions?.[0]?.cancel_subscription || null
       }, noStore);
     } catch (error) {
-      console.error('[Noctra Billing] portal failed:', error.message);
+      console.error('[Native Billing] portal failed:', error.message);
       send(res, 502, { ok: false, error: 'Couldn’t open billing. Try again in a moment.' });
     }
     return true;
@@ -631,7 +631,7 @@ async function listAll(name, pathname) {
   return out;
 }
 
-/** Finds or creates everything Noctra needs in one Paddle environment and saves the ids. */
+/** Finds or creates everything Native needs in one Paddle environment and saves the ids. */
 async function setupPaddle(name) {
   const steps = [];
   const c = config(name);
@@ -644,8 +644,8 @@ async function setupPaddle(name) {
     saveSetting(`${name}.${field}`, found.id);
     return found.id;
   };
-  await product('capeProduct', 'cape', { name: 'Noctra cape', description: 'A cosmetic cape for your Noctra account.', tax_category: 'standard' });
-  const plusId = await product('plusProduct', 'plus', { name: 'Noctra+', description: 'Every paid Noctra cape and the Noctra+ badge while subscribed.', tax_category: 'standard' });
+  await product('capeProduct', 'cape', { name: 'Native cape', description: 'A cosmetic cape for your Native account.', tax_category: 'standard' });
+  const plusId = await product('plusProduct', 'plus', { name: 'Native+', description: 'Every paid Native cape and the Native+ badge while subscribed.', tax_category: 'standard' });
 
   const prices = await listAll(name, `/prices?product_id=${plusId}&status=active`);
   for (const plan of ['monthly', 'yearly']) {
@@ -655,7 +655,7 @@ async function setupPaddle(name) {
       || prices.find((p) => p.billing_cycle?.interval === PLANS[plan].interval && p.billing_cycle?.frequency === 1 && p.unit_price?.amount === cents && p.unit_price?.currency_code === 'USD');
     if (!found) {
       found = await call('POST', '/prices', {
-        product_id: plusId, name: `Noctra+ ${plan}`, description: `Noctra+ — billed ${plan}`,
+        product_id: plusId, name: `Native+ ${plan}`, description: `Native+ — billed ${plan}`,
         unit_price: { amount: cents, currency_code: 'USD' }, billing_cycle: { interval: PLANS[plan].interval, frequency: 1 },
         quantity: { minimum: 1, maximum: 1 }, custom_data: { noctra: `plus-${plan}` }
       });
@@ -677,7 +677,7 @@ async function setupPaddle(name) {
     }
     steps.push('Found webhook');
   } else {
-    hook = await call('POST', '/notification-settings', { description: 'Noctra server', destination, type: 'url', subscribed_events: WEBHOOK_EVENTS, api_version: 1, include_sensitive_fields: false, traffic_source: 'platform' });
+    hook = await call('POST', '/notification-settings', { description: 'Native server', destination, type: 'url', subscribed_events: WEBHOOK_EVENTS, api_version: 1, include_sensitive_fields: false, traffic_source: 'platform' });
     steps.push('Created webhook');
   }
   saveSetting(`${name}.notificationId`, hook.id);
@@ -688,7 +688,7 @@ async function setupPaddle(name) {
 async function handleAdmin(req, res, ctx, url, user) {
   const { send } = ctx;
   const noStore = { 'Cache-Control': 'no-store' };
-  if (!user) { send(res, 401, { ok: false, error: 'Noctra account session required.' }); return true; }
+  if (!user) { send(res, 401, { ok: false, error: 'Native account session required.' }); return true; }
   if (!user.is_admin) { send(res, 403, { ok: false, error: 'Administrator access required.' }); return true; }
   const nameOf = (id) => { try { return db.getUserById(id)?.username || null; } catch { return null; } };
 
@@ -735,7 +735,7 @@ async function handleAdmin(req, res, ctx, url, user) {
       const body = await ctx.readJson(req);
       const name = String(body.username || '').trim();
       const target = name ? db.getUserByUsername(name) : null;
-      if (!target) { send(res, 404, { ok: false, error: name ? `No Noctra account called ${name}.` : 'Type a username.' }); return true; }
+      if (!target) { send(res, 404, { ok: false, error: name ? `No Native account called ${name}.` : 'Type a username.' }); return true; }
       const days = Number(body.days);
       const current = sql().prepare('SELECT expires_at FROM plus_grants WHERE user_id = ?').get(String(target.id));
       // Giving more time to someone who still has a gift adds to what's left.
@@ -823,7 +823,7 @@ async function handleAdmin(req, res, ctx, url, user) {
       for (const field of Array.isArray(body.clear) ? body.clear : []) {
         if (FIELDS[field]) saveSetting(`${name}.${field}`, null);
       }
-      console.log(`[Noctra Billing] ${user.username} updated ${name} Paddle settings`);
+      console.log(`[Native Billing] ${user.username} updated ${name} Paddle settings`);
     }
     send(res, 200, { ok: true, settings: publicSettings() }, noStore);
     return true;
@@ -836,10 +836,10 @@ async function handleAdmin(req, res, ctx, url, user) {
     if (!config(name).apiKey) { send(res, 400, { ok: false, error: 'Save an API key for this environment first.' }); return true; }
     try {
       const steps = await setupPaddle(name);
-      console.log(`[Noctra Billing] ${user.username} ran Paddle setup for ${name}`);
+      console.log(`[Native Billing] ${user.username} ran Paddle setup for ${name}`);
       send(res, 200, { ok: true, steps, settings: publicSettings() }, noStore);
     } catch (error) {
-      console.error('[Noctra Billing] setup failed:', error.message);
+      console.error('[Native Billing] setup failed:', error.message);
       send(res, error.status === 401 || error.status === 403 ? 400 : 502, { ok: false, error: error.status === 401 || error.status === 403 ? 'Paddle rejected that API key. Check it has read and write permissions for products, prices, customers, transactions, subscriptions and notification settings.' : `Paddle setup failed: ${error.message}` });
     }
     return true;
@@ -851,7 +851,7 @@ async function handleAdmin(req, res, ctx, url, user) {
     if (!name) { send(res, 400, { ok: false, error: 'Pick sandbox or live.' }); return true; }
     if (!readyIn(config(name))) { send(res, 400, { ok: false, error: `Finish ${name === 'production' ? 'live' : 'sandbox'} setup first (keys + Set up Paddle).` }); return true; }
     saveSetting('active', name);
-    console.log(`[Noctra Billing] ${user.username} switched checkouts to ${name}`);
+    console.log(`[Native Billing] ${user.username} switched checkouts to ${name}`);
     send(res, 200, { ok: true, settings: publicSettings() }, noStore);
     return true;
   }

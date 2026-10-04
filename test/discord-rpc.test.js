@@ -22,8 +22,8 @@ test('discord-rpc: builds professional launcher and in-game activities', () => {
   assert.equal(wardrobeActivity.details, 'In Launcher');
   assert.equal(wardrobeActivity.state, 'Customizing Wardrobe');
   assert.equal(wardrobeActivity.assets.large_image, 'logo');
-  assert.equal(wardrobeActivity.assets.large_text, 'Noctra Client');
-  assert.equal(wardrobeActivity.buttons[0].label, 'Get Noctra Client');
+  assert.equal(wardrobeActivity.assets.large_text, 'Native Client');
+  assert.equal(wardrobeActivity.buttons[0].label, 'Get Native Client');
 
   discordRpc.setGameActivity({
     instance: { name: 'Tricky Trials', version: '1.21.1', loader: 'Fabric' },
@@ -61,8 +61,10 @@ test('discord-rpc: builds professional launcher and in-game activities', () => {
 });
 
 test('discord-rpc: performs complete handshake and set_activity exchange with mock Discord IPC server', async () => {
-  const socketPath = path.join(os.tmpdir(), `test-discord-ipc-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`);
-  if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
+  const socketPath = process.platform === 'win32'
+    ? `\\\\.\\pipe\\test-discord-ipc-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    : path.join(os.tmpdir(), `test-discord-ipc-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`);
+  if (process.platform !== 'win32' && fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
 
   const receivedPackets = [];
   let serverClientSocket = null;

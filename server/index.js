@@ -31,12 +31,12 @@ for (const dir of ['profiles', 'textures', 'media']) {
 
 const instance = createServer();
 instance.listen(PORT, HOST, () => {
-  console.log(`[Noctra Server] Online and listening on http://${HOST}:${PORT}`);
-  console.log(`[Noctra DB] SQLite database active at ${db.DB_PATH}`);
+  console.log(`[Native Server] Online and listening on http://${HOST}:${PORT}`);
+  console.log(`[Native DB] SQLite database active at ${db.DB_PATH}`);
 });
 
 function shutdown(signal) {
-  console.log(`[Noctra Server] ${signal} received. Closing database and shutting down...`);
+  console.log(`[Native Server] ${signal} received. Closing database and shutting down...`);
   db.closeDb();
   process.exit(0);
 }

@@ -9,7 +9,7 @@ function Stat({ label, value, title }) {
 }
 
 /**
- * Everything about one Noctra account: who they are, their capes (attach, wear,
+ * Everything about one Native account: who they are, their capes (attach, wear,
  * take off, take back), badges, admin role and sessions.
  */
 export default function AdminUserPanel({ userId, summary, items, strips, onNotify, onUserChanged, onAccessRevoked, onClose }) {

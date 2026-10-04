@@ -278,7 +278,7 @@ export default function ConsoleTab({ cluster, query = '', running = false, onAna
             type="button"
             className={`gc-pill gc-pill-launcher${showLauncher ? ' is-on' : ''}`}
             aria-pressed={showLauncher}
-            title="Show Noctra and launch-pipeline messages"
+            title="Show Native and launch-pipeline messages"
             onClick={() => setShowLauncher(!showLauncher)}
           >
             Launcher

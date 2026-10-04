@@ -123,7 +123,7 @@ export default function JavaPanel() {
           <div className="settings-section-line" />
         </div>
         <p className="jp-lead">
-          Each Minecraft version needs a specific Java. Noctra picks the right one automatically, preferring a native 64-bit
+          Each Minecraft version needs a specific Java. Native picks the right one automatically, preferring a native 64-bit
           build, and downloads Eclipse Temurin when nothing suitable is installed. Pin a runtime here to override that.
         </p>
         <div className="jp-rows">
@@ -204,7 +204,7 @@ export default function JavaPanel() {
             </div>
           ))}
           {!scanning && list.length === 0 && (
-            <div className="jp-found-empty">No Java installations found. Noctra downloads the right one the first time you launch.</div>
+            <div className="jp-found-empty">No Java installations found. Native downloads the right one the first time you launch.</div>
           )}
         </div>
       </div>

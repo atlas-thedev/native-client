@@ -23,7 +23,7 @@ const root = path.join(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const owner = pkg.build?.publish?.owner || 'atlas-thedev';
-const primaryRepo = pkg.build?.publish?.repo || 'noctra-client';
+const primaryRepo = pkg.build?.publish?.repo || 'native-client';
 const targetRepos = [primaryRepo];
 const tag = `v${pkg.version}`;
 
@@ -53,7 +53,7 @@ async function gh(method, url, body) {
       authorization: `Bearer ${token}`,
       accept: 'application/vnd.github+json',
       'x-github-api-version': '2022-11-28',
-      'user-agent': 'noctra-release-script',
+      'user-agent': 'native-release-script',
     },
     body: body ? JSON.stringify(body) : undefined,
   });

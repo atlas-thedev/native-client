@@ -8,7 +8,7 @@ const CAPE_PATH = '/cape/';
 
 export function skinTextureUrl(account) {
   if (account?.skinUrl) return account.skinUrl;
-  // Local (Noctra or offline) accounts must never fall back to mc-heads by name,
+  // Local (Native or offline) accounts must never fall back to mc-heads by name,
   // as that queries a stranger's Mojang account with that username!
   if (isLocalIdentity(account)) {
     return SKIN_SERVICE + SKIN_PATH + FALLBACK_SKIN;

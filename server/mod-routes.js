@@ -6,7 +6,7 @@ const media = require('./media');
 const events = require('./social-events');
 
 /**
- * Noctra client-mod API.
+ * Native client-mod API.
  *
  *   GET  /v1/skins/directory   every published skin/cape, incremental via ?epoch=&since=
  *   GET  /v1/skins/stream      Server-Sent Events: a `skin` event the moment a wardrobe changes
@@ -45,7 +45,7 @@ function entryFor(profile) {
     const user = db.getUserByUsername(profile.username);
     mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
   } catch { /* the database may be unavailable in tests */ }
-  // Only Noctra store capes animate (see store-routes.animationFor).
+  // Only Native store capes animate (see store-routes.animationFor).
   let allowed = null;
   let capeOk = true;
   try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape, profile); } catch {}
@@ -287,7 +287,7 @@ async function handleModRoutes(req, res, ctx) {
 
   if (req.method === 'POST' && url.pathname === '/v1/auth/game-ticket') {
     const user = bearer ? db.getUserBySession(bearer) : null;
-    if (!user) { send(res, 401, { ok: false, error: 'Noctra account session required.' }); return true; }
+    if (!user) { send(res, 401, { ok: false, error: 'Native account session required.' }); return true; }
     if (!hit('game-ticket', user.id, 30, 10 * 60_000)) { tooMany(res, 600); return true; }
     const { ticket, expiresAt } = signTicket(user.id);
     send(res, 200, { ok: true, ticket, expiresAt, account: accountPayload(user) });
@@ -297,7 +297,7 @@ async function handleModRoutes(req, res, ctx) {
   if (req.method === 'GET' && url.pathname === '/v1/mod/me') {
     if (!hit('mod-me', ip, 60, 60_000)) { tooMany(res, 60); return true; }
     const user = userForTicket(bearer);
-    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired. Relaunch from the Noctra Client.' }); return true; }
+    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired. Relaunch from the Native Client.' }); return true; }
     send(res, 200, { ok: true, account: accountPayload(user), serverTime: Date.now() });
     return true;
   }

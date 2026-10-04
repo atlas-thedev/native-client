@@ -45,12 +45,12 @@ function resolveSendGridKey() {
 
 const DEFAULT_SENDER = {
   email: process.env.NOCTRA_SECURITY_EMAIL || 'noreply@nativelaunch.xyz',
-  name: 'Noctra Security'
+  name: 'Native Security'
 };
 
 const REPLY_TO = {
   email: process.env.NOCTRA_SUPPORT_EMAIL || 'itznavidu@gmail.com',
-  name: 'Noctra Support'
+  name: 'Native Support'
 };
 
 const FOOTER_ADDRESS = 'No.27, Jayanthipura, Wekada, Panadura, 12500 LKA';
@@ -175,7 +175,7 @@ function sendEmail(options) {
   }
 
   // Fallback for development/testing if no API keys are present
-  console.log(`[Noctra Mailer (Dev Mode)] No RESEND_API_KEY or SENDGRID_API_KEY configured. Email payload:`, {
+  console.log(`[Native Mailer (Dev Mode)] No RESEND_API_KEY or SENDGRID_API_KEY configured. Email payload:`, {
     to: options.to,
     subject: options.subject
   });
@@ -186,8 +186,8 @@ function sendEmail(options) {
  * Send a 6-digit verification code to the given email.
  */
 async function sendVerificationCodeEmail(email, code, username = '') {
-  const subject = `Noctra Client — Verification Code: ${code}`;
-  const text = `Your Noctra verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\n${FOOTER_ADDRESS}`;
+  const subject = `Native Client — Verification Code: ${code}`;
+  const text = `Your Native verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\n${FOOTER_ADDRESS}`;
   
   const html = `
 <!DOCTYPE html>
@@ -211,8 +211,8 @@ async function sendVerificationCodeEmail(email, code, username = '') {
 <body>
   <div class="wrapper">
     <div class="card">
-      <h1>Noctra Client</h1>
-      <p>Hello${username ? ` <strong>${username}</strong>` : ''},<br>Use the following 6-digit verification code to complete your Noctra account setup:</p>
+      <h1>Native Client</h1>
+      <p>Hello${username ? ` <strong>${username}</strong>` : ''},<br>Use the following 6-digit verification code to complete your Native account setup:</p>
       
       <div class="code-box">
         <div class="code">${code}</div>
@@ -222,7 +222,7 @@ async function sendVerificationCodeEmail(email, code, username = '') {
       <p style="font-size: 12px; color: #807685; margin: 0;">If you didn't request this code, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      Noctra Client &bull; Noctra Security<br>
+      Native Client &bull; Native Security<br>
       ${FOOTER_ADDRESS}
     </div>
   </div>
@@ -241,8 +241,8 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => (
  * Send a 6-digit password reset code to the given email.
  */
 async function sendPasswordResetEmail(email, code, username = '') {
-  const subject = `Noctra Client — Password Reset Code: ${code}`;
-  const text = `Your Noctra password reset code is: ${code}\n\nThis code will expire in 15 minutes. If you didn't ask to reset your password, you can ignore this email and your password will stay the same.\n\n${FOOTER_ADDRESS}`;
+  const subject = `Native Client — Password Reset Code: ${code}`;
+  const text = `Your Native password reset code is: ${code}\n\nThis code will expire in 15 minutes. If you didn't ask to reset your password, you can ignore this email and your password will stay the same.\n\n${FOOTER_ADDRESS}`;
 
   const html = `
 <!DOCTYPE html>
@@ -267,7 +267,7 @@ async function sendPasswordResetEmail(email, code, username = '') {
   <div class="wrapper">
     <div class="card">
       <h1>Reset your password</h1>
-      <p>Hello${username ? ` <strong>${escapeHtml(username)}</strong>` : ''},<br>Use this 6-digit code in Noctra Client to choose a new password:</p>
+      <p>Hello${username ? ` <strong>${escapeHtml(username)}</strong>` : ''},<br>Use this 6-digit code in Native Client to choose a new password:</p>
 
       <div class="code-box">
         <div class="code">${escapeHtml(code)}</div>
@@ -277,7 +277,7 @@ async function sendPasswordResetEmail(email, code, username = '') {
       <p style="font-size: 12px; color: #807685; margin: 0;">If you didn't ask to reset your password, you can safely ignore this email. Your password will stay the same.</p>
     </div>
     <div class="footer">
-      Noctra Client &bull; Noctra Security<br>
+      Native Client &bull; Native Security<br>
       ${FOOTER_ADDRESS}
     </div>
   </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 
-/* Noctra pixel glyphs (hand-made, crisp at any size). */
+/* Native pixel glyphs (hand-made, crisp at any size). */
 const px = { shapeRendering: 'crispEdges', fill: 'currentColor', 'aria-hidden': true };
 
 /** A 4-point pixel star. */

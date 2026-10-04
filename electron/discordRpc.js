@@ -5,7 +5,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 
 /**
- * Native Discord Rich Presence (RPC) implementation for Noctra Client.
+ * Native Discord Rich Presence (RPC) implementation for Native Client.
  *
  * Communicates directly with the local Discord desktop client via the
  * standard Discord IPC socket / named pipe protocol.
@@ -238,7 +238,7 @@ function buildCurrentActivity() {
   if (!isRpcEnabled()) return null;
 
   const defaultButtons = [
-    { label: 'Get Noctra Client', url: DOWNLOAD_URL },
+    { label: 'Get Native Client', url: DOWNLOAD_URL },
     { label: 'Join Discord', url: DISCORD_URL }
   ];
 
@@ -277,7 +277,7 @@ function buildCurrentActivity() {
       },
       assets: {
         large_image: 'logo',
-        large_text: 'Noctra Client',
+        large_text: 'Native Client',
         small_image: smallImage,
         small_text: smallText
       },
@@ -295,10 +295,10 @@ function buildCurrentActivity() {
     },
     assets: {
       large_image: 'logo',
-      large_text: 'Noctra Client'
+      large_text: 'Native Client'
     },
     buttons: [
-      { label: 'Get Noctra Client', url: DOWNLOAD_URL }
+      { label: 'Get Native Client', url: DOWNLOAD_URL }
     ]
   };
 }

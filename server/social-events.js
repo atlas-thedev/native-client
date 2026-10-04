@@ -1,5 +1,5 @@
 /**
- * Noctra Relay — realtime event bus.
+ * Native Relay — realtime event bus.
  *
  * Keeps one in-process registry of Server-Sent-Event subscribers per user so
  * every social mutation (message, reaction, request, presence, typing, read
@@ -8,7 +8,7 @@
  */
 
 const clients = new Map(); // userId -> Set<ServerResponse>
-// The Noctra game mod listens separately: it must not count as "the launcher is open",
+// The Native game mod listens separately: it must not count as "the launcher is open",
 // and it only receives the event types a game overlay can use (never message text).
 const modClients = new Map(); // userId -> Set<ServerResponse>
 const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed']);
@@ -144,7 +144,7 @@ function connectionCount() {
   return total;
 }
 
-/** Number of distinct signed-in Noctra users with a live event stream. */
+/** Number of distinct signed-in Native users with a live event stream. */
 function connectedUserCount() {
   return clients.size;
 }

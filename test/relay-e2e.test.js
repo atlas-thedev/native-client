@@ -113,7 +113,7 @@ test.before(async () => {
   throw new Error('server did not start');
 });
 
-test.after(() => { child?.kill(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+test.after(() => { child?.kill(); try { fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch {} });
 
 const U = {};
 const tag = Math.random().toString(36).slice(2, 6);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull-based deploy for the Noctra API.
+# Pull-based deploy for the Native API.
 #
 # Every few minutes (systemd timer) this checks whether `server/` changed on the
 # main branch of the public client repo. If it did it
@@ -10,7 +10,7 @@
 # No GitHub secrets or inbound SSH needed. Run by hand any time:  ./auto-deploy.sh [--force]
 set -euo pipefail
 
-REPO="${NOCTRA_REPO:-atlas-thedev/noctra-client}"
+REPO="${NOCTRA_REPO:-atlas-thedev/native-client}"
 BRANCH="${NOCTRA_BRANCH:-main}"
 APP="${NOCTRA_APP_DIR:-$HOME/noctra-server}"
 PM2_NAME="${NOCTRA_PM2_NAME:-noctra-server}"

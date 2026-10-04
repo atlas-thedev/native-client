@@ -1,13 +1,13 @@
 {
-  "name": "noctra-client",
-  "productName": "Noctra Client",
-  "desktopName": "Noctra Client",
+  "name": "native-client",
+  "productName": "Native Client",
+  "desktopName": "Native Client",
   "version": "4.1.8",
-  "description": "Noctra Client — a Minecraft launcher",
-  "homepage": "https://github.com/atlas-thedev/noctra-client",
+  "description": "Native Client — a Minecraft launcher",
+  "homepage": "https://github.com/atlas-thedev/native-client",
   "author": {
-    "name": "Noctra Client",
-    "email": "support@noctra.client"
+    "name": "Native Client",
+    "email": "support@nativelaunch.xyz"
   },
   "main": "electron/main.js",
   "scripts": {
@@ -34,12 +34,12 @@
     "skin-server": "node server/index.js"
   },
   "build": {
-    "appId": "app.noctraclient.desktop",
-    "productName": "Noctra Client",
+    "appId": "xyz.nativelaunch.desktop",
+    "productName": "Native Client",
     "publish": {
       "provider": "github",
       "owner": "atlas-thedev",
-      "repo": "noctra-client"
+      "repo": "native-client"
     },
     "directories": {
       "output": "release",
@@ -68,14 +68,14 @@
           ]
         }
       ],
-      "artifactName": "Noctra-Client-Portable-${version}-${arch}.${ext}",
+      "artifactName": "Native-Client-Portable-${version}-${arch}.${ext}",
       "icon": "buildResources/icons"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Noctra Client",
-      "artifactName": "Noctra-Client-Setup-${version}-${arch}.${ext}"
+      "shortcutName": "Native Client",
+      "artifactName": "Native-Client-Setup-${version}-${arch}.${ext}"
     },
     "mac": {
       "target": [
@@ -95,7 +95,7 @@
         }
       ],
       "icon": "buildResources/icons",
-      "artifactName": "Noctra-Client-${version}-${arch}.${ext}",
+      "artifactName": "Native-Client-${version}-${arch}.${ext}",
       "category": "public.app-category.games",
       "identity": null
     },
@@ -115,7 +115,7 @@
         }
       ],
       "icon": "buildResources/icons",
-      "artifactName": "Noctra-Client-${version}-${arch}.${ext}",
+      "artifactName": "Native-Client-${version}-${arch}.${ext}",
       "category": "Game",
       "syncDesktopName": true,
       "synopsis": "A Minecraft launcher"

@@ -172,7 +172,7 @@ const setState = (status, detail = '') => {
 const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
 
-/** The Noctra session of the account being launched (Noctra account, or the one a premium account is connected to). */
+/** The Native session of the account being launched (Native account, or the one a premium account is connected to). */
 function noctraIdentityFor(rawAccount) {
   try {
     const data = auth.readAccounts(deps.app.getPath('userData'));
@@ -243,12 +243,12 @@ function quarantineIncompatibleMods(gameDirectory, mcVersion) {
         reason: targetsAnotherVersion ? `targets Minecraft ${explicitTarget}` : 'uses the removed RenderSystem.enableBlend API'
       });
     } catch (error) {
-      launcher.emit('debug', `[Noctra Client]: Could not inspect ${filename}: ${error.message}`);
+      launcher.emit('debug', `[Native Client]: Could not inspect ${filename}: ${error.message}`);
     }
   }
 
   if (quarantined.length > 0) {
-    const primaryManifest = path.join(modsDirectory, '.noctra-mods.json');
+    const primaryManifest = path.join(modsDirectory, '.native-mods.json');
     const legacyManifest = path.join(modsDirectory, '.native-mods.json');
     const manifestFile = fs.existsSync(primaryManifest) ? primaryManifest : (fs.existsSync(legacyManifest) ? legacyManifest : primaryManifest);
     try {
@@ -266,7 +266,7 @@ function quarantineIncompatibleMods(gameDirectory, mcVersion) {
       }
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        launcher.emit('debug', `[Noctra Client]: Could not update the mod manifest: ${error.message}`);
+        launcher.emit('debug', `[Native Client]: Could not update the mod manifest: ${error.message}`);
       }
     }
   }
@@ -299,7 +299,7 @@ async function resolveFabric(mcVersion, requestedVersion = null, kind = 'fabric'
 async function resolveForge(mcVersion, requestedVersion = null, kind = 'forge') {
   const result = await loaders.installForgeLike(kind, mcVersion, requestedVersion, { root: rootDir(), report: launchReport });
   if (loaders.prepareForgeCache(rootDir(), mcVersion, result.jar)) {
-    launcher.emit('debug', `[Noctra Client]: ${loaders.displayName(kind)} ${result.version} differs from the cached profile; regenerating`);
+    launcher.emit('debug', `[Native Client]: ${loaders.displayName(kind)} ${result.version} differs from the cached profile; regenerating`);
   }
   return result.jar;
 }
@@ -324,11 +324,11 @@ function ensureCanonicalAssetIndex(version, profileName) {
     fs.copyFileSync(source, canonical);
     launcher.emit(
       'debug',
-      `[Noctra Client]: Asset index ${path.basename(source)} is also available as ${path.basename(canonical)}`
+      `[Native Client]: Asset index ${path.basename(source)} is also available as ${path.basename(canonical)}`
     );
     return canonical;
   } catch (err) {
-    launcher.emit('debug', `[Noctra Client]: Could not mirror the asset index: ${err.message}`);
+    launcher.emit('debug', `[Native Client]: Could not mirror the asset index: ${err.message}`);
     return null;
   }
 }
@@ -363,7 +363,7 @@ function rememberInstall(instance, opts) {
       }
     });
   } catch (err) {
-    launcher.emit('debug', `[Noctra Client]: Could not record the install: ${err.message}`);
+    launcher.emit('debug', `[Native Client]: Could not record the install: ${err.message}`);
   }
 }
 
@@ -502,7 +502,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     }
 
     // Microsoft accounts use a live session when Microsoft is reachable and
-    // fall back to their saved profile in offline mode; offline and Noctra
+    // fall back to their saved profile in offline mode; offline and Native
     // accounts always launch with a local session. A launch never fails
     // just because there is no internet.
     if (account.useMicrosoft) setState('preparing', 'Refreshing Microsoft account…');
@@ -567,8 +567,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     }
 
     // Skins are cosmetic: a failure here (offline, API down) must never stop
-    // the game from starting. Fabric/Quilt 1.16+ use the Noctra Client mod
-    // (live skins + capes, signed in to the Noctra account); everything else
+    // the game from starting. Fabric/Quilt 1.16+ use the Native Client mod
+    // (live skins + capes, signed in to the Native account); everything else
     // (older versions, Forge, NeoForge, Legacy Fabric) keeps CustomSkinLoader.
     if (loaders.normalize(loader) !== 'vanilla') {
       let modResult = { installed: false };
@@ -577,17 +577,17 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           instance: { ...instance, loader },
           identity: noctraIdentityFor(rawAccount),
           gameDir: instanceDir(instance.id),
-          cacheDir: path.join(deps.app.getPath('userData'), 'noctra-mod'),
+          cacheDir: path.join(deps.app.getPath('userData'), 'native-mod'),
           roots: socialMod.API_ROOTS,
           textureCache: (() => { try { return wardrobeMod.warmTextureCache(account); } catch { return null; } })(),
           onState: (detail) => setState('preparing', detail)
         });
-        if (modResult.warning) launcher.emit('debug', `[Noctra Client]: Noctra mod: ${modResult.warning}`);
+        if (modResult.warning) launcher.emit('debug', `[Native Client]: Native mod: ${modResult.warning}`);
         if (modResult.installed) {
-          gameConsole.pushLauncher(`Noctra Client mod ${modResult.version || modResult.filename} ready${modResult.signedIn ? ' · signed in to Noctra' : ' · guest mode'}`);
+          gameConsole.pushLauncher(`Native Client mod ${modResult.version || modResult.filename} ready${modResult.signedIn ? ' · signed in to Native' : ' · guest mode'}`);
         }
       } catch (err) {
-        gameConsole.pushLauncher(`Noctra Client mod unavailable: ${err.message}`);
+        gameConsole.pushLauncher(`Native Client mod unavailable: ${err.message}`);
       }
 
       if (modResult.installed) {
@@ -596,7 +596,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         try {
           setState('preparing', 'Setting up CustomSkinLoader…');
           const wardrobe = await wardrobeMod.prepareFabricInstance(instance, account, (detail) => setState('preparing', detail));
-          if (wardrobe?.warning) launcher.emit('debug', `[Noctra Client]: Wardrobe integration: ${wardrobe.warning}`);
+          if (wardrobe?.warning) launcher.emit('debug', `[Native Client]: Wardrobe integration: ${wardrobe.warning}`);
         } catch (err) {
           gameConsole.pushLauncher(`Skins are unavailable for this session: ${err.message}`);
         }

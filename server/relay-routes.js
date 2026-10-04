@@ -69,7 +69,7 @@ async function handleRelayRoutes(req, res) {
       'Access-Control-Allow-Origin': allowedOrigin,
       'Vary': 'Origin',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Noctra-Token',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Native-Token',
       'Access-Control-Max-Age': '600'
     });
     return true;
@@ -79,7 +79,7 @@ async function handleRelayRoutes(req, res) {
   const token = headerToken || String(url.searchParams.get('token') || '').trim();
   const authUser = token ? db.getUserBySession(token) : null;
   if (!authUser) {
-    send(res, 401, { ok: false, error: 'Unauthorized. Noctra account session required.' });
+    send(res, 401, { ok: false, error: 'Unauthorized. Native account session required.' });
     return true;
   }
 

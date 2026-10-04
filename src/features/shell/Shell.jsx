@@ -26,7 +26,7 @@ import { getPreset, installPreset } from '../instances/presets.js';
 import { installImageSkeletons } from '../../lib/imageSkeleton.js';
 import CrashReportModal from '../crash/CrashReportModal.jsx';
 import useCrashReports from '../crash/useCrashReports.js';
-import NoctraAccountGate from '../../components/ui/NoctraAccountGate.jsx';
+import NativeAccountGate from '../../components/ui/NativeAccountGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
 import WelcomeTour from './WelcomeTour.jsx';
 import QuickSearch from '../search/QuickSearch.jsx';
@@ -75,16 +75,15 @@ export default function Shell({
   initialInstances = null,
   onAddMicrosoft,
   onAddOffline,
-  onAddNoctra,
   onAddNative,
-  onNoctraSendCode,
-  onNoctraResendCode,
-  onNoctraVerifyRegister,
-  onNoctraLogin,
+  onNativeSendCode,
+  onNativeResendCode,
+  onNativeVerifyRegister,
+  onNativeLogin,
   onSwitchAccount,
   onRemoveAccount,
-  onConnectNoctra,
-  onDisconnectNoctra,
+  onConnectNative,
+  onDisconnectNative,
   onWardrobeChanged,
   onOpenUpdater,
   updateStatus,
@@ -134,21 +133,21 @@ export default function Shell({
     accounts.length > 0
   );
 
-  const isNoctra = Boolean(
+  const isNative = Boolean(
     hasValidAccount &&
     (account.type === 'noctra' || account.type === 'native')
   );
   // The Locker works for premium accounts too: LockerView switches to the
   // account's real Minecraft capes (official profile API) for Microsoft.
-  const canUseLocker = Boolean(isNoctra || (hasValidAccount && account.type === 'microsoft'));
+  const canUseLocker = Boolean(isNative || (hasValidAccount && account.type === 'microsoft'));
 
-  // A premium account connected to Noctra acts as that Noctra account for
+  // A premium account connected to Native acts as that Native account for
   // Relay, friends and the other online features.
   const premiumLink = hasValidAccount && account.type === 'microsoft' && account.noctraLink?.connected
     ? account.noctraLink
     : null;
   const socialAccount = useMemo(() => {
-    if (isNoctra) return account;
+    if (isNative) return account;
     if (!premiumLink) return null;
     return {
       id: premiumLink.userId,
@@ -160,14 +159,14 @@ export default function Shell({
       linkedPremium: true,
       linkedFrom: account.id
     };
-  }, [isNoctra, account, premiumLink?.userId, premiumLink?.name, premiumLink?.uuid]);
-  const hasNoctra = Boolean(socialAccount);
-  // Offline accounts get a local-only Locker (never synced to Noctra).
+  }, [isNative, account, premiumLink?.userId, premiumLink?.name, premiumLink?.uuid]);
+  const hasNative = Boolean(socialAccount);
+  // Offline accounts get a local-only Locker (never synced to Native).
   const canUseLocalLocker = Boolean(hasValidAccount && account.type === 'offline');
 
-  /* A premium account linked to Noctra can play as either identity without
+  /* A premium account linked to Native can play as either identity without
      going back to the login screen. Premium = real Microsoft session (online
-     servers); Noctra = the linked Noctra profile (offline session + Noctra skins). */
+     servers); Native = the linked Native profile (offline session + Native skins). */
   const canSwitchIdentity = Boolean(premiumLink && socialAccount);
   const playAs = canSwitchIdentity && playAsMap[account.id] === 'noctra' ? 'noctra' : 'premium';
   const launchAccount = useMemo(() => {
@@ -184,11 +183,11 @@ export default function Shell({
       return next;
     });
   }, [account?.id]);
-  /* Signed in with Noctra directly but a premium account in the switcher is
+  /* Signed in with Native directly but a premium account in the switcher is
      linked to it: the home switcher can hop to that premium identity too. */
   const linkedPremiumAccount = useMemo(() => (
-    isNoctra ? accounts.find((entry) => entry?.type === 'microsoft' && entry.noctraLink?.connected && entry.noctraLink.userId === account.id) || null : null
-  ), [isNoctra, accounts, account?.id]);
+    isNative ? accounts.find((entry) => entry?.type === 'microsoft' && entry.noctraLink?.connected && entry.noctraLink.userId === account.id) || null : null
+  ), [isNative, accounts, account?.id]);
   const identity = useMemo(() => {
     if (canSwitchIdentity) {
       return {
@@ -217,9 +216,9 @@ export default function Shell({
       onSwitchAccount?.(linkedPremiumAccount.id);
     }
   }, [canSwitchIdentity, switchIdentity, linkedPremiumAccount, onSwitchAccount]);
-  const isPlus = usePlus(socialAccount, hasNoctra);
+  const isPlus = usePlus(socialAccount, hasNative);
   const [connectRequest, setConnectRequest] = useState(null);
-  const openConnectNoctra = useCallback((microsoftAccountId) => {
+  const openConnectNative = useCallback((microsoftAccountId) => {
     setConnectRequest({ id: microsoftAccountId, nonce: Date.now() });
     setAccountSwitcherOpen(true);
   }, []);
@@ -301,7 +300,7 @@ export default function Shell({
 
   useEffect(() => {
     let cancelled = false;
-    if (!hasNoctra) {
+    if (!hasNative) {
       setIsAdmin(false);
       return undefined;
     }
@@ -309,7 +308,7 @@ export default function Shell({
       .then((result) => { if (!cancelled) setIsAdmin(Boolean(result?.ok && result?.isAdmin)); })
       .catch(() => { if (!cancelled) setIsAdmin(false); });
     return () => { cancelled = true; };
-  }, [account?.id, socialAccount?.id, hasNoctra]);
+  }, [account?.id, socialAccount?.id, hasNative]);
 
   useEffect(() => {
     if (currentTab === 'admin' && !isAdmin) setCurrentTab('home');
@@ -358,7 +357,7 @@ export default function Shell({
 
 
   useEffect(() => {
-    if (!hasNoctra) return undefined;
+    if (!hasNative) return undefined;
     return social.subscribe((event) => {
       const state = relayNotificationRef.current;
       const note = describeRelayEvent(event, state);
@@ -377,7 +376,7 @@ export default function Shell({
       // Real OS notification (Windows toast). Clicking it brings the launcher forward.
       if (prefs.desktop) window.native?.showNotification?.(note.title, note.body);
     });
-  }, [hasNoctra, notify, social.subscribe]);
+  }, [hasNative, notify, social.subscribe]);
 
   const handleLaunch = (cluster, options = {}) => {
     if (!cluster) return;
@@ -416,7 +415,7 @@ export default function Shell({
       }
       case 'java-auto':
         await save({ java: { enabled: false, path: '' } });
-        return { ok: true, message: 'Noctra picks the right Java on the next launch' };
+        return { ok: true, message: 'Native picks the right Java on the next launch' };
       case 'jvm-reset':
         // Launch with no extra flags at all (not even the launcher-wide ones).
         await save({ jvmArgs: '', jvmPreset: 'none', jvmEnabled: true });
@@ -607,7 +606,7 @@ export default function Shell({
         }
         break;
       case 'friend':
-        if (!hasNoctra || !command.friend) break;
+        if (!hasNative || !command.friend) break;
         closeOverlays();
         social.setActiveChatFriend?.(command.friend);
         setCurrentTab('relay');
@@ -641,7 +640,7 @@ export default function Shell({
           case 'tour': openTutorial(); break;
           case 'accounts': setAccountSwitcherOpen(true); break;
           case 'connect-noctra':
-            if (account?.type === 'microsoft') openConnectNoctra(account.id);
+            if (account?.type === 'microsoft') openConnectNative(account.id);
             else setAccountSwitcherOpen(true);
             break;
           case 'notifications': setNotificationsOpen(true); break;
@@ -665,7 +664,7 @@ export default function Shell({
       case 'tab': runCommand({ type: 'tab', tab: action.tab }); break;
       case 'discover': runCommand({ type: 'discover', contentType: action.contentType }); break;
       case 'accounts':
-        if (account?.type === 'microsoft' && action.connect) openConnectNoctra(account.id);
+        if (account?.type === 'microsoft' && action.connect) openConnectNative(account.id);
         else setAccountSwitcherOpen(true);
         break;
       case 'settings': runCommand({ type: 'settings', tab: action.tab }); break;
@@ -684,7 +683,7 @@ export default function Shell({
           onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
           isAccountOpen={!hasValidAccount || accountSwitcherOpen}
           account={launchAccount}
-          isNoctra={hasNoctra}
+          isNative={hasNative}
           isPlus={isPlus}
           canUseLocker={canUseLocker || canUseLocalLocker}
           notifications={notifications.length}
@@ -700,7 +699,7 @@ export default function Shell({
           isTutorialOpen={tourOpen}
           onOpenSearch={hasValidAccount ? () => setSearchOpen(true) : undefined}
           isSearchOpen={searchOpen}
-          friendsBadge={hasNoctra ? social.badgeTotal : 0}
+          friendsBadge={hasNative ? social.badgeTotal : 0}
           liveUserCount={social.liveUserCount}
           isAdmin={isAdmin}
           runningGame={runningGame}
@@ -738,7 +737,7 @@ export default function Shell({
               online={networkStatus?.state === 'online'}
             />
           ) : (
-            <NoctraAccountGate
+            <NativeAccountGate
               feature="locker"
               onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
               onBackHome={() => setCurrentTab('home')}
@@ -757,7 +756,7 @@ export default function Shell({
         )}
 
         {currentTab === 'relay' && (
-          hasNoctra ? (
+          hasNative ? (
             <RelayPage
               account={socialAccount}
               isPlus={isPlus}
@@ -767,10 +766,10 @@ export default function Shell({
               onActiveThreadChange={setRelayActiveThreadId}
             />
           ) : (
-            <NoctraAccountGate
+            <NativeAccountGate
               feature="relay"
               premium={account?.type === 'microsoft'}
-              onConnectPremium={() => openConnectNoctra(account.id)}
+              onConnectPremium={() => openConnectNative(account.id)}
               onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
               onBackHome={() => setCurrentTab('home')}
             />
@@ -909,15 +908,14 @@ export default function Shell({
         onSwitchAccount={onSwitchAccount}
         onAddMicrosoft={onAddMicrosoft}
         onAddOffline={onAddOffline}
-        onAddNoctra={onAddNoctra || onAddNative}
-        onAddNative={onAddNoctra || onAddNative}
-        onNoctraSendCode={onNoctraSendCode}
-        onNoctraResendCode={onNoctraResendCode}
-        onNoctraVerifyRegister={onNoctraVerifyRegister}
-        onNoctraLogin={onNoctraLogin}
+        onAddNative={onAddNative}
+        onNativeSendCode={onNativeSendCode}
+        onNativeResendCode={onNativeResendCode}
+        onNativeVerifyRegister={onNativeVerifyRegister}
+        onNativeLogin={onNativeLogin}
         onRemoveAccount={onRemoveAccount}
-        onConnectNoctra={onConnectNoctra}
-        onDisconnectNoctra={onDisconnectNoctra}
+        onConnectNative={onConnectNative}
+        onDisconnectNative={onDisconnectNative}
         connectRequest={connectRequest}
       />
 
@@ -935,7 +933,7 @@ export default function Shell({
 
 
 
-      {hasNoctra && social.contextMenu && (
+      {hasNative && social.contextMenu && (
         <FriendContextMenu
           context={social.contextMenu}
           onClose={() => social.setContextMenu(null)}
@@ -953,7 +951,7 @@ export default function Shell({
         />
       )}
 
-      {hasNoctra && social.nicknameModalFriend && (
+      {hasNative && social.nicknameModalFriend && (
         <NicknameModal
           friend={social.nicknameModalFriend}
           onClose={() => social.setNicknameModalFriend(null)}
@@ -966,8 +964,8 @@ export default function Shell({
         onClose={() => setSearchOpen(false)}
         onCommand={runCommand}
         instances={instancesManager.instances}
-        friends={hasNoctra ? social.friends : []}
-        hasNoctra={hasNoctra}
+        friends={hasNative ? social.friends : []}
+        hasNative={hasNative}
         isAdmin={isAdmin}
         account={account}
         runningInstanceId={launcher.status === 'running' ? launcher.instanceId : null}

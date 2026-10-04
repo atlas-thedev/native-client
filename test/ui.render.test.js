@@ -66,11 +66,11 @@ process.stdout.write(html);
   fs.rmSync(workDir, { recursive: true, force: true });
 
   /* ---- login screen (design reference image 1) ---- */
-  assert.match(html, /Noctra <strong>Client<\/strong>/, 'wordmark is rendered');
+  assert.match(html, /Native <strong>Client<\/strong>/, 'wordmark is rendered');
   assert.match(html, /account-login-microsoft/, 'Microsoft sign-in button exists');
   assert.match(html, /Log in with/, 'Microsoft button keeps its label');
   assert.match(html, /account-login-native/, 'Native Account sign-in button exists');
-  assert.match(html, /(Native|Noctra) Account/, 'Noctra Account button label exists');
+  assert.match(html, /(Native|Native) Account/, 'Native Account button label exists');
   for (const brand of ['Discord', 'YouTube']) {
     assert.ok(html.includes(`aria-label="${brand}"`), `social row has ${brand}`);
   }

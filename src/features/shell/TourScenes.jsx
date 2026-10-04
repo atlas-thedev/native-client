@@ -175,7 +175,7 @@ function AccountsScene() {
     <div className="ts ts-accounts" aria-hidden="true">
       <div className="ts-acct-track">
         <span className="ts-acct is-a"><UserRound {...ICON} /><span><b>Steve</b><small>Microsoft</small></span></span>
-        <span className="ts-acct is-b"><Users {...ICON} /><span><b>Alex</b><small>Noctra</small></span></span>
+        <span className="ts-acct is-b"><Users {...ICON} /><span><b>Alex</b><small>Native</small></span></span>
       </div>
       <span className="ts-acct-switch"><span className="ts-label">Active</span></span>
     </div>

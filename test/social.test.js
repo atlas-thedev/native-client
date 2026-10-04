@@ -12,7 +12,7 @@ const authDb = require('../server/db');
 const { listen } = require('../server/server');
 
 test('social db: creates users, manages friend requests, friendships, and presence', () => {
-  // Create two Noctra users
+  // Create two Native users
   const userA = authDb.createUser({
     email: 'player_a@test.local',
     username: 'PlayerA',
@@ -117,7 +117,7 @@ test('social db: creates users, manages friend requests, friendships, and presen
   assert.equal(authDb.getFriends(userB.id).length, 0);
 });
 
-test('social api: rejects unauthenticated requests and handles social endpoints with Noctra token', async () => {
+test('social api: rejects unauthenticated requests and handles social endpoints with Native token', async () => {
   const server = await listen(0);
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;

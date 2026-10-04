@@ -15,13 +15,13 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const COMMUNITY = {
   discord: 'https://discord.gg/Cb3DCf6G7a',
-  youtube: 'https://www.youtube.com/@noctra-client'
+  youtube: 'https://www.youtube.com/@native-client'
 };
 
 const LEGAL = 'https://nativelaunch.xyz';
 
 /**
- * Saved accounts with each linked Microsoft account nested under the Noctra account it signs
+ * Saved accounts with each linked Microsoft account nested under the Native account it signs
  * into (matched by user id, then email, then name). Unmatched accounts stay top-level.
  */
 function groupLinkedAccounts(accounts) {
@@ -56,20 +56,19 @@ export default function AccountSwitcherModal({
   onSwitchAccount,
   onAddMicrosoft,
   onAddOffline,
-  onAddNoctra,
   onAddNative,
-  onNoctraSendCode,
-  onNoctraResendCode,
-  onNoctraVerifyRegister,
-  onNoctraLogin,
+  onNativeSendCode,
+  onNativeResendCode,
+  onNativeVerifyRegister,
+  onNativeLogin,
   onRemoveAccount,
-  onConnectNoctra,
-  onDisconnectNoctra,
+  onConnectNative,
+  onDisconnectNative,
   connectRequest = null
 }) {
   const { t } = useI18n();
 
-  // Navigation view: main or a Noctra authentication step.
+  // Navigation view: main or a Native authentication step.
   const [view, setView] = useState('main');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -92,7 +91,7 @@ export default function AccountSwitcherModal({
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
 
-  // Premium ↔ Noctra connection
+  // Premium ↔ Native connection
   const [connectTargetId, setConnectTargetId] = useState(null);
   const [connectDone, setConnectDone] = useState(false);
 
@@ -163,7 +162,7 @@ export default function AccountSwitcherModal({
   const openExternal = (url) => window.native?.openExternal?.(url);
 
   const connectTarget = accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft') || null;
-  const savedNoctraAccounts = accounts.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
+  const savedNativeAccounts = accounts.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
 
   const openConnect = (microsoftAccountId) => {
     setConnectTargetId(microsoftAccountId);
@@ -179,7 +178,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const result = await onConnectNoctra?.({ microsoftAccountId: connectTarget.id, ...payload });
+      const result = await onConnectNative?.({ microsoftAccountId: connectTarget.id, ...payload });
       if (!result?.ok) throw new Error(result?.error || 'Could not connect the accounts.');
       setPasswordInput('');
       setConnectDone(true);
@@ -201,7 +200,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const result = await onDisconnectNoctra?.(connectTarget.id);
+      const result = await onDisconnectNative?.(connectTarget.id);
       if (!result?.ok) throw new Error(result?.error || 'Could not disconnect.');
       setConnectDone(false);
     } catch (err) {
@@ -227,7 +226,7 @@ export default function AccountSwitcherModal({
     }
   };
 
-  // Offline accounts need no internet and no Microsoft/Noctra sign-in:
+  // Offline accounts need no internet and no Microsoft/Native sign-in:
   // singleplayer, LAN and offline-mode (online-mode=false) servers.
   const handleOfflineSubmit = async (e) => {
     e?.preventDefault?.();
@@ -263,7 +262,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await onNoctraLogin?.({ login, password });
+      const res = await onNativeLogin?.({ login, password });
       if (res && !res.ok) {
         throw new Error(res.error || t('error.saveSetup'));
       }
@@ -297,7 +296,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await onNoctraSendCode?.({ email, username });
+      const res = await onNativeSendCode?.({ email, username });
       if (res && !res.ok) {
         throw new Error(res.error || 'Failed to send verification code.');
       }
@@ -317,7 +316,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await onNoctraResendCode?.({
+      const res = await onNativeResendCode?.({
         email: regEmail.trim().toLowerCase(),
         username: regUsername.trim()
       });
@@ -343,7 +342,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await onNoctraVerifyRegister?.({
+      const res = await onNativeVerifyRegister?.({
         email: regEmail.trim().toLowerCase(),
         code,
         username: regUsername.trim(),
@@ -436,7 +435,7 @@ export default function AccountSwitcherModal({
       if (!res) throw new Error('Password reset is not available in this build.');
       if (!res.ok) throw new Error(res.error || 'Could not reset the password.');
       // Sign straight in with the new password.
-      const login = await onNoctraLogin?.({ login: email, password: resetPassword });
+      const login = await onNativeLogin?.({ login: email, password: resetPassword });
       if (login && !login.ok) {
         setPasswordInput('');
         setLoginInput(email);
@@ -497,7 +496,7 @@ export default function AccountSwitcherModal({
         {/* Titlebar branding */}
         <div className="account-login-build">
           <Logo height={11} variant="mark" />
-          <span>Noctra Client</span>
+          <span>Native Client</span>
           <span className="account-login-dot">·</span>
           <small>Build {window.native?.version || packageInfo.version || '0.9.2'}</small>
         </div>
@@ -522,7 +521,7 @@ export default function AccountSwitcherModal({
               <div className="account-login-content">
                 <Logo height={56} variant="mark" className="account-login-logo" />
                 <h1 className="account-login-title">
-                  Noctra <strong>Client</strong>
+                  Native <strong>Client</strong>
                 </h1>
 
                 {/* Action buttons stack */}
@@ -616,18 +615,18 @@ export default function AccountSwitcherModal({
                                 <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-noctra is-native'}>
                                   {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.noctra') || t('account.native'))}
                                   {acc.type === 'microsoft' && acc.noctraLink?.connected && !child && (
-                                    <span className="account-login-item-link" title={`Signs into Noctra as ${acc.noctraLink.name}`}>
+                                    <span className="account-login-item-link" title={`Signs into Native as ${acc.noctraLink.name}`}>
                                       <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.noctraLink.name}
                                     </span>
                                   )}
                                 </small>
                               </div>
-                              {acc.type === 'microsoft' && onConnectNoctra && (
+                              {acc.type === 'microsoft' && onConnectNative && (
                                 <button
                                   type="button"
                                   className={`account-login-item-connect${acc.noctraLink?.connected ? ' is-connected' : ''}`}
-                                  title={acc.noctraLink?.connected ? 'Noctra connection' : 'Connect a Noctra account'}
-                                  aria-label={acc.noctraLink?.connected ? `Noctra connection for ${acc.name}` : `Connect a Noctra account to ${acc.name}`}
+                                  title={acc.noctraLink?.connected ? 'Native connection' : 'Connect a Native account'}
+                                  aria-label={acc.noctraLink?.connected ? `Native connection for ${acc.name}` : `Connect a Native account to ${acc.name}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openConnect(acc.id);
@@ -724,8 +723,8 @@ export default function AccountSwitcherModal({
 
                 {!connectTarget ? (
                   <div className="noctra-auth-header">
-                    <h2 className="noctra-auth-title">Connect Noctra</h2>
-                    <p className="noctra-auth-sub">Sign in with Microsoft first, then connect your Noctra account to it.</p>
+                    <h2 className="noctra-auth-title">Connect Native</h2>
+                    <p className="noctra-auth-sub">Sign in with Microsoft first, then connect your Native account to it.</p>
                   </div>
                 ) : (
                   <>
@@ -747,9 +746,9 @@ export default function AccountSwitcherModal({
                     {connectTarget.noctraLink?.connected ? (
                       <div className="noctra-connect-body">
                         <div className="noctra-auth-header">
-                          <h2 className="noctra-auth-title">{connectDone ? 'Connected' : 'Noctra is connected'}</h2>
+                          <h2 className="noctra-auth-title">{connectDone ? 'Connected' : 'Native is connected'}</h2>
                           <p className="noctra-auth-sub">
-                            <strong>{connectTarget.name}</strong> signs into Noctra as <strong>{connectTarget.noctraLink.name}</strong> automatically,
+                            <strong>{connectTarget.name}</strong> signs into Native as <strong>{connectTarget.noctraLink.name}</strong> automatically,
                             on this PC and any other where you use this premium account. Relay, friends and chat just work.
                           </p>
                         </div>
@@ -767,16 +766,16 @@ export default function AccountSwitcherModal({
                     ) : (
                       <div className="noctra-connect-body">
                         <div className="noctra-auth-header">
-                          <h2 className="noctra-auth-title">Connect Noctra to {connectTarget.name}</h2>
+                          <h2 className="noctra-auth-title">Connect Native to {connectTarget.name}</h2>
                           <p className="noctra-auth-sub">
-                            Do it once. Every time you sign in with this premium account, Noctra signs you in too.
+                            Do it once. Every time you sign in with this premium account, Native signs you in too.
                           </p>
                         </div>
 
-                        {savedNoctraAccounts.length > 0 && (
+                        {savedNativeAccounts.length > 0 && (
                           <div className="noctra-connect-saved">
-                            <span className="noctra-form-label">Use a signed-in Noctra account</span>
-                            {savedNoctraAccounts.map((acc) => (
+                            <span className="noctra-form-label">Use a signed-in Native account</span>
+                            {savedNativeAccounts.map((acc) => (
                               <button
                                 key={acc.id}
                                 type="button"
@@ -787,7 +786,7 @@ export default function AccountSwitcherModal({
                                 <PlayerAvatar account={acc} kind="avatar" size={26} />
                                 <span className="account-login-item-text">
                                   <strong>{acc.name}</strong>
-                                  <small className="is-noctra">Noctra</small>
+                                  <small className="is-noctra">Native</small>
                                 </span>
                                 <span className="noctra-connect-choice-cta">Connect</span>
                               </button>
@@ -806,7 +805,7 @@ export default function AccountSwitcherModal({
                               placeholder={t('account.loginOrEmail')}
                               value={loginInput}
                               autoComplete="username"
-                              autoFocus={savedNoctraAccounts.length === 0}
+                              autoFocus={savedNativeAccounts.length === 0}
                               onChange={(e) => { setLoginInput(e.target.value); setError(''); }}
                             />
                           </div>
@@ -851,7 +850,7 @@ export default function AccountSwitcherModal({
                             )}
                           </button>
                           <p className="noctra-connect-fine">
-                            Noctra checks with Microsoft that you own this Minecraft account. Your Microsoft password never reaches Noctra.
+                            Native checks with Microsoft that you own this Minecraft account. Your Microsoft password never reaches Native.
                           </p>
                         </form>
                       </div>
@@ -987,7 +986,7 @@ export default function AccountSwitcherModal({
                         <span>{t('account.securing')}</span>
                       </span>
                     ) : (
-                      t('account.logInWithNoctra')
+                      t('account.logInWithNative')
                     )}
                   </button>
 
@@ -998,7 +997,7 @@ export default function AccountSwitcherModal({
                       className="noctra-link-btn"
                       onClick={() => { setView('noctra-register'); setError(''); }}
                     >
-                      {t('account.createNoctraLink')}
+                      {t('account.createNativeLink')}
                     </button>
                   </div>
                 </form>
@@ -1027,7 +1026,7 @@ export default function AccountSwitcherModal({
                     />
                   </div>
                   <span className="noctra-auth-step">Step 1 of 2</span>
-                  <h2 className="noctra-auth-title">{t('account.createNoctra')}</h2>
+                  <h2 className="noctra-auth-title">{t('account.createNative')}</h2>
                   <p className="noctra-auth-sub">{t('account.nativeSubtitle')}</p>
                 </div>
 
@@ -1080,12 +1079,12 @@ export default function AccountSwitcherModal({
 
                   <div className="noctra-form-group">
                     <label className="noctra-form-label">{t('account.model')}</label>
-                    <div className="noctra-model-pills" role="radiogroup">
+                    <div className="native-model-pills" role="radiogroup">
                       <button
                         type="button"
                         role="radio"
                         aria-checked={regModel === 'classic'}
-                        className={`noctra-model-pill ${regModel === 'classic' ? 'active' : ''}`}
+                        className={`native-model-pill ${regModel === 'classic' ? 'active' : ''}`}
                         onClick={() => setRegModel('classic')}
                       >
                         {t('account.modelClassic')}
@@ -1094,7 +1093,7 @@ export default function AccountSwitcherModal({
                         type="button"
                         role="radio"
                         aria-checked={regModel === 'slim'}
-                        className={`noctra-model-pill ${regModel === 'slim' ? 'active' : ''}`}
+                        className={`native-model-pill ${regModel === 'slim' ? 'active' : ''}`}
                         onClick={() => setRegModel('slim')}
                       >
                         {t('account.modelSlim')}
@@ -1226,7 +1225,7 @@ export default function AccountSwitcherModal({
                 <div className="noctra-auth-header">
                   <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
                   <h2 className="noctra-auth-title">Reset your password</h2>
-                  <p className="noctra-auth-sub">Enter the email for your Noctra account and we'll send you a 6-digit code.</p>
+                  <p className="noctra-auth-sub">Enter the email for your Native account and we'll send you a 6-digit code.</p>
                 </div>
 
                 <form className="noctra-auth-form" onSubmit={handleForgotSubmit}>
@@ -1377,7 +1376,7 @@ export default function AccountSwitcherModal({
 
           {/* Right Artwork Panel */}
           <aside className="account-login-art" aria-hidden="true">
-            <img src={loginSide} alt="A purple-lit Minecraft cavern with the Noctra mark" />
+            <img src={loginSide} alt="A purple-lit Minecraft cavern with the Native mark" />
           </aside>
         </div>
       </div>

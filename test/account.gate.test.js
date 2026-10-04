@@ -14,7 +14,7 @@ try {
   esbuild = null;
 }
 
-test('NoctraAccountGate renders correctly for Locker and Relay', { skip: !esbuild && 'esbuild is not installed' }, () => {
+test('NativeAccountGate renders correctly for Locker and Relay', { skip: !esbuild && 'esbuild is not installed' }, () => {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-gate-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
@@ -31,15 +31,15 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 
 const React = require('react');
 const { renderToString } = require('react-dom/server');
-const NoctraAccountGate = require(${JSON.stringify(path.join(ROOT, 'src/components/ui/NoctraAccountGate.jsx'))}).default;
+const NativeAccountGate = require(${JSON.stringify(path.join(ROOT, 'src/components/ui/NativeAccountGate.jsx'))}).default;
 
-const lockerHtml = renderToString(React.createElement(NoctraAccountGate, {
+const lockerHtml = renderToString(React.createElement(NativeAccountGate, {
   feature: 'locker',
   onOpenAccountSwitcher() {},
   onBackHome() {}
 }));
 
-const relayHtml = renderToString(React.createElement(NoctraAccountGate, {
+const relayHtml = renderToString(React.createElement(NativeAccountGate, {
   feature: 'relay',
   onOpenAccountSwitcher() {},
   onBackHome() {}
@@ -66,20 +66,20 @@ process.stdout.write(JSON.stringify({ lockerHtml, relayHtml }));
   const { lockerHtml, relayHtml } = JSON.parse(raw);
 
   // Locker verification
-  assert.ok(lockerHtml.includes('Noctra account required'), 'Locker gate title is rendered');
+  assert.ok(lockerHtml.includes('Native account required'), 'Locker gate title is rendered');
   assert.ok(lockerHtml.includes('Sign in'), 'Locker gate has Sign in CTA');
   assert.ok(lockerHtml.includes('Back to Home'), 'Locker gate has Back to Home CTA');
   assert.ok(lockerHtml.includes('skins and capes'), 'Locker gate mentions skins and capes');
 
   // Relay verification
-  assert.ok(relayHtml.includes('Noctra account required'), 'Relay gate title is rendered');
+  assert.ok(relayHtml.includes('Native account required'), 'Relay gate title is rendered');
   assert.ok(relayHtml.includes('Sign in'), 'Relay gate has Sign in CTA');
   assert.ok(relayHtml.includes('Back to Home'), 'Relay gate has Back to Home CTA');
   assert.ok(relayHtml.includes('chat with friends'), 'Relay gate mentions chat with friends');
 });
 
-test('account gating logic distinguishes Noctra accounts from guest/microsoft/offline', () => {
-  const isNoctraAccount = (acc, accs) => {
+test('account gating logic distinguishes Native accounts from guest/microsoft/offline', () => {
+  const isNativeAccount = (acc, accs) => {
     const hasValid = Boolean(acc && acc.id && acc.id !== 'guest' && accs && accs.length > 0);
     return Boolean(hasValid && (acc.type === 'noctra' || acc.type === 'native'));
   };
@@ -91,17 +91,17 @@ test('account gating logic distinguishes Noctra accounts from guest/microsoft/of
   const native = { id: 'native-1', name: 'LegacyPlayer', type: 'native' };
 
   // Guest or no accounts
-  assert.equal(isNoctraAccount(guest, []), false, 'Guest is not Noctra');
-  assert.equal(isNoctraAccount(null, []), false, 'Null account is not Noctra');
-  assert.equal(isNoctraAccount(noctra, []), false, 'Empty accounts list disallows access');
+  assert.equal(isNativeAccount(guest, []), false, 'Guest is not Native');
+  assert.equal(isNativeAccount(null, []), false, 'Null account is not Native');
+  assert.equal(isNativeAccount(noctra, []), false, 'Empty accounts list disallows access');
 
   // Microsoft and offline
-  assert.equal(isNoctraAccount(offline, [offline]), false, 'Offline account cannot access Noctra features');
-  assert.equal(isNoctraAccount(ms, [ms]), false, 'Microsoft account cannot access Noctra features');
+  assert.equal(isNativeAccount(offline, [offline]), false, 'Offline account cannot access Native features');
+  assert.equal(isNativeAccount(ms, [ms]), false, 'Microsoft account cannot access Native features');
 
-  // Noctra and native
-  assert.equal(isNoctraAccount(noctra, [noctra]), true, 'Noctra account can access Noctra features');
-  assert.equal(isNoctraAccount(native, [native]), true, 'Native account can access Noctra features');
+  // Native and native
+  assert.equal(isNativeAccount(noctra, [noctra]), true, 'Native account can access Native features');
+  assert.equal(isNativeAccount(native, [native]), true, 'Native account can access Native features');
 });
 
 test('relay notifications use Discord-style titles and bodies', () => {

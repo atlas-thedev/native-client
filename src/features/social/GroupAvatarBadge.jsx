@@ -11,7 +11,7 @@ import './relay-groups.css';
  */
 export function GroupAvatarBadge({ group, name, iconUrl, size = 36, className = '' }) {
   const [broken, setBroken] = useState(null);
-  // Only Noctra-uploaded images; a group icon must not fetch third-party URLs.
+  // Only Native-uploaded images; a group icon must not fetch third-party URLs.
   const requestedIcon = safeMediaUrl(iconUrl !== undefined ? iconUrl : group?.iconUrl);
   // A dead image URL falls back to initials instead of an empty square.
   const effectiveIcon = requestedIcon && broken !== requestedIcon ? requestedIcon : null;

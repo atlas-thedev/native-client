@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra Client — login / account switch screen
+   Native Client — login / account switch screen
    ============================================================ */
 
 .account-login-screen {
@@ -506,7 +506,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--success, #4ade80);
+  background: var(--success, #81bc06);
 }
 
 .account-login-item-remove {
@@ -532,7 +532,7 @@
   background: rgba(225, 75, 75, 0.12);
 }
 
-/* ---------- Dedicated Noctra Auth Form (Login / Register / Verify) ----------
+/* ---------- Dedicated Native Auth Form (Login / Register / Verify) ----------
    Solid surfaces and theme tokens. No gradients, no glows. */
 
 .noctra-auth-container {
@@ -650,7 +650,7 @@
 
 .noctra-input-toggle:hover { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
 
-.noctra-model-pills {
+.native-model-pills {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
@@ -660,7 +660,7 @@
   background: var(--page-sunken);
 }
 
-.noctra-model-pill {
+.native-model-pill {
   height: 32px;
   display: flex;
   align-items: center;
@@ -675,8 +675,8 @@
   transition: background 0.14s var(--ease), color 0.14s var(--ease);
 }
 
-.noctra-model-pill:hover:not(.active) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
-.noctra-model-pill.active { background: var(--ghost-overlay-pressed); color: var(--fg-primary-hover); font-weight: 600; }
+.native-model-pill:hover:not(.active) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+.native-model-pill.active { background: var(--ghost-overlay-pressed); color: var(--fg-primary-hover); font-weight: 600; }
 
 .noctra-auth-primary-btn {
   width: 100%;
@@ -796,7 +796,7 @@
   }
 }
 
-/* ── Premium ↔ Noctra connection ─────────────────────────────── */
+/* ── Premium ↔ Native connection ─────────────────────────────── */
 .account-login-item-link {
   display: inline-flex;
   align-items: center;
@@ -962,7 +962,7 @@
 :root[data-motion='reduced'] .noctra-connect-badge,
 :root[data-motion='reduced'] .noctra-connect-wire i { animation: none !important; }
 
-/* Linked accounts: a Microsoft account nests under the Noctra account it signs into. */
+/* Linked accounts: a Microsoft account nests under the Native account it signs into. */
 .account-login-group {
   display: flex;
   flex-direction: column;

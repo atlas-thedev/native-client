@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra — player renders
+   Native — player renders
 
    Only rendered head/avatar images are used. The raw skin PNG is
    never shown, so the UI can't flash a flat texture before the
@@ -17,7 +17,7 @@ export function normalizeKind(kind) {
 }
 
 /**
- * True for accounts whose identity is generated locally (Noctra/offline). Their
+ * True for accounts whose identity is generated locally (Native/offline). Their
  * UUIDs and usernames aren't premium Mojang accounts, so the public renderer
  * returns Steve — their real texture must come from the wardrobe instead.
  */
@@ -36,7 +36,7 @@ export function isLocalIdentity(account) {
 
 /**
  * Resolve an account to the identifier understood by the public skin renderer.
- * Microsoft UUIDs are authoritative. Noctra/offline UUIDs are generated locally,
+ * Microsoft UUIDs are authoritative. Native/offline UUIDs are generated locally,
  * so their skins come from wardrobe; the public renderer returns Steve/Alex.
  */
 export function skinIdentifier(account, uuid, name) {

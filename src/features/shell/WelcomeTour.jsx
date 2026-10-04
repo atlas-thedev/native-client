@@ -12,8 +12,8 @@ export const TOUR_STEPS = [
   {
     target: null,
     scene: 'welcome',
-    title: 'Welcome to Noctra',
-    body: 'Noctra downloads Minecraft, keeps your versions and mods organised, and launches the game. This takes about a minute.'
+    title: 'Welcome to Native',
+    body: 'Native downloads Minecraft, keeps your versions and mods organised, and launches the game. This takes about a minute.'
   },
   {
     target: '.noctra-rail',
@@ -49,7 +49,7 @@ export const TOUR_STEPS = [
     target: '[data-tour="skins"]',
     scene: 'locker',
     title: 'Locker',
-    body: 'Change your skin and cape and preview them in 3D. Requires a Noctra account.'
+    body: 'Change your skin and cape and preview them in 3D. Requires a Native account.'
   },
   {
     target: '[data-tour="relay"]',
@@ -61,7 +61,7 @@ export const TOUR_STEPS = [
     target: '[data-tour="account"]',
     scene: 'accounts',
     title: 'Accounts',
-    body: 'Use a Microsoft account for official servers, or a Noctra account for offline play and cloud features. Switch at any time.'
+    body: 'Use a Microsoft account for official servers, or a Native account for offline play and cloud features. Switch at any time.'
   },
   {
     target: '[data-tour="settings"]',

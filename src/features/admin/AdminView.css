@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra — Administration
+   Native — Administration
    A control room: KPI tiles, cards on a dark well, and a
    two-pane player manager with a full detail panel.
    ============================================================ */
@@ -410,6 +410,6 @@
 .admin-pay-check code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; opacity: 0.6; font-size: 11px; }
 @media (max-width: 900px) { .admin-pay-form { grid-template-columns: 1fr; } }
 
-/* Give Noctra+ */
+/* Give Native+ */
 .admin-plus-card .admin-card-head h3 .noctra-plus-icon { margin-right: 2px; }
 .admin-plus-chip { flex: none; color: #fff; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #0b0b0f; border: 1px solid rgba(255, 214, 140, 0.45); }

@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Noctra icon set.
+ * Native icon set.
  *
  * These are inline SVG paths rather than lookups into the shared icon JSON,
  * so a missing/renamed key can never silently degrade into the placeholder

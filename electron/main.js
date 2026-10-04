@@ -25,13 +25,23 @@ const modUpdatesMod = require('./modUpdates');
 let win;
 const appIcon = path.join(__dirname, '..', 'src', 'assets', 'noctra-icon.png');
 
-app.setName('Noctra Client');
-app.setAppUserModelId('app.noctraclient.desktop');
+app.setName('Native Client');
+app.setAppUserModelId('xyz.nativelaunch.desktop');
 
 // Keep existing installations on their current data directory so the rename
 // never makes accounts, instances, or downloaded game files appear missing.
-const legacyUserData = path.join(app.getPath('appData'), 'Native');
-if (fs.existsSync(legacyUserData)) app.setPath('userData', legacyUserData);
+const nativeUserData = path.join(app.getPath('appData'), 'Native');
+const noctraUserData = path.join(app.getPath('appData'), 'Native Client');
+const legacyUserData = path.join(app.getPath('appData'), 'native-client');
+if (fs.existsSync(nativeUserData)) {
+  app.setPath('userData', nativeUserData);
+} else if (fs.existsSync(noctraUserData)) {
+  app.setPath('userData', noctraUserData);
+} else if (fs.existsSync(legacyUserData)) {
+  app.setPath('userData', legacyUserData);
+} else {
+  app.setPath('userData', nativeUserData);
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -42,7 +52,7 @@ function createWindow() {
     frame: false,
     backgroundColor: '#000000',
     icon: appIcon,
-    title: 'Noctra Client',
+    title: 'Native Client',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -120,7 +130,7 @@ ipcMain.on('window:maximize', () => {
   else win?.maximize();
 });
 ipcMain.on('window:close', () => win?.close());
-// Noctra+ members get the N+ app icon (window/taskbar, and the macOS dock).
+// Native+ members get the N+ app icon (window/taskbar, and the macOS dock).
 const plusIconUrl = require('./plusIcon');
 let plusIconOn = false;
 ipcMain.on('app:setPlusIcon', (_event, on) => {
@@ -147,7 +157,7 @@ ipcMain.handle('app:showNotification', (_event, payload = {}) => {
   if (!Notification.isSupported()) return { ok: false };
 
   const notification = new Notification({
-    title: String(payload.title || 'Noctra Relay').slice(0, 120),
+    title: String(payload.title || 'Native Relay').slice(0, 120),
     body: String(payload.body || '').slice(0, 300),
     icon: appIcon,
     silent: true // the chime is played by the renderer

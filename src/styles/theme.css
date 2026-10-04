@@ -1,5 +1,5 @@
 /* ============================================================
-   Noctra Client — design tokens
+   Native Client — design tokens
 
    Theme presets live here, applied by lib/appearance.js as
    data-attributes on <html>:
@@ -82,7 +82,7 @@
   --modrinth-bg:rgba(27,217,106,.14);
   --curseforge:#f16436;
   --curseforge-bg:rgba(241,100,54,.14);
-  --font-sans:"Figtree","Noctra Emoji","Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-sans:"Figtree","Native Emoji","Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
   --font-mono:"JetBrains Mono",Consolas,monospace;
   --radius-xs:4px;
   --radius-sm:6px;

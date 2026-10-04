@@ -32,7 +32,7 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
 
   // 3. User & Verification lifecycle
   const email = 'hero@noctra.xyz';
-  const username = 'NoctraHero';
+  const username = 'NativeHero';
 
   db.saveVerificationCode(email, '987654');
   assert.ok(db.checkVerificationCode(email, '987654'));
@@ -52,7 +52,7 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
     password: 'SuperSecretPassword123!',
     model: 'slim'
   });
-  assert.equal(user.username, 'NoctraHero');
+  assert.equal(user.username, 'NativeHero');
   assert.equal(user.model, 'slim');
   assert.ok(user.uuid);
 
@@ -67,7 +67,7 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
   assert.ok(session.token.startsWith('noc_'));
   const sessionUser = db.getUserBySession(session.token);
   assert.equal(sessionUser.id, user.id);
-  assert.equal(sessionUser.username, 'NoctraHero');
+  assert.equal(sessionUser.username, 'NativeHero');
 
   db.deleteSession(session.token);
   assert.equal(db.getUserBySession(session.token), null);
@@ -124,7 +124,7 @@ test('server/db: premium Minecraft identities are unique, readable, and removabl
 
   assert.throws(
     () => db.linkMinecraftAccount(second.id, profile),
-    /already connected to another Noctra account/
+    /already connected to another Native account/
   );
 
   db.unlinkMinecraftAccount(first.id);

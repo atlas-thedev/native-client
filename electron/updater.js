@@ -17,12 +17,12 @@ autoUpdater.fullChangelog = true;
 const PRIMARY_FEED = {
   provider: 'github',
   owner: 'atlas-thedev',
-  repo: 'noctra-client'
+  repo: 'native-client'
 };
 const LEGACY_FEED = {
   provider: 'github',
-  owner: 'ohllama0909-alt',
-  repo: 'native-launcher'
+  owner: 'atlas-thedev',
+  repo: 'native-client'
 };
 
 /** Numeric semver compare ("3.10.0" > "3.9.110"); pre-release tags sort first. */
@@ -196,7 +196,7 @@ async function checkForUpdates({ silent = false } = {}) {
         autoUpdater.setFeedURL(PRIMARY_FEED);
         result = await autoUpdater.checkForUpdates();
       } catch (primaryError) {
-        log.warn('Primary update feed check (noctra-client) failed, trying legacy (native-launcher):', primaryError);
+        log.warn('Primary update feed check (native-client) failed, trying legacy (native-launcher):', primaryError);
         try {
           autoUpdater.setFeedURL(LEGACY_FEED);
           result = await autoUpdater.checkForUpdates();

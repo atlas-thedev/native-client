@@ -39,7 +39,7 @@
 .home-selected-tag.is-playing i { animation: selected-pulse 1.4s ease-in-out infinite; }
 @keyframes selected-pulse { 50% { opacity: 0.3; } }
 
-/* Premium / Noctra identity switch in the home header. */
+/* Premium / Native identity switch in the home header. */
 .home-topbar { display: flex; align-items: center; gap: 16px; }
 
 /* Empty Home: quick-start preset tiles. */

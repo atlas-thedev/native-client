@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Server join history recorded live from the game log while Noctra runs the
+ * Server join history recorded live from the game log while Native runs the
  * game. Complements the log-file scan in instance.js, which can miss joins
  * once Minecraft rotates or prunes old logs.
  */

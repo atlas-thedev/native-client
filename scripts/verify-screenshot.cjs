@@ -25,7 +25,7 @@ ipcMain.handle("settings:dataDir", () => "/home/ubuntu/.minecraft");
 ipcMain.handle("settings:storageInfo", () => ({ total: 100000, free: 50000 }));
 ipcMain.handle("auth:restore", () => ({
   id: "acc-1",
-  name: "Noctra",
+  name: "Native",
   type: "offline",
   isMicrosoft: false
 }));
@@ -33,7 +33,7 @@ ipcMain.handle("auth:login", () => null);
 ipcMain.handle("auth:logout", () => true);
 ipcMain.handle("accounts:list", () => ({
   accounts: [
-    { id: "acc-1", name: "Noctra", type: "offline", isMicrosoft: false }
+    { id: "acc-1", name: "Native", type: "offline", isMicrosoft: false }
   ],
   activeId: "acc-1"
 }));

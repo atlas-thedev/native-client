@@ -146,7 +146,7 @@ export function CompatNote({ check, loading, mcVersion, compact = false }) {
   const summary = info
     ? info.message
     : rt
-      ? `${runtimeTitle(rt)} (${runtimeMeta(rt)})${check.source && check.source !== 'custom' ? ` · ${{ configured: 'chosen in Settings', managed: 'downloaded by Noctra', detected: 'found on this computer' }[check.source] || ''}` : ''}`
+      ? `${runtimeTitle(rt)} (${runtimeMeta(rt)})${check.source && check.source !== 'custom' ? ` · ${{ configured: 'chosen in Settings', managed: 'downloaded by Native', detected: 'found on this computer' }[check.source] || ''}` : ''}`
       : 'No Java selected';
   return (
     <div className={`jx-compat is-${check.status || 'ok'}${loading ? ' is-loading' : ''}${compact ? ' is-compact' : ''}`} role="status">

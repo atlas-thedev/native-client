@@ -526,7 +526,7 @@ function launchableForgeJar(installerPath, kind) {
   if (zip.getEntry('version.json')) return installerPath;
   const universal = zip.getEntries().find((entry) => !entry.isDirectory && !entry.entryName.includes('/') && /universal.*\.jar$/i.test(entry.entryName));
   if (!universal) {
-    throw new Error(`This ${DISPLAY[kind]} build uses an installer format Noctra can't launch. Pick a newer build.`);
+    throw new Error(`This ${DISPLAY[kind]} build uses an installer format Native can't launch. Pick a newer build.`);
   }
   const target = installerPath.replace(/-installer\.jar$/i, '-universal.jar');
   let valid = false;
@@ -686,7 +686,7 @@ function classifyMods(mods, target, mc) {
   return result;
 }
 
-/** Renames jars to `.disabled` and keeps Noctra's mod manifest in step. */
+/** Renames jars to `.disabled` and keeps Native's mod manifest in step. */
 function disableMods(modsDir, files) {
   const disabled = [];
   for (const file of files || []) {
@@ -701,7 +701,7 @@ function disableMods(modsDir, files) {
   }
   if (!disabled.length) return disabled;
 
-  const primary = path.join(modsDir, '.noctra-mods.json');
+  const primary = path.join(modsDir, '.native-mods.json');
   const legacy = path.join(modsDir, '.native-mods.json');
   const manifestFile = fs.existsSync(primary) ? primary : fs.existsSync(legacy) ? legacy : null;
   if (manifestFile) {
