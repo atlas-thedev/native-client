@@ -66,7 +66,7 @@ function SpotBackdrop() {
   );
 }
 
-const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'native';
+const isStoreAccount = (account) => Boolean(account?.token || account?.linkedFrom) && account?.type === 'native';
 
 /* Cached store billing state (localStorage): shown instantly, then refreshed from the server. */
 const BILLING_CACHE = 'native.store.billing.v1';

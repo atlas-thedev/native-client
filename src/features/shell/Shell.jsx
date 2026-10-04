@@ -169,10 +169,42 @@ export default function Shell({
      servers); Native = the linked Native profile (offline session + Native skins). */
   const canSwitchIdentity = Boolean(premiumLink && socialAccount);
   const playAs = canSwitchIdentity && playAsMap[account.id] === 'native' ? 'native' : 'premium';
+  /* The linked Native identity's own look (skin/cape from its Native wardrobe),
+     so the sidebar, home switcher and launch payload show the right avatar. */
+  const [identityLook, setIdentityLook] = useState(null);
+  useEffect(() => {
+    if (!canSwitchIdentity || !socialAccount?.id || !window.native?.wardrobe?.avatar) { setIdentityLook(null); return undefined; }
+    let cancelled = false;
+    window.native.wardrobe.avatar({ ...socialAccount, isMicrosoft: false, type: 'native' })
+      .then((look) => { if (!cancelled && look) setIdentityLook({ id: socialAccount.id, skinUrl: look.skinUrl || null, capeUrl: look.capeUrl || null, model: look.model || socialAccount.model || 'classic' }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSwitchIdentity, socialAccount?.id]);
+  const nativeIdentity = useMemo(() => {
+    if (!socialAccount) return null;
+    const look = identityLook && identityLook.id === socialAccount.id ? identityLook : null;
+    return {
+      ...socialAccount,
+      isMicrosoft: false,
+      type: 'native',
+      ...(look ? { skinUrl: look.skinUrl, capeUrl: look.capeUrl, model: look.model, hasSkin: Boolean(look.skinUrl), hasCape: Boolean(look.capeUrl) } : {})
+    };
+  }, [socialAccount, identityLook]);
+  /* Playing as the linked Native identity: everything account-specific (launch,
+     sidebar avatar, Locker, Store) uses that Native identity, not the Microsoft one. */
   const launchAccount = useMemo(() => {
-    if (playAs !== 'native' || !socialAccount) return account;
-    return { ...socialAccount, isMicrosoft: false, type: 'native' };
-  }, [playAs, socialAccount, account]);
+    if (playAs !== 'native' || !nativeIdentity) return account;
+    return nativeIdentity;
+  }, [playAs, nativeIdentity, account]);
+  const handleWardrobeChanged = useCallback((value) => {
+    if (playAs === 'native' && socialAccount?.id) {
+      const active = value?.active || {};
+      setIdentityLook({ id: socialAccount.id, skinUrl: active.skinUrl || null, capeUrl: active.capeUrl || null, model: active.model || value?.model || 'classic' });
+      return;
+    }
+    onWardrobeChanged?.(value);
+  }, [playAs, socialAccount?.id, onWardrobeChanged]);
   const switchIdentity = useCallback((mode) => {
     if (!account?.id) return;
     setPlayAsMap((current) => {
@@ -193,7 +225,7 @@ export default function Shell({
       return {
         mode: playAs,
         premium: { name: account?.name, account },
-        native: { name: socialAccount?.name, account: { ...socialAccount, isMicrosoft: false, type: 'native' } }
+        native: { name: socialAccount?.name, account: nativeIdentity }
       };
     }
     if (linkedPremiumAccount) {
@@ -204,7 +236,7 @@ export default function Shell({
       };
     }
     return null;
-  }, [canSwitchIdentity, playAs, account, socialAccount, linkedPremiumAccount]);
+  }, [canSwitchIdentity, playAs, account, socialAccount, nativeIdentity, linkedPremiumAccount]);
   const chooseIdentity = useCallback((mode) => {
     if (canSwitchIdentity) { switchIdentity(mode); return; }
     if (linkedPremiumAccount && mode === 'premium') {
@@ -730,8 +762,9 @@ export default function Shell({
         {currentTab === 'skins' && (
           canUseLocker || canUseLocalLocker ? (
             <LockerView
-              account={account}
-              onWardrobeChanged={onWardrobeChanged}
+              key={launchAccount?.id || 'locker'}
+              account={launchAccount}
+              onWardrobeChanged={handleWardrobeChanged}
               onOpenStore={() => setCurrentTab('store')}
               onNotify={notify}
               online={networkStatus?.state === 'online'}
@@ -747,9 +780,9 @@ export default function Shell({
 
         {currentTab === 'store' && (
           <StoreView
-            account={account}
+            account={launchAccount}
             onNotify={notify}
-            onWardrobeChanged={onWardrobeChanged}
+            onWardrobeChanged={handleWardrobeChanged}
             onOpenLocker={() => setCurrentTab('skins')}
             onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
           />

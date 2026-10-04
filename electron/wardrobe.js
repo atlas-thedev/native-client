@@ -1624,6 +1624,22 @@ async function artifactMatches(filePath, { sha1, size }) {
 function init(dependencies, ipcMain) {
   deps = dependencies;
   try { textureCache.init(deps.app.getPath('userData')); } catch { /* cache is optional */ }
+  /* A premium account playing as its linked Native identity sends that identity
+     without a token (the renderer never sees it); act with the Native session
+     stored on the Microsoft account in main. */
+  const resolveLinked = (acc) => {
+    if (!acc || typeof acc !== 'object' || acc.token || !acc.linkedFrom || acc.type !== 'native') return acc;
+    try {
+      const auth = require('./auth');
+      const stored = (auth.readAccounts(deps.app.getPath('userData')).accounts || []).find((a) => a.id === acc.linkedFrom);
+      const identity = auth.linkedIdentity(stored);
+      return identity && identity.id === acc.id ? { ...acc, ...identity } : acc;
+    } catch { return acc; }
+  };
+  const resolvePayload = (payload) => (payload && typeof payload === 'object' && payload.account && typeof payload.account === 'object'
+    ? { ...payload, account: resolveLinked(payload.account) }
+    : resolveLinked(payload));
+  const ipc = { handle: (channel, fn) => ipcMain.handle(channel, (event, payload, ...rest) => fn(event, resolvePayload(payload), ...rest)) };
   const profileResult = (operation) => async (...args) => {
     try { return { ok: true, profile: await operation(...args) }; }
     catch (error) {
@@ -1636,12 +1652,12 @@ function init(dependencies, ipcMain) {
     }
   };
 
-  ipcMain.handle('wardrobe:get', (_event, account) => publicState(account));
+  ipc.handle('wardrobe:get', (_event, account) => publicState(account));
   // Lightweight skin/cape resolver for avatar UIs (the account switcher list,
   // onboarding, etc.). Local accounts (Native/offline) aren't on mc-heads, so
   // their real texture lives in the wardrobe: return the active skin, warming
   // the on-disk cache from the Native server first when nothing is active yet.
-  ipcMain.handle('wardrobe:avatar', async (_event, account) => {
+  ipc.handle('wardrobe:avatar', async (_event, account) => {
     let state = publicState(account);
     if (!state.active.skinUrl && account?.name && account.name !== 'guest') {
       try { await warmSkinCache(account); } catch {}
@@ -1653,98 +1669,98 @@ function init(dependencies, ipcMain) {
       model: state.active.model || 'classic'
     };
   });
-  ipcMain.handle('wardrobe:pull', (_event, account) => pullRemoteWardrobe(account));
-  ipcMain.handle('wardrobe:upload', (_event, payload) => {
+  ipc.handle('wardrobe:pull', (_event, account) => pullRemoteWardrobe(account));
+  ipc.handle('wardrobe:upload', (_event, payload) => {
     const state = addItemFromBase64(payload.account, payload);
     syncWardrobeInBackground(payload.account);
     return state;
   });
-  ipcMain.handle('wardrobe:choose', async (_event, payload) => {
+  ipc.handle('wardrobe:choose', async (_event, payload) => {
     const state = await chooseTexture(payload.account, payload.kind, { model: payload.model });
     syncWardrobeInBackground(payload.account);
     return state;
   });
-  ipcMain.handle('wardrobe:apply', (_event, { account, id }) => {
+  ipc.handle('wardrobe:apply', (_event, { account, id }) => {
     const state = applyItem(account, id);
     syncWardrobeInBackground(account);
     return state;
   });
-  ipcMain.handle('wardrobe:clearActive', (_event, { account, kind }) => {
+  ipc.handle('wardrobe:clearActive', (_event, { account, kind }) => {
     const state = clearActive(account, kind);
     syncWardrobeInBackground(account);
     return state;
   });
-  ipcMain.handle('wardrobe:favorite', (_event, { account, id, favorite }) => setFavorite(account, id, favorite));
-  ipcMain.handle('wardrobe:rename', (_event, { account, id, name }) => {
+  ipc.handle('wardrobe:favorite', (_event, { account, id, favorite }) => setFavorite(account, id, favorite));
+  ipc.handle('wardrobe:rename', (_event, { account, id, name }) => {
     const state = renameItem(account, id, name);
     syncWardrobeInBackground(account);
     return state;
   });
-  ipcMain.handle('wardrobe:remove', (_event, { account, id }) => {
+  ipc.handle('wardrobe:remove', (_event, { account, id }) => {
     const state = removeItem(account, id);
     syncWardrobeInBackground(account);
     return state;
   });
-  ipcMain.handle('wardrobe:setModel', (_event, payload) => {
+  ipc.handle('wardrobe:setModel', (_event, payload) => {
     // Accepts both the new { account, model } and the legacy { account, slot, model }.
     const state = setModel(payload.account, payload.model);
     syncWardrobeInBackground(payload.account);
     return state;
   });
-  ipcMain.handle('wardrobe:export', (_event, { account, id }) => exportItem(account, id));
-  ipcMain.handle('wardrobe:sync', (_event, account) => syncWardrobe(account));
-  ipcMain.handle('wardrobe:refresh', (_event, account) => refreshFromCloud(account));
-  ipcMain.handle('store:catalog', async (_event, options) => {
+  ipc.handle('wardrobe:export', (_event, { account, id }) => exportItem(account, id));
+  ipc.handle('wardrobe:sync', (_event, account) => syncWardrobe(account));
+  ipc.handle('wardrobe:refresh', (_event, account) => refreshFromCloud(account));
+  ipc.handle('store:catalog', async (_event, options) => {
     try { return { ok: true, ...(await fetchStoreCatalog(options || {})) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:strip', async (_event, itemId) => {
+  ipc.handle('store:strip', async (_event, itemId) => {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:me', async (_event, account) => {
+  ipc.handle('store:me', async (_event, account) => {
     try { return { ok: true, ...(await fetchStoreMe(account)) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:claim', async (_event, { account, itemId }) => {
+  ipc.handle('store:claim', async (_event, { account, itemId }) => {
     try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:unclaim', async (_event, { account, itemId }) => {
+  ipc.handle('store:unclaim', async (_event, { account, itemId }) => {
     try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('billing:config', async () => {
+  ipc.handle('billing:config', async () => {
     try {
       const response = await fetch(`${apiRoot()}/v1/billing/config`, { signal: AbortSignal.timeout(10_000) });
       const payload = await response.json();
       return { ok: true, ...payload };
     } catch (error) { return { ok: false, enabled: false, error: error.message }; }
   });
-  ipcMain.handle('billing:me', async (_event, account) => {
+  ipc.handle('billing:me', async (_event, account) => {
     try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
+  ipc.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
     try {
       const payload = await billingRequest(account, '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, plan } });
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open the checkout page.');
       return { ok: true, transactionId: payload.transactionId };
     } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('billing:portal', async (_event, account) => {
+  ipc.handle('billing:portal', async (_event, account) => {
     try {
       const payload = await billingRequest(account, '/v1/billing/portal', { method: 'POST', body: {} });
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open billing.');
       return { ok: true };
     } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:redeem', async (_event, { account, code }) => {
+  ipc.handle('store:redeem', async (_event, { account, code }) => {
     try { return { ok: true, ...(await billingRequest(account, '/v1/store/redeem', { method: 'POST', body: { code: String(code || '') } })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('store:equip', async (_event, { account, itemId }) => {
+  ipc.handle('store:equip', async (_event, { account, itemId }) => {
     try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipcMain.handle('wardrobe:officialProfile', profileResult((_event, account) => officialProfile(account)));
-  ipcMain.handle('wardrobe:reauthOfficialProfile', profileResult(async (_event, account) => {
+  ipc.handle('wardrobe:officialProfile', profileResult((_event, account) => officialProfile(account)));
+  ipc.handle('wardrobe:reauthOfficialProfile', profileResult(async (_event, account) => {
     return officialProfile(account, { forceRefresh: true });
   }));
-  ipcMain.handle('wardrobe:applyOfficialSkin', profileResult((_event, { account, id }) => applyOfficialSkin(account, id)));
-  ipcMain.handle('wardrobe:activateOfficialCape', profileResult((_event, { account, capeId }) => activateOfficialCape(account, capeId)));
+  ipc.handle('wardrobe:applyOfficialSkin', profileResult((_event, { account, id }) => applyOfficialSkin(account, id)));
+  ipc.handle('wardrobe:activateOfficialCape', profileResult((_event, { account, capeId }) => activateOfficialCape(account, capeId)));
 }
 
 module.exports = {
