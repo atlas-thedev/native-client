@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { ArrowLeft, Check, Eye, EyeOff, Link2, Minus, Square, Unlink, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
+import ProviderLogo from '../../components/ui/ProviderLogo.jsx';
 import BrandIcon from '../../components/ui/BrandIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import { preloadAccountAvatars } from '../../lib/skins.js';
@@ -653,12 +654,67 @@ export default function AccountSwitcherModal({
                           );
                         };
                           if (!children.length) return renderRow(parent);
+                          const [linked, ...others] = children;
+                          const renderSide = (acc) => {
+                            const active = acc.id === activeId;
+                            const choose = () => {
+                              onSwitchAccount?.(acc.id);
+                              if (firstRun) onClose?.();
+                            };
+                            const microsoft = acc.type === 'microsoft';
+                            return (
+                              <div
+                                className={`account-login-side${active ? ' active' : ''}`}
+                                role="button"
+                                tabIndex={0}
+                                onClick={choose}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') choose();
+                                }}
+                              >
+                                <span className="account-login-side-avatar">
+                                  <PlayerAvatar account={acc} kind="avatar" size={36} />
+                                  <span className="account-login-side-badge"><ProviderLogo kind={microsoft ? 'microsoft' : 'native'} size={11} /></span>
+                                </span>
+                                <strong>{acc.name}</strong>
+                                <small>{microsoft ? t('account.microsoft') : t('account.native')}</small>
+                                {active && <span className="account-login-side-active">Active</span>}
+                                <button
+                                  type="button"
+                                  className="account-login-item-remove"
+                                  title={t('account.remove')}
+                                  aria-label={t('account.remove')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onRemoveAccount?.(acc.id);
+                                  }}
+                                >
+                                  <NativeIcon name="trash" size={13} />
+                                </button>
+                              </div>
+                            );
+                          };
                           return (
                             <div key={`group-${parent.id}`} className="account-login-group">
-                              {renderRow(parent)}
-                              <div className="account-login-children">
-                                {children.map((acc) => renderRow(acc, { child: true }))}
+                              <div className="account-login-pair">
+                                {renderSide(parent)}
+                                <button
+                                  type="button"
+                                  className="account-login-pair-link"
+                                  title="Native connection"
+                                  aria-label={`Native connection for ${linked.name}`}
+                                  disabled={!onConnectNative}
+                                  onClick={() => openConnect(linked.id)}
+                                >
+                                  <Link2 size={13} strokeWidth={2.3} aria-hidden="true" />
+                                </button>
+                                {renderSide(linked)}
                               </div>
+                              {others.length > 0 && (
+                                <div className="account-login-children">
+                                  {others.map((acc) => renderRow(acc, { child: true }))}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

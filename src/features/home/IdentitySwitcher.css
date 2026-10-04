@@ -16,6 +16,16 @@
 .idsw.is-open .idsw-chev { transform: rotate(180deg); }
 
 .idsw-logo { flex: none; display: inline-grid; place-items: center; line-height: 0; }
+/* Both linked identities sit next to the name; the one you are playing as is lit. */
+.idsw-pair {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 9px;
+  background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.idsw-pair-seg {
+  display: grid; place-items: center; width: 26px; height: 22px; border-radius: 6px;
+  opacity: 0.42; transition: opacity 0.15s, background 0.15s;
+}
+.idsw-pair-seg.is-on { opacity: 1; background: rgba(255, 255, 255, 0.14); }
 .idsw-logo.is-native .native-mark,
 .idsw-logo.is-native img { filter: grayscale(1) brightness(3); }
 
@@ -36,5 +46,7 @@
 .idsw-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .idsw-item.is-active { color: #fff; }
 .idsw-head { flex: none; image-rendering: pixelated; }
-.idsw-item-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.idsw-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.idsw-item-name { font-size: 14px; font-weight: 600; white-space: nowrap; line-height: 1.2; }
+.idsw-item-text small { font-size: 11px; color: rgba(255, 255, 255, 0.45); line-height: 1.2; }
 .idsw-check { flex: none; width: 15px; display: grid; place-items: center; color: #fff; }
