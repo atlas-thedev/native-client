@@ -460,7 +460,7 @@ function backupFile(instanceId, relative) {
   const source = resolveInside(base, relative);
   if (!fs.existsSync(source)) return null;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const target = resolveInside(base, '.noctra-backup', stamp, relative);
+  const target = resolveInside(base, '.native-backup', stamp, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
   return target;
@@ -511,7 +511,7 @@ async function applyFix(id, fix) {
       if (!/^(?:config|defaultconfigs)\//.test(rel)) throw new Error('Only files inside config/ can be reset');
       const backup = backupFile(instance.id, rel);
       fs.rmSync(resolveInside(instanceDir(instance.id), rel), { force: true });
-      result = { ok: true, message: `Reset ${path.basename(rel)}${backup ? ' (backup kept in .noctra-backup)' : ''}` };
+      result = { ok: true, message: `Reset ${path.basename(rel)}${backup ? ' (backup kept in .native-backup)' : ''}` };
       break;
     }
     case 'repair': {

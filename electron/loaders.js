@@ -613,7 +613,7 @@ async function installForgeLike(kind, mc, requested, { root, report = noop }) {
  */
 function prepareForgeCache(root, mc, jarPath) {
   const dir = path.join(root, 'forge', mc);
-  const marker = path.join(dir, '.noctra-source');
+  const marker = path.join(dir, '.native-source');
   const source = path.basename(jarPath);
   let previous = null;
   try {

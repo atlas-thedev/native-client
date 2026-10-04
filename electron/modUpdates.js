@@ -20,7 +20,7 @@ const loaders = require('./loaders');
  */
 
 const API = 'https://api.modrinth.com/v2';
-const META_CACHE = '.noctra-meta-cache.json';
+const META_CACHE = '.native-meta-cache.json';
 const CONTENT = /\.(jar|zip)(\.disabled)?$/i;
 const HEADERS = {
   'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)',

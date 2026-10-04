@@ -5,7 +5,7 @@ const { getActiveNativeAccount, API_ROOTS, isOnline } = require('./social');
  * IPC bridge for the Relay group + reply API.
  *
  * Mirrors social.js: the hosted API, plus a self-hosted one only when
- * NOCTRA_LOCAL_API is set explicitly.
+ * NATIVE_LOCAL_API is set explicitly.
  */
 
 const ROOTS = API_ROOTS;

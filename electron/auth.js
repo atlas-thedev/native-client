@@ -27,7 +27,7 @@ const legacyPath  = (dir = userDataDir()) => path.join(dir, 'account.json');
 
 // Secrets at rest: Microsoft refresh data and Native session tokens are
 // encrypted with the OS keychain (safeStorage) whenever it is available.
-const SECRET_FIELDS = ['token', 'sessionToken', 'noctraToken'];
+const SECRET_FIELDS = ['token', 'sessionToken', 'nativeToken'];
 
 /** `dir` lets other main-process modules read accounts before auth.init(). */
 function readAccounts(dir) {
@@ -56,9 +56,22 @@ function readAccounts(dir) {
   return { activeId: null, accounts: [] };
 }
 
+/** Accounts saved before the rename used `noctra*` names; they are upgraded in place when read. */
+function upgradeLegacyAccount(account) {
+  const next = { ...account };
+  if (next.type === 'noctra') next.type = 'native';
+  for (const [from, to] of [['noctraToken', 'nativeToken'], ['noctraLink', 'nativeLink'], ['noctraNotLinkedAt', 'nativeNotLinkedAt']]) {
+    if (from in next) {
+      if (next[to] === undefined) next[to] = next[from];
+      delete next[from];
+    }
+  }
+  return next;
+}
+
 function revealAccount(account) {
   if (!account || typeof account !== 'object') return account;
-  const next = { ...account };
+  const next = upgradeLegacyAccount(account);
   for (const field of SECRET_FIELDS) {
     if (typeof next[field] === 'string' && next[field].startsWith('safe:v1:')) {
       try {
@@ -216,7 +229,7 @@ async function performMicrosoftLogin() {
     type: 'microsoft',
     refresh: xbox.save(),
     // Re-signing into Microsoft keeps the connected Native account.
-    ...(previous?.noctraToken ? { noctraToken: previous.noctraToken, noctraLink: previous.noctraLink } : {})
+    ...(previous?.nativeToken ? { nativeToken: previous.nativeToken, nativeLink: previous.nativeLink } : {})
   });
   data.activeId = id;
   saveAccounts(data);
@@ -372,8 +385,8 @@ async function getMinecraftProfile(accountId, options = {}) {
   return null;
 }
 
-async function noctraAccountFetch(noctraAccount, endpoint, { method = 'GET', body } = {}) {
-  const token = noctraAccount?.token || noctraAccount?.sessionToken;
+async function nativeAccountFetch(nativeAccount, endpoint, { method = 'GET', body } = {}) {
+  const token = nativeAccount?.token || nativeAccount?.sessionToken;
   if (!token) return { ok: false, error: 'Log in to this Native account again before connecting Minecraft.' };
 
   const request = async (root) => {
@@ -397,14 +410,14 @@ async function noctraAccountFetch(noctraAccount, endpoint, { method = 'GET', bod
   return { ok: false, error: 'Could not connect to the Native account service.' };
 }
 
-// Hosted API, plus a self-hosted one only when NOCTRA_LOCAL_API is set.
+// Hosted API, plus a self-hosted one only when NATIVE_LOCAL_API is set.
 // Credentials are never sent to whatever happens to listen on localhost.
 function apiRoots() {
   return require('./social').API_ROOTS;
 }
 
 // ── Premium ↔ Native connection ───────────────────────────────────────────
-// A Microsoft account can carry a Native session (`noctraToken`, encrypted at
+// A Microsoft account can carry a Native session (`nativeToken`, encrypted at
 // rest) for the Native account it is connected to. While that premium account
 // is active, Relay, friends and every other Native feature use that session,
 // so the player never has to switch accounts. The server only hands such a
@@ -440,8 +453,8 @@ async function apiRequest(endpoint, { method = 'POST', body, token } = {}) {
 
 /** What the renderer may know about a connection (never the token). */
 function publicLink(account) {
-  if (!account || account.type !== 'microsoft' || !account.noctraToken || !account.noctraLink?.userId) return null;
-  const { userId, name, email, uuid, model, linkedAt } = account.noctraLink;
+  if (!account || account.type !== 'microsoft' || !account.nativeToken || !account.nativeLink?.userId) return null;
+  const { userId, name, email, uuid, model, linkedAt } = account.nativeLink;
   return { connected: true, userId, name, email: email || null, uuid: uuid || null, model: model || 'classic', linkedAt: linkedAt || null };
 }
 
@@ -455,8 +468,8 @@ function linkedIdentity(account) {
     email: link.email,
     uuid: link.uuid,
     model: link.model,
-    type: 'noctra',
-    token: account.noctraToken,
+    type: 'native',
+    token: account.nativeToken,
     linkedFrom: account.id
   };
 }
@@ -474,27 +487,27 @@ function updateMicrosoftAccount(microsoftId, patch) {
   return next;
 }
 
-function storeLink(microsoftId, noctraAccount, token) {
+function storeLink(microsoftId, nativeAccount, token) {
   const updated = updateMicrosoftAccount(microsoftId, {
-    noctraToken: token,
-    noctraLink: {
-      userId: noctraAccount.id,
-      name: noctraAccount.name,
-      email: noctraAccount.email || null,
-      uuid: noctraAccount.uuid || null,
-      model: noctraAccount.model || 'classic',
+    nativeToken: token,
+    nativeLink: {
+      userId: nativeAccount.id,
+      name: nativeAccount.name,
+      email: nativeAccount.email || null,
+      uuid: nativeAccount.uuid || null,
+      model: nativeAccount.model || 'classic',
       linkedAt: Date.now()
     },
-    noctraNotLinkedAt: undefined
+    nativeNotLinkedAt: undefined
   });
   return publicLink(updated);
 }
 
 function clearLink(microsoftId, { notLinked = false } = {}) {
   updateMicrosoftAccount(microsoftId, {
-    noctraToken: undefined,
-    noctraLink: undefined,
-    noctraNotLinkedAt: notLinked ? Date.now() : undefined
+    nativeToken: undefined,
+    nativeLink: undefined,
+    nativeNotLinkedAt: notLinked ? Date.now() : undefined
   });
 }
 
@@ -535,8 +548,8 @@ async function ensurePremiumLink(microsoftId, { force = false } = {}) {
   const account = readAccounts().accounts.find((a) => a.id === microsoftId);
   if (!account || account.type !== 'microsoft') return { ok: false, code: 'not_microsoft' };
 
-  if (account.noctraToken) {
-    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: account.noctraToken });
+  if (account.nativeToken) {
+    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: account.nativeToken });
     if (status === 0 || status >= 500) {
       // Offline: keep the saved connection, it is checked again later.
       return { ok: true, link: publicLink(account), offline: true };
@@ -553,34 +566,34 @@ async function ensurePremiumLink(microsoftId, { force = false } = {}) {
     return premiumSignIn(microsoftId);
   }
 
-  if (!force && account.noctraNotLinkedAt && Date.now() - account.noctraNotLinkedAt < NOT_LINKED_RECHECK_MS) {
+  if (!force && account.nativeNotLinkedAt && Date.now() - account.nativeNotLinkedAt < NOT_LINKED_RECHECK_MS) {
     return { ok: false, code: 'not_linked' };
   }
   return premiumSignIn(microsoftId);
 }
 
 /** Connect a premium account to a Native account (saved, or by password). */
-async function connectNative({ microsoftAccountId, noctraAccountId, login, password } = {}) {
+async function connectNative({ microsoftAccountId, nativeAccountId, login, password } = {}) {
   const accounts = readAccounts().accounts;
   const microsoftAccount = accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
   if (!microsoftAccount) return { ok: false, error: 'Choose a Microsoft account to connect.' };
 
-  let noctraToken = null;
-  let noctraAccount = null;
+  let nativeToken = null;
+  let nativeAccount = null;
   let ownSession = false;
-  if (noctraAccountId) {
-    const saved = accounts.find((a) => a.id === noctraAccountId && a.type === 'noctra');
-    noctraToken = saved?.token || saved?.sessionToken || null;
-    noctraAccount = saved || null;
-    if (!noctraToken) return { ok: false, error: 'Sign in to that Native account again, then connect.' };
+  if (nativeAccountId) {
+    const saved = accounts.find((a) => a.id === nativeAccountId && a.type === 'native');
+    nativeToken = saved?.token || saved?.sessionToken || null;
+    nativeAccount = saved || null;
+    if (!nativeToken) return { ok: false, error: 'Sign in to that Native account again, then connect.' };
   } else {
     if (!String(login || '').trim() || !password) {
       return { ok: false, error: 'Enter your Native username or email and password.' };
     }
     const { data } = await apiRequest('/v1/auth/login', { body: { login: String(login).trim(), password: String(password) } });
     if (!data?.ok || !data.token || !data.account) return { ok: false, error: data?.error || 'Could not sign in to Native.' };
-    noctraToken = data.token;
-    noctraAccount = data.account;
+    nativeToken = data.token;
+    nativeAccount = data.account;
     ownSession = true;
   }
 
@@ -590,26 +603,26 @@ async function connectNative({ microsoftAccountId, noctraAccountId, login, passw
   }
   const { data: linked } = await apiRequest('/v1/account/minecraft', {
     method: 'POST',
-    token: noctraToken,
+    token: nativeToken,
     body: { minecraftAccessToken }
   });
   if (!linked?.ok) return { ok: false, error: linked?.error || 'Could not connect the accounts.' };
 
   if (ownSession) {
-    return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
+    return { ok: true, link: storeLink(microsoftAccountId, nativeAccount, nativeToken), profile: linked.profile };
   }
   // A saved Native account: give the premium account its own session so
   // signing out of one never signs out the other.
   const signedIn = await premiumSignIn(microsoftAccountId);
   if (signedIn.ok) return { ...signedIn, profile: linked.profile };
-  return { ok: true, link: storeLink(microsoftAccountId, noctraAccount, noctraToken), profile: linked.profile };
+  return { ok: true, link: storeLink(microsoftAccountId, nativeAccount, nativeToken), profile: linked.profile };
 }
 
 async function disconnectNative(microsoftAccountId) {
   const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
   if (!account) return { ok: false, error: 'Microsoft account not found.' };
-  if (account.noctraToken) {
-    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'DELETE', token: account.noctraToken });
+  if (account.nativeToken) {
+    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'DELETE', token: account.nativeToken });
     if (status === 0 || status >= 500) {
       return { ok: false, error: data?.error || 'Could not reach Native. Try again when you are online.' };
     }
@@ -669,8 +682,8 @@ function init(dependencies, ipcMain) {
     return {
       activeId,
       // never send refresh tokens to the renderer
-      accounts: accounts.map(({ refresh: _r, noctraToken: _n, noctraNotLinkedAt: _l, noctraLink: _k, ...rest }, index) => (
-        rest.type === 'microsoft' ? { ...rest, noctraLink: publicLink(accounts[index]) } : rest
+      accounts: accounts.map(({ refresh: _r, nativeToken: _n, nativeNotLinkedAt: _l, nativeLink: _k, ...rest }, index) => (
+        rest.type === 'microsoft' ? { ...rest, nativeLink: publicLink(accounts[index]) } : rest
       ))
     };
   });
@@ -682,16 +695,15 @@ function init(dependencies, ipcMain) {
     const model = payload?.model === 'slim' ? 'slim' : 'classic';
     if (!name) return { ok: false, error: 'Name is required' };
     const data = readAccounts();
-    const id = `noctra-${crypto.randomBytes(4).toString('hex')}`;
+    const id = `native-${crypto.randomBytes(4).toString('hex')}`;
     const uuid = generateOfflinePlayerUuid(name);
-    const account = { id, name, uuid, type: 'noctra', model };
+    const account = { id, name, uuid, type: 'native', model };
     data.accounts.push(account);
     data.activeId = id;
     saveAccounts(data);
     return { ok: true, account };
   };
 
-  ipcMain.handle('accounts:addNative', handleAddNativeAccount);
   ipcMain.handle('accounts:addNative', handleAddNativeAccount);
 
   const authFetch = async (endpoint, payload) => {
@@ -710,19 +722,19 @@ function init(dependencies, ipcMain) {
     return { ok: false, error: 'Could not connect to Native Auth server.' };
   };
 
-  ipcMain.handle('accounts:noctraSendCode', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeSendCode', async (_event, payload) => {
     return authFetch('/v1/auth/register/send-code', payload);
   });
 
-  ipcMain.handle('accounts:noctraResendCode', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeResendCode', async (_event, payload) => {
     return authFetch('/v1/auth/resend-code', payload);
   });
 
-  ipcMain.handle('accounts:noctraForgotPassword', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeForgotPassword', async (_event, payload) => {
     return authFetch('/v1/auth/password/forgot', { email: String(payload?.email || '').trim() });
   });
 
-  ipcMain.handle('accounts:noctraResetPassword', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeResetPassword', async (_event, payload) => {
     const res = await authFetch('/v1/auth/password/reset', {
       email: String(payload?.email || '').trim(),
       code: String(payload?.code || '').trim(),
@@ -734,7 +746,7 @@ function init(dependencies, ipcMain) {
       const email = String(payload?.email || '').trim().toLowerCase();
       const data = readAccounts();
       const before = data.accounts.length;
-      data.accounts = data.accounts.filter((a) => !(a.type === 'noctra' && String(a.email || '').toLowerCase() === email));
+      data.accounts = data.accounts.filter((a) => !(a.type === 'native' && String(a.email || '').toLowerCase() === email));
       if (data.accounts.length !== before) {
         if (!data.accounts.some((a) => a.id === data.activeId)) data.activeId = data.accounts[0]?.id ?? null;
         saveAccounts(data);
@@ -743,7 +755,7 @@ function init(dependencies, ipcMain) {
     return res;
   });
 
-  ipcMain.handle('accounts:noctraVerifyRegister', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeVerifyRegister', async (_event, payload) => {
     const res = await authFetch('/v1/auth/register/verify', payload);
     if (res?.ok && res?.account) {
       const data = readAccounts();
@@ -752,7 +764,7 @@ function init(dependencies, ipcMain) {
         name: res.account.name,
         email: res.account.email,
         uuid: res.account.uuid,
-        type: 'noctra',
+        type: 'native',
         model: res.account.model || 'classic',
         token: res.token
       };
@@ -765,7 +777,7 @@ function init(dependencies, ipcMain) {
     return res;
   });
 
-  ipcMain.handle('accounts:noctraLogin', async (_event, payload) => {
+  ipcMain.handle('accounts:nativeLogin', async (_event, payload) => {
     const res = await authFetch('/v1/auth/login', payload);
     if (res?.ok && res?.account) {
       const data = readAccounts();
@@ -774,7 +786,7 @@ function init(dependencies, ipcMain) {
         name: res.account.name,
         email: res.account.email,
         uuid: res.account.uuid,
-        type: 'noctra',
+        type: 'native',
         model: res.account.model || 'classic',
         token: res.token
       };
@@ -818,19 +830,19 @@ function init(dependencies, ipcMain) {
     }
   });
 
-  ipcMain.handle('accounts:getPremiumLink', async (_event, noctraAccountId) => {
+  ipcMain.handle('accounts:getPremiumLink', async (_event, nativeAccountId) => {
     const data = readAccounts();
-    const noctraAccount = data.accounts.find((account) => account.id === noctraAccountId && account.type === 'noctra');
-    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
-    return noctraAccountFetch(noctraAccount, '/v1/account/minecraft');
+    const nativeAccount = data.accounts.find((account) => account.id === nativeAccountId && account.type === 'native');
+    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
+    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft');
   });
 
   ipcMain.handle('accounts:linkPremium', async (_event, payload = {}) => {
     const data = readAccounts();
-    const noctraAccount = data.accounts.find(
-      (account) => account.id === payload.noctraAccountId && account.type === 'noctra'
+    const nativeAccount = data.accounts.find(
+      (account) => account.id === payload.nativeAccountId && account.type === 'native'
     );
-    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
+    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
 
     let microsoftAccountId = payload.microsoftAccountId;
     if (!microsoftAccountId) {
@@ -838,7 +850,7 @@ function init(dependencies, ipcMain) {
         const profile = await loginMicrosoft();
         microsoftAccountId = profile.id;
         const updated = readAccounts();
-        updated.activeId = noctraAccount.id;
+        updated.activeId = nativeAccount.id;
         saveAccounts(updated);
       } catch (error) {
         return { ok: false, error: String(error?.message || error) };
@@ -854,17 +866,17 @@ function init(dependencies, ipcMain) {
     if (!minecraftAccessToken) {
       return { ok: false, error: 'Microsoft sign-in expired. Sign in again to prove Minecraft ownership.' };
     }
-    return noctraAccountFetch(noctraAccount, '/v1/account/minecraft', {
+    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft', {
       method: 'POST',
       body: { minecraftAccessToken }
     });
   });
 
-  ipcMain.handle('accounts:unlinkPremium', async (_event, noctraAccountId) => {
+  ipcMain.handle('accounts:unlinkPremium', async (_event, nativeAccountId) => {
     const data = readAccounts();
-    const noctraAccount = data.accounts.find((account) => account.id === noctraAccountId && account.type === 'noctra');
-    if (!noctraAccount) return { ok: false, error: 'Native account not found.' };
-    return noctraAccountFetch(noctraAccount, '/v1/account/minecraft', { method: 'DELETE' });
+    const nativeAccount = data.accounts.find((account) => account.id === nativeAccountId && account.type === 'native');
+    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
+    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft', { method: 'DELETE' });
   });
 
   ipcMain.handle('accounts:premiumStatus', async (_event, microsoftAccountId) => {

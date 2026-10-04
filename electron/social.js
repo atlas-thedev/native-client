@@ -20,10 +20,10 @@ const safeFile = require('./safeFile');
 const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
 // A local/self-hosted API is only used when explicitly configured. Never send
 // the session token to whatever happens to listen on localhost.
-const LOCAL_ROOT = process.env.NOCTRA_LOCAL_API ? String(process.env.NOCTRA_LOCAL_API).replace(/\/+$/, '') : null;
+const LOCAL_ROOT = process.env.NATIVE_LOCAL_API ? String(process.env.NATIVE_LOCAL_API).replace(/\/+$/, '') : null;
 const API_ROOTS = [...new Set([REMOTE_ROOT, LOCAL_ROOT].filter(Boolean))];
 const REQUEST_TIMEOUT_MS = 15_000;
-const STREAM_SILENCE_MS = Number(process.env.NOCTRA_STREAM_SILENCE_MS) || 70_000;
+const STREAM_SILENCE_MS = Number(process.env.NATIVE_STREAM_SILENCE_MS) || 70_000;
 
 let deps = null;
 let heartbeatInterval = null;
@@ -94,7 +94,7 @@ function getActiveNativeAccount() {
     // auth.js owns accounts.json (and decrypts the stored session token).
     const data = require('./auth').readAccounts(deps.app.getPath('userData'));
     const active = (data.accounts || []).find(a => a.id === data.activeId);
-    if (active && active.type === 'noctra' && (active.token || active.sessionToken)) {
+    if (active && active.type === 'native' && (active.token || active.sessionToken)) {
       return active;
     }
     // A premium account connected to Native acts as that Native account.

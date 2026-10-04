@@ -149,8 +149,8 @@ function extractArchive(archivePath, dest, isZip) {
           '-NonInteractive',
           '-ExecutionPolicy', 'Bypass',
           '-Command',
-          'Expand-Archive -LiteralPath $env:NOCTRA_ARCHIVE -DestinationPath $env:NOCTRA_DEST -Force'
-        ], { env: { ...process.env, NOCTRA_ARCHIVE: archivePath, NOCTRA_DEST: dest }, windowsHide: true })
+          'Expand-Archive -LiteralPath $env:NATIVE_ARCHIVE -DestinationPath $env:NATIVE_DEST -Force'
+        ], { env: { ...process.env, NATIVE_ARCHIVE: archivePath, NATIVE_DEST: dest }, windowsHide: true })
       : spawn('tar', ['-xzf', archivePath, '-C', dest]);
     proc.on('error', reject);
     proc.on('close', (code) =>

@@ -10,5 +10,4 @@ const authApi = {
   }
 };
 
-contextBridge.exposeInMainWorld('noctraAuthWindow', authApi);
 contextBridge.exposeInMainWorld('nativeAuthWindow', authApi);

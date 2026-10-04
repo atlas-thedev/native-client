@@ -165,7 +165,7 @@
   <body class="loading">
     <header class="titlebar">
       <div class="brand">
-        <img src="../src/assets/noctra-icon.png" alt="Native Client" />
+        <img src="../src/assets/native-icon.png" alt="Native Client" />
         <div class="copy">
           <div class="title">Sign in to Microsoft</div>
           <div class="subtitle"><span class="security-dot"></span>Secure sign-in · Native Client</div>
@@ -184,7 +184,7 @@
       <div class="spinner"></div>
     </main>
     <script>
-      const authBridge = window.noctraAuthWindow || window.nativeAuthWindow;
+      const authBridge = window.nativeAuthWindow;
       document.getElementById('minimize').addEventListener('click', () => authBridge.minimize());
       document.getElementById('close').addEventListener('click', () => authBridge.close());
       authBridge.onLoadingChange((loading) => {
