@@ -7,7 +7,7 @@
  * "Native Client" mod (github.com/atlas-thedev/native-mod). The mod shows every
  * Native player's skin and cape live, and signs the game in to the player's
  * Native account through a short-lived, game-only ticket the launcher writes to
- * `<gameDir>/.noctra/session.json`. The account's real session token never
+ * `<gameDir>/.native/session.json` (mirrored to `.noctra/` for older mod builds). The account's real session token never
  * reaches the game.
  *
  * Everything here is best-effort: any failure returns `{ installed: false }`
@@ -19,12 +19,14 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const MOD_REPO = process.env.NATIVE_MOD_REPO || process.env.NOCTRA_MOD_REPO || 'atlas-thedev/native-mod';
-const LEGACY_MOD_REPO = 'atlas-thedev/native-mod';
+const LEGACY_MOD_REPO = 'atlas-thedev/noctra-mod';
 const MANIFEST_URL = process.env.NATIVE_MOD_MANIFEST || process.env.NOCTRA_MOD_MANIFEST ||
   `https://github.com/${MOD_REPO}/releases/latest/download/manifest.json`;
 const DOWNLOAD_PREFIX = `https://github.com/${MOD_REPO}/releases/download/`;
 const LEGACY_DOWNLOAD_PREFIX = `https://github.com/${LEGACY_MOD_REPO}/releases/download/`;
 const JAR_NAME = /^(?:native|noctra)-client-[0-9A-Za-z.+-]+\.jar$/;
+/** Every jar the launcher owns: the current mod and the pre-rename "noctra-client" builds. */
+const OWNED_JAR = /^(?:native|noctra)-client-.*\.jar(\.disabled)?$/i;
 const MAX_JAR_BYTES = 16 * 1024 * 1024;
 const FIRST_SUPPORTED = [1, 16];
 
@@ -121,7 +123,7 @@ function installJar(jarPath, modsDir) {
   const destination = path.join(modsDir, name);
   for (const entry of fs.readdirSync(modsDir)) {
     // Older versions, and any copy someone renamed to .jar.disabled: the launcher owns this mod.
-    if (entry !== name && /^native-client-.*\.jar(\.disabled)?$/i.test(entry)) {
+    if (entry !== name && OWNED_JAR.test(entry)) {
       try { fs.rmSync(path.join(modsDir, entry), { force: true }); } catch { /* in use: next launch */ }
     }
   }
@@ -167,7 +169,7 @@ function writeHandoff(gameDir, { ticket, api, expiresAt, account }) {
     account: {
       id: account?.id ?? null,
       name: account?.name ?? account?.username ?? null,
-      uuid: account?.minecraft_uuid ?? account?.uuid ?? null
+      uuid: account?.minecraft_uuid ?? account?.minecraftUuid ?? null
     },
     launcher: 'native-client'
   };

@@ -11,7 +11,7 @@ Run behind nginx (TLS via Cloudflare). Environment variables (systemd `Environme
 nginx must forward the custom headers (it does by default) and set `X-Real-IP`.
 
 After changing env: `sudo systemctl restart noctra-server` (use your unit name).
-Set the same `NOCTRA_SITE_KEY` as an env var on the website host, then redeploy the website.
+Set the same secret on the website host as `NATIVE_SITE_KEY` (the site also accepts `NOCTRA_SITE_KEY`), then redeploy the website.
 
 ## Automatic deploys (pull-based)
 
