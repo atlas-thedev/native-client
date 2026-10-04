@@ -14,7 +14,7 @@ const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const COMMUNITY = {
-  discord: 'https://discord.gg/Cb3DCf6G7a',
+  discord: 'https://discord.gg/m9QpHFP8e',
   youtube: 'https://www.youtube.com/@native-client'
 };
 
