@@ -394,9 +394,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <div className="store-spot-badges">
         {kicker}
         {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
-        {item.isNew && <span className="store-badge is-new"><i className="store-badge-dot" />New</span>}
         {item.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
-        {item.animated && <span className="store-badge is-anim"><i className="store-badge-dot" />Animated</span>}
         {ownedIds.has(item.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
       </div>
       <Heading className="store-spot-name">{item.name}</Heading>
@@ -522,7 +520,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 {!signedIn ? (
                   <button type="button" className="store-btn ghost" onClick={onOpenAccountSwitcher}><Lock size={13} />Sign in with Native</button>
                 ) : plus?.active && plus.gifted ? (
-                  <span className="store-plus-gift"><NativePlusIcon size={14} />Gift</span>
+                  null
                 ) : plus?.active ? (
                   <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={manageBilling}>{busy === 'portal' ? <Loader2 size={13} className="is-spinning" /> : null}Manage</button>
                 ) : pending?.kind === 'plus' ? (
@@ -572,8 +570,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                       <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />
                       <div className="store-card-badges">
                         {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />Exclusive</span>}
-                        {item.isNew && !item.exclusive && <span className="store-badge is-new"><i className="store-badge-dot" />New</span>}
-                        {item.animated && !item.exclusive && <span className="store-badge is-anim"><i className="store-badge-dot" />Anim</span>}
                       </div>
                       {owned && <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>}
                     </div>
