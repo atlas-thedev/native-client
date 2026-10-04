@@ -17,7 +17,7 @@ const PNG = Buffer.from([
 ]);
 
 function createInstanceFixture() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-screenshots-'));
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-screenshots-'));
   instance.init({ app: { getPath: () => userData } }, FAKE_IPC);
   const gameDir = path.join(userData, 'minecraft', 'instances', 'instance-1');
   fs.mkdirSync(path.join(gameDir, 'screenshots'), { recursive: true });
@@ -73,7 +73,7 @@ test('world list exposes Minecraft world icons and stable colored-art seeds', ()
 
 test('screenshot manager refuses a linked screenshots directory', () => {
   const { userData, gameDir } = createInstanceFixture();
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-outside-screenshots-'));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'native-outside-screenshots-'));
   try {
     fs.rmSync(path.join(gameDir, 'screenshots'), { recursive: true });
     try {

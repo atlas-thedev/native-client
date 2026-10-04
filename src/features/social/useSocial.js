@@ -18,7 +18,7 @@ const RECONCILE_INTERVAL = 20_000;
 const PER_FRIEND_PRELOAD = 40;
 const THREAD_PAGE_SIZE = 50;
 
-const SOCIAL_CACHE_PREFIX = 'noctra.relay.social.';
+const SOCIAL_CACHE_PREFIX = 'native.relay.social.';
 const CACHE_THREAD_MESSAGES = 20;
 const CACHE_MAX_THREADS = 40;
 
@@ -84,7 +84,7 @@ function mergeMessages(existing, incoming) {
 
 export function useSocial(account) {
   // A connected premium account carries no token here: the main process holds it.
-  const isNative = Boolean(account?.type === 'noctra' && (account?.token || account?.sessionToken || account?.linkedPremium));
+  const isNative = Boolean(account?.type === 'native' && (account?.token || account?.sessionToken || account?.linkedPremium));
   const selfId = account?.id || null;
 
   const initialCache = useMemo(() => (isNative ? readSocialCache(selfId) : null), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -282,8 +282,8 @@ export function useSocial(account) {
   // Connection came back: refresh everything in the background.
   useEffect(() => {
     const onBack = () => { refresh(); };
-    window.addEventListener('noctra:reconnected', onBack);
-    return () => window.removeEventListener('noctra:reconnected', onBack);
+    window.addEventListener('native:reconnected', onBack);
+    return () => window.removeEventListener('native:reconnected', onBack);
   }, [refresh]);
 
   // Slow reconciliation only - realtime events do the heavy lifting.
@@ -811,7 +811,7 @@ export function useSocial(account) {
   // the toggle the moment it is flipped rather than after the next refresh.
   const readMutedIds = () => {
     try {
-      return JSON.parse(localStorage.getItem('noctra_relay_store_v5') || '{}')?.mutedIds || {};
+      return JSON.parse(localStorage.getItem('native_relay_store_v5') || '{}')?.mutedIds || {};
     } catch {
       return {};
     }

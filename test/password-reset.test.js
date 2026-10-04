@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 // Isolate test DB environment
-process.env.NOCTRA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-reset-test-'));
+process.env.NATIVE_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-reset-test-'));
 
 const db = require('../server/db');
 

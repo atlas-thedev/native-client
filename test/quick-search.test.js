@@ -10,7 +10,7 @@ let esbuild = null;
 try { esbuild = require('esbuild'); } catch { esbuild = null; }
 
 function load(file) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-qs-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-qs-'));
   const out = path.join(dir, 'out.cjs');
   esbuild.buildSync({ entryPoints: [path.join(ROOT, file)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'error' });
   return require(out);

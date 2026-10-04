@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { MAX_SESSION_SECS, MIN_SESSION_SECS } from './playtimeStats.js';
 
-const PENDING_KEY = 'noctra.playtime.pending';
+const PENDING_KEY = 'native.playtime.pending';
 const LEGACY_PENDING_KEY = 'native.playtime.pending';
 
 /* Launcher statuses that mean the Minecraft process is actually alive. */

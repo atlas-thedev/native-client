@@ -1,3 +1,4 @@
+require('./legacyEnv');
 const { app, BrowserWindow, Notification, ipcMain, shell, nativeImage } = require('electron');
 const path = require('path');
 const safeFile = require('./safeFile');
@@ -23,7 +24,7 @@ const loadersMod = require('./loaders');
 const modUpdatesMod = require('./modUpdates');
 
 let win;
-const appIcon = path.join(__dirname, '..', 'src', 'assets', 'noctra-icon.png');
+const appIcon = path.join(__dirname, '..', 'src', 'assets', 'native-icon.png');
 
 app.setName('Native Client');
 app.setAppUserModelId('xyz.nativelaunch.desktop');
@@ -31,12 +32,12 @@ app.setAppUserModelId('xyz.nativelaunch.desktop');
 // Keep existing installations on their current data directory so the rename
 // never makes accounts, instances, or downloaded game files appear missing.
 const nativeUserData = path.join(app.getPath('appData'), 'Native');
-const noctraUserData = path.join(app.getPath('appData'), 'Native Client');
+const nativeClientUserData = path.join(app.getPath('appData'), 'Native Client');
 const legacyUserData = path.join(app.getPath('appData'), 'native-client');
 if (fs.existsSync(nativeUserData)) {
   app.setPath('userData', nativeUserData);
-} else if (fs.existsSync(noctraUserData)) {
-  app.setPath('userData', noctraUserData);
+} else if (fs.existsSync(nativeClientUserData)) {
+  app.setPath('userData', nativeClientUserData);
 } else if (fs.existsSync(legacyUserData)) {
   app.setPath('userData', legacyUserData);
 } else {

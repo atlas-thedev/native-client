@@ -18,9 +18,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const MOD_REPO = process.env.NATIVE_MOD_REPO || process.env.NOCTRA_MOD_REPO || 'atlas-thedev/native-mod';
+const MOD_REPO = process.env.NATIVE_MOD_REPO || 'atlas-thedev/native-mod';
 const LEGACY_MOD_REPO = 'atlas-thedev/noctra-mod';
-const MANIFEST_URL = process.env.NATIVE_MOD_MANIFEST || process.env.NOCTRA_MOD_MANIFEST ||
+const MANIFEST_URL = process.env.NATIVE_MOD_MANIFEST ||
   `https://github.com/${MOD_REPO}/releases/latest/download/manifest.json`;
 const DOWNLOAD_PREFIX = `https://github.com/${MOD_REPO}/releases/download/`;
 const LEGACY_DOWNLOAD_PREFIX = `https://github.com/${LEGACY_MOD_REPO}/releases/download/`;

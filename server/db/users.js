@@ -32,7 +32,7 @@ async function verifyPasswordAsync(password, hash, salt) {
 
 /** Comma-separated, verified email addresses that are granted admin access. */
 function adminEmails() {
-  return String(process.env.NOCTRA_ADMIN_EMAILS || '')
+  return String(process.env.NATIVE_ADMIN_EMAILS || '')
     .split(',')
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);

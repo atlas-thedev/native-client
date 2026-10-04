@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 // Ensure unique isolated data directory for social test
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-social-test-'));
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-social-test-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 
 const authDb = require('../server/db');

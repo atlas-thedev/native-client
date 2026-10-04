@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const noctraMod = require('../electron/noctraMod');
+const nativeMod = require('../electron/nativeMod');
 
 const JAR = Buffer.from('PK-fake-jar-bytes');
 const sha = crypto.createHash('sha256').update(JAR).digest('hex');
@@ -42,23 +42,23 @@ function fakeFetch({ manifestBody = manifest(), jar = JAR, ticketStatus = 200, o
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-mod-test-'));
 
 test('supports Fabric/Quilt on 1.16+ and 26.x only', () => {
-  assert.equal(noctraMod.supportsLoader('Fabric'), true);
-  assert.equal(noctraMod.supportsLoader('quilt'), true);
-  assert.equal(noctraMod.supportsLoader('Legacy Fabric'), false);
-  assert.equal(noctraMod.supportsLoader('forge'), false);
-  assert.equal(noctraMod.supportsLoader('neoforge'), false);
-  assert.equal(noctraMod.supportsLoader('vanilla'), false);
-  for (const v of ['1.16', '1.16.5', '1.20.1', '1.21.11', '26.1', '26.3', '26.3.1']) assert.equal(noctraMod.supportsMinecraft(v), true, v);
-  for (const v of ['1.15.2', '1.8.9', '1.12', '24w14a', '', undefined]) assert.equal(noctraMod.supportsMinecraft(v), false, String(v));
+  assert.equal(nativeMod.supportsLoader('Fabric'), true);
+  assert.equal(nativeMod.supportsLoader('quilt'), true);
+  assert.equal(nativeMod.supportsLoader('Legacy Fabric'), false);
+  assert.equal(nativeMod.supportsLoader('forge'), false);
+  assert.equal(nativeMod.supportsLoader('neoforge'), false);
+  assert.equal(nativeMod.supportsLoader('vanilla'), false);
+  for (const v of ['1.16', '1.16.5', '1.20.1', '1.21.11', '26.1', '26.3', '26.3.1']) assert.equal(nativeMod.supportsMinecraft(v), true, v);
+  for (const v of ['1.15.2', '1.8.9', '1.12', '24w14a', '', undefined]) assert.equal(nativeMod.supportsMinecraft(v), false, String(v));
 });
 
 test('manifest validation rejects foreign URLs, bad hashes and odd file names', () => {
-  assert.ok(noctraMod.validateManifest(manifest()));
-  assert.equal(noctraMod.validateManifest(manifest({ url: 'https://evil.example/native-client-1.2.3.jar' })), null);
-  assert.equal(noctraMod.validateManifest(manifest({ sha256: 'zz' })), null);
-  assert.equal(noctraMod.validateManifest(manifest({ file: '../evil.jar' })), null);
-  assert.equal(noctraMod.validateManifest(manifest({ schema: 2 })), null);
-  assert.equal(noctraMod.validateManifest(manifest({ size: 1e9 })), null);
+  assert.ok(nativeMod.validateManifest(manifest()));
+  assert.equal(nativeMod.validateManifest(manifest({ url: 'https://evil.example/native-client-1.2.3.jar' })), null);
+  assert.equal(nativeMod.validateManifest(manifest({ sha256: 'zz' })), null);
+  assert.equal(nativeMod.validateManifest(manifest({ file: '../evil.jar' })), null);
+  assert.equal(nativeMod.validateManifest(manifest({ schema: 2 })), null);
+  assert.equal(nativeMod.validateManifest(manifest({ size: 1e9 })), null);
 });
 
 test('installs the mod, removes older copies and writes the ticket hand-off', async () => {
@@ -69,7 +69,7 @@ test('installs the mod, removes older copies and writes the ticket hand-off', as
   fs.writeFileSync(path.join(gameDir, 'mods', 'sodium.jar'), 'keep');
   const fetchImpl = fakeFetch();
   try {
-    const result = await noctraMod.prepare({
+    const result = await nativeMod.prepare({
       instance: { id: 'a', version: '1.21.4', loader: 'Fabric' },
       identity: { token: 'session-token', name: 'Steve' },
       gameDir, cacheDir: path.join(root, 'cache'), roots: ['https://api.example'], fetchImpl
@@ -84,7 +84,7 @@ test('installs the mod, removes older copies and writes the ticket hand-off', as
     const ticketCall = fetchImpl.calls.find((c) => c.url.endsWith('/v1/auth/game-ticket'));
     assert.equal(ticketCall.options.headers.Authorization, 'Bearer session-token');
 
-    noctraMod.clearHandoff(gameDir);
+    nativeMod.clearHandoff(gameDir);
     assert.equal(fs.existsSync(path.join(gameDir, '.noctra', 'session.json')), false);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -95,7 +95,7 @@ test('guests (no Native session) get the mod but no hand-off; stale hand-off is 
   fs.mkdirSync(path.join(gameDir, '.noctra'), { recursive: true });
   fs.writeFileSync(path.join(gameDir, '.noctra', 'session.json'), '{"ticket":"nmt1.old"}');
   try {
-    const result = await noctraMod.prepare({
+    const result = await nativeMod.prepare({
       instance: { id: 'i', version: '26.3', loader: 'quilt' }, identity: null,
       gameDir, cacheDir: path.join(root, 'c'), roots: ['https://api.example'], fetchImpl: fakeFetch()
     });
@@ -108,7 +108,7 @@ test('guests (no Native session) get the mod but no hand-off; stale hand-off is 
 test('an expired Native session still installs the mod, as a guest', async () => {
   const root = tmp();
   try {
-    const result = await noctraMod.prepare({
+    const result = await nativeMod.prepare({
       instance: { id: 'i', version: '1.20.1', loader: 'fabric' }, identity: { token: 'dead' },
       gameDir: path.join(root, 'i'), cacheDir: path.join(root, 'c'), roots: ['https://api.example'], fetchImpl: fakeFetch({ ticketStatus: 401 })
     });
@@ -121,7 +121,7 @@ test('unsupported instances are skipped so CustomSkinLoader can take over', asyn
   const root = tmp();
   try {
     for (const instance of [{ id: 'x', version: '1.12.2', loader: 'fabric' }, { id: 'x', version: '1.20.1', loader: 'forge' }, { id: 'x', version: '1.21.1', loader: 'neoforge' }]) {
-      const result = await noctraMod.prepare({ instance, identity: null, gameDir: path.join(root, 'x'), cacheDir: path.join(root, 'c'), roots: [], fetchImpl: fakeFetch() });
+      const result = await nativeMod.prepare({ instance, identity: null, gameDir: path.join(root, 'x'), cacheDir: path.join(root, 'c'), roots: [], fetchImpl: fakeFetch() });
       assert.equal(result.installed, false);
     }
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
@@ -130,7 +130,7 @@ test('unsupported instances are skipped so CustomSkinLoader can take over', asyn
 test('a tampered download is rejected and nothing is installed', async () => {
   const root = tmp();
   try {
-    const result = await noctraMod.prepare({
+    const result = await nativeMod.prepare({
       instance: { id: 'i', version: '1.21.1', loader: 'fabric' }, identity: null,
       gameDir: path.join(root, 'i'), cacheDir: path.join(root, 'c'), roots: [], fetchImpl: fakeFetch({ jar: Buffer.from('PK-evil-jar-bytes') })
     });
@@ -144,11 +144,11 @@ test('offline: cached manifest + jar keep working, and a first-ever offline laun
   const root = tmp();
   const base = { instance: { id: 'i', version: '1.21.1', loader: 'fabric' }, identity: null, gameDir: path.join(root, 'i'), cacheDir: path.join(root, 'c'), roots: [] };
   try {
-    const cold = await noctraMod.prepare({ ...base, fetchImpl: fakeFetch({ offline: true }) });
+    const cold = await nativeMod.prepare({ ...base, fetchImpl: fakeFetch({ offline: true }) });
     assert.equal(cold.installed, false);
-    await noctraMod.prepare({ ...base, fetchImpl: fakeFetch() });
+    await nativeMod.prepare({ ...base, fetchImpl: fakeFetch() });
     fs.rmSync(path.join(root, 'i', 'mods'), { recursive: true, force: true });
-    const warm = await noctraMod.prepare({ ...base, fetchImpl: fakeFetch({ offline: true }) });
+    const warm = await nativeMod.prepare({ ...base, fetchImpl: fakeFetch({ offline: true }) });
     assert.equal(warm.installed, true);
     assert.deepEqual(fs.readdirSync(path.join(root, 'i', 'mods')), ['native-client-1.2.3.jar']);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }

@@ -31,7 +31,7 @@ export const DEFAULTS = {
   }
 };
 
-const SETTINGS_EVENT = 'noctra:settings-changed';
+const SETTINGS_EVENT = 'native:settings-changed';
 const LEGACY_SETTINGS_EVENT = 'native:settings-changed';
 
 export function deepMerge(base, override) {
@@ -63,7 +63,6 @@ export default function useSettings() {
           window.native.settings.save(next).catch(() => {});
         } else {
           try {
-            localStorage.setItem('noctra.settings', JSON.stringify(next));
             localStorage.setItem('native.settings', JSON.stringify(next));
           } catch {}
         }
@@ -79,7 +78,7 @@ export default function useSettings() {
         if (next.onboarding?.language) setApplicationLocale(next.onboarding.language);
       });
     } else {
-      const raw = localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings');
+      const raw = localStorage.getItem('native.settings');
       const next = migrateSettings(raw ? JSON.parse(raw) : {});
       setSettings(next);
       applyAppearance(next);
@@ -103,7 +102,7 @@ export default function useSettings() {
     if (window.native?.settings) {
       window.native.settings.save(next);
     } else {
-      localStorage.setItem('noctra.settings', JSON.stringify(next));
+      localStorage.setItem('native.settings', JSON.stringify(next));
     }
     applyAppearance(next);
     window.dispatchEvent(new CustomEvent(SETTINGS_EVENT, { detail: next }));

@@ -16,7 +16,7 @@ export const TOUR_STEPS = [
     body: 'Native downloads Minecraft, keeps your versions and mods organised, and launches the game. This takes about a minute.'
   },
   {
-    target: '.noctra-rail',
+    target: '.native-rail',
     scene: 'nav',
     title: 'Navigation',
     body: 'The sidebar takes you to every page. Hover an icon to see its name.'
@@ -119,7 +119,7 @@ function positionCard(rect, viewport, preferredSide, cardHeight, cardWidth) {
 
 function targetRectFor(step, target) {
   const rect = target.getBoundingClientRect();
-  if (step.target === '.noctra-rail' || target.classList.contains('noctra-rail')) {
+  if (step.target === '.native-rail' || target.classList.contains('native-rail')) {
     const pad = 4;
     return {
       left: pad,
@@ -192,7 +192,7 @@ export default function WelcomeTour({ open, onClose }) {
     }
 
     const targetRect = targetRectFor(step, target);
-    const fallbackSide = step.target === '.noctra-rail' ? 'right' : undefined;
+    const fallbackSide = step.target === '.native-rail' ? 'right' : undefined;
     const card = positionCard(targetRect, viewport, step.preferredSide || fallbackSide, height, width);
     setLayout({ target: targetRect, card });
   }, [open, step, cardWidth]);

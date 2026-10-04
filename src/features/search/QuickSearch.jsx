@@ -237,9 +237,9 @@ export default function QuickSearch({
     action('tour', 'Quick tour', 'Replay the animated launcher tour', CircleHelp, ['tutorial', 'help', 'intro', 'walkthrough', 'onboarding']);
     action('accounts', 'Switch account', account?.name ? `Signed in as ${account.name}` : 'Add or switch accounts', UserRound, ['account', 'login', 'sign in', 'logout', 'microsoft', 'offline', 'profile']);
     if (account?.type === 'microsoft') {
-      action('connect-noctra', account.noctraLink?.connected ? 'Native connection' : 'Connect Native account',
-        account.noctraLink?.connected ? `Connected to ${account.noctraLink.name}` : 'Use Relay and friends with your premium account',
-        Link2, ['link', 'premium', 'microsoft', 'noctra', 'connect', 'relay']);
+      action('connect-native', account.nativeLink?.connected ? 'Native connection' : 'Connect Native account',
+        account.nativeLink?.connected ? `Connected to ${account.nativeLink.name}` : 'Use Relay and friends with your premium account',
+        Link2, ['link', 'premium', 'microsoft', 'native', 'connect', 'relay']);
     }
     action('notifications', 'Notifications', 'Recent launcher activity', Bell, ['alerts', 'inbox', 'activity']);
     action('updates', 'Check for updates', 'Launcher updates', Download, ['update', 'upgrade', 'new version', 'download']);
@@ -286,7 +286,7 @@ export default function QuickSearch({
           group: 'friends',
           title: name,
           subtitle: friend.nickname && friend.name ? `${friend.name} · ${online ? friend.activity || 'online' : 'offline'}` : (online ? friend.activity || 'Online' : 'Offline'),
-          avatar: { name: friend.name, uuid: friend.uuid, skinUrl: friend.skinUrl, model: friend.model, type: 'noctra' },
+          avatar: { name: friend.name, uuid: friend.uuid, skinUrl: friend.skinUrl, model: friend.model, type: 'native' },
           keywords: [friend.name, 'friend', 'chat', 'message', online ? 'online' : 'offline'],
           command: { type: 'friend', friend },
           secondary: friend.serverAddress ? { label: 'Join', command: { type: 'join', friend } } : null,
@@ -308,7 +308,7 @@ export default function QuickSearch({
       });
     }
     return items;
-  }, [instances, friends, hasNative, isAdmin, account?.name, account?.type, account?.noctraLink?.connected, account?.noctraLink?.name, runningInstanceId]);
+  }, [instances, friends, hasNative, isAdmin, account?.name, account?.type, account?.nativeLink?.connected, account?.nativeLink?.name, runningInstanceId]);
 
   const versionItems = useMemo(() => {
     const q = query.trim().toLowerCase();

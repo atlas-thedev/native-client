@@ -6,7 +6,7 @@ const path = require('path');
 const textureCache = require('../electron/textureCache');
 
 test('texture cache stores by sha256 and serves cached bytes without fetching', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-tc-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-tc-'));
   textureCache.init(dir);
   const bytes = Buffer.from('a cape texture that is long enough to cache');
   const hash = textureCache.write(bytes);
@@ -19,7 +19,7 @@ test('texture cache stores by sha256 and serves cached bytes without fetching', 
 });
 
 test('texture cache downloads once, then reuses; rejects tampered files', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-tc-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-tc-'));
   textureCache.init(dir);
   const bytes = Buffer.from('another texture body for the download test');
   const hash = textureCache.sha(bytes);

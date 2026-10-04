@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { Lock, Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
-import noctraIcon from '../../assets/noctra-icon.png';
-import { isNativeCoreMod, noctraModVersion } from './coreMods.js';
+import nativeIcon from '../../assets/native-icon.png';
+import { isNativeCoreMod, nativeModVersion } from './coreMods.js';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
 import ContentHealth, { useContentHealth } from './ContentHealth.jsx';
 import { GlyphBump } from './HealthGlyphs.jsx';
@@ -91,7 +91,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
           size: file.size,
           enabled: true,
           core: true,
-          coreVersion: noctraModVersion(file.name)
+          coreVersion: nativeModVersion(file.name)
         } : {
           id: file.name,
           filename: file.name,
@@ -311,7 +311,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 {/* 36x36px Icon */}
                 <span className="im-file-icon">
                   {row.core ? (
-                    <img src={noctraIcon} alt="Native" />
+                    <img src={nativeIcon} alt="Native" />
                   ) : row.metadata?.iconUrl ? (
                     <img
                       src={row.metadata.iconUrl}

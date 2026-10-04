@@ -11,12 +11,12 @@ const AdmZip = require('adm-zip');
  *   1. Modrinth, by SHA-1 of the file (exact project + version match)
  *   2. The jar itself (fabric.mod.json / quilt.mod.json / mods.toml + bundled logo)
  *
- * Results are cached per folder in `.noctra-meta-cache.json`, keyed by file hash,
+ * Results are cached per folder in `.native-meta-cache.json`, keyed by file hash,
  * so toggling (renaming) a file never triggers another lookup.
  */
 
 const API = 'https://api.modrinth.com/v2';
-const CACHE_FILE = '.noctra-meta-cache.json';
+const CACHE_FILE = '.native-meta-cache.json';
 const CONTENT_EXT = /\.(jar|zip)(\.disabled)?$/i;
 const MAX_ICON_BYTES = 256 * 1024;
 const CHUNK = 50;

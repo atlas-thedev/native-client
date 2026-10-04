@@ -1,5 +1,5 @@
 [Unit]
-Description=Noctra API and Database Server
+Description=Native API and Database Server
 After=network.target
 
 [Service]

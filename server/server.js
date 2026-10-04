@@ -28,7 +28,7 @@ const profilesDir = path.join(DATA_DIR, 'profiles');
 const texturesDir = path.join(DATA_DIR, 'textures');
 const mediaDir = media.MEDIA_DIR;
 const rateBuckets = new Map();
-const TRUST_PROXY = /^(1|true|yes)$/i.test(String(process.env.NOCTRA_TRUST_PROXY || ''));
+const TRUST_PROXY = /^(1|true|yes)$/i.test(String(process.env.NATIVE_TRUST_PROXY || ''));
 const MESSAGE_LIMIT = db.MESSAGE_LIMIT || 2000;
 
 function mimeTypeFor(filename) {
@@ -76,11 +76,11 @@ let simulatedOnline = null;
 let lastDriftAt = 0;
 
 // Reference launch epoch for automatic daily growth (October 1, 2026 UTC)
-const LAUNCH_EPOCH = new Date(process.env.NOCTRA_LAUNCH_DATE || '2026-10-01T00:00:00Z').getTime();
+const LAUNCH_EPOCH = new Date(process.env.NATIVE_LAUNCH_DATE || '2026-10-01T00:00:00Z').getTime();
 
 function getDynamicOnlineCount(realUsers = 0) {
-  if (process.env.NODE_ENV === 'test' || process.env.NOCTRA_DATA_DIR || process.env.NATIVE_DATA_DIR) return realUsers;
-  const boostEnabled = (process.env.NATIVE_BOOST_ENABLED ?? process.env.NOCTRA_BOOST_ENABLED) === 'true';
+  if (process.env.NODE_ENV === 'test' || process.env.NATIVE_DATA_DIR) return realUsers;
+  const boostEnabled = (process.env.NATIVE_BOOST_ENABLED ?? process.env.NATIVE_BOOST_ENABLED) === 'true';
   if (!boostEnabled) return realUsers;
 
   const now = new Date();
@@ -88,12 +88,12 @@ function getDynamicOnlineCount(realUsers = 0) {
 
   // Automatic daily growth: increases by ~50 players every 24 hours that pass
   const daysElapsed = Math.max(0, (nowMs - LAUNCH_EPOCH) / 86_400_000);
-  const dailyGrowthRate = Number(process.env.NOCTRA_DAILY_GROWTH) || 50;
+  const dailyGrowthRate = Number(process.env.NATIVE_DAILY_GROWTH) || 50;
   const growthBonus = Math.floor(daysElapsed * dailyGrowthRate);
 
   // Baseline range: late night valley to evening peak (+ daily growth bonus)
-  const baseMin = (Number(process.env.NOCTRA_BOOST_MIN) || 140) + growthBonus;
-  const baseMax = (Number(process.env.NOCTRA_BOOST_MAX) || 420) + growthBonus;
+  const baseMin = (Number(process.env.NATIVE_BOOST_MIN) || 140) + growthBonus;
+  const baseMax = (Number(process.env.NATIVE_BOOST_MAX) || 420) + growthBonus;
 
   // Fractional UTC hour of the day (0.00 .. 23.99)
   const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
@@ -244,11 +244,11 @@ if (pruneTimer.unref) pruneTimer.unref();
  * request came from the local reverse proxy (nginx sets X-Real-IP from its
  * Cloudflare-aware real_ip config), never straight from the internet.
  */
-const SITE_KEY = String(process.env.NOCTRA_SITE_KEY || '');
+const SITE_KEY = String(process.env.NATIVE_SITE_KEY || '');
 
 /**
  * The Native website proxies sign-in requests, so every visitor would share the
- * website host's IP. When NOCTRA_SITE_KEY is set, a request carrying the same key
+ * website host's IP. When NATIVE_SITE_KEY is set, a request carrying the same key
  * in X-Native-Site-Key may name the real visitor in X-Native-Client-IP.
  */
 function siteForwardedIp(req) {
@@ -343,7 +343,7 @@ function customSkinProfile(profile, origin) {
   return document;
 }
 
-const MINECRAFT_PROFILE_URL = process.env.NOCTRA_MC_PROFILE_URL || 'https://api.minecraftservices.com/minecraft/profile';
+const MINECRAFT_PROFILE_URL = process.env.NATIVE_MC_PROFILE_URL || 'https://api.minecraftservices.com/minecraft/profile';
 
 /**
  * Proves premium ownership: asks Minecraft Services who owns this access
@@ -375,13 +375,13 @@ async function verifyMinecraftToken(rawToken) {
   return { uuid, name };
 }
 
-function noctraAccountPayload(user, token) {
+function nativeAccountPayload(user, token) {
   return {
     id: user.id,
     name: user.username,
     email: user.email,
     uuid: user.uuid,
-    type: 'noctra',
+    type: 'native',
     model: user.model,
     token
   };
@@ -395,7 +395,7 @@ async function handler(req, res) {
 
     if (req.method === 'OPTIONS') {
       const requestOrigin = String(req.headers.origin || '');
-      const allowedOrigin = process.env.NOCTRA_CORS_ORIGIN || (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(requestOrigin) ? requestOrigin : 'null');
+      const allowedOrigin = process.env.NATIVE_CORS_ORIGIN || (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(requestOrigin) ? requestOrigin : 'null');
       return send(res, 204, '', {
         'Access-Control-Allow-Origin': allowedOrigin,
         'Vary': 'Origin',
@@ -445,7 +445,7 @@ async function handler(req, res) {
     if (req.method === 'GET' && url.pathname === '/health') {
       return send(res, 200, {
         ok: true,
-        service: 'noctra-server',
+        service: 'native-server',
         api: 3,
         providers: ['customskinapi', 'auth', 'social', 'realtime'],
         liveConnections: events.connectionCount()
@@ -513,20 +513,20 @@ async function handler(req, res) {
     // Wardrobe publication
     if (req.method === 'POST' && url.pathname === '/v1/wardrobe') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      const noctraToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '');
-      if (token.length < 32 && (!noctraToken || noctraToken.length < 32)) {
+      const nativeToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '');
+      if (token.length < 32 && (!nativeToken || nativeToken.length < 32)) {
         return send(res, 401, { error: 'Missing wardrobe key.' });
       }
       const body = await readJson(req);
       const username = usernameOf(body.username);
       const existing = readProfile(username);
-      const authHash = crypto.createHash('sha256').update(token || noctraToken).digest('hex');
+      const authHash = crypto.createHash('sha256').update(token || nativeToken).digest('hex');
 
       let authorized = false;
       let sessionAuthorized = false;
 
       // 1. Session token check
-      const checkSessionToken = (noctraToken && noctraToken.length >= 32) ? noctraToken : ((token.startsWith('noc_') || token.startsWith('nat_')) ? token : (token.length >= 32 ? token : null));
+      const checkSessionToken = (nativeToken && nativeToken.length >= 32) ? nativeToken : ((token.startsWith('noc_') || token.startsWith('nat_')) ? token : (token.length >= 32 ? token : null));
       if (checkSessionToken) {
         try {
           const sessionUser = db.getUserBySession(checkSessionToken);
@@ -719,7 +719,7 @@ async function handler(req, res) {
           name: user.username,
           email: user.email,
           uuid: user.uuid,
-          type: 'noctra',
+          type: 'native',
           model: user.model,
           token: session.token
         }
@@ -755,7 +755,7 @@ async function handler(req, res) {
           name: user.username,
           email: user.email,
           uuid: user.uuid,
-          type: 'noctra',
+          type: 'native',
           model: user.model,
           token: session.token
         }
@@ -789,7 +789,7 @@ async function handler(req, res) {
       return send(res, 200, {
         ok: true,
         token: session.token,
-        account: noctraAccountPayload(user, session.token),
+        account: nativeAccountPayload(user, session.token),
         profile: { uuid: profile.uuid, name: profile.name }
       });
     }
@@ -878,8 +878,8 @@ async function handler(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/auth/backup') {
-      const supplied = String(req.headers['x-noctra-backup-token'] || '').trim();
-      const expected = String(process.env.NOCTRA_BACKUP_TOKEN || '').trim();
+      const supplied = String(req.headers['x-native-backup-token'] || req.headers['x-noctra-backup-token'] || '').trim();
+      const expected = String(process.env.NATIVE_BACKUP_TOKEN || '').trim();
       const valid = supplied && expected && supplied.length === expected.length &&
         crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
       if (!valid) {

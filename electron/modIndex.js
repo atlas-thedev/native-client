@@ -12,11 +12,11 @@ const AdmZip = require('adm-zip');
  *   - its Mixin config names (a failing `foo.mixins.json` names the mod)
  *   - the Java packages its classes live in (stack frames name classes)
  *
- * Results are cached next to the mods in `.noctra-crash-index.json`, keyed by
+ * Results are cached next to the mods in `.native-crash-index.json`, keyed by
  * file name + size + mtime, so only new or changed jars are reopened.
  */
 
-const CACHE_FILE = '.noctra-crash-index.json';
+const CACHE_FILE = '.native-crash-index.json';
 const CACHE_VERSION = 5;
 const MAX_PACKAGES = 24;
 const MAX_NESTED_BYTES = 48 * 1024 * 1024;

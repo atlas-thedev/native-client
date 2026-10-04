@@ -54,7 +54,7 @@ function crc32(buffer) {
 }
 
 function makeAccount(overrides = {}) {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-wardrobe-'));
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-wardrobe-'));
   wardrobe.init({ app: { getPath: () => userData } }, FAKE_IPC);
   return {
     userData,
@@ -270,7 +270,7 @@ test('publicState surfaces a cached skin texture when nothing is equipped (avata
 });
 
 test('warmSkinCache does not query Mojang or mc-heads for local Native/offline accounts', async () => {
-  const { account, userData } = makeAccount({ type: 'noctra', name: 'SomePlayerName' });
+  const { account, userData } = makeAccount({ type: 'native', name: 'SomePlayerName' });
   try {
     const warmed = await wardrobe.warmSkinCache(account);
     assert.equal(warmed, false);

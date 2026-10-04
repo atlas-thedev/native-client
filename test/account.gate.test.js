@@ -15,7 +15,7 @@ try {
 }
 
 test('NativeAccountGate renders correctly for Locker and Relay', { skip: !esbuild && 'esbuild is not installed' }, () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-gate-ui-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-gate-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
 
@@ -81,26 +81,24 @@ process.stdout.write(JSON.stringify({ lockerHtml, relayHtml }));
 test('account gating logic distinguishes Native accounts from guest/microsoft/offline', () => {
   const isNativeAccount = (acc, accs) => {
     const hasValid = Boolean(acc && acc.id && acc.id !== 'guest' && accs && accs.length > 0);
-    return Boolean(hasValid && (acc.type === 'noctra' || acc.type === 'native'));
+    return Boolean(hasValid && acc.type === 'native');
   };
 
   const guest = { id: 'guest', name: 'Guest', type: 'guest' };
   const offline = { id: 'off-1', name: 'Steve', type: 'offline' };
   const ms = { id: 'ms-1', name: 'Alex', type: 'microsoft', isMicrosoft: true };
-  const noctra = { id: 'noctra-1', name: 'ProPlayer', type: 'noctra', token: 'sec-123' };
-  const native = { id: 'native-1', name: 'LegacyPlayer', type: 'native' };
+  const native = { id: 'native-1', name: 'ProPlayer', type: 'native', token: 'sec-123' };
 
   // Guest or no accounts
   assert.equal(isNativeAccount(guest, []), false, 'Guest is not Native');
   assert.equal(isNativeAccount(null, []), false, 'Null account is not Native');
-  assert.equal(isNativeAccount(noctra, []), false, 'Empty accounts list disallows access');
+  assert.equal(isNativeAccount(native, []), false, 'Empty accounts list disallows access');
 
   // Microsoft and offline
   assert.equal(isNativeAccount(offline, [offline]), false, 'Offline account cannot access Native features');
   assert.equal(isNativeAccount(ms, [ms]), false, 'Microsoft account cannot access Native features');
 
-  // Native and native
-  assert.equal(isNativeAccount(noctra, [noctra]), true, 'Native account can access Native features');
+  // Native accounts
   assert.equal(isNativeAccount(native, [native]), true, 'Native account can access Native features');
 });
 

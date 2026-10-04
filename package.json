@@ -49,7 +49,7 @@
       "dist/**",
       "electron/**",
       "icon.png",
-      "src/assets/noctra-icon.png",
+      "src/assets/native-icon.png",
       "src/styles/theme.css",
       "package.json"
     ],

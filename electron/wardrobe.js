@@ -779,7 +779,7 @@ async function fetchStoreMe(account) {
 
 /** A premium account connected to Native (or its linked identity) uses the Native session stored in main. */
 function resolveBillingAccount(account) {
-  if (account?.token && account?.type === 'noctra') return account;
+  if (account?.token && account?.type === 'native') return account;
   const id = account?.linkedFrom || (account?.type === 'microsoft' ? account.id : null);
   if (!id) return account;
   try {
@@ -1495,8 +1495,8 @@ async function prepareFabricInstance(instance, account, onState = () => {}) {
 
   configureSkinLoader(cslDir, metadata.model);
 
-  const trackerPath = path.join(cslDir, '.noctra-loader.json');
-  const legacyTrackerPath = path.join(cslDir, '.native-loader.json');
+  const trackerPath = path.join(cslDir, '.native-loader.json');
+  const legacyTrackerPath = path.join(cslDir, '.noctra-loader.json');
   let tracker = {};
   try {
     const activeTracker = fs.existsSync(trackerPath) ? trackerPath : (fs.existsSync(legacyTrackerPath) ? legacyTrackerPath : trackerPath);

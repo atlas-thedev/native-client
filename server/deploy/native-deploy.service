@@ -1,5 +1,5 @@
 [Unit]
-Description=Deploy the latest Noctra API from GitHub
+Description=Deploy the latest Native API from GitHub
 After=network-online.target
 Wants=network-online.target
 
@@ -8,5 +8,5 @@ Type=oneshot
 User=ubuntu
 Environment=HOME=/home/ubuntu
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=/home/ubuntu/noctra-server/.deploy/auto-deploy.sh
+ExecStart=/home/ubuntu/native-server/.deploy/auto-deploy.sh
 TimeoutStartSec=600

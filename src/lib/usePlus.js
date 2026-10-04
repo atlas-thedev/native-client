@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 
 /** Fired by the Store (and anything else that learns the Native+ state) so the shell updates at once. */
-export const PLUS_EVENT = 'noctra:plus-changed';
+export const PLUS_EVENT = 'native:plus-changed';
 export const announcePlus = (active) => {
   try { window.dispatchEvent(new CustomEvent(PLUS_EVENT, { detail: { active: Boolean(active) } })); } catch {}
 };
 
-const cacheKey = (account) => `noctra.plus.${account?.id || account?.uuid || 'none'}`;
+const cacheKey = (account) => `native.plus.${account?.id || account?.uuid || 'none'}`;
 
 /**
  * Whether the signed-in account has Native+. Cached per account so the N+ logo shows instantly,

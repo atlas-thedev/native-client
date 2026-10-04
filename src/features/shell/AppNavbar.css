@@ -4,7 +4,7 @@
    top, account and settings pinned to the bottom.
    ============================================================ */
 
-.noctra-titlebar {
+.native-titlebar {
   position: absolute;
   z-index: 70;
   top: 0;
@@ -20,11 +20,11 @@
   -webkit-app-region: drag;
 }
 
-.window-frame:not(.maximized) .noctra-titlebar {
+.window-frame:not(.maximized) .native-titlebar {
   border-top-right-radius: 14px;
 }
 
-.noctra-build {
+.native-build {
   min-width: 0;
   height: 100%;
   display: flex;
@@ -89,18 +89,18 @@
   outline-offset: 2px;
 }
 
-.noctra-build > i {
+.native-build > i {
   width: 1px;
   height: 10px;
   background: var(--hairline-strong);
 }
 
-.noctra-build b {
+.native-build b {
   font-weight: 700;
   color: var(--fg-secondary);
 }
 
-.noctra-build strong {
+.native-build strong {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -108,30 +108,30 @@
   color: var(--fg-secondary);
 }
 
-.noctra-build strong > span {
+.native-build strong > span {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: var(--color-success);
 }
 
-.noctra-live-users {
+.native-live-users {
   color: var(--fg-secondary) !important;
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
 
-.noctra-live-users > svg {
+.native-live-users > svg {
   color: var(--success);
 }
 
-.noctra-live-users > b { color: var(--fg-primary-hover); }
+.native-live-users > b { color: var(--fg-primary-hover); }
 
 /* ---------- titlebar update pill ----------
    The persistent, clickable update indicator. It only renders when the
    updater has something to say (available / downloading / ready / checking);
    otherwise the titlebar stays clean. */
-.noctra-update-pill {
+.native-update-pill {
   -webkit-app-region: no-drag;
   display: inline-flex;
   align-items: center;
@@ -150,47 +150,47 @@
     color 0.16s var(--ease), transform 0.16s var(--ease-out);
 }
 
-.noctra-update-pill:hover { transform: translateY(-1px); }
-.noctra-update-pill:active { transform: translateY(0); }
-.noctra-update-pill svg { flex: none; }
-.noctra-update-pill b { font-weight: 800; color: inherit; opacity: 0.82; }
+.native-update-pill:hover { transform: translateY(-1px); }
+.native-update-pill:active { transform: translateY(0); }
+.native-update-pill svg { flex: none; }
+.native-update-pill b { font-weight: 800; color: inherit; opacity: 0.82; }
 
 /* Available — brand accent invites the user to open the update center. */
-.noctra-update-pill.available {
+.native-update-pill.available {
   border-color: var(--brand-border);
   background: var(--brand-subtle);
   color: var(--brand-soft);
 }
 
 /* Ready to install — success accent signals the restart action. */
-.noctra-update-pill.ready {
+.native-update-pill.ready {
   border-color: rgba(34, 197, 94, 0.5);
   background: rgba(34, 197, 94, 0.14);
   color: var(--color-success);
 }
 
 /* Downloading — quiet brand tint while work is in progress. */
-.noctra-update-pill.downloading {
+.native-update-pill.downloading {
   border-color: var(--brand-border);
   color: var(--brand-soft);
 }
 
 /* Checking — the most subtle state, with a spinning glyph. */
-.noctra-update-pill.checking { color: var(--fg-muted); }
+.native-update-pill.checking { color: var(--fg-muted); }
 
-.noctra-update-spin {
+.native-update-spin {
   transform-origin: center;
-  animation: noctra-update-spin 0.9s linear infinite;
+  animation: native-update-spin 0.9s linear infinite;
 }
 
-@keyframes noctra-update-spin {
+@keyframes native-update-spin {
   to { transform: rotate(360deg); }
 }
 
 /* ---------- titlebar network pill ----------
    A read-only connectivity indicator that only renders while the connection is
    unhealthy (offline / degraded); a healthy connection shows nothing. */
-.noctra-net-pill {
+.native-net-pill {
   -webkit-app-region: no-drag;
   display: inline-flex;
   align-items: center;
@@ -204,10 +204,10 @@
   white-space: nowrap;
 }
 
-.noctra-net-pill svg { flex: none; }
+.native-net-pill svg { flex: none; }
 
 /* Offline — the connection is down; a red accent signals lost functionality. */
-.noctra-net-pill.offline {
+.native-net-pill.offline {
   border-color: rgba(239, 68, 68, 0.5);
   background: rgba(239, 68, 68, 0.14);
   color: #f0a3a3;
@@ -215,13 +215,13 @@
 
 /* Degraded — an interface is up but the internet is unreachable (captive portal,
    DNS failure); a gold accent marks the softer warning. */
-.noctra-net-pill.degraded {
+.native-net-pill.degraded {
   border-color: rgba(230, 179, 63, 0.5);
   background: rgba(230, 179, 63, 0.13);
   color: var(--color-gold);
 }
 
-.noctra-wordmark {
+.native-wordmark {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -229,8 +229,7 @@
   font-weight: 700;
 }
 
-.noctra-wordmark > .noctra-logo,
-.noctra-wordmark > .native-logo {
+.native-wordmark > .native-logo {
   width: auto;
   height: auto;
   display: inline-flex;
@@ -240,8 +239,7 @@
   transform: none;
 }
 
-.noctra-wordmark .noctra-mark,
-.noctra-wordmark .native-mark {
+.native-wordmark .native-mark {
   width: 11px !important;
   height: 11px !important;
   filter: grayscale(1) brightness(0.72);
@@ -281,7 +279,7 @@
    the account avatar pinned to the bottom. Black, solid colours only —
    no gradients, no glows. */
 
-.noctra-rail {
+.native-rail {
   position: absolute;
   z-index: 80;
   inset: 0 auto 0 0;
@@ -296,12 +294,12 @@
   -webkit-app-region: drag;
 }
 
-.window-frame:not(.maximized) .noctra-rail {
+.window-frame:not(.maximized) .native-rail {
   border-top-left-radius: 14px;
   border-bottom-left-radius: 14px;
 }
 
-.noctra-rail-logo {
+.native-rail-logo {
   position: relative;
   width: 44px;
   height: 44px;
@@ -314,13 +312,11 @@
   transition: background 0.14s var(--ease);
 }
 
-.noctra-rail-logo:hover { background: var(--surface-tint); }
+.native-rail-logo:hover { background: var(--surface-tint); }
 
-.noctra-rail-logo .noctra-logo,
-.noctra-rail-logo .native-logo { display: grid; place-items: center; }
+.native-rail-logo .native-logo { display: grid; place-items: center; }
 
-.noctra-rail-logo .noctra-mark,
-.noctra-rail-logo .native-mark {
+.native-rail-logo .native-mark {
   width: 26px !important;
   height: 26px !important;
   border-radius: 0 !important;
@@ -475,7 +471,7 @@
 
 /* Tooltips: the rail sits on the window edge, so labels open to the right. */
 .rail-btn::after,
-.noctra-rail-logo::after {
+.native-rail-logo::after {
   content: attr(data-tooltip);
   position: absolute;
   left: calc(100% + 14px);
@@ -497,16 +493,16 @@
 
 .rail-btn:hover::after,
 .rail-btn:focus-visible::after,
-.noctra-rail-logo:hover::after { opacity: 1; transform: translate(0, -50%); }
+.native-rail-logo:hover::after { opacity: 1; transform: translate(0, -50%); }
 
 @media (prefers-reduced-motion: reduce) {
   .rail-btn,
-  .noctra-rail-logo,
-  .noctra-update-pill,
+  .native-rail-logo,
+  .native-update-pill,
   .quick-tutorial-btn {
     transition: none;
   }
-  .noctra-update-spin {
+  .native-update-spin {
     animation: none;
   }
 }
@@ -514,17 +510,16 @@
 @media (max-width: 860px) {
   .quick-tutorial-btn span { display: none; }
   .quick-tutorial-btn { width: 28px; padding: 0; }
-  .noctra-live-users { display: none !important; }
+  .native-live-users { display: none !important; }
 }
 
 /* Native+ : the rail N gets a gold plus. */
-.noctra-rail-plus {
+.native-rail-plus {
   position: absolute; top: 3px; right: 2px; width: 16px; height: 16px; display: grid; place-items: center;
   border-radius: 5px; font-size: 14px; font-weight: 900; line-height: 1; color: #1b1405;
   background: linear-gradient(180deg, #ffe08a, #f2b632);
   box-shadow: 0 0 0 2px var(--bg-rail, #0d0d12), 0 2px 10px rgba(242, 182, 50, 0.45);
   pointer-events: none;
 }
-.noctra-rail-logo.is-plus .noctra-mark,
-.noctra-rail-logo.is-plus .native-mark { transform: translate(-2px, 2px); }
-.noctra-wordmark-plus { margin-left: 1px; font-style: normal; font-weight: 900; color: #f2b632; }
+.native-rail-logo.is-plus .native-mark { transform: translate(-2px, 2px); }
+.native-wordmark-plus { margin-left: 1px; font-style: normal; font-weight: 900; color: #f2b632; }

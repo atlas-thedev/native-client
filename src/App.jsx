@@ -52,8 +52,8 @@ export default function App() {
     prevNetState.current = netState;
     if (netState !== 'online' || !previous || previous === 'online') return;
     const current = activeAccountRef.current;
-    window.dispatchEvent(new CustomEvent('noctra:reconnected'));
-    if (current && current.type === 'noctra' && window.native?.wardrobe?.sync) {
+    window.dispatchEvent(new CustomEvent('native:reconnected'));
+    if (current && current.type === 'native' && window.native?.wardrobe?.sync) {
       window.native.wardrobe.sync(current).then((res) => {
         if (res?.state) setWardrobe({ ...res.state, accountId: current.id });
       }).catch(() => {});
@@ -69,14 +69,14 @@ export default function App() {
     let again = false;
     const run = async () => {
       const current = activeAccountRef.current;
-      if (!current || current.type !== 'noctra') return;
+      if (!current || current.type !== 'native') return;
       if (busy) { again = true; return; }
       busy = true;
       try {
         const res = await window.native.wardrobe.refresh(current);
         if (res?.pulled && res.state && activeAccountRef.current?.id === current.id) {
           setWardrobe({ ...res.state, accountId: current.id });
-          window.dispatchEvent(new CustomEvent('noctra:wardrobe-refreshed'));
+          window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
         }
       } catch { /* the next event or sync retries */ }
       busy = false;
@@ -167,13 +167,12 @@ export default function App() {
       }
 
       const savedAccounts = [];
-      const rawSettings = localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings');
-      const rawInstances = localStorage.getItem('noctra.instances') || localStorage.getItem('native.instances');
+      const rawSettings = localStorage.getItem('native.settings');
+      const rawInstances = localStorage.getItem('native.instances');
       let settings = rawSettings ? JSON.parse(rawSettings) : {};
       if (!settings.appearance || settings.appearance.theme !== 'black') {
         settings = { ...settings, appearance: { ...(settings.appearance || {}), theme: 'black' } };
         try {
-          localStorage.setItem('noctra.settings', JSON.stringify(settings));
           localStorage.setItem('native.settings', JSON.stringify(settings));
         } catch {}
       }
@@ -232,7 +231,7 @@ export default function App() {
   };
 
   const handleAddNative = async (payload) => {
-    const bridge = window.noctra || window.native;
+    const bridge = window.native;
     const res = await bridge?.accounts?.addNative?.(payload)
       || await bridge?.accounts?.addNative?.(payload)
       || await bridge?.accounts?.addOffline?.(typeof payload === 'string' ? payload : payload?.name);
@@ -243,18 +242,17 @@ export default function App() {
     return res;
   };
 
-  const handleAddNoctra = handleAddNative;
 
   const handleNativeSendCode = async (payload) => {
-    return await window.native?.accounts?.noctraSendCode?.(payload);
+    return await window.native?.accounts?.nativeSendCode?.(payload);
   };
 
   const handleNativeResendCode = async (payload) => {
-    return await window.native?.accounts?.noctraResendCode?.(payload);
+    return await window.native?.accounts?.nativeResendCode?.(payload);
   };
 
   const handleNativeVerifyRegister = async (payload) => {
-    const res = await window.native?.accounts?.noctraVerifyRegister?.(payload);
+    const res = await window.native?.accounts?.nativeVerifyRegister?.(payload);
     if (res?.ok) {
       await refreshAccounts();
       if (res.account?.id) setActiveId(res.account.id);
@@ -263,7 +261,7 @@ export default function App() {
   };
 
   const handleNativeLogin = async (payload) => {
-    const res = await window.native?.accounts?.noctraLogin?.(payload);
+    const res = await window.native?.accounts?.nativeLogin?.(payload);
     if (res?.ok) {
       await refreshAccounts();
       if (res.account?.id) setActiveId(res.account.id);
@@ -303,7 +301,7 @@ export default function App() {
     if (ensuredPremiumRef.current === activeAccount.id) return undefined;
     ensuredPremiumRef.current = activeAccount.id;
     let cancelled = false;
-    const before = activeAccount.noctraLink?.userId || null;
+    const before = activeAccount.nativeLink?.userId || null;
     window.native.accounts.ensureNative(activeAccount.id).then((res) => {
       const after = res?.ok ? res.link?.userId || null : null;
       if (!cancelled && after !== before) refreshAccounts();
@@ -330,8 +328,8 @@ export default function App() {
       const savedSettings = await window.native.settings.save(nextSettings);
       setStartup({ ready: true, onboarding: false, settings: savedSettings ?? nextSettings, instances: instanceData });
     } else {
-      localStorage.setItem('noctra.instances', JSON.stringify(instanceData));
-      localStorage.setItem('noctra.settings', JSON.stringify(nextSettings));
+      localStorage.setItem('native.instances', JSON.stringify(instanceData));
+      localStorage.setItem('native.settings', JSON.stringify(nextSettings));
       setStartup({ ready: true, onboarding: false, settings: nextSettings, instances: instanceData });
     }
   };
@@ -342,7 +340,7 @@ export default function App() {
     if (!startup.ready) return undefined;
     let second = 0;
     const first = requestAnimationFrame(() => {
-      second = requestAnimationFrame(() => window.__noctraBootDone?.());
+      second = requestAnimationFrame(() => window.__nativeBootDone?.());
     });
     return () => {
       cancelAnimationFrame(first);

@@ -10,11 +10,11 @@
 # No GitHub secrets or inbound SSH needed. Run by hand any time:  ./auto-deploy.sh [--force]
 set -euo pipefail
 
-REPO="${NOCTRA_REPO:-atlas-thedev/native-client}"
-BRANCH="${NOCTRA_BRANCH:-main}"
-APP="${NOCTRA_APP_DIR:-$HOME/noctra-server}"
-PM2_NAME="${NOCTRA_PM2_NAME:-noctra-server}"
-HEALTH="${NOCTRA_HEALTH_URL:-http://127.0.0.1:3418/health}"
+REPO="${NATIVE_REPO:-atlas-thedev/native-client}"
+BRANCH="${NATIVE_BRANCH:-main}"
+APP="${NATIVE_APP_DIR:-$HOME/native-server}"
+PM2_NAME="${NATIVE_PM2_NAME:-native-server}"
+HEALTH="${NATIVE_HEALTH_URL:-http://127.0.0.1:3418/health}"
 STATE="$APP/.deploy"
 KEEP_BACKUPS=5
 PROTECTED=(data .env node_modules .deploy scripts package-lock.json)

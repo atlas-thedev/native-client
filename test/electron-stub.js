@@ -16,7 +16,7 @@ const originalLoad = Module._load;
 const stub = {
   app: {
     getPath: (name) => {
-      if (name === 'userData') return process.env.NOCTRA_TEST_USER_DATA || path.join(os.tmpdir(), 'noctra-test-userdata');
+      if (name === 'userData') return process.env.NATIVE_TEST_USER_DATA || path.join(os.tmpdir(), 'native-test-userdata');
       if (name === 'appData') return os.tmpdir();
       return os.tmpdir();
     },

@@ -92,14 +92,14 @@ test('a loader-named asset index is mirrored under the game version', () => {
 });
 
 test('legacy crosshair rendering jars are recoverably disabled on Minecraft 1.21.6+', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-crosshair-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-crosshair-'));
   const modsDir = path.join(temp, 'mods');
   fs.mkdirSync(modsDir, { recursive: true });
   const jarPath = path.join(modsDir, 'custom-crosshair-x.jar');
   const zip = new AdmZip();
   zip.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ id: 'custom_crosshair_x', name: 'Custom Crosshair X' })));
   zip.addFile(
-    'dev/noctra/CrosshairMixin.class',
+    'dev/native/CrosshairMixin.class',
     Buffer.from('com/mojang/blaze3d/systems/RenderSystem\0enableBlend')
   );
   zip.writeZip(jarPath);
@@ -123,7 +123,7 @@ test('legacy crosshair rendering jars are recoverably disabled on Minecraft 1.21
 });
 
 test('jars explicitly built for another Minecraft version are disabled before launch', () => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-wrong-mc-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-wrong-mc-'));
   const modsDir = path.join(temp, 'mods');
   fs.mkdirSync(modsDir, { recursive: true });
   const jarPath = path.join(modsDir, 'sodium-fabric-0.7.3+mc1.21.8.jar');

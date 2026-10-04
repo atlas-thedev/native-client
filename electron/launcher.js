@@ -9,7 +9,7 @@ const javaRuntime = require('./javaRuntime');
 const { downloadFile, fetchJson, writeFileAtomic } = require('./download');
 const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
-const noctraMod = require('./noctraMod');
+const nativeMod = require('./nativeMod');
 const socialMod = require('./social');
 const discordRpcMod = require('./discordRpc');
 const playHistory = require('./playHistory');
@@ -173,12 +173,12 @@ const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
 
 /** The Native session of the account being launched (Native account, or the one a premium account is connected to). */
-function noctraIdentityFor(rawAccount) {
+function nativeIdentityFor(rawAccount) {
   try {
     const data = auth.readAccounts(deps.app.getPath('userData'));
     const saved = (data.accounts || []).find((entry) => entry.id === rawAccount?.id);
     if (!saved) return null;
-    if (saved.type === 'noctra') {
+    if (saved.type === 'native') {
       const token = saved.token || saved.sessionToken;
       return token ? { id: saved.id, name: saved.name || saved.username, token } : null;
     }
@@ -573,9 +573,9 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     if (loaders.normalize(loader) !== 'vanilla') {
       let modResult = { installed: false };
       try {
-        modResult = await noctraMod.prepare({
+        modResult = await nativeMod.prepare({
           instance: { ...instance, loader },
-          identity: noctraIdentityFor(rawAccount),
+          identity: nativeIdentityFor(rawAccount),
           gameDir: instanceDir(instance.id),
           cacheDir: path.join(deps.app.getPath('userData'), 'native-mod'),
           roots: socialMod.API_ROOTS,
@@ -711,7 +711,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeChild = null;
         activeInstance = null;
       }
-      noctraMod.clearHandoff(instanceDir(instance.id));
+      nativeMod.clearHandoff(instanceDir(instance.id));
       setState('error', `Minecraft process failed: ${err.message}`);
       resetPresence();
       gameConsole.end(instance.id, { note: `Minecraft process failed: ${err.message}` });
@@ -733,7 +733,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeInstance = null;
         activeFinish = null;
       }
-      noctraMod.clearHandoff(instanceDir(instance.id));
+      nativeMod.clearHandoff(instanceDir(instance.id));
       gameConsole.end(instance.id, { code, signal, killed });
       resetPresence();
       const record = await crashReporter.endSession(code, signal).catch(() => null);

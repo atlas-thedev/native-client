@@ -1,7 +1,6 @@
 /* Windows 11 OOBE-inspired onboarding. */
 .onboarding { --oobe-blue:#0f6cbd; --oobe-blue-hover:#115ea3; --oobe-ink:#1b1b1f; --oobe-muted:#5f6368; --oobe-line:#d7dce3; width:100%; height:100%; overflow:hidden; color:var(--oobe-ink); background:radial-gradient(circle at 80% 110%,#b9d2f5 0,transparent 42%),linear-gradient(135deg,#dcebf4 0%,#edf5fb 52%,#dbe8f8 100%); font-family:'Segoe UI Variable','Segoe UI',Arial,sans-serif; }
 .onboarding-titlebar { height:48px; display:flex; align-items:center; justify-content:space-between; padding-left:18px; border-bottom:1px solid rgba(70,92,122,.14); background:rgba(246,250,254,.72); -webkit-app-region:drag; }
-.onboarding-titlebar .noctra-logo,
 .onboarding-titlebar .native-logo { color:#202124; }
 .onboarding-window-controls { align-self:stretch; display:flex; -webkit-app-region:no-drag; }
 .onboarding-window-controls button { width:46px; display:grid; place-items:center; color:#4e5661; transition:.12s ease; }

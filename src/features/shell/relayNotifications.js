@@ -3,7 +3,7 @@
  * Pure, so the rules can be tested without a window.
  */
 
-export const NOTIFY_PREFS_KEY = 'noctra.relay.notifications';
+export const NOTIFY_PREFS_KEY = 'native.relay.notifications';
 const DEFAULT_PREFS = { desktop: true, sound: true };
 
 export function readNotifyPrefs(storage = globalThis.localStorage) {

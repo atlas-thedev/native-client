@@ -9,7 +9,7 @@ import react from '@vitejs/plugin-react';
  */
 function contentSecurityPolicy() {
   return {
-    name: 'noctra-csp',
+    name: 'native-csp',
     apply: 'build',
     transformIndexHtml(html) {
       // Browsers normalise CRLF/CR to LF before hashing inline scripts, so

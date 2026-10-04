@@ -8,10 +8,10 @@ const http = require('node:http');
 
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-mod-api-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
-process.env.NOCTRA_DB_PATH = path.join(DATA_DIR, 'noctra.db');
+process.env.NATIVE_DATA_DIR = DATA_DIR;
+process.env.NATIVE_DB_PATH = path.join(DATA_DIR, 'native.db');
 delete process.env.NATIVE_SKIN_PUBLIC_URL;
-delete process.env.NOCTRA_PUBLIC_URL;
+delete process.env.NATIVE_PUBLIC_URL;
 
 const db = require('../server/db');
 const { listen } = require('../server/server');

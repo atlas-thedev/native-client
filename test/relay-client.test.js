@@ -14,10 +14,10 @@ const { DatabaseSync } = require('node:sqlite');
 
 const PORT = 35000 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
-const serverDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-cli-srv-'));
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-cli-ud-'));
+const serverDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-cli-srv-'));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-cli-ud-'));
 process.env.NATIVE_WARDROBE_API = BASE;
-process.env.NOCTRA_TEST_USER_DATA = userData;
+process.env.NATIVE_TEST_USER_DATA = userData;
 const stub = require('./electron-stub.js');
 const handlers = new Map();
 stub.ipcMain.handle = (channel, fn) => handlers.set(channel, fn);
@@ -40,7 +40,7 @@ const U = {};
 let child;
 
 function codeFor(email) {
-  const db = new DatabaseSync(path.join(serverDir, 'noctra.db'), { readOnly: true });
+  const db = new DatabaseSync(path.join(serverDir, 'native.db'), { readOnly: true });
   try { return db.prepare('SELECT code FROM verification_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1').get(email)?.code; } finally { db.close(); }
 }
 async function register(name) {
@@ -48,7 +48,7 @@ async function register(name) {
   await http('POST', '/v1/auth/register/send-code', { body: { email, username: name } });
   const res = await http('POST', '/v1/auth/register/verify', { body: { email, code: codeFor(email), username: name, password: 'hunter22' } });
   assert.ok(res.ok, JSON.stringify(res));
-  return { id: res.account.id, name, type: 'noctra', token: res.token };
+  return { id: res.account.id, name, type: 'native', token: res.token };
 }
 const signInAs = (who) => fs.writeFileSync(path.join(userData, 'accounts.json'), JSON.stringify({ activeId: who.id, accounts: [U.a, U.b].filter(Boolean) }));
 const waitFor = async (fn, timeout = 5000) => {
@@ -59,7 +59,7 @@ const waitFor = async (fn, timeout = 5000) => {
 
 test.before(async () => {
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NOCTRA_DATA_DIR: serverDir, RESEND_API_KEY: 'test' }, stdio: 'ignore'
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: serverDir, RESEND_API_KEY: 'test' }, stdio: 'ignore'
   });
   for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/health`)).ok) break; } catch {} await sleep(250); }
   const tag = Math.random().toString(36).slice(2, 6);

@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const assert = require('node:assert/strict');
 
-app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-fixes-test-')));
+app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'native-fixes-test-')));
 app.commandLine.appendSwitch('disable-dev-shm-usage');
 
 const instance1 = {
@@ -80,7 +80,7 @@ const handles = {
     return [];
   },
   'instance:openFolder': () => true,
-  'settings:dataDir': () => '/tmp/noctra',
+  'settings:dataDir': () => '/tmp/native',
   'news:list': () => ({ items: [] }),
   'updater:status': () => ({ type: 'idle' }),
   'social:getFriends': () => ({ friends: [] }),

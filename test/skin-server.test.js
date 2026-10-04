@@ -8,7 +8,7 @@ const zlib = require('node:zlib');
 
 // The data directory is resolved when the module is loaded, so point it at a
 // scratch folder before requiring the server.
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-skin-api-'));
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-skin-api-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 delete process.env.NATIVE_SKIN_PUBLIC_URL;
 

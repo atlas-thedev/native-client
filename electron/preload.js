@@ -29,14 +29,13 @@ const api = {
     list:                 ()        => ipcRenderer.invoke('accounts:list'),
     addOffline:           (name)    => ipcRenderer.invoke('accounts:addOffline', name),
     addNative:            (payload) => ipcRenderer.invoke('accounts:addNative', payload),
-    addNative:            (payload) => ipcRenderer.invoke('accounts:addNative', payload),
     addMicrosoft:         ()        => ipcRenderer.invoke('accounts:addMicrosoft'),
-    noctraSendCode:       (payload) => ipcRenderer.invoke('accounts:noctraSendCode', payload),
-    noctraResendCode:     (payload) => ipcRenderer.invoke('accounts:noctraResendCode', payload),
-    noctraVerifyRegister: (payload) => ipcRenderer.invoke('accounts:noctraVerifyRegister', payload),
-    noctraLogin:          (payload) => ipcRenderer.invoke('accounts:noctraLogin', payload),
-    noctraForgotPassword: (payload) => ipcRenderer.invoke('accounts:noctraForgotPassword', payload),
-    noctraResetPassword:  (payload) => ipcRenderer.invoke('accounts:noctraResetPassword', payload),
+    nativeSendCode:       (payload) => ipcRenderer.invoke('accounts:nativeSendCode', payload),
+    nativeResendCode:     (payload) => ipcRenderer.invoke('accounts:nativeResendCode', payload),
+    nativeVerifyRegister: (payload) => ipcRenderer.invoke('accounts:nativeVerifyRegister', payload),
+    nativeLogin:          (payload) => ipcRenderer.invoke('accounts:nativeLogin', payload),
+    nativeForgotPassword: (payload) => ipcRenderer.invoke('accounts:nativeForgotPassword', payload),
+    nativeResetPassword:  (payload) => ipcRenderer.invoke('accounts:nativeResetPassword', payload),
     getPremiumLink:       (id)      => ipcRenderer.invoke('accounts:getPremiumLink', id),
     linkPremium:          (payload) => ipcRenderer.invoke('accounts:linkPremium', payload),
     unlinkPremium:        (id)      => ipcRenderer.invoke('accounts:unlinkPremium', id),
@@ -297,7 +296,6 @@ const api = {
   }
 };
 
-contextBridge.exposeInMainWorld('noctra', api);
 contextBridge.exposeInMainWorld('native', api);
 
 function subscribe(channel, callback) {

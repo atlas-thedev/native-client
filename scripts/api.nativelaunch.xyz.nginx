@@ -1,4 +1,4 @@
-# Noctra API reverse proxy (matches the production box).
+# Native API reverse proxy (matches the production box).
 # Install scripts/cloudflare-realip.conf as /etc/nginx/snippets/cloudflare-realip.conf.
 server {
     listen 80;
@@ -22,7 +22,7 @@ server {
     # How-to videos (static files, streamed with range requests). The launcher
     # loads them from its own origin, so they need a CORS header.
     location = /guides/manifest.json {
-        alias /var/www/noctra-guides/manifest.json;
+        alias /var/www/native-guides/manifest.json;
         default_type application/json;
         add_header Access-Control-Allow-Origin "*" always;
         add_header Cache-Control "no-cache" always;
@@ -30,7 +30,7 @@ server {
     }
 
     location ^~ /guides/ {
-        alias /var/www/noctra-guides/;
+        alias /var/www/native-guides/;
         limit_except GET HEAD { deny all; }
         autoindex off;
         add_header Access-Control-Allow-Origin "*" always;

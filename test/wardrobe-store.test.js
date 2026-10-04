@@ -6,12 +6,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-wstore-'));
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-wstore-'));
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
-process.env.NOCTRA_DB_PATH = path.join(DATA_DIR, 'noctra.db');
+process.env.NATIVE_DATA_DIR = DATA_DIR;
+process.env.NATIVE_DB_PATH = path.join(DATA_DIR, 'native.db');
 delete process.env.NATIVE_SKIN_PUBLIC_URL;
-delete process.env.NOCTRA_PUBLIC_URL;
+delete process.env.NATIVE_PUBLIC_URL;
 
 const db = require('../server/db');
 const { listen } = require('../server/server');
@@ -19,7 +19,7 @@ const modRoutes = require('../server/mod-routes');
 const wardrobe = require('../electron/wardrobe');
 
 const handlers = new Map();
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-wstore-ud-'));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-wstore-ud-'));
 let server;
 
 test.before(async () => {
@@ -41,7 +41,7 @@ test.after(() => {
 test('launcher store: catalogue, equip an animated cape, live refresh, unequip', async () => {
   const user = db.createUser({ email: 'l@example.com', username: 'LauncherUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
-  const account = { id: String(user.id), name: 'LauncherUser', type: 'noctra', token: session.token };
+  const account = { id: String(user.id), name: 'LauncherUser', type: 'native', token: session.token };
 
   const catalog = await handlers.get('store:catalog')({}, { force: true });
   assert.equal(catalog.ok, true);
@@ -93,7 +93,7 @@ test('launcher store: catalogue, equip an animated cape, live refresh, unequip',
 test('launcher: own animated capes are refused, store capes go through the locker', async () => {
   const user = db.createUser({ email: 'u2@example.com', username: 'UploadUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
-  const account = { id: String(user.id), name: 'UploadUser', type: 'noctra', token: session.token };
+  const account = { id: String(user.id), name: 'UploadUser', type: 'native', token: session.token };
   const strip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8');
   const still = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.still.png.b64'), 'utf8');
   assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Mine', anim: { frames: 24, fps: 12 }, stillDataUrl: still }), /Native Store/);

@@ -12,7 +12,7 @@ const EMPTY_THREAD = Object.freeze({ messages: [], hasMore: false, oldestTime: n
 const THREAD_PAGE_SIZE = 50;
 const TYPING_TTL = 6_000;
 
-const GROUPS_CACHE_PREFIX = 'noctra.relay.groups.';
+const GROUPS_CACHE_PREFIX = 'native.relay.groups.';
 const PRELOAD_CONCURRENCY = 3;
 const PRELOAD_MAX_GROUPS = 12;
 
@@ -145,8 +145,8 @@ export function useRelayGroups({ selfId, selfName } = {}) {
   // Connection came back: re-fetch quietly in the background.
   useEffect(() => {
     const onBack = () => { refreshGroups(); };
-    window.addEventListener('noctra:reconnected', onBack);
-    return () => window.removeEventListener('noctra:reconnected', onBack);
+    window.addEventListener('native:reconnected', onBack);
+    return () => window.removeEventListener('native:reconnected', onBack);
   }, [refreshGroups]);
 
   const patchGroup = useCallback((group) => {

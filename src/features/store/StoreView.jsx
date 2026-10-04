@@ -66,11 +66,11 @@ function SpotBackdrop() {
   );
 }
 
-const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'noctra';
+const isStoreAccount = (account) => Boolean(account?.token) && account?.type === 'native';
 
 /* Cached store billing state (localStorage): shown instantly, then refreshed from the server. */
-const BILLING_CACHE = 'noctra.store.billing.v1';
-const plusCacheKey = (account) => `noctra.store.plus.v1.${account?.id || account?.name || 'me'}`;
+const BILLING_CACHE = 'native.store.billing.v1';
+const plusCacheKey = (account) => `native.store.plus.v1.${account?.id || account?.name || 'me'}`;
 function readCache(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
 }
@@ -153,7 +153,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
         onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cape is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
-        window.dispatchEvent(new Event('noctra:store-changed'));
+        window.dispatchEvent(new Event('native:store-changed'));
         load(true);
         setPending(null);
       }
@@ -266,7 +266,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   const run = async (label, fn) => {
     setBusy(label);
-    try { await fn(); window.dispatchEvent(new Event('noctra:store-changed')); } catch (e) { onNotify?.('Store', e?.message || 'Something went wrong.'); }
+    try { await fn(); window.dispatchEvent(new Event('native:store-changed')); } catch (e) { onNotify?.('Store', e?.message || 'Something went wrong.'); }
     finally { setBusy(null); }
   };
 

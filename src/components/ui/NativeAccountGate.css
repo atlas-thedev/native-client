@@ -2,7 +2,7 @@
    Full-page empty state: big mascot, big headline, pill actions.
    No card, gradients or glows. */
 
-.noctra-account-gate {
+.native-account-gate {
   width: 100%;
   height: 100%;
   display: flex;

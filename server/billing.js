@@ -279,7 +279,7 @@ async function customerFor(user) {
   if (row) return row.customer_id;
   let id = null;
   try {
-    id = (await paddle('POST', '/customers', { email: user.email, name: user.username, custom_data: { noctraUserId: String(user.id) } })).id;
+    id = (await paddle('POST', '/customers', { email: user.email, name: user.username, custom_data: { nativeUserId: String(user.id) } })).id;
   } catch (error) {
     const match = error.code === 'customer_already_exists' && /ctm_[a-z0-9]+/i.exec(error.message);
     if (!match) throw error;
@@ -638,8 +638,8 @@ async function setupPaddle(name) {
   const call = (method, pathname, body) => paddle(method, pathname, body, name);
   const products = await listAll(name, '/products?status=active');
   const product = async (field, tag, spec) => {
-    let found = (c[field] && products.find((p) => p.id === c[field])) || products.find((p) => p.custom_data?.noctra === tag) || products.find((p) => p.name === spec.name);
-    if (!found) { found = await call('POST', '/products', { ...spec, custom_data: { noctra: tag } }); steps.push(`Created product ${spec.name}`); }
+    let found = (c[field] && products.find((p) => p.id === c[field])) || products.find((p) => p.custom_data?.native === tag || p.custom_data?.noctra === tag) || products.find((p) => p.name === spec.name);
+    if (!found) { found = await call('POST', '/products', { ...spec, custom_data: { native: tag } }); steps.push(`Created product ${spec.name}`); }
     else steps.push(`Found product ${found.name}`);
     saveSetting(`${name}.${field}`, found.id);
     return found.id;
@@ -657,7 +657,7 @@ async function setupPaddle(name) {
       found = await call('POST', '/prices', {
         product_id: plusId, name: `Native+ ${plan}`, description: `Native+ — billed ${plan}`,
         unit_price: { amount: cents, currency_code: 'USD' }, billing_cycle: { interval: PLANS[plan].interval, frequency: 1 },
-        quantity: { minimum: 1, maximum: 1 }, custom_data: { noctra: `plus-${plan}` }
+        quantity: { minimum: 1, maximum: 1 }, custom_data: { native: `plus-${plan}` }
       });
       steps.push(`Created ${plan} price $${PLANS[plan].amount}`);
     } else {

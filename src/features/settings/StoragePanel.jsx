@@ -4,11 +4,11 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './SettingsPanels.css';
 
 const CACHE_KEYS = [
-  { key: 'noctra.versionManifest', legacyKey: 'native.versionManifest', labelKey: 'storage.versionManifest' },
-  { key: 'noctra.patchNotes', legacyKey: 'native.patchNotes', labelKey: 'storage.versionArtwork' },
-  { key: 'noctra.instances', legacyKey: 'native.instances', labelKey: 'storage.instanceLibrary' },
-  { key: 'noctra.preferences', legacyKey: 'native.preferences', labelKey: 'storage.preferences' },
-  { key: 'noctra.appearance', legacyKey: 'native.appearance', labelKey: 'settings.appearance' }
+  { key: 'native.versionManifest', labelKey: 'storage.versionManifest' },
+  { key: 'native.patchNotes', labelKey: 'storage.versionArtwork' },
+  { key: 'native.instances', labelKey: 'storage.instanceLibrary' },
+  { key: 'native.preferences', labelKey: 'storage.preferences' },
+  { key: 'native.appearance', labelKey: 'settings.appearance' }
 ];
 
 function formatBytes(bytes, formatNumber) {
@@ -23,9 +23,9 @@ function formatBytes(bytes, formatNumber) {
   return formatNumber(value < 10 && unit > 0 ? value : Math.round(value), { maximumFractionDigits: 1 }) + ' ' + units[unit];
 }
 
-function localBytes(key, legacyKey) {
+function localBytes(key) {
   try {
-    const raw = localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null);
+    const raw = localStorage.getItem(key);
     return raw ? new Blob([raw]).size : 0;
   } catch {
     return 0;
@@ -116,7 +116,7 @@ export default function StoragePanel({ instances = [] }) {
   }, [scan]);
 
   const totals = useMemo(() => {
-    const cacheBytes = CACHE_KEYS.reduce((sum, entry) => sum + localBytes(entry.key, entry.legacyKey), 0);
+    const cacheBytes = CACHE_KEYS.reduce((sum, entry) => sum + localBytes(entry.key), 0);
     return {
       instances: rows.length,
       installed: rows.filter((row) => row.installed === true).length,
@@ -131,7 +131,7 @@ export default function StoragePanel({ instances = [] }) {
   }, [rows, cacheTick]);
 
   const clearCaches = () => {
-    ['noctra.versionManifest', 'noctra.patchNotes', 'native.versionManifest', 'native.patchNotes'].forEach((key) => {
+    ['native.versionManifest', 'native.patchNotes'].forEach((key) => {
       try {
         localStorage.removeItem(key);
       } catch {
@@ -310,7 +310,7 @@ export default function StoragePanel({ instances = [] }) {
 
       <div className="sp-cache-list">
         {CACHE_KEYS.map((entry) => {
-          const bytes = localBytes(entry.key, entry.legacyKey);
+          const bytes = localBytes(entry.key);
           return (
             <div key={entry.key} className="sp-cache-row">
               <span className="sp-cache-label">{t(entry.labelKey)}</span>

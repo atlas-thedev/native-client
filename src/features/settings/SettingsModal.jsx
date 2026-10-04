@@ -16,7 +16,7 @@ const TABS = [
   { id: 'changelog', key: 'settings.changelog', icon: 'clock-rewind', desc: 'Updates and release history' }
 ];
 
-const PREFS_KEY = 'noctra.preferences';
+const PREFS_KEY = 'native.preferences';
 const LEGACY_PREFS_KEY = 'native.preferences';
 
 const DEFAULT_PREFS = {
@@ -78,7 +78,7 @@ export default function SettingsModal({
       try {
         const stored = window.native?.settings?.load
           ? await window.native.settings.load()
-          : JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
+          : JSON.parse(localStorage.getItem('native.settings') || '{}');
         const u = stored?.updates ?? {};
         if (!cancelled) {
           setUpdates({
@@ -151,8 +151,8 @@ export default function SettingsModal({
         onboarding: { ...(current?.onboarding ?? {}), language: nextLocale }
       });
     } else {
-      const current = JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
-      localStorage.setItem('noctra.settings', JSON.stringify({
+      const current = JSON.parse(localStorage.getItem('native.settings') || '{}');
+      localStorage.setItem('native.settings', JSON.stringify({
         ...current,
         onboarding: { ...(current.onboarding ?? {}), language: nextLocale }
       }));
@@ -171,8 +171,8 @@ export default function SettingsModal({
           updates: { ...(current?.updates ?? {}), ...patch }
         });
       } else {
-        const current = JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
-        localStorage.setItem('noctra.settings', JSON.stringify({
+        const current = JSON.parse(localStorage.getItem('native.settings') || '{}');
+        localStorage.setItem('native.settings', JSON.stringify({
           ...current,
           updates: { ...(current.updates ?? {}), ...patch }
         }));

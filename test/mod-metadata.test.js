@@ -19,7 +19,7 @@ function makeJar(file, files) {
 }
 
 function fixture(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-meta-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-meta-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }

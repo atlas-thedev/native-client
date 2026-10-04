@@ -15,7 +15,7 @@ try {
 }
 
 test('InstancePickerModal renders correctly for multiple matching instances', { skip: !esbuild && 'esbuild is not installed' }, () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-picker-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-picker-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
 

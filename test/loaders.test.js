@@ -8,7 +8,7 @@ const AdmZip = require('adm-zip');
 require('./electron-stub');
 const loaders = require('../electron/loaders');
 
-const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), `noctra-loaders-${name}-`));
+const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), `native-loaders-${name}-`));
 
 test('loader names normalize to one kind each', () => {
   const cases = {

@@ -31,10 +31,10 @@ Module._load = function load(request, ...rest) {
   return originalLoad.call(this, request, ...rest);
 };
 
-const serverData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-premium-srv-'));
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-premium-ud-'));
-process.env.NOCTRA_DATA_DIR = serverData;
-process.env.NOCTRA_TEST_USER_DATA = userData;
+const serverData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-premium-srv-'));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-premium-ud-'));
+process.env.NATIVE_DATA_DIR = serverData;
+process.env.NATIVE_TEST_USER_DATA = userData;
 
 const stub = require('./electron-stub.js');
 const handlers = new Map();
@@ -51,7 +51,7 @@ let social;
 
 test.before(async () => {
   await new Promise((resolve) => mojang.listen(0, '127.0.0.1', resolve));
-  process.env.NOCTRA_MC_PROFILE_URL = `http://127.0.0.1:${mojang.address().port}/minecraft/profile`;
+  process.env.NATIVE_MC_PROFILE_URL = `http://127.0.0.1:${mojang.address().port}/minecraft/profile`;
   db = require('../server/db');
   server = await require('../server/server').listen(0, '127.0.0.1');
   process.env.NATIVE_WARDROBE_API = `http://127.0.0.1:${server.address().port}`;
@@ -91,9 +91,9 @@ test('connect once with a Native password, then the premium account is the Nativ
   // The renderer sees the connection, never the session token.
   const list = await invoke('accounts:list');
   const listed = list.accounts.find((a) => a.id === MS.id);
-  assert.equal(listed.noctraLink.connected, true);
-  assert.equal(listed.noctraLink.name, 'NativePlayer');
-  assert.equal(listed.noctraToken, undefined);
+  assert.equal(listed.nativeLink.connected, true);
+  assert.equal(listed.nativeLink.name, 'NativePlayer');
+  assert.equal(listed.nativeToken, undefined);
   assert.ok(!JSON.stringify(list).includes('noc_'), 'no Native session token reaches the renderer');
 
   // Social features act as the Native account while the premium account is active.
@@ -111,13 +111,13 @@ test('a new device (no saved session) connects automatically from the Microsoft 
   const result = await invoke('accounts:ensureNative', MS.id);
   assert.equal(result.ok, true, result.error);
   assert.equal(result.link.name, 'NativePlayer');
-  assert.ok(readAccountsFile().accounts[0].noctraToken, 'session saved for the premium account');
+  assert.ok(readAccountsFile().accounts[0].nativeToken, 'session saved for the premium account');
   assert.equal(social.getActiveNativeAccount().name, 'NativePlayer');
 });
 
 test('an expired Native session renews itself on the next request', async () => {
   const data = readAccountsFile();
-  db.getDb().prepare('DELETE FROM sessions WHERE token = ?').run(auth.readAccounts(userData).accounts[0].noctraToken);
+  db.getDb().prepare('DELETE FROM sessions WHERE token = ?').run(auth.readAccounts(userData).accounts[0].nativeToken);
   writeAccounts(data);
   const friends = await invoke('social:getFriends');
   assert.equal(friends.ok, true, friends.error);

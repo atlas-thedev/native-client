@@ -79,7 +79,7 @@ const TABS = [
   }
 ];
 
-const PREFS_KEY = 'noctra.preferences';
+const PREFS_KEY = 'native.preferences';
 const LEGACY_PREFS_KEY = 'native.preferences';
 
 const DEFAULT_PREFS = {
@@ -158,7 +158,7 @@ export default function SettingsView({
       try {
         const stored = window.native?.settings?.load
           ? await window.native.settings.load()
-          : JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
+          : JSON.parse(localStorage.getItem('native.settings') || '{}');
         const u = stored?.updates ?? {};
         if (!cancelled) {
           setUpdates({
@@ -259,9 +259,9 @@ export default function SettingsView({
         onboarding: { ...(current?.onboarding ?? {}), language: nextLocale }
       });
     } else {
-      const current = JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
+      const current = JSON.parse(localStorage.getItem('native.settings') || '{}');
       localStorage.setItem(
-        'noctra.settings',
+        'native.settings',
         JSON.stringify({
           ...current,
           onboarding: { ...(current.onboarding ?? {}), language: nextLocale }
@@ -280,9 +280,9 @@ export default function SettingsView({
           updates: { ...(current?.updates ?? {}), ...patch }
         });
       } else {
-        const current = JSON.parse(localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings') || '{}');
+        const current = JSON.parse(localStorage.getItem('native.settings') || '{}');
         localStorage.setItem(
-          'noctra.settings',
+          'native.settings',
           JSON.stringify({
             ...current,
             updates: { ...(current.updates ?? {}), ...patch }
@@ -433,7 +433,7 @@ export default function SettingsView({
                       <button
                         key={`${item.tab}:${item.title}`}
                         type="button"
-                        className="noctra-setting-card is-wide settings-result"
+                        className="native-setting-card is-wide settings-result"
                         onClick={() => openResult(item.tab)}
                       >
                         <div className="setting-card-left">
@@ -469,7 +469,7 @@ export default function SettingsView({
                 </div>
                 <div className="settings-cards-stack">
                   {/* Discord RPC */}
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Zap size={18} />
@@ -480,21 +480,21 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={prefs.discordRpc}
                           onChange={(e) => updatePref({ discordRpc: e.target.checked })}
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
                   {/* Relay notifications */}
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Bell size={18} />
@@ -505,16 +505,16 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input type="checkbox" checked={notifyPrefs.desktop} onChange={(e) => setNotify({ desktop: e.target.checked })} />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Bell size={18} />
@@ -525,16 +525,16 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input type="checkbox" checked={notifyPrefs.sound} onChange={(e) => setNotify({ sound: e.target.checked })} />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Bell size={18} />
@@ -550,7 +550,7 @@ export default function SettingsView({
                   </div>
 
                   {/* Launcher window while playing */}
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Monitor size={18} />
@@ -563,21 +563,21 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={prefs.launcherAction === 'minimize'}
                           onChange={(e) => updatePref({ launcherAction: e.target.checked ? 'minimize' : 'keep' })}
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
                   {prefs.launcherAction === 'minimize' && (
-                    <div className="noctra-setting-card">
+                    <div className="native-setting-card">
                       <div className="setting-card-left">
                         <div className="setting-card-icon-wrap">
                           <Monitor size={18} />
@@ -590,14 +590,14 @@ export default function SettingsView({
                         </div>
                       </div>
                       <div className="setting-card-control">
-                        <label className="noctra-switch">
+                        <label className="native-switch">
                           <input
                             type="checkbox"
                             checked={prefs.reopenOnExit}
                             onChange={(e) => updatePref({ reopenOnExit: e.target.checked })}
                           />
-                          <span className="noctra-switch-track">
-                            <span className="noctra-switch-thumb" />
+                          <span className="native-switch-track">
+                            <span className="native-switch-thumb" />
                           </span>
                         </label>
                       </div>
@@ -605,7 +605,7 @@ export default function SettingsView({
                   )}
 
                   {/* Keep Logs */}
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Terminal size={18} />
@@ -616,14 +616,14 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={prefs.keepLogs}
                           onChange={(e) => updatePref({ keepLogs: e.target.checked })}
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
@@ -638,7 +638,7 @@ export default function SettingsView({
                   <div className="settings-section-line" />
                 </div>
                 <div className="settings-cards-stack">
-                  <div className="noctra-setting-card is-vertical">
+                  <div className="native-setting-card is-vertical">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Folder size={18} />
@@ -651,16 +651,16 @@ export default function SettingsView({
                         </span>
                       </div>
                     </div>
-                    <div className="noctra-code-input-wrap">
+                    <div className="native-code-input-wrap">
                       <input
                         type="text"
                         readOnly
                         value={dataDir || t('settings.defaultData')}
-                        className="noctra-code-input"
+                        className="native-code-input"
                       />
                       <button
                         type="button"
-                        className="noctra-btn-secondary"
+                        className="native-btn-secondary"
                         onClick={handleCopyPath}
                         title="Copy folder path"
                       >
@@ -669,7 +669,7 @@ export default function SettingsView({
                       </button>
                       <button
                         type="button"
-                        className="noctra-btn-primary"
+                        className="native-btn-primary"
                         onClick={handleOpenDataDir}
                         title="Open in File Explorer"
                       >
@@ -688,7 +688,7 @@ export default function SettingsView({
                   <div className="settings-section-line" />
                 </div>
                 <div className="settings-cards-stack">
-                  <div className="noctra-setting-card is-wide">
+                  <div className="native-setting-card is-wide">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <RefreshCw size={18} />
@@ -705,7 +705,7 @@ export default function SettingsView({
                     <div className="setting-card-control">
                       <button
                         type="button"
-                        className="noctra-btn-primary"
+                        className="native-btn-primary"
                         onClick={onOpenUpdater}
                       >
                         <RefreshCw size={14} />
@@ -714,7 +714,7 @@ export default function SettingsView({
                     </div>
                   </div>
 
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <ShieldCheck size={18} />
@@ -727,7 +727,7 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={updates.checkOnStartup}
@@ -735,14 +735,14 @@ export default function SettingsView({
                             changeUpdateSetting({ checkOnStartup: e.target.checked })
                           }
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <History size={18} />
@@ -757,7 +757,7 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={updates.backgroundChecks}
@@ -765,14 +765,14 @@ export default function SettingsView({
                             changeUpdateSetting({ backgroundChecks: e.target.checked })
                           }
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Zap size={18} />
@@ -785,14 +785,14 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={updates.autoDownload}
                           onChange={(e) => changeUpdateSetting({ autoDownload: e.target.checked })}
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
@@ -813,7 +813,7 @@ export default function SettingsView({
                 </div>
                 <div className="settings-cards-stack">
                   {/* Fullscreen Toggle */}
-                  <div className="noctra-setting-card">
+                  <div className="native-setting-card">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Monitor size={18} />
@@ -824,21 +824,21 @@ export default function SettingsView({
                       </div>
                     </div>
                     <div className="setting-card-control">
-                      <label className="noctra-switch">
+                      <label className="native-switch">
                         <input
                           type="checkbox"
                           checked={prefs.fullscreen}
                           onChange={(e) => updatePref({ fullscreen: e.target.checked })}
                         />
-                        <span className="noctra-switch-track">
-                          <span className="noctra-switch-thumb" />
+                        <span className="native-switch-track">
+                          <span className="native-switch-thumb" />
                         </span>
                       </label>
                     </div>
                   </div>
 
                   {/* Resolution Presets */}
-                  <div className="noctra-setting-card is-vertical">
+                  <div className="native-setting-card is-vertical">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Sliders size={18} />
@@ -880,7 +880,7 @@ export default function SettingsView({
                   <div className="settings-section-line" />
                 </div>
                 <div className="settings-cards-stack">
-                  <div className="noctra-setting-card is-vertical">
+                  <div className="native-setting-card is-vertical">
                     <div className="setting-card-left">
                       <div className="setting-card-icon-wrap">
                         <Cpu size={18} />
@@ -920,10 +920,10 @@ export default function SettingsView({
             </div>
           )}
 
-          {/* ════ TAB: ABOUT NOCTRA ════ */}
+          {/* ════ TAB: ABOUT NATIVE ════ */}
           {!searchResults && activeTab === 'about' && (
             <div className="settings-section-block">
-              <div className="about-noctra-hero">
+              <div className="about-native-hero">
                 <div className="about-hero-left">
                   <div className="about-logo-badge">
                     <Logo height={34} variant="mark" />
@@ -936,7 +936,7 @@ export default function SettingsView({
                 <div className="setting-card-control">
                   <button
                     type="button"
-                    className="noctra-btn-primary"
+                    className="native-btn-primary"
                     onClick={onOpenUpdater}
                   >
                     <RefreshCw size={14} />
@@ -979,7 +979,7 @@ export default function SettingsView({
               <div className="about-links-row">
                 <button
                   type="button"
-                  className="noctra-btn-secondary"
+                  className="native-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
                       ? window.native.openExternal('https://discord.gg/Cb3DCf6G7a')
@@ -991,7 +991,7 @@ export default function SettingsView({
                 </button>
                 <button
                   type="button"
-                  className="noctra-btn-secondary"
+                  className="native-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
                       ? window.native.openExternal('https://www.youtube.com/@native-client')

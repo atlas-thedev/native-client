@@ -16,9 +16,8 @@
 .idsw.is-open .idsw-chev { transform: rotate(180deg); }
 
 .idsw-logo { flex: none; display: inline-grid; place-items: center; line-height: 0; }
-.idsw-logo.is-noctra .noctra-mark,
-.idsw-logo.is-noctra .native-mark,
-.idsw-logo.is-noctra img { filter: grayscale(1) brightness(3); }
+.idsw-logo.is-native .native-mark,
+.idsw-logo.is-native img { filter: grayscale(1) brightness(3); }
 
 .plus-tag { color: #fff; }
 .home-greeting-name .plus-tag { margin-left: 8px; vertical-align: -1px; }

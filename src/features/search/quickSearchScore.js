@@ -154,7 +154,7 @@ export function highlight(title, query) {
   return parts;
 }
 
-const RECENTS_KEY = 'noctra.quick-search.recents.v1';
+const RECENTS_KEY = 'native.quick-search.recents.v1';
 
 export function readRecents(storage = globalThis.localStorage) {
   try {

@@ -11,13 +11,13 @@ const path = require('path');
  */
 
 const DATA_DIR = path.resolve(
-  process.env.NOCTRA_DATA_DIR ||
+  process.env.NATIVE_DATA_DIR ||
   process.env.NATIVE_SKIN_DATA ||
   path.join(__dirname, 'data')
 );
 const MEDIA_DIR = path.join(DATA_DIR, 'media');
 const PORT = Number(process.env.PORT || process.env.NATIVE_SKIN_PORT || 3418);
-const PUBLIC_URL = (process.env.NATIVE_SKIN_PUBLIC_URL || process.env.NOCTRA_PUBLIC_URL || '').replace(/\/+$/, '');
+const PUBLIC_URL = (process.env.NATIVE_SKIN_PUBLIC_URL || process.env.NATIVE_PUBLIC_URL || '').replace(/\/+$/, '');
 
 const MEDIA_FILE = /^[a-f0-9]{32}\.(?:png|jpg|gif|webp|mp3|ogg|webm|wav|mp4|txt|zip)$/;
 const IMAGE_FILE = /\.(?:png|jpg|gif|webp)$/;
@@ -27,7 +27,7 @@ const GIPHY_GIF = /^https:\/\/(?:media\d?|i)\.giphy\.com\/media\/[A-Za-z0-9]{6,4
 
 const DEFAULT_PUBLIC_URL = 'https://api.nativelaunch.xyz';
 const ALLOWED_HOSTS = new Set(
-  String(process.env.NOCTRA_ALLOWED_HOSTS || 'api.nativelaunch.xyz,localhost,127.0.0.1,[::1]')
+  String(process.env.NATIVE_ALLOWED_HOSTS || 'api.nativelaunch.xyz,localhost,127.0.0.1,[::1]')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
@@ -39,7 +39,7 @@ function isLoopback(address) {
 }
 
 /**
- * Public origin for generated URLs. An explicit NOCTRA_PUBLIC_URL wins;
+ * Public origin for generated URLs. An explicit NATIVE_PUBLIC_URL wins;
  * otherwise the Host header is used only when it names one of our hosts, so a
  * spoofed Host can never make stored attachment URLs point somewhere else.
  */

@@ -6,13 +6,14 @@ const usersMod = require('./users');
 const socialMod = require('./social');
 const relayMod = require('./relay');
 const adminMod = require('./admin');
+const { resolveDbPath } = require('../env');
 
 const DATA_DIR = path.resolve(
-  process.env.NOCTRA_DATA_DIR ||
+  process.env.NATIVE_DATA_DIR ||
   process.env.NATIVE_SKIN_DATA ||
   path.join(__dirname, '..', 'data')
 );
-const DB_PATH = process.env.NOCTRA_DB_PATH || path.join(DATA_DIR, 'noctra.db');
+const DB_PATH = process.env.NATIVE_DB_PATH || resolveDbPath(DATA_DIR);
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 
 let dbInstance = null;
@@ -21,7 +22,9 @@ function migrateLegacyDbIfPresent() {
   if (fs.existsSync(DB_PATH)) return;
 
   const legacyPaths = [
+    path.join(__dirname, '..', '..', 'skin-server', 'data', 'native_auth.db'),
     path.join(__dirname, '..', '..', 'skin-server', 'data', 'noctra_auth.db'),
+    path.join(DATA_DIR, 'native_auth.db'),
     path.join(DATA_DIR, 'noctra_auth.db')
   ];
 
@@ -68,7 +71,7 @@ function backupDatabase() {
   getDb();
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupFile = path.join(BACKUPS_DIR, `noctra_${timestamp}.db`);
+  const backupFile = path.join(BACKUPS_DIR, `native_${timestamp}.db`);
   fs.copyFileSync(DB_PATH, backupFile);
   return {
     path: backupFile,

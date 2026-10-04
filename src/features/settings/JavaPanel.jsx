@@ -234,7 +234,7 @@ export default function JavaPanel() {
           <span>Custom arguments</span>
           <input
             type="text"
-            className="noctra-code-input"
+            className="native-code-input"
             placeholder="-Dsodium.checks.issue2561=false -Xss2M"
             value={jvm.args}
             spellCheck={false}
