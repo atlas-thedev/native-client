@@ -14,7 +14,7 @@ try {
 }
 
 test('BrowseView disables mod downloads for vanilla instances and renders warning', { skip: !esbuild && 'esbuild is not installed' }, () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-browse-ui-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-browse-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
 

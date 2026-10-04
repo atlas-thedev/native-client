@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-billing-test-'));
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
-process.env.NOCTRA_ADMIN_EMAILS = 'boss@test.local';
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-billing-test-'));
+process.env.NATIVE_DATA_DIR = DATA_DIR;
+process.env.NATIVE_ADMIN_EMAILS = 'boss@test.local';
 const SECRET = 'pdl_ntfset_test_secret';
 Object.assign(process.env, {
   PADDLE_ENV: 'sandbox', PADDLE_API_KEY: 'test-key', PADDLE_CLIENT_TOKEN: 'test_token', PADDLE_WEBHOOK_SECRET: SECRET,

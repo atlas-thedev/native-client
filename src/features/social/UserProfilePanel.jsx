@@ -32,7 +32,7 @@ export default function UserProfilePanel({
     setMutual(Array.isArray(user?.mutualFriends) ? user.mutualFriends : []);
     if (!userId || isGroup || (typeof navigator !== 'undefined' && navigator.onLine === false)) return undefined;
     let cancelled = false;
-    const api = window.noctra?.social;
+    const api = window.native?.social;
     api?.getMutualFriends?.(userId)
       .then((res) => {
         if (!cancelled && res?.ok && Array.isArray(res.mutual)) setMutual(res.mutual);

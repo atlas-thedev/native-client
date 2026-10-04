@@ -20,7 +20,7 @@ try {
  * needing a browser (and therefore runs in CI).
  */
 test('login screen and locker render the designed structure', { skip: !esbuild && 'esbuild is not installed' }, () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-ui-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
 

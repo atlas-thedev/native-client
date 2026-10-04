@@ -8,7 +8,7 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 test('screenshot sharing uploads once and sends the same image to friends and groups', () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-share-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-share-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
   fs.writeFileSync(entry, `
@@ -59,7 +59,7 @@ const social = {
 });
 
 test('ShareScreenshotDialog renders current user avatar, name, and badges', () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-share-ui-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-share-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
   fs.writeFileSync(entry, `
@@ -107,6 +107,6 @@ process.stdout.write(html);
   assert.ok(output.includes('sm-share-sender'));
   assert.ok(output.includes('Sharing as'));
   assert.ok(output.includes('OhLlama'));
-  assert.ok(output.includes('noctra-badges-strip'));
+  assert.ok(output.includes('native-badges-strip'));
 });
 

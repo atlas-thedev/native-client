@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-admin-test-'));
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
-process.env.NOCTRA_ADMIN_EMAILS = 'owner@test.local';
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-admin-test-'));
+process.env.NATIVE_DATA_DIR = DATA_DIR;
+process.env.NATIVE_ADMIN_EMAILS = 'owner@test.local';
 
 const db = require('../server/db');
 const { listen } = require('../server/server');
@@ -19,7 +19,7 @@ const authHeaders = (token, json = false) => ({
 test('admin API is role-protected and lets the configured admin manage sanitized user badges', async () => {
   const regular = db.createUser({ email: 'player@test.local', username: 'RegularPlayer', password: 'password123' });
   const owner = db.createUser({ email: 'owner@test.local', username: 'OhLlama', password: 'password123' });
-  assert.equal(Boolean(db.getUserByUsername('OhLlama').is_admin), true, 'NOCTRA_ADMIN_EMAILS grants admin at sign-up');
+  assert.equal(Boolean(db.getUserByUsername('OhLlama').is_admin), true, 'NATIVE_ADMIN_EMAILS grants admin at sign-up');
   db.getDb().prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(owner.id);
   db.closeDb();
   db.getDb();

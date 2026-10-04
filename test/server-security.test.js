@@ -4,10 +4,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-security-test-'));
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-security-test-'));
+process.env.NATIVE_DATA_DIR = DATA_DIR;
 delete process.env.NATIVE_SKIN_PUBLIC_URL;
-delete process.env.NOCTRA_TRUST_PROXY;
+delete process.env.NATIVE_TRUST_PROXY;
 
 const db = require('../server/db');
 const { listen, clientIp } = require('../server/server');

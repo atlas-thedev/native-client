@@ -8,7 +8,7 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 test('admin page renders database and badge management surfaces', () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-admin-ui-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-admin-ui-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
   fs.writeFileSync(entry, `

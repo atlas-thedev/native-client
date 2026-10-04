@@ -5,8 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 // Isolate test DB environment
-const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-db-test-'));
-process.env.NOCTRA_DATA_DIR = testDir;
+const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-db-test-'));
+process.env.NATIVE_DATA_DIR = testDir;
 
 const db = require('../server/db');
 
@@ -31,7 +31,7 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
   assert.ok(indexes.includes('idx_presence_user'));
 
   // 3. User & Verification lifecycle
-  const email = 'hero@noctra.xyz';
+  const email = 'hero@native.xyz';
   const username = 'NativeHero';
 
   db.saveVerificationCode(email, '987654');

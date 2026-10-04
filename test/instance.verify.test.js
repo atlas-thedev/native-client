@@ -13,7 +13,7 @@ const FAKE_IPC = { handle() {}, on() {} };
 
 /** Fresh userData + game root per test, wired into both modules under test. */
 function makeRoot() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-verify-'));
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-verify-'));
   const gameRoot = path.join(userData, 'minecraft');
   fs.mkdirSync(gameRoot, { recursive: true });
   instanceMod.init({ app: { getPath: () => userData } }, FAKE_IPC);

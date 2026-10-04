@@ -24,12 +24,10 @@ export function normalizeKind(kind) {
 export function isLocalIdentity(account) {
   const rawId = account?.id;
   const rawUuid = account?.uuid;
-  return account?.type === 'noctra'
+  return account?.type === 'native'
     || account?.type === 'offline'
-    || String(rawId || '').startsWith('noctra-')
     || String(rawId || '').startsWith('native-')
     || String(rawId || '').startsWith('offline-')
-    || String(rawUuid || '').startsWith('noctra-')
     || String(rawUuid || '').startsWith('native-')
     || String(rawUuid || '').startsWith('offline-');
 }
@@ -41,7 +39,6 @@ export function isLocalIdentity(account) {
  */
 export function skinIdentifier(account, uuid, name) {
   const localIdentity = isLocalIdentity(account)
-    || String(uuid || '').startsWith('noctra-')
     || String(uuid || '').startsWith('native-')
     || String(uuid || '').startsWith('offline-');
 
@@ -54,11 +51,11 @@ export function skinIdentifier(account, uuid, name) {
   const rawId = account?.id;
 
   let raw = FALLBACK_SKIN;
-  if (rawUuid && rawUuid !== 'guest' && !String(rawUuid).startsWith('offline-') && !String(rawUuid).startsWith('native-') && !String(rawUuid).startsWith('noctra-')) {
+  if (rawUuid && rawUuid !== 'guest' && !String(rawUuid).startsWith('offline-') && !String(rawUuid).startsWith('native-') && !String(rawUuid).startsWith('native-')) {
     raw = rawUuid;
   } else if (rawName && rawName !== 'guest') {
     raw = rawName;
-  } else if (rawId && rawId !== 'guest' && !String(rawId).startsWith('offline-') && !String(rawId).startsWith('native-') && !String(rawId).startsWith('noctra-')) {
+  } else if (rawId && rawId !== 'guest' && !String(rawId).startsWith('offline-') && !String(rawId).startsWith('native-') && !String(rawId).startsWith('native-')) {
     raw = rawId;
   }
 

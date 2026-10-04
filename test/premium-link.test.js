@@ -17,8 +17,8 @@ const mojang = http.createServer((req, res) => {
   res.end(JSON.stringify(profile || { error: 'UNAUTHORIZED' }));
 });
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-premium-test-'));
-process.env.NOCTRA_DATA_DIR = DATA_DIR;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-premium-test-'));
+process.env.NATIVE_DATA_DIR = DATA_DIR;
 
 let db;
 let server;
@@ -28,7 +28,7 @@ const SAM = Object.keys(PROFILES)[1];
 
 test.before(async () => {
   await new Promise((resolve) => mojang.listen(0, '127.0.0.1', resolve));
-  process.env.NOCTRA_MC_PROFILE_URL = `http://127.0.0.1:${mojang.address().port}/minecraft/profile`;
+  process.env.NATIVE_MC_PROFILE_URL = `http://127.0.0.1:${mojang.address().port}/minecraft/profile`;
   db = require('../server/db');
   server = await require('../server/server').listen(0, '127.0.0.1');
   base = `http://127.0.0.1:${server.address().port}`;

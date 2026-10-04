@@ -16,8 +16,8 @@ function pngInfo(file) {
 }
 
 test('desktop icon assets include a 4K alpha master and standard platform sizes', () => {
-  assert.deepEqual(pngInfo('src/assets/noctra-icon-4k.png'), { width: 4096, height: 4096, colorType: 6 });
-  assert.deepEqual(pngInfo('src/assets/noctra-icon.png'), { width: 1024, height: 1024, colorType: 6 });
+  assert.deepEqual(pngInfo('src/assets/native-icon-4k.png'), { width: 4096, height: 4096, colorType: 6 });
+  assert.deepEqual(pngInfo('src/assets/native-icon.png'), { width: 1024, height: 1024, colorType: 6 });
 
   for (const size of [16, 24, 32, 48, 64, 128, 256, 512, 1024]) {
     assert.deepEqual(
@@ -30,5 +30,5 @@ test('desktop icon assets include a 4K alpha master and standard platform sizes'
   assert.equal(config.win.icon, 'buildResources/icons');
   assert.equal(config.linux.icon, 'buildResources/icons');
   assert.equal(config.mac.icon, 'buildResources/icons');
-  assert.equal(fs.readFileSync(path.join(ROOT, 'src/assets/noctra-icon.ico')).subarray(0, 4).toString('hex'), '00000100');
+  assert.equal(fs.readFileSync(path.join(ROOT, 'src/assets/native-icon.ico')).subarray(0, 4).toString('hex'), '00000100');
 });

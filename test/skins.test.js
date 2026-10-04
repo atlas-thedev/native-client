@@ -14,8 +14,8 @@ const isLocalIdentity = new Function(`${source}; return isLocalIdentity;`)();
 const loadSkinTexture = new Function(`${source}; return loadSkinTexture;`)();
 
 test('Native and offline accounts default to Steve or Alex until a skin is uploaded', () => {
-  assert.equal(skinIdentifier({ type: 'noctra', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName' }), 'MHF_Steve');
-  assert.equal(skinIdentifier({ type: 'noctra', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName', model: 'slim' }), 'MHF_Alex');
+  assert.equal(skinIdentifier({ type: 'native', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName' }), 'MHF_Steve');
+  assert.equal(skinIdentifier({ type: 'native', id: 'native-1', uuid: 'generated-uuid', name: 'PremiumName', model: 'slim' }), 'MHF_Alex');
   assert.equal(skinIdentifier({ type: 'offline', id: 'offline-1', uuid: 'generated-uuid', name: 'OfflineName' }), 'MHF_Steve');
   assert.equal(skinIdentifier(null, 'offline-1', 'OfflineName'), 'MHF_Steve');
 });
@@ -25,7 +25,7 @@ test('Microsoft avatars continue to resolve by authoritative UUID', () => {
 });
 
 test('isLocalIdentity flags locally-generated accounts so they self-heal from the wardrobe', () => {
-  assert.equal(isLocalIdentity({ type: 'noctra', id: 'native-1' }), true);
+  assert.equal(isLocalIdentity({ type: 'native', id: 'native-1' }), true);
   assert.equal(isLocalIdentity({ type: 'offline', id: 'offline-1' }), true);
   assert.equal(isLocalIdentity({ id: 'native-abc' }), true);
   assert.equal(isLocalIdentity({ id: 'offline-abc' }), true);

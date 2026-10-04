@@ -15,7 +15,7 @@ const { DatabaseSync } = require('node:sqlite');
 const PORT = 34000 + Math.floor(Math.random() * 1000);
 const BASE = process.env.RELAY_E2E_BASE || `http://127.0.0.1:${PORT}`;
 const EXTERNAL = Boolean(process.env.RELAY_E2E_BASE);
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-e2e-'));
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-e2e-'));
 let child;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -85,7 +85,7 @@ async function openStream(token) {
 }
 
 function lastCode(email) {
-  const db = new DatabaseSync(path.join(dataDir, 'noctra.db'), { readOnly: true });
+  const db = new DatabaseSync(path.join(dataDir, 'native.db'), { readOnly: true });
   try { return db.prepare('SELECT code FROM verification_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1').get(email)?.code; }
   finally { db.close(); }
 }
@@ -103,7 +103,7 @@ async function register(username) {
 test.before(async () => {
   if (EXTERNAL) return;
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NOCTRA_DATA_DIR: dataDir, RESEND_API_KEY: 'test' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: dataDir, RESEND_API_KEY: 'test' },
     stdio: 'ignore'
   });
   for (let i = 0; i < 60; i += 1) {

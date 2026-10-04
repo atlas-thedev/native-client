@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'noctra.appearance';
+const STORAGE_KEY = 'native.appearance';
 const LEGACY_STORAGE_KEY = 'native.appearance';
 
 export const ACCENT_PRESETS = [

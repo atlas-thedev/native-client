@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-crash-'));
-process.env.NOCTRA_TEST_USER_DATA = userData;
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'native-crash-'));
+process.env.NATIVE_TEST_USER_DATA = userData;
 require('./electron-stub.js');
 const AdmZip = require('adm-zip');
 const { buildIndex } = require('../electron/modIndex');
@@ -34,7 +34,7 @@ test('mod index reads ids, deps, mixins and packages', () => {
   assert.deepEqual(mods[0].mixins, ['coolmod.mixins.json']);
   assert.ok(mods[0].packages.includes('com.example.coolmod.client'));
   assert.equal(mods[0].depends['fabric-api'], '*');
-  assert.ok(fs.existsSync(path.join(modsDir, '.noctra-crash-index.json')));
+  assert.ok(fs.existsSync(path.join(modsDir, '.native-crash-index.json')));
 });
 
 test('a crashed session is analysed, saved, and fixes apply on disk', async () => {
@@ -54,7 +54,7 @@ test('a crashed session is analysed, saved, and fixes apply on disk', async () =
   fs.writeFileSync(path.join(gameDir, 'config', 'broken.json'), '{ nope');
   await applyFix(record.id, { id: 'r', kind: 'reset-config', path: 'config/broken.json' });
   assert.equal(fs.existsSync(path.join(gameDir, 'config', 'broken.json')), false);
-  assert.ok(fs.readdirSync(path.join(gameDir, '.noctra-backup')).length === 1);
+  assert.ok(fs.readdirSync(path.join(gameDir, '.native-backup')).length === 1);
 
   await applyFix(record.id, { id: 's', kind: 'disable-shaders' });
   assert.match(fs.readFileSync(path.join(gameDir, 'config', 'iris.properties'), 'utf8'), /enableShaders=false/);

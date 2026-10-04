@@ -14,7 +14,7 @@ try {
 }
 
 test('Browse redesign renders full-width glass grid and cards', { skip: !esbuild && 'esbuild is not installed' }, () => {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-browse-redesign-'));
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-browse-redesign-'));
   const entry = path.join(workDir, 'entry.jsx');
   const bundle = path.join(workDir, 'bundle.cjs');
 

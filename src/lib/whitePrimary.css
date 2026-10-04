@@ -1,5 +1,5 @@
 /* Primary buttons: solid white, dark text, small corners. One place, whole app. */
-.noctra-auth-primary-btn,
+.native-auth-primary-btn,
 .instances-brand-btn,
 .home-starter-launch-btn,
 .home-quick-btn.is-primary {
@@ -10,7 +10,7 @@
   box-shadow: none !important;
   border-radius: 10px;
 }
-.noctra-auth-primary-btn:hover:not(:disabled),
+.native-auth-primary-btn:hover:not(:disabled),
 .instances-brand-btn:hover:not(:disabled),
 .home-starter-launch-btn:hover:not(:disabled),
 .home-quick-btn.is-primary:hover:not(:disabled) {
@@ -18,9 +18,9 @@
   border-color: #ececec !important;
   filter: none !important;
 }
-.noctra-auth-primary-btn:disabled,
+.native-auth-primary-btn:disabled,
 .instances-brand-btn:disabled { opacity: 0.45; }
-.noctra-auth-primary-btn svg, .noctra-auth-primary-btn svg *,
+.native-auth-primary-btn svg, .native-auth-primary-btn svg *,
 .instances-brand-btn svg, .instances-brand-btn svg *,
 .home-starter-launch-btn svg, .home-starter-launch-btn svg *,
 .home-quick-btn.is-primary svg, .home-quick-btn.is-primary svg * { color: #111 !important; stroke: #111 !important; }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { CATALOGS, DEFAULT_LOCALE, SUPPORTED_LOCALES } from './catalogs.js';
 
-const LOCALE_EVENT = 'noctra:locale-changed';
+const LOCALE_EVENT = 'native:locale-changed';
 const LEGACY_LOCALE_EVENT = 'native:locale-changed';
 const I18nContext = createContext(null);
 
@@ -20,13 +20,13 @@ function interpolate(value, variables) {
 
 function getInitialLocale() {
   try {
-    const saved = localStorage.getItem('noctra.locale') || localStorage.getItem('native.locale');
+    const saved = localStorage.getItem('native.locale');
     if (saved === 'si') {
-      localStorage.setItem('noctra.locale', DEFAULT_LOCALE);
+      localStorage.setItem('native.locale', DEFAULT_LOCALE);
       return DEFAULT_LOCALE;
     }
     if (saved) return normaliseLocale(saved);
-    const rawSettings = localStorage.getItem('noctra.settings') || localStorage.getItem('native.settings');
+    const rawSettings = localStorage.getItem('native.settings');
     if (rawSettings) {
       const parsed = JSON.parse(rawSettings);
       if (parsed?.onboarding?.language) return normaliseLocale(parsed.onboarding.language);
@@ -45,7 +45,7 @@ export function I18nProvider({ children }) {
       const next = normaliseLocale(event.detail);
       setLocaleState(next);
       try {
-        localStorage.setItem('noctra.locale', next);
+        localStorage.setItem('native.locale', next);
       } catch {}
     };
     window.addEventListener(LOCALE_EVENT, handleLocale);
@@ -62,7 +62,7 @@ export function I18nProvider({ children }) {
       setLocaleState(next);
       document.documentElement.lang = next;
       try {
-        localStorage.setItem('noctra.locale', next);
+        localStorage.setItem('native.locale', next);
       } catch {}
       window.dispatchEvent(new CustomEvent(LOCALE_EVENT, { detail: next }));
       window.dispatchEvent(new CustomEvent(LEGACY_LOCALE_EVENT, { detail: next }));
@@ -109,7 +109,7 @@ export function setApplicationLocale(locale) {
   const next = normaliseLocale(locale);
   document.documentElement.lang = next;
   try {
-    localStorage.setItem('noctra.locale', next);
+    localStorage.setItem('native.locale', next);
   } catch {}
   window.dispatchEvent(new CustomEvent(LOCALE_EVENT, { detail: next }));
   window.dispatchEvent(new CustomEvent(LEGACY_LOCALE_EVENT, { detail: next }));
