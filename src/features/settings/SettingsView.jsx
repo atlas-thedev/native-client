@@ -982,8 +982,8 @@ export default function SettingsView({
                   className="native-btn-secondary"
                   onClick={() =>
                     window.native?.openExternal
-                      ? window.native.openExternal('https://discord.gg/Cb3DCf6G7a')
-                      : window.open('https://discord.gg/Cb3DCf6G7a', '_blank')
+                      ? window.native.openExternal('https://discord.gg/m9QpHFP8e')
+                      : window.open('https://discord.gg/m9QpHFP8e', '_blank')
                   }
                 >
                   <ExternalLink size={14} />

@@ -18,7 +18,7 @@ const crypto = require('node:crypto');
 
 const CLIENT_ID = '1465139441457827972';
 const DOWNLOAD_URL = 'https://nativelaunch.xyz';
-const DISCORD_URL = 'https://discord.gg/noctra';
+const DISCORD_URL = 'https://discord.gg/m9QpHFP8e';
 
 const OPCODES = {
   HANDSHAKE: 0,
