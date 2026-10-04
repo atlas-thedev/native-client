@@ -7,6 +7,7 @@
 }
 .idsw-trigger:hover:not(:disabled), .idsw.is-open .idsw-trigger { background: rgba(0, 0, 0, 0.55); }
 .idsw-trigger:disabled { cursor: default; }
+.idsw-trigger-head { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
 .idsw-trigger:disabled .idsw-chev { opacity: 0.3; }
 .idsw-name {
   white-space: nowrap; font-family: var(--font-sans); font-size: 22px; font-weight: 700;

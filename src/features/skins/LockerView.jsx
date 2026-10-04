@@ -105,7 +105,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Native Store capes this account owns (claimed in the Store page or on the website).
   const storeSeq = useRef(0);
   const loadStoreCapes = async () => {
-    if (!account?.token || account?.type !== 'native' || localOnly) { setStoreCapes([]); return; }
+    if (!(account?.token || account?.linkedFrom) || account?.type !== 'native' || localOnly) { setStoreCapes([]); return; }
     const run = ++storeSeq.current;
     try {
       const [catalog, mine] = await Promise.all([
@@ -156,14 +156,16 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const skeleton = loading || (cloudAccount && online && cloud === 'syncing' && !hasSavedContent);
   const capesSkeleton = skeleton || (officialMode && official.loading && !official.capes?.length);
 
-  const currentModel = wardrobe?.model || account?.model || 'classic';
+  // Premium (Microsoft) accounts show their real Mojang skin, not a wardrobe one.
+  const officialSkin = officialMode ? (official.profile?.skins || []).find((skin) => skin.state === 'ACTIVE') || null : null;
+  const currentModel = officialSkin ? (String(officialSkin.variant || '').toUpperCase() === 'SLIM' ? 'slim' : 'classic') : (wardrobe?.model || account?.model || 'classic');
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
   const previewCapeUrl = showCape
     ? (showOfficialCards ? (official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
     : null;
   const previewCapeAnim = previewCapeUrl && !showOfficialCards ? (wardrobe?.active?.capeAnim || null) : null;
-  const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
+  const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
   const skinItems = useMemo(() => {
     const byId = new Map();

@@ -39,6 +39,7 @@ export default function IdentitySwitcher({ identity, isPlus = false, disabled = 
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
+        <PlayerAvatar account={current?.account} name={current?.name} size={30} radius={8} className="idsw-trigger-head" />
         <span className="idsw-name">{current?.name || 'Player'}</span>
         <span className="idsw-pair" aria-label={identity.mode === 'premium' ? 'Playing as Microsoft account' : 'Playing as Native account'}>
           <span className={`idsw-pair-seg ${identity.mode === 'premium' ? 'is-on' : ''}`}><ProviderLogo kind="premium" size={13} /></span>
