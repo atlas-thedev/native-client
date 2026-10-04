@@ -432,6 +432,32 @@ function warmSkinCache(account) {
   return task;
 }
 
+const officialSkinCache = new Map(); // uuid -> { at, value }
+async function officialSkin(account) {
+  const uuid = String(account?.uuid || '').replace(/-/g, '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(uuid) || !isMicrosoftAccount(account)) return null;
+  const hit = officialSkinCache.get(uuid);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.value;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${uuid}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return hit?.value || null;
+    const data = await res.json();
+    const prop = (data?.properties || []).find((p) => p.name === 'textures');
+    const textures = prop?.value ? JSON.parse(Buffer.from(prop.value, 'base64').toString('utf8'))?.textures : null;
+    const skin = textures?.SKIN;
+    const value = skin?.url ? {
+      skinUrl: String(skin.url).replace(/^http:/, 'https:'),
+      capeUrl: textures?.CAPE?.url ? String(textures.CAPE.url).replace(/^http:/, 'https:') : null,
+      model: skin.metadata?.model === 'slim' ? 'slim' : 'classic'
+    } : { skinUrl: null, capeUrl: null, model: 'classic' };
+    officialSkinCache.set(uuid, { at: Date.now(), value });
+    return value;
+  } catch { return hit?.value || null; }
+}
+
 function publicState(account) {
   const metadata = loadMetadata(account);
   const items = metadata.items.map((item) => publicItem(account, item, metadata));
@@ -1669,6 +1695,10 @@ function init(dependencies, ipcMain) {
       model: state.active.model || 'classic'
     };
   });
+  // The current official Mojang skin of a Microsoft account (public session
+  // server, no token). mc-heads caches UUID lookups and can serve a stale
+  // Steve, so avatar UIs crop the real texture instead.
+  ipc.handle('wardrobe:officialSkin', async (_event, account) => officialSkin(account));
   ipc.handle('wardrobe:pull', (_event, account) => pullRemoteWardrobe(account));
   ipc.handle('wardrobe:upload', (_event, payload) => {
     const state = addItemFromBase64(payload.account, payload);
