@@ -36,6 +36,33 @@ function resolveWardrobeSkin(account) {
 }
 
 /**
+ * Official Mojang skins of Microsoft accounts, keyed by UUID. mc-heads caches
+ * UUID lookups and can keep serving Steve after a skin change, so the real
+ * texture is fetched from the session server in main and cropped locally.
+ */
+const officialSkinCache = new Map(); // uuid -> skinUrl | null
+const officialSkinPending = new Map();
+
+function officialKey(account) {
+  if (!account || !(account.type === 'microsoft' || account.isMicrosoft === true)) return null;
+  const uuid = String(account.uuid || '').replace(/-/g, '').toLowerCase();
+  return /^[0-9a-f]{32}$/.test(uuid) ? uuid : null;
+}
+
+function resolveOfficialSkin(account) {
+  const key = officialKey(account);
+  if (!key || !window.native?.wardrobe?.officialSkin) return Promise.resolve(null);
+  if (officialSkinCache.has(key)) return Promise.resolve(officialSkinCache.get(key));
+  if (officialSkinPending.has(key)) return officialSkinPending.get(key);
+  const task = window.native.wardrobe.officialSkin(account)
+    .then((res) => { const url = res?.skinUrl || null; if (res) officialSkinCache.set(key, url); return url; })
+    .catch(() => null)
+    .finally(() => officialSkinPending.delete(key));
+  officialSkinPending.set(key, task);
+  return task;
+}
+
+/**
  * Renders a player avatar. Uploaded wardrobe textures are cropped locally from
  * the canonical 64×64 skin atlas; otherwise mc-heads resolves the official skin.
  */
@@ -52,7 +79,25 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
   const [wardrobeSkinUrl, setWardrobeSkinUrl] = useState(() =>
     (shouldResolveWardrobe && cacheKey ? wardrobeSkinCache.get(cacheKey)?.skinUrl || null : null));
 
-  const directSkinUrl = providedSkinUrl || wardrobeSkinUrl;
+  // Microsoft accounts without a provided skin: crop the official Mojang texture.
+  const officialSkinKey = !providedSkinUrl ? officialKey(account) : null;
+  const canResolveOfficial = Boolean(officialSkinKey && typeof window !== 'undefined' && window.native?.wardrobe?.officialSkin);
+  const [officialSkin, setOfficialSkin] = useState(() => (officialSkinKey && officialSkinCache.has(officialSkinKey)
+    ? { key: officialSkinKey, url: officialSkinCache.get(officialSkinKey), done: true }
+    : { key: officialSkinKey, url: null, done: !canResolveOfficial }));
+  useEffect(() => {
+    if (!canResolveOfficial) { setOfficialSkin({ key: officialSkinKey, url: null, done: true }); return undefined; }
+    let cancelled = false;
+    if (officialSkinCache.has(officialSkinKey)) { setOfficialSkin({ key: officialSkinKey, url: officialSkinCache.get(officialSkinKey), done: true }); return undefined; }
+    setOfficialSkin({ key: officialSkinKey, url: null, done: false });
+    resolveOfficialSkin(account).then((url) => { if (!cancelled) setOfficialSkin({ key: officialSkinKey, url, done: true }); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [officialSkinKey, canResolveOfficial]);
+  const officialSkinUrl = officialSkin.key === officialSkinKey ? officialSkin.url : null;
+  const officialPending = canResolveOfficial && !(officialSkin.key === officialSkinKey && officialSkin.done);
+
+  const directSkinUrl = providedSkinUrl || wardrobeSkinUrl || officialSkinUrl;
   const [directFailed, setDirectFailed] = useState(false);
 
   const identifier = useMemo(() => skinIdentifier(account, uuid, name), [account, uuid, name]);
@@ -103,10 +148,12 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
   };
 
   const showDirect = Boolean(directSkinUrl && !directFailed);
+  // Don't flash mc-heads' (possibly stale) render while the official skin loads.
+  const showRendered = Boolean(resolved && !officialPending);
 
   return (
     <span className={`player-avatar ${className}`.trim()} style={boxStyle} title={title || label}>
-      {!showDirect && !resolved && <span aria-hidden="true" style={{ fontFamily: 'var(--font-sans)', fontSize: Math.max(10, Math.round(pixels * 0.42)), fontWeight: 700, color: 'var(--fg-muted, #5c6273)', userSelect: 'none' }}>{initial}</span>}
+      {!showDirect && !showRendered && <span aria-hidden="true" style={{ fontFamily: 'var(--font-sans)', fontSize: Math.max(10, Math.round(pixels * 0.42)), fontWeight: 700, color: 'var(--fg-muted, #5c6273)', userSelect: 'none' }}>{initial}</span>}
 
       {showDirect && (
         <span aria-label={alt || label} role="img" style={{ position: 'absolute', inset: 0, overflow: 'hidden', imageRendering: 'pixelated' }}>
@@ -115,7 +162,7 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
         </span>
       )}
 
-      {!showDirect && resolved && <img src={resolved} alt={alt || label} draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated', animation: 'fadeIn 0.18s ease both' }} />}
+      {!showDirect && showRendered && <img src={resolved} alt={alt || label} draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated', animation: 'fadeIn 0.18s ease both' }} />}
     </span>
   );
 }
