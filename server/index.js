@@ -14,6 +14,7 @@ for (const envPath of envCandidates) {
   }
 }
 
+require('./env'); // pre-rename NOCTRA_* variables from .env keep working
 const server = require('./server');
 const db = require('./db');
 

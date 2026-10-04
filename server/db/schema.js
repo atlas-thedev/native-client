@@ -220,11 +220,11 @@ function initSchema(db) {
 
   safeAddColumn('verification_codes', 'attempts INTEGER NOT NULL DEFAULT 0');
 
-  // Admins are configured by verified email (NOCTRA_ADMIN_EMAILS), never by
+  // Admins are configured by verified email (NATIVE_ADMIN_EMAILS), never by
   // username: a username can be registered by anyone once it is free.
   // Existing is_admin flags are kept as-is.
   try {
-    const admins = String(process.env.NOCTRA_ADMIN_EMAILS || '')
+    const admins = String(process.env.NATIVE_ADMIN_EMAILS || '')
       .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
     const grant = db.prepare('UPDATE users SET is_admin = 1 WHERE lower(email) = ?');
     for (const email of admins) grant.run(email);

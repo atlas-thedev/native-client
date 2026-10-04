@@ -1,5 +1,5 @@
 ﻿{
-  "name": "noctra-server",
+  "name": "native-server",
   "version": "1.0.0",
   "description": "Native Backend Server",
   "main": "index.js",

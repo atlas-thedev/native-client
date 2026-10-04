@@ -1,4 +1,3 @@
-.noctra-logo,
 .native-logo {
   display: inline-flex;
   align-items: center;
@@ -7,14 +6,12 @@
   white-space: nowrap;
 }
 
-.noctra-mark,
 .native-mark {
   display: block;
   flex: none;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45));
 }
 
-.noctra-logo-text,
 .native-logo-text {
   font-family: var(--font-sans);
   font-weight: 700;

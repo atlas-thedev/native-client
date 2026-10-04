@@ -122,7 +122,7 @@ function snapshot({ epoch, since }) {
 let secretCache = null;
 function ticketSecret() {
   if (secretCache) return secretCache;
-  const fromEnv = String(process.env.NOCTRA_TICKET_SECRET || '').trim();
+  const fromEnv = String(process.env.NATIVE_TICKET_SECRET || '').trim();
   if (fromEnv.length >= 32) return (secretCache = Buffer.from(fromEnv));
   const file = path.join(media.DATA_DIR, 'ticket.secret');
   try {

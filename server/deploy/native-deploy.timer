@@ -1,0 +1,10 @@
+[Unit]
+Description=Check GitHub for a new Native API version every 3 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+RandomizedDelaySec=20
+
+[Install]
+WantedBy=timers.target

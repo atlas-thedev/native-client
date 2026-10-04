@@ -64,7 +64,7 @@ async function handleRelayRoutes(req, res) {
 
   if (req.method === 'OPTIONS') {
     const requestOrigin = String(req.headers.origin || '');
-    const allowedOrigin = process.env.NOCTRA_CORS_ORIGIN || (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(requestOrigin) ? requestOrigin : 'null');
+    const allowedOrigin = process.env.NATIVE_CORS_ORIGIN || (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(requestOrigin) ? requestOrigin : 'null');
     send(res, 204, '', {
       'Access-Control-Allow-Origin': allowedOrigin,
       'Vary': 'Origin',

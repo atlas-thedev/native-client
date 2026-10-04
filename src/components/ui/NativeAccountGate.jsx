@@ -1,5 +1,5 @@
 import React from 'react';
-import mascotImg from '../../assets/noctra-account-required.png';
+import mascotImg from '../../assets/native-account-required.png';
 import './NativeAccountGate.css';
 
 const SUBTITLE = {
@@ -15,7 +15,7 @@ const PREMIUM_SUBTITLE = {
 export default function NativeAccountGate({ feature = 'locker', premium = false, onConnectPremium, onOpenAccountSwitcher, onBackHome }) {
   const canConnect = premium && onConnectPremium && PREMIUM_SUBTITLE[feature];
   return (
-    <div className="noctra-account-gate" role="region" aria-label="Native account required">
+    <div className="native-account-gate" role="region" aria-label="Native account required">
       <div className="gate-content">
         <img src={mascotImg} alt="" className="gate-mascot" draggable="false" width={182} height={193} />
         <h2 className="gate-title">{canConnect ? 'Connect your Native account' : 'Native account required'}</h2>

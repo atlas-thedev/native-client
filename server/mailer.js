@@ -5,7 +5,7 @@ const path = require('path');
 function resolveResendKey() {
   if (process.env.RESEND_API_KEY) return process.env.RESEND_API_KEY.trim();
   const candidates = [
-    path.join(process.env.NOCTRA_DATA_DIR || process.env.NATIVE_SKIN_DATA || '', 'resend.key'),
+    path.join(process.env.NATIVE_DATA_DIR || process.env.NATIVE_SKIN_DATA || '', 'resend.key'),
     path.join(__dirname, '..', '.env'),
     path.join(__dirname, '.env')
   ];
@@ -24,7 +24,7 @@ function resolveResendKey() {
 function resolveSendGridKey() {
   if (process.env.SENDGRID_API_KEY) return process.env.SENDGRID_API_KEY.trim();
   const candidates = [
-    path.join(process.env.NOCTRA_DATA_DIR || process.env.NATIVE_SKIN_DATA || '', 'sendgrid.key'),
+    path.join(process.env.NATIVE_DATA_DIR || process.env.NATIVE_SKIN_DATA || '', 'sendgrid.key'),
     '/home/ubuntu/.local/share/native-skin-api/sendgrid.key',
     path.join(__dirname, '..', '.env'),
     path.join(__dirname, '.env'),
@@ -44,12 +44,12 @@ function resolveSendGridKey() {
 }
 
 const DEFAULT_SENDER = {
-  email: process.env.NOCTRA_SECURITY_EMAIL || 'noreply@nativelaunch.xyz',
+  email: process.env.NATIVE_SECURITY_EMAIL || 'noreply@nativelaunch.xyz',
   name: 'Native Security'
 };
 
 const REPLY_TO = {
-  email: process.env.NOCTRA_SUPPORT_EMAIL || 'itznavidu@gmail.com',
+  email: process.env.NATIVE_SUPPORT_EMAIL || 'itznavidu@gmail.com',
   name: 'Native Support'
 };
 

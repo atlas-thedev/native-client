@@ -1,5 +1,5 @@
 import React from 'react';
-import noctraLogo from '../../assets/noctra-icon.png';
+import nativeLogo from '../../assets/native-icon.png';
 
 /**
  * The Native+ mark (same as the website's PlusMark): the Native N in the text colour with a
@@ -20,12 +20,12 @@ export default function NativePlusIcon({ size = 16, className = '', title = null
   const cut = encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><rect x="${s - badge - gap}" y="${-gap}" width="${badge + gap * 2}" height="${badge + gap * 2}" rx="${(badge + gap * 2) * 0.32}" fill="#000"/></svg>`
   );
-  const mask = `url(${noctraLogo}) 0 ${s - n}px / ${n}px ${n}px no-repeat, url("data:image/svg+xml;utf8,${cut}") 0 0 / ${s}px ${s}px no-repeat`;
+  const mask = `url(${nativeLogo}) 0 ${s - n}px / ${n}px ${n}px no-repeat, url("data:image/svg+xml;utf8,${cut}") 0 0 / ${s}px ${s}px no-repeat`;
   const at = (badge - len) / 2;
   const across = (badge - bar) / 2;
   return (
     <span
-      className={`noctra-plus-icon ${className}`.trim()}
+      className={`native-plus-icon ${className}`.trim()}
       role={title ? 'img' : undefined}
       aria-label={title || undefined}
       aria-hidden={title ? undefined : 'true'}

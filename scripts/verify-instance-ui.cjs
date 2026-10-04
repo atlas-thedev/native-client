@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const assert = require('node:assert/strict');
-app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-ui-test-')));
+app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'native-ui-test-')));
 app.commandLine.appendSwitch('disable-dev-shm-usage');
 const instance = { id: 'visual-121', name: 'Tricky Trials', version: '1.21.7', mc_version: '1.21.7', loader: 'Fabric', mc_loader: 'Fabric', created: Date.now(), overrides: { resolution: { enabled: true, width: 1920, height: 1080 }, memory: { enabled: true, min: 1, max: 6 } } };
 let library = { instances: [instance], selectedId: instance.id };
@@ -18,7 +18,7 @@ const handles = {
   'instances:save': (_e, next) => { if (failSave) throw new Error('Test disk failure'); library = next; return true; },
   'settings:load': () => ({ onboarding: { completed: true, language: 'en' }, memory: { min: 1, max: 4 }, resolution: { width: 854, height: 480, fullscreen: false } }),
   'settings:systemMemory': () => ({ totalGb: 32 }), 'settings:save': () => true,
-  'accounts:list': () => ({ accounts: [{ id: 'acc-1', name: 'OhLlama', type: 'noctra', token: 'visual-token' }], activeId: 'acc-1' }),
+  'accounts:list': () => ({ accounts: [{ id: 'acc-1', name: 'OhLlama', type: 'native', token: 'visual-token' }], activeId: 'acc-1' }),
   'wardrobe:get': () => ({ active: null, skins: [], capes: [] }), 'wardrobe:sync': () => ({ ok: true }),
   'wardrobe:avatar': () => null,
   'instance:installedVersions': () => [{ version: '1.21.7', loader: 'Fabric' }], 'instance:isInstalled': () => true,
@@ -31,7 +31,7 @@ const handles = {
   'mods:toggle': (_e, { projectId, enabled }) => { manifest[projectId].filename = manifest[projectId].filename.replace(/\.disabled$/, '') + (enabled ? '' : '.disabled'); return manifest; },
   'instance:listDir': (_e, _id, folder) => folder === 'mods' ? Object.values(manifest).map(mod => ({ name: mod.filename, size: 1820000 })) : [],
   'instance:openFolder': () => true,
-  'settings:dataDir': () => '/tmp/noctra', 'news:list': () => ({ items: [] }), 'updater:status': () => ({ type: 'idle' }),
+  'settings:dataDir': () => '/tmp/native', 'news:list': () => ({ items: [] }), 'updater:status': () => ({ type: 'idle' }),
   'social:getFriends': () => ({ ok: true, friends: [{ id: 'friend-1', name: 'BuilderBee', status: 'online' }] }),
   'social:getStats': () => ({ ok: true, onlineUsers: 10500 }),
   'social:getRequests': () => ({ requests: { received: [], sent: [] } }),
@@ -40,7 +40,7 @@ const handles = {
   'relay:getGroups': () => ({ ok: true, groups: [{ id: 'group-1', name: 'Realm Crew', memberCount: 6 }] }),
   'admin:status': () => ({ ok: true, isAdmin: true }),
   'admin:overview': () => ({ ok: true, overview: { users: 128, activeSessions: 46, onlineUsers: 31, messages: 8912, groups: 24, friendships: 206, database: { engine: 'SQLite', journalMode: 'WAL', sizeBytes: 7340032, checkedAt: Date.now(), tables: [{ name: 'users', rows: 128 }, { name: 'sessions', rows: 46 }, { name: 'friends', rows: 412 }, { name: 'friend_requests', rows: 17 }, { name: 'messages', rows: 7400 }, { name: 'groups', rows: 24 }, { name: 'group_members', rows: 180 }, { name: 'group_messages', rows: 1512 }] } } }),
-  'admin:listUsers': () => ({ ok: true, users: [{ id: 'user-owner', email: 'owner@noctra.test', username: 'OhLlama', uuid: 'owner-uuid', isAdmin: true, badges: adminBadges, createdAt: Date.now() - 864000000, status: 'online', friendCount: 32, groupCount: 5, messageCount: 842 }, { id: 'user-builder', email: 'builder@noctra.test', username: 'BuilderBee', uuid: 'builder-uuid', isAdmin: false, badges: ['bug_hunter'], createdAt: Date.now() - 172800000, status: 'offline', friendCount: 8, groupCount: 2, messageCount: 94 }], page: 1, pageSize: 50, total: 2, totalPages: 1 }),
+  'admin:listUsers': () => ({ ok: true, users: [{ id: 'user-owner', email: 'owner@native.test', username: 'OhLlama', uuid: 'owner-uuid', isAdmin: true, badges: adminBadges, createdAt: Date.now() - 864000000, status: 'online', friendCount: 32, groupCount: 5, messageCount: 842 }, { id: 'user-builder', email: 'builder@native.test', username: 'BuilderBee', uuid: 'builder-uuid', isAdmin: false, badges: ['bug_hunter'], createdAt: Date.now() - 172800000, status: 'offline', friendCount: 8, groupCount: 2, messageCount: 94 }], page: 1, pageSize: 50, total: 2, totalPages: 1 }),
   'admin:setBadge': (_e, id, badge, granted) => { if (id === 'user-owner') adminBadges = granted ? [...new Set([...adminBadges, badge])] : adminBadges.filter(item => item !== badge); return { ok: true, user: { id, badges: adminBadges } }; }
 };
 for (const [name, fn] of Object.entries(handles)) ipcMain.handle(name, fn);
@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
   const screenshot = async name => { await pause(); fs.writeFileSync(path.join(__dirname, `../screenshot-instance-${name}.png`), (await win.webContents.capturePage()).toPNG()); };
   try {
     await win.loadFile(path.join(__dirname, '../dist/index.html')); await pause(1500);
-    const titleLogo = await js(`(() => { const el = document.querySelector('.noctra-wordmark .noctra-mark'); const rect = el?.getBoundingClientRect(); const style = el && getComputedStyle(el); return el ? { width: rect.width, height: rect.height, filter: style.filter, opacity: style.opacity } : null; })()`);
+    const titleLogo = await js(`(() => { const el = document.querySelector('.native-wordmark .native-mark'); const rect = el?.getBoundingClientRect(); const style = el && getComputedStyle(el); return el ? { width: rect.width, height: rect.height, filter: style.filter, opacity: style.opacity } : null; })()`);
     assert.equal(titleLogo?.width, 11, 'Title-bar logo matches the compact text size');
     assert.equal(titleLogo?.height, 11, 'Title-bar logo stays square at text size');
     assert.match(titleLogo?.filter || '', /grayscale/, 'Title-bar logo is grayed');

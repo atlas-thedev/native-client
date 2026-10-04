@@ -264,7 +264,7 @@ export default function NativeIcon({
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      className={`noctra-icon native-icon native-icon-${name} ${className}`.trim()}
+      className={`native-icon native-icon-${name} ${className}`.trim()}
       style={style}
       role={title ? 'img' : undefined}
       aria-hidden={title ? undefined : true}
@@ -287,4 +287,3 @@ export default function NativeIcon({
   );
 }
 
-export const NoctraIcon = NativeIcon;
