@@ -21,15 +21,16 @@ export function normalizeKind(kind) {
  * UUIDs and usernames aren't premium Mojang accounts, so the public renderer
  * returns Steve — their real texture must come from the wardrobe instead.
  */
+/** Ids/UUIDs the launcher makes up itself (Native accounts created before the rename start with "noctra-"). */
+const isGeneratedId = (value) => /^(native-|noctra-|offline-)/.test(String(value || ''));
+
 export function isLocalIdentity(account) {
   const rawId = account?.id;
   const rawUuid = account?.uuid;
   return account?.type === 'native'
     || account?.type === 'offline'
-    || String(rawId || '').startsWith('native-')
-    || String(rawId || '').startsWith('offline-')
-    || String(rawUuid || '').startsWith('native-')
-    || String(rawUuid || '').startsWith('offline-');
+    || isGeneratedId(rawId)
+    || isGeneratedId(rawUuid);
 }
 
 /**
@@ -38,9 +39,7 @@ export function isLocalIdentity(account) {
  * so their skins come from wardrobe; the public renderer returns Steve/Alex.
  */
 export function skinIdentifier(account, uuid, name) {
-  const localIdentity = isLocalIdentity(account)
-    || String(uuid || '').startsWith('native-')
-    || String(uuid || '').startsWith('offline-');
+  const localIdentity = isLocalIdentity(account) || isGeneratedId(uuid);
 
   if (localIdentity) {
     return account?.model === 'slim' ? 'MHF_Alex' : FALLBACK_SKIN;
@@ -51,11 +50,11 @@ export function skinIdentifier(account, uuid, name) {
   const rawId = account?.id;
 
   let raw = FALLBACK_SKIN;
-  if (rawUuid && rawUuid !== 'guest' && !String(rawUuid).startsWith('offline-') && !String(rawUuid).startsWith('native-') && !String(rawUuid).startsWith('native-')) {
+  if (rawUuid && rawUuid !== 'guest' && !isGeneratedId(rawUuid)) {
     raw = rawUuid;
   } else if (rawName && rawName !== 'guest') {
     raw = rawName;
-  } else if (rawId && rawId !== 'guest' && !String(rawId).startsWith('offline-') && !String(rawId).startsWith('native-') && !String(rawId).startsWith('native-')) {
+  } else if (rawId && rawId !== 'guest' && !isGeneratedId(rawId)) {
     raw = rawId;
   }
 
