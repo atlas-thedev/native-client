@@ -39,3 +39,19 @@ test('the launcher removes a disabled copy when it installs the mod', () => {
   assert.deepStrictEqual(fs.readdirSync(mods), ['native-client-1.2.0.jar']);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('the launcher also removes pre-rename noctra-client jars so only one Native mod loads', () => {
+  const os = require('node:os');
+  const { installJar } = require('../electron/noctraMod');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noctra-core-'));
+  const mods = path.join(dir, 'mods');
+  fs.mkdirSync(mods);
+  fs.writeFileSync(path.join(mods, 'noctra-client-1.0.0.jar'), 'old');
+  fs.writeFileSync(path.join(mods, 'noctra-client-1.0.1.jar.disabled'), 'old');
+  fs.writeFileSync(path.join(mods, 'sodium.jar'), 'keep');
+  const jar = path.join(dir, 'native-client-1.3.1.jar');
+  fs.writeFileSync(jar, 'new');
+  installJar(jar, mods);
+  assert.deepStrictEqual(fs.readdirSync(mods).sort(), ['native-client-1.3.1.jar', 'sodium.jar']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
