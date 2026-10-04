@@ -9,7 +9,7 @@ import {
   summarizeLibrary
 } from './playtimeStats.js';
 
-const STORAGE_KEY = 'noctra.instances';
+const STORAGE_KEY = 'native.instances';
 const LEGACY_STORAGE_KEYS = ['native.instances', 'oneclient.instances'];
 
 /* The library starts empty. Instances are only ever created by the user or by
@@ -19,7 +19,7 @@ const DEFAULT_DATA = { instances: [], selectedId: null };
 function newInstanceId() {
   // Date.now() alone collided when two instances were created in the same ms
   // (e.g. importing a modpack), which silently broke selection.
-  return `noctra-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  return `native-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 /**

@@ -36,8 +36,8 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
 import '../../lib/whitePrimary.css';
 
-const WELCOME_TOUR_KEY = 'noctra.welcome-tour.v1';
-const PLAY_AS_KEY = 'noctra.play-as.v1';
+const WELCOME_TOUR_KEY = 'native.welcome-tour.v1';
+const PLAY_AS_KEY = 'native.play-as.v1';
 
 const readPlayAs = () => {
   try {
@@ -135,7 +135,7 @@ export default function Shell({
 
   const isNative = Boolean(
     hasValidAccount &&
-    (account.type === 'noctra' || account.type === 'native')
+    (account.type === 'native')
   );
   // The Locker works for premium accounts too: LockerView switches to the
   // account's real Minecraft capes (official profile API) for Microsoft.
@@ -143,8 +143,8 @@ export default function Shell({
 
   // A premium account connected to Native acts as that Native account for
   // Relay, friends and the other online features.
-  const premiumLink = hasValidAccount && account.type === 'microsoft' && account.noctraLink?.connected
-    ? account.noctraLink
+  const premiumLink = hasValidAccount && account.type === 'microsoft' && account.nativeLink?.connected
+    ? account.nativeLink
     : null;
   const socialAccount = useMemo(() => {
     if (isNative) return account;
@@ -155,7 +155,7 @@ export default function Shell({
       email: premiumLink.email,
       uuid: premiumLink.uuid,
       model: premiumLink.model,
-      type: 'noctra',
+      type: 'native',
       linkedPremium: true,
       linkedFrom: account.id
     };
@@ -168,15 +168,15 @@ export default function Shell({
      going back to the login screen. Premium = real Microsoft session (online
      servers); Native = the linked Native profile (offline session + Native skins). */
   const canSwitchIdentity = Boolean(premiumLink && socialAccount);
-  const playAs = canSwitchIdentity && playAsMap[account.id] === 'noctra' ? 'noctra' : 'premium';
+  const playAs = canSwitchIdentity && playAsMap[account.id] === 'native' ? 'native' : 'premium';
   const launchAccount = useMemo(() => {
-    if (playAs !== 'noctra' || !socialAccount) return account;
-    return { ...socialAccount, isMicrosoft: false, type: 'noctra' };
+    if (playAs !== 'native' || !socialAccount) return account;
+    return { ...socialAccount, isMicrosoft: false, type: 'native' };
   }, [playAs, socialAccount, account]);
   const switchIdentity = useCallback((mode) => {
     if (!account?.id) return;
     setPlayAsMap((current) => {
-      const next = { ...current, [account.id]: mode === 'noctra' ? 'noctra' : 'premium' };
+      const next = { ...current, [account.id]: mode === 'native' ? 'native' : 'premium' };
       try {
         localStorage.setItem(PLAY_AS_KEY, JSON.stringify(next));
       } catch {}
@@ -186,21 +186,21 @@ export default function Shell({
   /* Signed in with Native directly but a premium account in the switcher is
      linked to it: the home switcher can hop to that premium identity too. */
   const linkedPremiumAccount = useMemo(() => (
-    isNative ? accounts.find((entry) => entry?.type === 'microsoft' && entry.noctraLink?.connected && entry.noctraLink.userId === account.id) || null : null
+    isNative ? accounts.find((entry) => entry?.type === 'microsoft' && entry.nativeLink?.connected && entry.nativeLink.userId === account.id) || null : null
   ), [isNative, accounts, account?.id]);
   const identity = useMemo(() => {
     if (canSwitchIdentity) {
       return {
         mode: playAs,
         premium: { name: account?.name, account },
-        noctra: { name: socialAccount?.name, account: { ...socialAccount, isMicrosoft: false, type: 'noctra' } }
+        native: { name: socialAccount?.name, account: { ...socialAccount, isMicrosoft: false, type: 'native' } }
       };
     }
     if (linkedPremiumAccount) {
       return {
-        mode: 'noctra',
+        mode: 'native',
         premium: { name: linkedPremiumAccount.name, account: linkedPremiumAccount },
-        noctra: { name: account?.name, account }
+        native: { name: account?.name, account }
       };
     }
     return null;
@@ -364,7 +364,7 @@ export default function Shell({
       if (!note) return;
       let mutedIds = {};
       try {
-        mutedIds = JSON.parse(localStorage.getItem('noctra_relay_store_v5') || '{}').mutedIds || {};
+        mutedIds = JSON.parse(localStorage.getItem('native_relay_store_v5') || '{}').mutedIds || {};
       } catch { /* no saved mutes */ }
       const focused = document.hasFocus();
       const viewing = Boolean(note.threadId) && state.currentTab === 'relay' && state.activeThreadId === note.threadId && focused;
@@ -639,7 +639,7 @@ export default function Shell({
           case 'discover-shaders': openDiscover({ contentType: 'shader' }); break;
           case 'tour': openTutorial(); break;
           case 'accounts': setAccountSwitcherOpen(true); break;
-          case 'connect-noctra':
+          case 'connect-native':
             if (account?.type === 'microsoft') openConnectNative(account.id);
             else setAccountSwitcherOpen(true);
             break;

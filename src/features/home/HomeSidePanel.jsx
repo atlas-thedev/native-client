@@ -63,7 +63,7 @@ function useRecent(loader) {
    have pinged before shows its real icon instantly (and while offline),
    instead of flashing a placeholder on every visit. */
 
-const STORE_KEY = 'noctra.home.jumpBackIn.v1';
+const STORE_KEY = 'native.home.jumpBackIn.v1';
 const MAX_SERVERS = 40;
 const MAX_WORLDS = 60;
 const PING_TTL = 60_000;

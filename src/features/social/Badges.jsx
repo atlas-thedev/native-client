@@ -54,7 +54,7 @@ export const isPlusUser = (user) => getUserBadges(user).includes('plus');
 
 /** The Native+ mark shown next to members' names across Relay. */
 export function PlusMark({ size = 14, className = '' }) {
-  return <NativePlusIcon size={size} className={`noctra-plus-mark ${className}`.trim()} title="Native+ member" />;
+  return <NativePlusIcon size={size} className={`native-plus-mark ${className}`.trim()} title="Native+ member" />;
 }
 
 /**
@@ -85,13 +85,13 @@ export default function Badges({ user, size = 18, showEmpty = false }) {
   if (!badgeKeys.length && !showEmpty) return null;
 
   return (
-    <div className="noctra-badges-strip" role="group" aria-label="User Badges">
+    <div className="native-badges-strip" role="group" aria-label="User Badges">
       {badgeKeys.map((key) => {
         const badge = BADGE_DEFS[key];
         if (!badge) return null;
         return (
-          <div key={key} className="noctra-badge-item" title={`${badge.name} • ${badge.description}`}>
-            <span className="noctra-badge-icon" style={{ width: size, height: size }}>
+          <div key={key} className="native-badge-item" title={`${badge.name} • ${badge.description}`}>
+            <span className="native-badge-icon" style={{ width: size, height: size }}>
               {badge.icon}
             </span>
           </div>

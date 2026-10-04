@@ -67,7 +67,7 @@ export default function IdentitySwitcher({ identity, isPlus = false, disabled = 
 
       {open && (
         <div className="idsw-menu" role="menu">
-          {['premium', 'noctra'].map((id) => {
+          {['premium', 'native'].map((id) => {
             const entry = identity[id];
             const active = id === identity.mode;
             return (

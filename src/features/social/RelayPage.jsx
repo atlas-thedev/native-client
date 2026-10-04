@@ -42,7 +42,7 @@ import './RelayPage.css';
 import './relay-groups.css';
 import './RelayMessages.css';
 
-const RELAY_STORAGE_KEY = 'noctra_relay_store_v5';
+const RELAY_STORAGE_KEY = 'native_relay_store_v5';
 const MESSAGE_MAX = 2000;
 const MAX_ATTACHMENT = 25 * 1024 * 1024;
 

@@ -1,4 +1,4 @@
-.noctra-embedded-friends {
+.native-embedded-friends {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -7,7 +7,7 @@
   overflow: hidden;
 }
 
-.noctra-friends-tab-bar {
+.native-friends-tab-bar {
   height: 58px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
@@ -19,7 +19,7 @@
   backdrop-filter: blur(12px);
 }
 
-.noctra-friends-brand {
+.native-friends-brand {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -28,21 +28,21 @@
   color: #fff;
 }
 
-.noctra-friends-tabs-right {
+.native-friends-tabs-right {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
 
-.noctra-tab-divider {
+.native-tab-divider {
   width: 1px;
   height: 20px;
   background: rgba(255, 255, 255, 0.1);
   margin: 0 8px;
 }
 
-.noctra-friend-tab {
+.native-friend-tab {
   background: none;
   border: none;
   padding: 4px 10px;
@@ -57,23 +57,23 @@
   transition: all 0.15s ease;
 }
 
-.noctra-friend-tab:hover {
+.native-friend-tab:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #ddd;
 }
 
-.noctra-friend-tab.is-active {
+.native-friend-tab.is-active {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
-.noctra-friend-tab b {
+.native-friend-tab b {
   font-size: 11px;
   font-weight: 700;
   opacity: 0.8;
 }
 
-.noctra-pending-badge {
+.native-pending-badge {
   background: #f23f43;
   color: #fff;
   font-size: 10px;
@@ -83,7 +83,7 @@
   font-style: normal;
 }
 
-.noctra-friend-tab-btn {
+.native-friend-tab-btn {
   margin-left: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -99,19 +99,19 @@
   transition: all 0.15s ease;
 }
 
-.noctra-friend-tab-btn:hover {
+.native-friend-tab-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.22);
 }
 
-.noctra-friend-tab-btn.is-active {
+.native-friend-tab-btn.is-active {
   background: #fff;
   border-color: #fff;
   color: #000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.noctra-friends-body {
+.native-friends-body {
   flex: 1;
   overflow-y: auto;
   padding: 20px 30px;
@@ -119,7 +119,7 @@
   flex-direction: column;
 }
 
-.noctra-friends-notice {
+.native-friends-notice {
   padding: 10px 14px;
   border-radius: 6px;
   margin-bottom: 16px;
@@ -129,39 +129,39 @@
   font-size: 13px;
 }
 
-.noctra-friends-notice.success {
+.native-friends-notice.success {
   background: rgba(35, 165, 90, 0.15);
   border: 1px solid rgba(35, 165, 90, 0.3);
   color: #23a55a;
 }
 
-.noctra-friends-notice.error {
+.native-friends-notice.error {
   background: rgba(242, 63, 67, 0.15);
   border: 1px solid rgba(242, 63, 67, 0.3);
   color: #f23f43;
 }
 
-.noctra-friends-notice button {
+.native-friends-notice button {
   background: none;
   border: none;
   color: inherit;
   cursor: pointer;
 }
 
-.noctra-add-friend-panel h3 {
+.native-add-friend-panel h3 {
   margin: 0 0 4px 0;
   font-size: 15px;
   color: #fff;
   font-weight: 700;
 }
 
-.noctra-add-friend-panel p {
+.native-add-friend-panel p {
   margin: 0 0 16px 0;
   font-size: 12.5px;
   color: var(--fg-muted, #80848e);
 }
 
-.noctra-add-input-wrap {
+.native-add-input-wrap {
   display: flex;
   align-items: center;
   background: rgba(0, 0, 0, 0.45);
@@ -172,11 +172,11 @@
   max-width: 620px;
   transition: all 0.15s ease;
 }
-.noctra-add-input-wrap:focus-within {
+.native-add-input-wrap:focus-within {
   border-color: rgba(255, 255, 255, 0.35);
 }
 
-.noctra-add-input-wrap input {
+.native-add-input-wrap input {
   flex: 1;
   background: none;
   border: none;
@@ -186,7 +186,7 @@
   font-family: var(--font-mono, monospace);
 }
 
-.noctra-btn-send-req {
+.native-btn-send-req {
   padding: 7px 16px;
   border-radius: 9px;
   background: #ffffff;
@@ -199,20 +199,20 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.noctra-btn-send-req:hover:not(:disabled) {
+.native-btn-send-req:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transform: translateY(-1px);
 }
 
-.noctra-btn-send-req:disabled {
+.native-btn-send-req:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-.noctra-friends-search-box {
+.native-friends-search-box {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -225,12 +225,12 @@
   transition: all 0.15s ease;
 }
 
-.noctra-friends-search-box:focus-within {
+.native-friends-search-box:focus-within {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.noctra-friends-search-box input {
+.native-friends-search-box input {
   flex: 1;
   background: none;
   border: none;
@@ -239,7 +239,7 @@
   font-size: 13px;
 }
 
-.noctra-friends-search-box button {
+.native-friends-search-box button {
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.4);
@@ -247,11 +247,11 @@
   transition: color 0.15s ease;
 }
 
-.noctra-friends-search-box button:hover {
+.native-friends-search-box button:hover {
   color: #ffffff;
 }
 
-.noctra-list-section-title {
+.native-list-section-title {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -260,7 +260,7 @@
   text-transform: uppercase;
 }
 
-.noctra-friend-card {
+.native-friend-card {
   position: relative;
   display: flex;
   align-items: center;
@@ -275,53 +275,53 @@
   margin-bottom: 10px;
 }
 
-.noctra-friend-card:hover {
+.native-friend-card:hover {
   background: rgba(255, 255, 255, 0.045);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.noctra-friend-card-info {
+.native-friend-card-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.noctra-friend-card-name-row {
+.native-friend-card-name-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.noctra-friend-name {
+.native-friend-name {
   font-size: 14px;
   font-weight: 600;
   color: #fff;
 }
 
-.noctra-friend-handle {
+.native-friend-handle {
   font-size: 12px;
   color: var(--fg-muted, #80848e);
 }
 
-.noctra-friend-activity {
+.native-friend-activity {
   font-size: 12px;
   color: var(--fg-muted, #80848e);
   margin-top: 2px;
 }
 
-.noctra-friend-activity.is-playing {
+.native-friend-activity.is-playing {
   color: var(--accent-text, #d9a6da);
   font-weight: 500;
 }
 
-.noctra-friend-card-actions {
+.native-friend-card-actions {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.noctra-friend-icon-btn {
+.native-friend-icon-btn {
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -334,17 +334,17 @@
   transition: all 0.15s ease;
 }
 
-.noctra-friend-icon-btn:hover {
+.native-friend-icon-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
 
-.noctra-friend-icon-btn.is-danger:hover {
+.native-friend-icon-btn.is-danger:hover {
   background: rgba(242, 63, 67, 0.2);
   color: #f23f43;
 }
 
-.noctra-empty-friends {
+.native-empty-friends {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -353,19 +353,19 @@
   gap: 16px;
 }
 
-.noctra-empty-friends svg {
+.native-empty-friends svg {
   width: 54px;
   height: 54px;
   color: rgba(255, 255, 255, 0.15);
 }
 
-.noctra-empty-friends p {
+.native-empty-friends p {
   color: rgba(255, 255, 255, 0.5);
   font-size: 13.5px;
   font-weight: 500;
 }
 
-.noctra-request-row {
+.native-request-row {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -377,23 +377,23 @@
   margin-bottom: 10px;
 }
 
-.noctra-req-info {
+.native-req-info {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.noctra-req-info strong {
+.native-req-info strong {
   font-size: 14px;
   color: #fff;
 }
 
-.noctra-req-info span {
+.native-req-info span {
   font-size: 12px;
   color: var(--fg-muted, #80848e);
 }
 
-.noctra-req-actions {
+.native-req-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -463,11 +463,11 @@
 }
 
 /* ── Calm pass: rows on the page, hairlines between them ─────────── */
-.noctra-friends-tab-bar { background: transparent; backdrop-filter: none; border-bottom-color: var(--hairline, rgba(255,255,255,.06)); }
-.noctra-friends-search-box { background: transparent; border-color: var(--hairline, rgba(255,255,255,.08)); border-radius: 999px; padding: 8px 16px; }
-.noctra-friends-search-box:focus-within { background: transparent; border-color: rgba(255,255,255,.2); }
-.noctra-list-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-bottom: 4px; }
-.noctra-friend-card {
+.native-friends-tab-bar { background: transparent; backdrop-filter: none; border-bottom-color: var(--hairline, rgba(255,255,255,.06)); }
+.native-friends-search-box { background: transparent; border-color: var(--hairline, rgba(255,255,255,.08)); border-radius: 999px; padding: 8px 16px; }
+.native-friends-search-box:focus-within { background: transparent; border-color: rgba(255,255,255,.2); }
+.native-list-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin-bottom: 4px; }
+.native-friend-card {
   margin-bottom: 0;
   padding: 12px 6px;
   border: 0;
@@ -476,6 +476,6 @@
   background: none;
   box-shadow: none;
 }
-.noctra-friend-card:hover { background: rgba(255,255,255,.025); border-color: var(--hairline, rgba(255,255,255,.06)); }
-.noctra-friend-tab { border-radius: 999px; padding: 6px 13px; font-weight: 500; }
-.noctra-friend-tab.is-active { background: rgba(255,255,255,.09); }
+.native-friend-card:hover { background: rgba(255,255,255,.025); border-color: var(--hairline, rgba(255,255,255,.06)); }
+.native-friend-tab { border-radius: 999px; padding: 6px 13px; font-weight: 500; }
+.native-friend-tab.is-active { background: rgba(255,255,255,.09); }

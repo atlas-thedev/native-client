@@ -20,7 +20,7 @@ export const GUIDE_CATEGORIES = [
 
 export const GUIDES = [
   {
-    id: 'how-noctra-works',
+    id: 'how-native-works',
     category: 'start',
     title: 'How does Native work?',
     summary: 'A full walkthrough of the launcher: instances, versions, Discover, launching, Locker, Relay, accounts and settings.',
@@ -113,7 +113,7 @@ export const GUIDES = [
     title: 'How do I connect my premium account to Native?',
     summary: 'Connect once, and every time you sign in with Microsoft you are signed into Native too.',
     video: 'connect-premium',
-    tags: ['premium', 'microsoft', 'link', 'connect', 'noctra account', 'auto', 'sign in', 'relay'],
+    tags: ['premium', 'microsoft', 'link', 'connect', 'native account', 'auto', 'sign in', 'relay'],
     steps: [
       { title: 'Sign in with Microsoft', body: 'Add your premium (Microsoft) account in Accounts.' },
       { title: 'Press Connect', body: 'Next to the Microsoft account, press Connect.' },

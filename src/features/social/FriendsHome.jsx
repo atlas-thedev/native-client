@@ -114,18 +114,18 @@ export default function FriendsHome({
   };
 
   return (
-    <div className="noctra-embedded-friends">
+    <div className="native-embedded-friends">
       {/* Discord-style Top Tabs Bar */}
-      <div className="noctra-friends-tab-bar">
-        <div className="noctra-friends-brand">
+      <div className="native-friends-tab-bar">
+        <div className="native-friends-brand">
           <Users size={18} className="text-muted" />
           <span>Friends</span>
         </div>
 
-        <div className="noctra-friends-tabs-right">
+        <div className="native-friends-tabs-right">
           <button
             type="button"
-            className={`noctra-friend-tab ${activeTab === 'online' ? 'is-active' : ''}`}
+            className={`native-friend-tab ${activeTab === 'online' ? 'is-active' : ''}`}
             onClick={() => { setActiveTab('online'); setActionNotice(null); }}
           >
             Online <b>{onlineFriends.length}</b>
@@ -133,7 +133,7 @@ export default function FriendsHome({
 
           <button
             type="button"
-            className={`noctra-friend-tab ${activeTab === 'all' ? 'is-active' : ''}`}
+            className={`native-friend-tab ${activeTab === 'all' ? 'is-active' : ''}`}
             onClick={() => { setActiveTab('all'); setActionNotice(null); }}
           >
             All <b>{friends.length}</b>
@@ -141,28 +141,28 @@ export default function FriendsHome({
 
           <button
             type="button"
-            className={`noctra-friend-tab ${activeTab === 'pending' ? 'is-active' : ''}`}
+            className={`native-friend-tab ${activeTab === 'pending' ? 'is-active' : ''}`}
             onClick={() => { setActiveTab('pending'); setActionNotice(null); }}
           >
             Pending
             {(requests.received.length + requests.sent.length) > 0 && (
-              <em className="noctra-pending-badge">{requests.received.length + requests.sent.length}</em>
+              <em className="native-pending-badge">{requests.received.length + requests.sent.length}</em>
             )}
           </button>
 
           <button
             type="button"
-            className={`noctra-friend-tab ${activeTab === 'blocked' ? 'is-active' : ''}`}
+            className={`native-friend-tab ${activeTab === 'blocked' ? 'is-active' : ''}`}
             onClick={() => { setActiveTab('blocked'); setActionNotice(null); }}
           >
             Blocked <b>{blocked.length}</b>
           </button>
 
-          <div className="noctra-tab-divider" />
+          <div className="native-tab-divider" />
 
           <button
             type="button"
-            className={`noctra-friend-tab-btn ${activeTab === 'add' ? 'is-active' : ''}`}
+            className={`native-friend-tab-btn ${activeTab === 'add' ? 'is-active' : ''}`}
             onClick={() => { setActiveTab('add'); setActionNotice(null); }}
           >
             <UserPlus size={14} />
@@ -172,20 +172,20 @@ export default function FriendsHome({
       </div>
 
       {/* Main Body */}
-      <div className="noctra-friends-body">
+      <div className="native-friends-body">
         {actionNotice && (
-          <div className={`noctra-friends-notice ${actionNotice.type}`}>
+          <div className={`native-friends-notice ${actionNotice.type}`}>
             <span>{actionNotice.text}</span>
             <button type="button" onClick={() => setActionNotice(null)}><X size={14} /></button>
           </div>
         )}
 
         {activeTab === 'add' ? (
-          <div className="noctra-add-friend-panel">
+          <div className="native-add-friend-panel">
             <h3>ADD FRIEND</h3>
             <p>You can add friends with their exact Native or Minecraft username.</p>
-            <form className="noctra-add-friend-form" onSubmit={handleSendRequest}>
-              <div className="noctra-add-input-wrap">
+            <form className="native-add-friend-form" onSubmit={handleSendRequest}>
+              <div className="native-add-input-wrap">
                 <input
                   type="text"
                   placeholder="You can add friends with their username"
@@ -196,7 +196,7 @@ export default function FriendsHome({
                 <button
                   type="submit"
                   disabled={!addUsername.trim() || busyId === 'add'}
-                  className="noctra-btn-send-req"
+                  className="native-btn-send-req"
                 >
                   Send Friend Request
                 </button>
@@ -204,25 +204,25 @@ export default function FriendsHome({
             </form>
           </div>
         ) : activeTab === 'pending' ? (
-          <div className="noctra-requests-panel">
-            <span className="noctra-list-section-title">
+          <div className="native-requests-panel">
+            <span className="native-list-section-title">
               PENDING — {requests.received.length + requests.sent.length}
             </span>
             {requests.received.length === 0 && requests.sent.length === 0 && (
-              <div className="noctra-empty-friends">
+              <div className="native-empty-friends">
                 <Users size={40} className="text-muted" />
                 <p>There are no pending friend requests.</p>
               </div>
             )}
 
             {requests.received.map((req) => (
-              <div key={req.id} className="noctra-request-row">
+              <div key={req.id} className="native-request-row">
                 <RelayAvatar name={req.name} skinUrl={req.skinUrl} size={40} />
-                <div className="noctra-req-info">
+                <div className="native-req-info">
                   <strong>{req.name}</strong>
                   <span>Incoming Friend Request</span>
                 </div>
-                <div className="noctra-req-actions">
+                <div className="native-req-actions">
                   <button
                     type="button"
                     className="btn-req-accept"
@@ -246,13 +246,13 @@ export default function FriendsHome({
             ))}
 
             {requests.sent.map((req) => (
-              <div key={req.id} className="noctra-request-row">
+              <div key={req.id} className="native-request-row">
                 <RelayAvatar name={req.name} skinUrl={req.skinUrl} size={40} />
-                <div className="noctra-req-info">
+                <div className="native-req-info">
                   <strong>{req.name}</strong>
                   <span>Outgoing Friend Request</span>
                 </div>
-                <div className="noctra-req-actions">
+                <div className="native-req-actions">
                   <button
                     type="button"
                     className="btn-req-cancel"
@@ -268,18 +268,18 @@ export default function FriendsHome({
             ))}
           </div>
         ) : activeTab === 'blocked' ? (
-          <div className="noctra-blocked-panel">
-            <span className="noctra-list-section-title">BLOCKED USERS — {blocked.length}</span>
+          <div className="native-blocked-panel">
+            <span className="native-list-section-title">BLOCKED USERS — {blocked.length}</span>
             {blocked.length === 0 ? (
-              <div className="noctra-empty-friends">
+              <div className="native-empty-friends">
                 <Ban size={40} className="text-muted" />
                 <p>You haven't blocked anyone.</p>
               </div>
             ) : (
               blocked.map((u) => (
-                <div key={u.id} className="noctra-friend-row">
+                <div key={u.id} className="native-friend-row">
                   <RelayAvatar name={u.name} size={40} />
-                  <div className="noctra-friend-row-info">
+                  <div className="native-friend-row-info">
                     <strong>{u.name}</strong>
                     <span>Blocked</span>
                   </div>
@@ -295,9 +295,9 @@ export default function FriendsHome({
             )}
           </div>
         ) : (
-          <div className="noctra-friends-list-panel">
+          <div className="native-friends-list-panel">
             {/* Search filter bar */}
-            <div className="noctra-friends-search-box">
+            <div className="native-friends-search-box">
               <Search size={15} className="text-muted" />
               <input
                 type="text"
@@ -310,12 +310,12 @@ export default function FriendsHome({
               )}
             </div>
 
-            <span className="noctra-list-section-title">
+            <span className="native-list-section-title">
               {activeTab === 'online' ? `ONLINE — ${filteredFriends.length}` : `ALL FRIENDS — ${filteredFriends.length}`}
             </span>
 
             {filteredFriends.length === 0 ? (
-              <div className="noctra-empty-friends">
+              <div className="native-empty-friends">
                 <Users size={40} className="text-muted" />
                 <p>{searchQuery ? 'No friends found matching your search.' : (activeTab === 'online' ? 'No one is online right now.' : 'You have no friends yet.')}</p>
               </div>
@@ -326,7 +326,7 @@ export default function FriendsHome({
                 return (
                   <div
                     key={friend.id}
-                    className="noctra-friend-card"
+                    className="native-friend-card"
                     onClick={() => onOpenChat?.(friend.id)}
                   >
                     <RelayAvatar
@@ -336,21 +336,21 @@ export default function FriendsHome({
                       status={status}
                       showStatus
                     />
-                    <div className="noctra-friend-card-info">
-                      <div className="noctra-friend-card-name-row">
-                        <strong className="noctra-friend-name">{friend.nickname || friend.name}</strong>
-                        <span className="noctra-friend-handle">@{friend.name}</span>
+                    <div className="native-friend-card-info">
+                      <div className="native-friend-card-name-row">
+                        <strong className="native-friend-name">{friend.nickname || friend.name}</strong>
+                        <span className="native-friend-handle">@{friend.name}</span>
                         <Badges user={friend} size={15} />
                       </div>
-                      <span className={`noctra-friend-activity ${isPlaying ? 'is-playing' : ''}`}>
+                      <span className={`native-friend-activity ${isPlaying ? 'is-playing' : ''}`}>
                         {friend.activity || (status === 'offline' ? 'Offline' : 'In Launcher')}
                       </span>
                     </div>
 
-                    <div className="noctra-friend-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <div className="native-friend-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        className="noctra-friend-icon-btn"
+                        className="native-friend-icon-btn"
                         onClick={() => onOpenChat?.(friend.id)}
                         title="Message"
                       >
@@ -358,7 +358,7 @@ export default function FriendsHome({
                       </button>
                       <button
                         type="button"
-                        className="noctra-friend-icon-btn"
+                        className="native-friend-icon-btn"
                         onClick={() => handleUnfriend(friend)}
                         title="Remove Friend"
                       >
@@ -366,7 +366,7 @@ export default function FriendsHome({
                       </button>
                       <button
                         type="button"
-                        className="noctra-friend-icon-btn is-danger"
+                        className="native-friend-icon-btn is-danger"
                         onClick={() => handleBlock(friend)}
                         title="Block"
                       >

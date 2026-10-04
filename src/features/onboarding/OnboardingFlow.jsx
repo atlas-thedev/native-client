@@ -31,7 +31,7 @@ function suggestedLanguage() {
 function createInstance({ name, version, loader, memoryMb }) {
   const cleanName = name.trim();
   return {
-    id: `noctra-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    id: `native-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     name: cleanName,
     version,
     mc_version: version,

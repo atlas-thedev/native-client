@@ -139,15 +139,15 @@ export default function AppNavbar({
   const settingsStatus = updateStatus?.type === 'available' || updateStatus?.type === 'downloaded' ? 'brand' : null;
   return (
     <>
-      <header className="noctra-titlebar">
-        <div className="noctra-build">
-          <span className="noctra-wordmark"><Logo height={11} variant="mark" /> Native Client{isPlus && <em className="noctra-wordmark-plus">+</em>}</span>
+      <header className="native-titlebar">
+        <div className="native-build">
+          <span className="native-wordmark"><Logo height={11} variant="mark" /> Native Client{isPlus && <em className="native-wordmark-plus">+</em>}</span>
           <i />
           <span>Build <b>{buildVersion}</b></span>
           {Number.isFinite(liveUserCount) && (
             <>
               <i />
-              <strong className="noctra-live-users" title={`${liveUserCount.toLocaleString()} Native users currently connected`} aria-live="polite">
+              <strong className="native-live-users" title={`${liveUserCount.toLocaleString()} Native users currently connected`} aria-live="polite">
                 <Radio size={11} aria-hidden="true" />
                 <b>{liveUserCount.toLocaleString()}</b> online
               </strong>
@@ -157,7 +157,7 @@ export default function AppNavbar({
             <>
               <i />
               <span
-                className={`noctra-net-pill ${networkPill.variant}`}
+                className={`native-net-pill ${networkPill.variant}`}
                 role="status"
                 title={networkPill.tooltip}
                 aria-label={networkPill.tooltip}
@@ -172,12 +172,12 @@ export default function AppNavbar({
               <i />
               <button
                 type="button"
-                className={`noctra-update-pill ${updatePill.variant}`}
+                className={`native-update-pill ${updatePill.variant}`}
                 onClick={onOpenUpdater}
                 title={updatePill.tooltip}
                 aria-label={updatePill.tooltip}
               >
-                <updatePill.Icon size={12} strokeWidth={2.3} className={updatePill.spin ? 'noctra-update-spin' : ''} aria-hidden="true" />
+                <updatePill.Icon size={12} strokeWidth={2.3} className={updatePill.spin ? 'native-update-spin' : ''} aria-hidden="true" />
                 <span>{updatePill.label}</span>
                 {updatePill.version && <b>{updatePill.version}</b>}
               </button>
@@ -222,17 +222,17 @@ export default function AppNavbar({
         </div>
       </header>
 
-      <aside className="noctra-rail" aria-label={t('nav.primary')}>
+      <aside className="native-rail" aria-label={t('nav.primary')}>
         <button
           type="button"
-          className={`noctra-rail-logo ${isPlus ? 'is-plus' : ''}`}
+          className={`native-rail-logo ${isPlus ? 'is-plus' : ''}`}
           onClick={() => onSelectTab('home')}
           aria-label={isPlus ? 'Native+' : 'Native Client'}
           data-tooltip={isPlus ? 'Native+' : 'Native Client'}
           data-tour="brand"
         >
           <Logo height={28} variant="mark" />
-          {isPlus && <span className="noctra-rail-plus" aria-hidden="true">+</span>}
+          {isPlus && <span className="native-rail-plus" aria-hidden="true">+</span>}
         </button>
 
         <nav className="rail-group rail-core-group" aria-label="Launcher">

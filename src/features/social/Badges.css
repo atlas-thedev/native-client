@@ -1,4 +1,4 @@
-.noctra-badges-strip {
+.native-badges-strip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -8,25 +8,25 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.noctra-badge-item {
+.native-badge-item {
   display: inline-grid;
   place-items: center;
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
-.noctra-badge-item:hover {
+.native-badge-item:hover {
   transform: scale(1.15);
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4));
 }
 
-.noctra-badge-icon {
+.native-badge-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.noctra-badge-icon img {
+.native-badge-icon img {
   width: 100%;
   height: 100%;
   display: block;

@@ -3,15 +3,15 @@ import fallbackSkin from '../../assets/steve.png';
 
 // Relay is a Native-only surface. Avatars resolve from the CustomSkinLoader API
 // and deliberately never contact Mojang head-rendering proxy services.
-const noctraSkinCache = new Map();
+const nativeSkinCache = new Map();
 const inFlightRequests = new Map();
 const NEGATIVE_CACHE_TTL = 30_000;
 
 function cachedSkin(key) {
-  const cached = noctraSkinCache.get(key);
+  const cached = nativeSkinCache.get(key);
   if (!cached) return undefined;
   if (cached.url || Date.now() - cached.checkedAt < NEGATIVE_CACHE_TTL) return cached.url;
-  noctraSkinCache.delete(key);
+  nativeSkinCache.delete(key);
   return undefined;
 }
 
@@ -37,11 +37,11 @@ export function resolveNativeSkin(name) {
 
       const data = await res.json();
       const skin = data.skin || data.skins?.default || data.skins?.slim || null;
-      noctraSkinCache.set(key, { url: skin, checkedAt: Date.now() });
+      nativeSkinCache.set(key, { url: skin, checkedAt: Date.now() });
       return skin;
     } catch {
       // Cache misses briefly so transient startup/network failures can self-heal.
-      noctraSkinCache.set(key, { url: null, checkedAt: Date.now() });
+      nativeSkinCache.set(key, { url: null, checkedAt: Date.now() });
       return null;
     } finally {
       window.clearTimeout(timer);
@@ -93,7 +93,7 @@ export default function RelayAvatar({
 
     if (initialSkinUrl) {
       setSkinUrl(initialSkinUrl);
-      if (key) noctraSkinCache.set(key, { url: initialSkinUrl, checkedAt: Date.now() });
+      if (key) nativeSkinCache.set(key, { url: initialSkinUrl, checkedAt: Date.now() });
       return () => { active = false; };
     }
 

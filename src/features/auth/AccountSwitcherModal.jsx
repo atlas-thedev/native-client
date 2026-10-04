@@ -7,7 +7,7 @@ import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import { preloadAccountAvatars } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import packageInfo from '../../../package.json';
-import loginSide from '../../assets/noctra-login-side.png';
+import loginSide from '../../assets/native-login-side.png';
 import './AccountSwitcherModal.css';
 
 const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
@@ -26,14 +26,14 @@ const LEGAL = 'https://nativelaunch.xyz';
  */
 function groupLinkedAccounts(accounts) {
   const list = Array.isArray(accounts) ? accounts : [];
-  const noctra = list.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
+  const native = list.filter((acc) => acc.type === 'native');
   const parentOf = (acc) => {
-    const link = acc.type === 'microsoft' && acc.noctraLink?.connected ? acc.noctraLink : null;
+    const link = acc.type === 'microsoft' && acc.nativeLink?.connected ? acc.nativeLink : null;
     if (!link) return null;
     const lower = (v) => String(v || '').toLowerCase();
-    return noctra.find((n) => link.userId && n.id === link.userId)
-      || noctra.find((n) => link.email && lower(n.email) === lower(link.email))
-      || noctra.find((n) => link.name && lower(n.name) === lower(link.name))
+    return native.find((n) => link.userId && n.id === link.userId)
+      || native.find((n) => link.email && lower(n.email) === lower(link.email))
+      || native.find((n) => link.name && lower(n.name) === lower(link.name))
       || null;
   };
   const childrenOf = new Map();
@@ -109,7 +109,7 @@ export default function AccountSwitcherModal({
     setConnectTargetId(connectRequest.id);
     setConnectDone(false);
     setError('');
-    setView('noctra-connect');
+    setView('native-connect');
   }, [open, connectRequest?.nonce]);
 
   useEffect(() => {
@@ -150,7 +150,7 @@ export default function AccountSwitcherModal({
   }, [open]);
 
   useEffect(() => {
-    if ((view !== 'noctra-verify' && view !== 'noctra-reset') || countdown <= 0) return undefined;
+    if ((view !== 'native-verify' && view !== 'native-reset') || countdown <= 0) return undefined;
     const timer = setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -162,7 +162,7 @@ export default function AccountSwitcherModal({
   const openExternal = (url) => window.native?.openExternal?.(url);
 
   const connectTarget = accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft') || null;
-  const savedNativeAccounts = accounts.filter((acc) => acc.type === 'noctra' || acc.type === 'native');
+  const savedNativeAccounts = accounts.filter((acc) => acc.type === 'native');
 
   const openConnect = (microsoftAccountId) => {
     setConnectTargetId(microsoftAccountId);
@@ -170,7 +170,7 @@ export default function AccountSwitcherModal({
     setError('');
     setLoginInput('');
     setPasswordInput('');
-    setView('noctra-connect');
+    setView('native-connect');
   };
 
   const runConnect = async (payload) => {
@@ -302,7 +302,7 @@ export default function AccountSwitcherModal({
       }
       setCountdown(60);
       setOtpDigits(['', '', '', '', '', '']);
-      setView('noctra-verify');
+      setView('native-verify');
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (err) {
       setError(err?.message || 'Could not send verification code.');
@@ -365,7 +365,7 @@ export default function AccountSwitcherModal({
     if (!resetEmail && EMAIL_REGEX.test(loginInput.trim())) setResetEmail(loginInput.trim());
     setPasswordInput('');
     setError('');
-    setView('noctra-forgot');
+    setView('native-forgot');
   };
 
   const handleForgotSubmit = async (e) => {
@@ -379,7 +379,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await window.native?.accounts?.noctraForgotPassword?.({ email });
+      const res = await window.native?.accounts?.nativeForgotPassword?.({ email });
       if (!res) throw new Error('Password reset is not available in this build.');
       if (!res.ok) throw new Error(res.error || 'Could not send a reset code.');
       setResetEmail(email);
@@ -387,7 +387,7 @@ export default function AccountSwitcherModal({
       setResetConfirm('');
       setCountdown(60);
       setOtpDigits(['', '', '', '', '', '']);
-      setView('noctra-reset');
+      setView('native-reset');
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (err) {
       setError(err?.message || 'Could not send a reset code.');
@@ -401,7 +401,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await window.native?.accounts?.noctraForgotPassword?.({ email: resetEmail.trim().toLowerCase() });
+      const res = await window.native?.accounts?.nativeForgotPassword?.({ email: resetEmail.trim().toLowerCase() });
       if (res && !res.ok) throw new Error(res.error || 'Could not resend the code.');
       setCountdown(60);
     } catch (err) {
@@ -431,7 +431,7 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const res = await window.native?.accounts?.noctraResetPassword?.({ email, code, password: resetPassword });
+      const res = await window.native?.accounts?.nativeResetPassword?.({ email, code, password: resetPassword });
       if (!res) throw new Error('Password reset is not available in this build.');
       if (!res.ok) throw new Error(res.error || 'Could not reset the password.');
       // Sign straight in with the new password.
@@ -439,7 +439,7 @@ export default function AccountSwitcherModal({
       if (login && !login.ok) {
         setPasswordInput('');
         setLoginInput(email);
-        setView('noctra-login');
+        setView('native-login');
         setError('Password updated. Please sign in with your new password.');
         return;
       }
@@ -550,17 +550,17 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="button"
-                    className="account-login-noctra account-login-native"
+                    className="account-login-native"
                     onClick={() => {
-                      setView('noctra-login');
+                      setView('native-login');
                       setError('');
                     }}
                   >
                     <span className="account-login-btn-lead">{t('account.logInWith')}</span>
-                    <span className="account-login-noctra-mark account-login-native-mark" aria-hidden="true">
+                    <span className="account-login-native-mark" aria-hidden="true">
                       <Logo height={22} variant="mark" />
                     </span>
-                    <strong className="account-login-btn-brand">{t('account.noctra') || t('account.native')}</strong>
+                    <strong className="account-login-btn-brand">{t('account.native')}</strong>
                   </button>
 
                   {onAddOffline && (
@@ -612,11 +612,11 @@ export default function AccountSwitcherModal({
                               <PlayerAvatar account={acc} kind="avatar" size={child ? 26 : 30} />
                               <div className="account-login-item-text">
                                 <strong>{acc.name}</strong>
-                                <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-noctra is-native'}>
-                                  {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.noctra') || t('account.native'))}
-                                  {acc.type === 'microsoft' && acc.noctraLink?.connected && !child && (
-                                    <span className="account-login-item-link" title={`Signs into Native as ${acc.noctraLink.name}`}>
-                                      <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.noctraLink.name}
+                                <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-native'}>
+                                  {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.native'))}
+                                  {acc.type === 'microsoft' && acc.nativeLink?.connected && !child && (
+                                    <span className="account-login-item-link" title={`Signs into Native as ${acc.nativeLink.name}`}>
+                                      <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.nativeLink.name}
                                     </span>
                                   )}
                                 </small>
@@ -624,16 +624,16 @@ export default function AccountSwitcherModal({
                               {acc.type === 'microsoft' && onConnectNative && (
                                 <button
                                   type="button"
-                                  className={`account-login-item-connect${acc.noctraLink?.connected ? ' is-connected' : ''}`}
-                                  title={acc.noctraLink?.connected ? 'Native connection' : 'Connect a Native account'}
-                                  aria-label={acc.noctraLink?.connected ? `Native connection for ${acc.name}` : `Connect a Native account to ${acc.name}`}
+                                  className={`account-login-item-connect${acc.nativeLink?.connected ? ' is-connected' : ''}`}
+                                  title={acc.nativeLink?.connected ? 'Native connection' : 'Connect a Native account'}
+                                  aria-label={acc.nativeLink?.connected ? `Native connection for ${acc.name}` : `Connect a Native account to ${acc.name}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openConnect(acc.id);
                                   }}
                                 >
                                   <Link2 size={12} strokeWidth={2.2} aria-hidden="true" />
-                                  {!acc.noctraLink?.connected && <span>Connect</span>}
+                                  {!acc.nativeLink?.connected && <span>Connect</span>}
                                 </button>
                               )}
                               {active && <span className="account-login-item-active">Active</span>}
@@ -707,12 +707,12 @@ export default function AccountSwitcherModal({
                   </button>
                 </footer>
               </div>
-            ) : view === 'noctra-connect' ? (
-              <div className="noctra-auth-container noctra-connect">
-                <div className="noctra-auth-top">
+            ) : view === 'native-connect' ? (
+              <div className="native-auth-container native-connect">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
+                    className="native-auth-back-btn"
                     onClick={() => { setView('main'); setError(''); setConnectDone(false); }}
                     aria-label={t('common.back')}
                   >
@@ -722,86 +722,86 @@ export default function AccountSwitcherModal({
                 </div>
 
                 {!connectTarget ? (
-                  <div className="noctra-auth-header">
-                    <h2 className="noctra-auth-title">Connect Native</h2>
-                    <p className="noctra-auth-sub">Sign in with Microsoft first, then connect your Native account to it.</p>
+                  <div className="native-auth-header">
+                    <h2 className="native-auth-title">Connect Native</h2>
+                    <p className="native-auth-sub">Sign in with Microsoft first, then connect your Native account to it.</p>
                   </div>
                 ) : (
                   <>
-                    <div className={`noctra-connect-hero${connectTarget.noctraLink?.connected ? ' is-linked' : ''}${connectDone ? ' is-done' : ''}`} aria-hidden="true">
-                      <span className="noctra-connect-node">
+                    <div className={`native-connect-hero${connectTarget.nativeLink?.connected ? ' is-linked' : ''}${connectDone ? ' is-done' : ''}`} aria-hidden="true">
+                      <span className="native-connect-node">
                         <PlayerAvatar account={connectTarget} kind="avatar" size={44} />
                       </span>
-                      <span className="noctra-connect-wire">
+                      <span className="native-connect-wire">
                         <i /><i /><i />
-                        <b className="noctra-connect-badge">
-                          {connectTarget.noctraLink?.connected ? <Check size={13} strokeWidth={3} /> : <Link2 size={13} strokeWidth={2.4} />}
+                        <b className="native-connect-badge">
+                          {connectTarget.nativeLink?.connected ? <Check size={13} strokeWidth={3} /> : <Link2 size={13} strokeWidth={2.4} />}
                         </b>
                       </span>
-                      <span className="noctra-connect-node is-noctra">
+                      <span className="native-connect-node is-native">
                         <Logo height={26} variant="mark" />
                       </span>
                     </div>
 
-                    {connectTarget.noctraLink?.connected ? (
-                      <div className="noctra-connect-body">
-                        <div className="noctra-auth-header">
-                          <h2 className="noctra-auth-title">{connectDone ? 'Connected' : 'Native is connected'}</h2>
-                          <p className="noctra-auth-sub">
-                            <strong>{connectTarget.name}</strong> signs into Native as <strong>{connectTarget.noctraLink.name}</strong> automatically,
+                    {connectTarget.nativeLink?.connected ? (
+                      <div className="native-connect-body">
+                        <div className="native-auth-header">
+                          <h2 className="native-auth-title">{connectDone ? 'Connected' : 'Native is connected'}</h2>
+                          <p className="native-auth-sub">
+                            <strong>{connectTarget.name}</strong> signs into Native as <strong>{connectTarget.nativeLink.name}</strong> automatically,
                             on this PC and any other where you use this premium account. Relay, friends and chat just work.
                           </p>
                         </div>
                         {error && <div className="account-login-error" role="alert">{error}</div>}
-                        <div className="noctra-connect-actions">
-                          <button type="button" className="noctra-auth-primary-btn" onClick={() => { setView('main'); setConnectDone(false); }}>
+                        <div className="native-connect-actions">
+                          <button type="button" className="native-auth-primary-btn" onClick={() => { setView('main'); setConnectDone(false); }}>
                             Done
                           </button>
-                          <button type="button" className="noctra-connect-disconnect" onClick={handleDisconnect} disabled={busy}>
+                          <button type="button" className="native-connect-disconnect" onClick={handleDisconnect} disabled={busy}>
                             <Unlink size={13} aria-hidden="true" />
                             <span>{busy ? 'Disconnecting…' : 'Disconnect'}</span>
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="noctra-connect-body">
-                        <div className="noctra-auth-header">
-                          <h2 className="noctra-auth-title">Connect Native to {connectTarget.name}</h2>
-                          <p className="noctra-auth-sub">
+                      <div className="native-connect-body">
+                        <div className="native-auth-header">
+                          <h2 className="native-auth-title">Connect Native to {connectTarget.name}</h2>
+                          <p className="native-auth-sub">
                             Do it once. Every time you sign in with this premium account, Native signs you in too.
                           </p>
                         </div>
 
                         {savedNativeAccounts.length > 0 && (
-                          <div className="noctra-connect-saved">
-                            <span className="noctra-form-label">Use a signed-in Native account</span>
+                          <div className="native-connect-saved">
+                            <span className="native-form-label">Use a signed-in Native account</span>
                             {savedNativeAccounts.map((acc) => (
                               <button
                                 key={acc.id}
                                 type="button"
-                                className="account-login-item noctra-connect-choice"
+                                className="account-login-item native-connect-choice"
                                 disabled={busy}
-                                onClick={() => runConnect({ noctraAccountId: acc.id })}
+                                onClick={() => runConnect({ nativeAccountId: acc.id })}
                               >
                                 <PlayerAvatar account={acc} kind="avatar" size={26} />
                                 <span className="account-login-item-text">
                                   <strong>{acc.name}</strong>
-                                  <small className="is-noctra">Native</small>
+                                  <small className="is-native">Native</small>
                                 </span>
-                                <span className="noctra-connect-choice-cta">Connect</span>
+                                <span className="native-connect-choice-cta">Connect</span>
                               </button>
                             ))}
-                            <span className="noctra-connect-or"><i />or sign in<i /></span>
+                            <span className="native-connect-or"><i />or sign in<i /></span>
                           </div>
                         )}
 
-                        <form className="noctra-auth-form" onSubmit={handleConnectSubmit}>
-                          <div className="noctra-form-group">
-                            <label className="noctra-form-label" htmlFor="noctra-connect-login">{t('account.loginOrEmail')}</label>
+                        <form className="native-auth-form" onSubmit={handleConnectSubmit}>
+                          <div className="native-form-group">
+                            <label className="native-form-label" htmlFor="native-connect-login">{t('account.loginOrEmail')}</label>
                             <input
-                              id="noctra-connect-login"
+                              id="native-connect-login"
                               type="text"
-                              className="noctra-form-input"
+                              className="native-form-input"
                               placeholder={t('account.loginOrEmail')}
                               value={loginInput}
                               autoComplete="username"
@@ -809,13 +809,13 @@ export default function AccountSwitcherModal({
                               onChange={(e) => { setLoginInput(e.target.value); setError(''); }}
                             />
                           </div>
-                          <div className="noctra-form-group">
-                            <label className="noctra-form-label" htmlFor="noctra-connect-password">{t('account.password')}</label>
-                            <div className="noctra-input-wrap">
+                          <div className="native-form-group">
+                            <label className="native-form-label" htmlFor="native-connect-password">{t('account.password')}</label>
+                            <div className="native-input-wrap">
                               <input
-                                id="noctra-connect-password"
+                                id="native-connect-password"
                                 type={showPassword ? 'text' : 'password'}
-                                className="noctra-form-input has-toggle"
+                                className="native-form-input has-toggle"
                                 placeholder="••••••••"
                                 value={passwordInput}
                                 autoComplete="current-password"
@@ -823,7 +823,7 @@ export default function AccountSwitcherModal({
                               />
                               <button
                                 type="button"
-                                className="noctra-input-toggle"
+                                className="native-input-toggle"
                                 onClick={() => setShowPassword((v) => !v)}
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 aria-pressed={showPassword}
@@ -837,11 +837,11 @@ export default function AccountSwitcherModal({
 
                           <button
                             type="submit"
-                            className="noctra-auth-primary-btn"
+                            className="native-auth-primary-btn"
                             disabled={busy || !loginInput.trim() || !passwordInput}
                           >
                             {busy ? (
-                              <span className="noctra-btn-spinner">
+                              <span className="native-btn-spinner">
                                 <NativeIcon name="refresh" size={16} className="is-spinning" />
                                 <span>Connecting…</span>
                               </span>
@@ -849,7 +849,7 @@ export default function AccountSwitcherModal({
                               'Connect accounts'
                             )}
                           </button>
-                          <p className="noctra-connect-fine">
+                          <p className="native-connect-fine">
                             Native checks with Microsoft that you own this Minecraft account. Your Microsoft password never reaches Native.
                           </p>
                         </form>
@@ -859,11 +859,11 @@ export default function AccountSwitcherModal({
                 )}
               </div>
             ) : view === 'offline' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
+                    className="native-auth-back-btn"
                     onClick={() => { setView('main'); setError(''); }}
                     aria-label={t('common.back')}
                   >
@@ -872,20 +872,20 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
-                  <h2 className="noctra-auth-title">Play offline</h2>
-                  <p className="noctra-auth-sub">
+                <div className="native-auth-header">
+                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
+                  <h2 className="native-auth-title">Play offline</h2>
+                  <p className="native-auth-sub">
                     No internet or sign-in needed. Works in singleplayer, on LAN and on offline-mode servers.
                   </p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleOfflineSubmit}>
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">Username</label>
+                <form className="native-auth-form" onSubmit={handleOfflineSubmit}>
+                  <div className="native-form-group">
+                    <label className="native-form-label">Username</label>
                     <input
                       type="text"
-                      className="noctra-form-input"
+                      className="native-form-input"
                       placeholder="Steve"
                       value={offlineName}
                       maxLength={16}
@@ -899,11 +899,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || !OFFLINE_NAME.test(offlineName.trim())}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                       </span>
                     ) : (
@@ -912,12 +912,12 @@ export default function AccountSwitcherModal({
                   </button>
                 </form>
               </div>
-            ) : view === 'noctra-login' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+            ) : view === 'native-login' ? (
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
+                    className="native-auth-back-btn"
                     onClick={() => { setView('main'); setError(''); }}
                     aria-label={t('common.back')}
                   >
@@ -926,18 +926,18 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
-                  <h2 className="noctra-auth-title">{t('account.noctraLogin')}</h2>
-                  <p className="noctra-auth-sub">{t('account.nativeSubtitle')}</p>
+                <div className="native-auth-header">
+                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
+                  <h2 className="native-auth-title">{t('account.nativeLogin')}</h2>
+                  <p className="native-auth-sub">{t('account.nativeSubtitle')}</p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleLoginSubmit}>
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('account.loginOrEmail')}</label>
+                <form className="native-auth-form" onSubmit={handleLoginSubmit}>
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('account.loginOrEmail')}</label>
                     <input
                       type="text"
-                      className="noctra-form-input"
+                      className="native-form-input"
                       placeholder={t('account.loginOrEmail')}
                       value={loginInput}
                       autoFocus
@@ -945,19 +945,19 @@ export default function AccountSwitcherModal({
                     />
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('account.password')}</label>
-                    <div className="noctra-input-wrap">
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('account.password')}</label>
+                    <div className="native-input-wrap">
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        className="noctra-form-input has-toggle"
+                        className="native-form-input has-toggle"
                         placeholder="••••••••"
                         value={passwordInput}
                         onChange={(e) => { setPasswordInput(e.target.value); setError(''); }}
                       />
                       <button
                         type="button"
-                        className="noctra-input-toggle"
+                        className="native-input-toggle"
                         onClick={() => setShowPassword((v) => !v)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showPassword}
@@ -967,8 +967,8 @@ export default function AccountSwitcherModal({
                     </div>
                   </div>
 
-                  <div className="noctra-resend-row" style={{ justifyContent: 'flex-end' }}>
-                    <button type="button" className="noctra-link-btn" onClick={startPasswordReset}>
+                  <div className="native-resend-row" style={{ justifyContent: 'flex-end' }}>
+                    <button type="button" className="native-link-btn" onClick={startPasswordReset}>
                       Forgot password?
                     </button>
                   </div>
@@ -977,11 +977,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || !loginInput.trim() || !passwordInput}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                         <span>{t('account.securing')}</span>
                       </span>
@@ -990,24 +990,24 @@ export default function AccountSwitcherModal({
                     )}
                   </button>
 
-                  <div className="noctra-auth-switch-link">
+                  <div className="native-auth-switch-link">
                     <span>{t('account.dontHaveAccount')}</span>
                     <button
                       type="button"
-                      className="noctra-link-btn"
-                      onClick={() => { setView('noctra-register'); setError(''); }}
+                      className="native-link-btn"
+                      onClick={() => { setView('native-register'); setError(''); }}
                     >
                       {t('account.createNativeLink')}
                     </button>
                   </div>
                 </form>
               </div>
-            ) : view === 'noctra-register' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+            ) : view === 'native-register' ? (
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
+                    className="native-auth-back-btn"
                     onClick={() => { setView('main'); setError(''); }}
                     aria-label={t('common.back')}
                   >
@@ -1016,8 +1016,8 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <div className="noctra-avatar-preview-wrap">
+                <div className="native-auth-header">
+                  <div className="native-avatar-preview-wrap">
                     <PlayerAvatar
                       name={regUsername.trim() || 'Steve'}
                       kind="avatar"
@@ -1025,17 +1025,17 @@ export default function AccountSwitcherModal({
                       radius={12}
                     />
                   </div>
-                  <span className="noctra-auth-step">Step 1 of 2</span>
-                  <h2 className="noctra-auth-title">{t('account.createNative')}</h2>
-                  <p className="noctra-auth-sub">{t('account.nativeSubtitle')}</p>
+                  <span className="native-auth-step">Step 1 of 2</span>
+                  <h2 className="native-auth-title">{t('account.createNative')}</h2>
+                  <p className="native-auth-sub">{t('account.nativeSubtitle')}</p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleRegisterSendCode}>
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('onboarding.username')}</label>
+                <form className="native-auth-form" onSubmit={handleRegisterSendCode}>
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('onboarding.username')}</label>
                     <input
                       type="text"
-                      className="noctra-form-input"
+                      className="native-form-input"
                       maxLength={16}
                       placeholder="e.g. Steve"
                       value={regUsername}
@@ -1044,30 +1044,30 @@ export default function AccountSwitcherModal({
                     />
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('account.email')}</label>
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('account.email')}</label>
                     <input
                       type="email"
-                      className="noctra-form-input"
+                      className="native-form-input"
                       placeholder="name@example.com"
                       value={regEmail}
                       onChange={(e) => { setRegEmail(e.target.value); setError(''); }}
                     />
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('account.password')}</label>
-                    <div className="noctra-input-wrap">
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('account.password')}</label>
+                    <div className="native-input-wrap">
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        className="noctra-form-input has-toggle"
+                        className="native-form-input has-toggle"
                         placeholder="At least 6 characters"
                         value={regPassword}
                         onChange={(e) => { setRegPassword(e.target.value); setError(''); }}
                       />
                       <button
                         type="button"
-                        className="noctra-input-toggle"
+                        className="native-input-toggle"
                         onClick={() => setShowPassword((v) => !v)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showPassword}
@@ -1077,8 +1077,8 @@ export default function AccountSwitcherModal({
                     </div>
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">{t('account.model')}</label>
+                  <div className="native-form-group">
+                    <label className="native-form-label">{t('account.model')}</label>
                     <div className="native-model-pills" role="radiogroup">
                       <button
                         type="button"
@@ -1105,11 +1105,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || !regUsername.trim() || !regEmail.trim() || !regPassword}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                         <span>{t('account.securing')}</span>
                       </span>
@@ -1118,25 +1118,25 @@ export default function AccountSwitcherModal({
                     )}
                   </button>
 
-                  <div className="noctra-auth-switch-link">
+                  <div className="native-auth-switch-link">
                     <span>{t('account.alreadyHaveAccount')}</span>
                     <button
                       type="button"
-                      className="noctra-link-btn"
-                      onClick={() => { setView('noctra-login'); setError(''); }}
+                      className="native-link-btn"
+                      onClick={() => { setView('native-login'); setError(''); }}
                     >
                       {t('account.logInLink')}
                     </button>
                   </div>
                 </form>
               </div>
-            ) : view === 'noctra-verify' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+            ) : view === 'native-verify' ? (
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
-                    onClick={() => { setView('noctra-register'); setError(''); }}
+                    className="native-auth-back-btn"
+                    onClick={() => { setView('native-register'); setError(''); }}
                     aria-label={t('account.changeEmail')}
                   >
                     <ArrowLeft size={15} />
@@ -1144,17 +1144,17 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
-                  <span className="noctra-auth-step">Step 2 of 2</span>
-                  <h2 className="noctra-auth-title">{t('account.verifyCodeTitle')}</h2>
-                  <p className="noctra-auth-sub">
+                <div className="native-auth-header">
+                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
+                  <span className="native-auth-step">Step 2 of 2</span>
+                  <h2 className="native-auth-title">{t('account.verifyCodeTitle')}</h2>
+                  <p className="native-auth-sub">
                     {t('account.verifyCodeSubtitle', { email: regEmail })}
                   </p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleVerifySubmit}>
-                  <div className="noctra-otp-container">
+                <form className="native-auth-form" onSubmit={handleVerifySubmit}>
+                  <div className="native-otp-container">
                     {otpDigits.map((digit, idx) => (
                       <input
                         key={idx}
@@ -1163,7 +1163,7 @@ export default function AccountSwitcherModal({
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={1}
-                        className={`noctra-otp-box ${digit ? 'filled' : ''}`}
+                        className={`native-otp-box ${digit ? 'filled' : ''}`}
                         value={digit}
                         onChange={(e) => handleOtpChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
@@ -1177,11 +1177,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || otpDigits.join('').length < 6}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                         <span>{t('account.securing')}</span>
                       </span>
@@ -1190,15 +1190,15 @@ export default function AccountSwitcherModal({
                     )}
                   </button>
 
-                  <div className="noctra-resend-row">
+                  <div className="native-resend-row">
                     {countdown > 0 ? (
-                      <span className="noctra-countdown-text">
+                      <span className="native-countdown-text">
                         {t('account.resendIn').replace('{seconds}', countdown)}
                       </span>
                     ) : (
                       <button
                         type="button"
-                        className="noctra-link-btn"
+                        className="native-link-btn"
                         disabled={busy}
                         onClick={handleResendCode}
                       >
@@ -1208,13 +1208,13 @@ export default function AccountSwitcherModal({
                   </div>
                 </form>
               </div>
-            ) : view === 'noctra-forgot' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+            ) : view === 'native-forgot' ? (
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
-                    onClick={() => { setView('noctra-login'); setError(''); }}
+                    className="native-auth-back-btn"
+                    onClick={() => { setView('native-login'); setError(''); }}
                     aria-label={t('common.back')}
                   >
                     <ArrowLeft size={15} />
@@ -1222,18 +1222,18 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
-                  <h2 className="noctra-auth-title">Reset your password</h2>
-                  <p className="noctra-auth-sub">Enter the email for your Native account and we'll send you a 6-digit code.</p>
+                <div className="native-auth-header">
+                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
+                  <h2 className="native-auth-title">Reset your password</h2>
+                  <p className="native-auth-sub">Enter the email for your Native account and we'll send you a 6-digit code.</p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleForgotSubmit}>
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">Email</label>
+                <form className="native-auth-form" onSubmit={handleForgotSubmit}>
+                  <div className="native-form-group">
+                    <label className="native-form-label">Email</label>
                     <input
                       type="email"
-                      className="noctra-form-input"
+                      className="native-form-input"
                       placeholder="you@example.com"
                       value={resetEmail}
                       autoFocus
@@ -1245,11 +1245,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || !resetEmail.trim()}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                         <span>{t('account.securing')}</span>
                       </span>
@@ -1259,13 +1259,13 @@ export default function AccountSwitcherModal({
                   </button>
                 </form>
               </div>
-            ) : view === 'noctra-reset' ? (
-              <div className="noctra-auth-container">
-                <div className="noctra-auth-top">
+            ) : view === 'native-reset' ? (
+              <div className="native-auth-container">
+                <div className="native-auth-top">
                   <button
                     type="button"
-                    className="noctra-auth-back-btn"
-                    onClick={() => { setView('noctra-forgot'); setError(''); }}
+                    className="native-auth-back-btn"
+                    onClick={() => { setView('native-forgot'); setError(''); }}
                     aria-label={t('account.changeEmail')}
                   >
                     <ArrowLeft size={15} />
@@ -1273,16 +1273,16 @@ export default function AccountSwitcherModal({
                   </button>
                 </div>
 
-                <div className="noctra-auth-header">
-                  <Logo height={48} variant="mark" className="noctra-auth-clean-logo" />
-                  <h2 className="noctra-auth-title">Choose a new password</h2>
-                  <p className="noctra-auth-sub">
+                <div className="native-auth-header">
+                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
+                  <h2 className="native-auth-title">Choose a new password</h2>
+                  <p className="native-auth-sub">
                     If an account exists for {resetEmail}, we sent it a 6-digit code. Enter it below with your new password.
                   </p>
                 </div>
 
-                <form className="noctra-auth-form" onSubmit={handleResetSubmit}>
-                  <div className="noctra-otp-container">
+                <form className="native-auth-form" onSubmit={handleResetSubmit}>
+                  <div className="native-otp-container">
                     {otpDigits.map((digit, idx) => (
                       <input
                         key={idx}
@@ -1291,7 +1291,7 @@ export default function AccountSwitcherModal({
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={1}
-                        className={`noctra-otp-box ${digit ? 'filled' : ''}`}
+                        className={`native-otp-box ${digit ? 'filled' : ''}`}
                         value={digit}
                         onChange={(e) => handleOtpChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
@@ -1301,12 +1301,12 @@ export default function AccountSwitcherModal({
                     ))}
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">New password</label>
-                    <div className="noctra-input-wrap">
+                  <div className="native-form-group">
+                    <label className="native-form-label">New password</label>
+                    <div className="native-input-wrap">
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        className="noctra-form-input has-toggle"
+                        className="native-form-input has-toggle"
                         placeholder="••••••••"
                         autoComplete="new-password"
                         value={resetPassword}
@@ -1314,7 +1314,7 @@ export default function AccountSwitcherModal({
                       />
                       <button
                         type="button"
-                        className="noctra-input-toggle"
+                        className="native-input-toggle"
                         onClick={() => setShowPassword((v) => !v)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showPassword}
@@ -1324,11 +1324,11 @@ export default function AccountSwitcherModal({
                     </div>
                   </div>
 
-                  <div className="noctra-form-group">
-                    <label className="noctra-form-label">Confirm new password</label>
+                  <div className="native-form-group">
+                    <label className="native-form-label">Confirm new password</label>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      className="noctra-form-input"
+                      className="native-form-input"
                       placeholder="••••••••"
                       autoComplete="new-password"
                       value={resetConfirm}
@@ -1340,11 +1340,11 @@ export default function AccountSwitcherModal({
 
                   <button
                     type="submit"
-                    className="noctra-auth-primary-btn"
+                    className="native-auth-primary-btn"
                     disabled={busy || otpDigits.join('').length < 6 || !resetPassword || !resetConfirm}
                   >
                     {busy ? (
-                      <span className="noctra-btn-spinner">
+                      <span className="native-btn-spinner">
                         <NativeIcon name="refresh" size={16} className="is-spinning" />
                         <span>{t('account.securing')}</span>
                       </span>
@@ -1353,15 +1353,15 @@ export default function AccountSwitcherModal({
                     )}
                   </button>
 
-                  <div className="noctra-resend-row">
+                  <div className="native-resend-row">
                     {countdown > 0 ? (
-                      <span className="noctra-countdown-text">
+                      <span className="native-countdown-text">
                         {t('account.resendIn').replace('{seconds}', countdown)}
                       </span>
                     ) : (
                       <button
                         type="button"
-                        className="noctra-link-btn"
+                        className="native-link-btn"
                         disabled={busy}
                         onClick={handleResendResetCode}
                       >

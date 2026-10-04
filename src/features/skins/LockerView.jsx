@@ -49,7 +49,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
 
   // Accounts whose locker lives in the Native cloud: Native accounts, and premium
   // accounts connected to one. Everyone else only has this PC's copy.
-  const cloudAccount = !localOnly && (account?.type === 'noctra' || (account?.type === 'microsoft' && Boolean(account?.noctraLink?.connected)));
+  const cloudAccount = !localOnly && (account?.type === 'native' || (account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected)));
   const onlineRef = useRef(online);
   onlineRef.current = online;
   const syncRun = useRef(0);
@@ -81,7 +81,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         publishState(current);
         syncInBackground();
       } else {
-        const saved = localStorage.getItem(`noctra.wardrobe.${account.id || 'default'}`)
+        const saved = localStorage.getItem(`native.wardrobe.${account.id || 'default'}`)
           || localStorage.getItem(`native.wardrobe.${account.id || 'default'}`);
         publishState(saved ? JSON.parse(saved) : { model: account.model || 'classic', items: [], skins: [], capes: [], favorites: [], latest: [], active: { skinUrl: null, capeUrl: null, model: account.model || 'classic', hasSkin: false, hasCape: false } });
       }
@@ -98,14 +98,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   useEffect(() => {
     if (!account) return undefined;
     const refresh = () => { window.native?.wardrobe?.get?.(account).then((next) => { if (next) publishState(next); }).catch(() => {}); };
-    window.addEventListener('noctra:wardrobe-refreshed', refresh);
-    return () => window.removeEventListener('noctra:wardrobe-refreshed', refresh);
+    window.addEventListener('native:wardrobe-refreshed', refresh);
+    return () => window.removeEventListener('native:wardrobe-refreshed', refresh);
   }, [account?.id]);
 
   // Native Store capes this account owns (claimed in the Store page or on the website).
   const storeSeq = useRef(0);
   const loadStoreCapes = async () => {
-    if (!account?.token || account?.type !== 'noctra' || localOnly) { setStoreCapes([]); return; }
+    if (!account?.token || account?.type !== 'native' || localOnly) { setStoreCapes([]); return; }
     const run = ++storeSeq.current;
     try {
       const [catalog, mine] = await Promise.all([
@@ -120,9 +120,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   useEffect(() => { loadStoreCapes(); }, [account?.id, account?.token, online]);
   useEffect(() => {
     const refresh = () => loadStoreCapes();
-    window.addEventListener('noctra:wardrobe-refreshed', refresh);
-    window.addEventListener('noctra:store-changed', refresh);
-    return () => { window.removeEventListener('noctra:wardrobe-refreshed', refresh); window.removeEventListener('noctra:store-changed', refresh); };
+    window.addEventListener('native:wardrobe-refreshed', refresh);
+    window.addEventListener('native:store-changed', refresh);
+    return () => { window.removeEventListener('native:wardrobe-refreshed', refresh); window.removeEventListener('native:store-changed', refresh); };
   }, [account?.id, account?.token]);
 
   // Connection lost -> keep working from the saved copy. Connection back -> sync again in the background.

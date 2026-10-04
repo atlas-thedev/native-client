@@ -52,7 +52,6 @@
   user-select: none;
 }
 
-.account-login-build .noctra-mark,
 .account-login-build .native-mark {
   filter: grayscale(1) brightness(0.7);
   opacity: 0.7;
@@ -138,7 +137,6 @@
   margin-bottom: 14px;
 }
 
-.account-login-logo .noctra-mark,
 .account-login-logo .native-mark {
   width: 56px !important;
   height: 56px !important;
@@ -165,7 +163,6 @@
 
 /* Sign-in buttons: flat, solid, same size. No shadows, glows or lift. */
 .account-login-microsoft,
-.account-login-noctra,
 .account-login-native {
   width: 100%;
   height: 48px;
@@ -189,7 +186,6 @@
 .account-login-microsoft:disabled { opacity: 0.7; cursor: wait; }
 
 .account-login-microsoft .account-login-btn-lead,
-.account-login-noctra .account-login-btn-lead,
 .account-login-native .account-login-btn-lead {
   font-size: 15px;
   font-weight: 500;
@@ -197,7 +193,6 @@
 }
 
 .account-login-microsoft .account-login-btn-brand,
-.account-login-noctra .account-login-btn-brand,
 .account-login-native .account-login-btn-brand {
   font-size: 15px;
   font-weight: 600;
@@ -226,39 +221,31 @@
   font-weight: 500;
 }
 
-.account-login-noctra,
 .account-login-native {
   border: 1px solid var(--component-border-hover, rgba(210, 210, 210, 0.2));
   background: transparent;
   color: var(--fg-primary-hover, rgba(237, 237, 237, 1));
 }
 
-.account-login-noctra:hover,
 .account-login-native:hover {
   border-color: var(--component-border-pressed, rgba(210, 210, 210, 0.35));
   background: var(--ghost-overlay-hover, rgba(255, 255, 255, 0.05));
 }
 
-.account-login-noctra .account-login-btn-lead,
 .account-login-native .account-login-btn-lead { color: var(--fg-secondary, rgba(230, 230, 230, 0.8)); }
 
-.account-login-noctra-mark,
 .account-login-native-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.account-login-noctra-mark .noctra-mark,
-.account-login-noctra-mark .native-mark,
-.account-login-native-mark .noctra-mark,
 .account-login-native-mark .native-mark {
   width: 22px !important;
   height: 22px !important;
   object-fit: contain;
 }
 
-.account-login-noctra .account-login-btn-brand,
 .account-login-native .account-login-btn-brand { color: #fff; }
 
 /* "or" divider + offline option */
@@ -487,7 +474,6 @@
   font-size: 10px;
 }
 
-.account-login-item-text small.is-noctra,
 .account-login-item-text small.is-native { color: rgba(255, 255, 255, 0.85); font-weight: 600; }
 .account-login-item-text small.is-ms { color: var(--color-gold, #ffba08); font-weight: 600; }
 
@@ -535,16 +521,16 @@
 /* ---------- Dedicated Native Auth Form (Login / Register / Verify) ----------
    Solid surfaces and theme tokens. No gradients, no glows. */
 
-.noctra-auth-container {
+.native-auth-container {
   width: min(340px, 100%);
   display: flex;
   flex-direction: column;
   animation: account-fade-in 0.22s var(--ease-out);
 }
 
-.noctra-auth-top { display: flex; align-items: center; margin-bottom: 16px; }
+.native-auth-top { display: flex; align-items: center; margin-bottom: 16px; }
 
-.noctra-auth-back-btn {
+.native-auth-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -560,13 +546,13 @@
   transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
 }
 
-.noctra-auth-back-btn:hover {
+.native-auth-back-btn:hover {
   border-color: var(--component-border-hover);
   background: var(--ghost-overlay-hover);
   color: var(--fg-primary-hover);
 }
 
-.noctra-auth-header {
+.native-auth-header {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -575,12 +561,11 @@
   margin-bottom: 22px;
 }
 
-.noctra-auth-clean-logo { margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
+.native-auth-clean-logo { margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
 
-.noctra-auth-clean-logo .noctra-mark,
-.noctra-auth-clean-logo .native-mark { width: 48px !important; height: 48px !important; object-fit: contain; }
+.native-auth-clean-logo .native-mark { width: 48px !important; height: 48px !important; object-fit: contain; }
 
-.noctra-avatar-preview-wrap {
+.native-avatar-preview-wrap {
   width: 58px;
   height: 58px;
   border-radius: var(--radius-lg);
@@ -592,7 +577,7 @@
   margin-bottom: 10px;
 }
 
-.noctra-auth-step {
+.native-auth-step {
   display: inline-flex;
   align-items: center;
   height: 20px;
@@ -605,17 +590,17 @@
   letter-spacing: 0.02em;
 }
 
-.noctra-auth-title { margin: 6px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--fg-primary-hover); }
-.noctra-auth-sub { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg-secondary); }
-.noctra-verify-email { color: var(--fg-primary-hover); font-weight: 600; word-break: break-all; }
+.native-auth-title { margin: 6px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--fg-primary-hover); }
+.native-auth-sub { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg-secondary); }
+.native-verify-email { color: var(--fg-primary-hover); font-weight: 600; word-break: break-all; }
 
-.noctra-auth-form { display: flex; flex-direction: column; gap: 14px; }
-.noctra-form-group { display: flex; flex-direction: column; gap: 6px; }
-.noctra-form-label { font-size: 12px; font-weight: 600; color: var(--fg-secondary); }
+.native-auth-form { display: flex; flex-direction: column; gap: 14px; }
+.native-form-group { display: flex; flex-direction: column; gap: 6px; }
+.native-form-label { font-size: 12px; font-weight: 600; color: var(--fg-secondary); }
 
-.noctra-input-wrap { position: relative; display: flex; align-items: center; }
+.native-input-wrap { position: relative; display: flex; align-items: center; }
 
-.noctra-form-input {
+.native-form-input {
   width: 100%;
   height: 42px;
   padding: 0 13px;
@@ -628,12 +613,12 @@
   transition: border-color 0.14s var(--ease), background 0.14s var(--ease);
 }
 
-.noctra-form-input.has-toggle { padding-right: 42px; }
-.noctra-form-input::placeholder { color: var(--fg-muted); }
-.noctra-form-input:hover { border-color: var(--component-border-pressed); }
-.noctra-form-input:focus { outline: none; border-color: var(--fg-secondary); background: var(--component-bg); }
+.native-form-input.has-toggle { padding-right: 42px; }
+.native-form-input::placeholder { color: var(--fg-muted); }
+.native-form-input:hover { border-color: var(--component-border-pressed); }
+.native-form-input:focus { outline: none; border-color: var(--fg-secondary); background: var(--component-bg); }
 
-.noctra-input-toggle {
+.native-input-toggle {
   position: absolute;
   right: 6px;
   display: grid;
@@ -648,7 +633,7 @@
   transition: background 0.14s var(--ease), color 0.14s var(--ease);
 }
 
-.noctra-input-toggle:hover { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+.native-input-toggle:hover { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
 
 .native-model-pills {
   display: grid;
@@ -678,7 +663,7 @@
 .native-model-pill:hover:not(.active) { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
 .native-model-pill.active { background: var(--ghost-overlay-pressed); color: var(--fg-primary-hover); font-weight: 600; }
 
-.noctra-auth-primary-btn {
+.native-auth-primary-btn {
   width: 100%;
   height: 44px;
   margin-top: 4px;
@@ -695,12 +680,12 @@
   transition: filter 0.14s var(--ease), opacity 0.14s var(--ease);
 }
 
-.noctra-auth-primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
-.noctra-auth-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.native-auth-primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.native-auth-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.noctra-btn-spinner { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.native-btn-spinner { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
 
-.noctra-auth-switch-link {
+.native-auth-switch-link {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,7 +695,7 @@
   color: var(--fg-muted);
 }
 
-.noctra-link-btn {
+.native-link-btn {
   background: none;
   border: none;
   color: var(--fg-primary-hover);
@@ -723,13 +708,13 @@
   text-decoration-color: var(--component-border-pressed);
 }
 
-.noctra-link-btn:hover { text-decoration-color: var(--fg-primary-hover); }
-.noctra-link-btn:disabled { opacity: 0.5; cursor: default; }
+.native-link-btn:hover { text-decoration-color: var(--fg-primary-hover); }
+.native-link-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* 6-digit code */
-.noctra-otp-container { display: flex; gap: 8px; justify-content: center; margin: 4px 0 2px; }
+.native-otp-container { display: flex; gap: 8px; justify-content: center; margin: 4px 0 2px; }
 
-.noctra-otp-box {
+.native-otp-box {
   width: 46px;
   height: 54px;
   border-radius: var(--radius-md);
@@ -743,11 +728,11 @@
   transition: border-color 0.14s var(--ease), background 0.14s var(--ease);
 }
 
-.noctra-otp-box:focus { outline: none; border-color: var(--fg-secondary); background: var(--component-bg); }
-.noctra-otp-box.filled { border-color: var(--component-border-pressed); background: var(--component-bg); }
+.native-otp-box:focus { outline: none; border-color: var(--fg-secondary); background: var(--component-bg); }
+.native-otp-box.filled { border-color: var(--component-border-pressed); background: var(--component-bg); }
 
-.noctra-resend-row { display: flex; align-items: center; justify-content: center; margin-top: 2px; }
-.noctra-countdown-text { font-size: 12px; color: var(--fg-muted); }
+.native-resend-row { display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.native-countdown-text { font-size: 12px; color: var(--fg-muted); }
 
 /* ---------- artwork ---------- */
 
@@ -770,17 +755,15 @@
 
 @media (max-height: 740px) {
   .account-login-panel { padding-top: 24px; padding-bottom: 16px; }
-  .account-login-logo .noctra-mark,
   .account-login-logo .native-mark { width: 44px !important; height: 44px !important; }
   .account-login-logo { margin-bottom: 10px; }
   .account-login-content h1 { margin-bottom: 18px; font-size: 24px; line-height: 30px; }
   .account-login-microsoft,
-  .account-login-noctra,
   .account-login-native { height: 44px; }
   .account-login-offline { height: 40px; }
   .account-login-social { margin-top: 16px; }
   .account-login-content footer { margin-top: 12px; }
-  .noctra-otp-box { width: 38px; height: 46px; font-size: 19px; }
+  .native-otp-box { width: 38px; height: 46px; font-size: 19px; }
 }
 
 @media (max-width: 860px) {
@@ -825,7 +808,7 @@
 .account-login-item-connect:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.28); color: #fff; }
 .account-login-item-connect.is-connected { width: 24px; padding: 0; justify-content: center; color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
 
-.noctra-connect-hero {
+.native-connect-hero {
   position: relative;
   display: flex;
   align-items: center;
@@ -833,7 +816,7 @@
   gap: 0;
   margin: 2px 0 18px;
 }
-.noctra-connect-node {
+.native-connect-node {
   width: 60px;
   height: 60px;
   display: grid;
@@ -842,14 +825,13 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: var(--component-bg);
   overflow: hidden;
-  animation: noctra-connect-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: native-connect-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-.noctra-connect-node.is-noctra { animation-delay: 90ms; }
-.noctra-connect-node.is-noctra .noctra-mark,
-.noctra-connect-node.is-noctra .native-mark { filter: grayscale(1) brightness(3); }
-.noctra-connect-node img { border-radius: 10px; }
+.native-connect-node.is-native { animation-delay: 90ms; }
+.native-connect-node.is-native .native-mark { filter: grayscale(1) brightness(3); }
+.native-connect-node img { border-radius: 10px; }
 
-.noctra-connect-wire {
+.native-connect-wire {
   position: relative;
   width: 92px;
   height: 2px;
@@ -858,7 +840,7 @@
   background: rgba(255, 255, 255, 0.12);
   overflow: visible;
 }
-.noctra-connect-wire i {
+.native-connect-wire i {
   position: absolute;
   top: -1px;
   left: 0;
@@ -867,11 +849,11 @@
   border-radius: 50%;
   background: #fff;
   opacity: 0;
-  animation: noctra-connect-flow 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation: native-connect-flow 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.noctra-connect-wire i:nth-child(2) { animation-delay: 0.6s; }
-.noctra-connect-wire i:nth-child(3) { animation-delay: 1.2s; }
-.noctra-connect-badge {
+.native-connect-wire i:nth-child(2) { animation-delay: 0.6s; }
+.native-connect-wire i:nth-child(3) { animation-delay: 1.2s; }
+.native-connect-badge {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -885,36 +867,36 @@
   background: var(--component-bg-hover);
   color: #fff;
 }
-.noctra-connect-hero.is-linked .noctra-connect-wire { background: color-mix(in srgb, var(--success) 55%, transparent); }
-.noctra-connect-hero.is-linked .noctra-connect-wire i { display: none; }
-.noctra-connect-hero.is-linked .noctra-connect-badge {
+.native-connect-hero.is-linked .native-connect-wire { background: color-mix(in srgb, var(--success) 55%, transparent); }
+.native-connect-hero.is-linked .native-connect-wire i { display: none; }
+.native-connect-hero.is-linked .native-connect-badge {
   background: var(--success);
   border-color: transparent;
   color: var(--page-sunken);
 }
-.noctra-connect-hero.is-done .noctra-connect-badge { animation: noctra-connect-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.native-connect-hero.is-done .native-connect-badge { animation: native-connect-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
-@keyframes noctra-connect-pop { from { opacity: 0; scale: 0.6; } }
-@keyframes noctra-connect-flow {
+@keyframes native-connect-pop { from { opacity: 0; scale: 0.6; } }
+@keyframes native-connect-flow {
   0% { left: 0; opacity: 0; }
   15% { opacity: 1; }
   85% { opacity: 1; }
   100% { left: calc(100% - 4px); opacity: 0; }
 }
 
-.noctra-connect-body { display: flex; flex-direction: column; gap: 16px; }
-.noctra-connect-body .noctra-auth-header { margin-bottom: 0; }
-.noctra-connect-body .noctra-auth-sub strong { color: var(--fg-primary-hover); font-weight: 650; }
+.native-connect-body { display: flex; flex-direction: column; gap: 16px; }
+.native-connect-body .native-auth-header { margin-bottom: 0; }
+.native-connect-body .native-auth-sub strong { color: var(--fg-primary-hover); font-weight: 650; }
 
-.noctra-connect-saved { display: flex; flex-direction: column; gap: 8px; }
-.noctra-connect-choice {
+.native-connect-saved { display: flex; flex-direction: column; gap: 8px; }
+.native-connect-choice {
   width: 100%;
   font: inherit;
   color: inherit;
   text-align: left;
 }
-.noctra-connect-choice:disabled { opacity: 0.5; cursor: progress; }
-.noctra-connect-choice-cta {
+.native-connect-choice:disabled { opacity: 0.5; cursor: progress; }
+.native-connect-choice-cta {
   padding: 5px 10px;
   border-radius: 7px;
   background: #fff;
@@ -922,7 +904,7 @@
   font-size: 11.5px;
   font-weight: 650;
 }
-.noctra-connect-or {
+.native-connect-or {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -933,10 +915,10 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.noctra-connect-or i { flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1); }
+.native-connect-or i { flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1); }
 
-.noctra-connect-actions { display: flex; flex-direction: column; gap: 8px; }
-.noctra-connect-disconnect {
+.native-connect-actions { display: flex; flex-direction: column; gap: 8px; }
+.native-connect-disconnect {
   height: 36px;
   display: inline-flex;
   align-items: center;
@@ -950,17 +932,17 @@
   cursor: pointer;
   transition: color .15s var(--ease), border-color .15s var(--ease), background-color .15s var(--ease);
 }
-.noctra-connect-disconnect:hover:not(:disabled) { color: var(--danger); border-color: rgba(255, 120, 120, 0.4); background: rgba(255, 80, 80, 0.06); }
-.noctra-connect-disconnect:disabled { opacity: 0.5; cursor: progress; }
-.noctra-connect-fine { margin: 0; color: var(--fg-muted); font-size: 11.5px; line-height: 1.5; text-align: center; }
+.native-connect-disconnect:hover:not(:disabled) { color: var(--danger); border-color: rgba(255, 120, 120, 0.4); background: rgba(255, 80, 80, 0.06); }
+.native-connect-disconnect:disabled { opacity: 0.5; cursor: progress; }
+.native-connect-fine { margin: 0; color: var(--fg-muted); font-size: 11.5px; line-height: 1.5; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) {
-  .noctra-connect-node, .noctra-connect-badge, .noctra-connect-wire i { animation: none !important; }
-  .noctra-connect-wire i { opacity: 0; }
+  .native-connect-node, .native-connect-badge, .native-connect-wire i { animation: none !important; }
+  .native-connect-wire i { opacity: 0; }
 }
-:root[data-motion='reduced'] .noctra-connect-node,
-:root[data-motion='reduced'] .noctra-connect-badge,
-:root[data-motion='reduced'] .noctra-connect-wire i { animation: none !important; }
+:root[data-motion='reduced'] .native-connect-node,
+:root[data-motion='reduced'] .native-connect-badge,
+:root[data-motion='reduced'] .native-connect-wire i { animation: none !important; }
 
 /* Linked accounts: a Microsoft account nests under the Native account it signs into. */
 .account-login-group {

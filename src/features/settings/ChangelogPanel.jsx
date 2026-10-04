@@ -10,7 +10,7 @@ const PRIMARY_RELEASES_API =
 const LEGACY_RELEASES_API =
   'https://api.github.com/repos/ohllama0909-alt/native-client/releases?per_page=12';
 
-const CACHE_KEY = 'noctra.changelog.cache';
+const CACHE_KEY = 'native.changelog.cache';
 function readCache() {
   try {
     const value = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
