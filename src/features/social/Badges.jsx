@@ -3,6 +3,7 @@ import developerBadge from '../../assets/badges/developer.png';
 import earlySupporterBadge from '../../assets/badges/early-supporter.png';
 import bugHunterBadge from '../../assets/badges/bug-hunter.png';
 import staffBadge from '../../assets/badges/staff.png';
+import betaTesterBadge from '../../assets/badges/beta-tester.png';
 import './Badges.css';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 
@@ -39,6 +40,13 @@ export const BADGE_DEFS = {
     description: 'Official Native Client Staff Team',
     gradient: 'linear-gradient(135deg, #5865f2 0%, #eb459e 100%)',
     icon: badgeIcon(staffBadge)
+  },
+  beta_tester: {
+    id: 'beta_tester',
+    name: 'Beta Tester',
+    description: 'Joined Native before launch',
+    gradient: 'linear-gradient(135deg, #2fd4c9 0%, #5865f2 100%)',
+    icon: badgeIcon(betaTesterBadge)
   },
   plus: {
     id: 'plus',
