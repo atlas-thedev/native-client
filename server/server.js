@@ -12,6 +12,7 @@ const capes = require('./capes');
 const storeRoutes = require('./store-routes');
 const billing = require('./billing');
 const siteRoutes = require('./site-routes');
+const betaRoutes = require('./beta-routes');
 
 /**
  * Native Backend & API Server
@@ -440,8 +441,19 @@ async function handler(req, res) {
         onGrant: (user, item) => events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: readProfile(user.username)?.capeStore || null, owned: true })
       });
       storeRoutes.ensureCatalog(textureHash);
-      siteRoutes.sweepBetaBadges();
+      siteRoutes.dropAutoBetaBadges();
       if (await siteRoutes.handleSiteRoutes(req, res, { ip, send, hit, tooMany, readJson, originOf })) return;
+      betaRoutes.setHooks({
+        settings: siteRoutes.settings,
+        findItem: storeRoutes.findItem,
+        publish: (userId) => {
+          const target = db.getUserById(userId);
+          if (!target) return;
+          events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: readProfile(target.username)?.capeStore || null, owned: true });
+          events.publish([...new Set([target.id, ...db.getFriendIds(target.id)])], 'friends:changed', { actorId: target.id, userId: target.id, badgesChanged: true });
+        }
+      });
+      if (await betaRoutes.handleBetaRoutes(req, res, { ip, send, hit, tooMany, readJson })) return;
     } catch (siteError) {
       console.error('[Native Site]', siteError);
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Site route failed.' });
@@ -749,7 +761,6 @@ async function handler(req, res) {
       }
 
       const user = db.createUser({ email, username, password, model });
-      try { siteRoutes.onUserCreated(user); } catch (badgeError) { console.error('[Native Site] beta badge', badgeError); }
       db.clearVerificationCode(email);
       const session = db.createSession(user.id);
 

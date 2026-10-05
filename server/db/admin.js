@@ -1,4 +1,4 @@
-const BADGE_IDS = new Set(['developer', 'early_supporter', 'bug_hunter', 'staff', 'verified', 'plus', 'beta_tester']);
+const BADGE_IDS = new Set(['developer', 'early_supporter', 'bug_hunter', 'staff', 'verified', 'plus', 'super_beta_tester']);
 const TABLES = [
   'users',
   'sessions',

@@ -861,7 +861,31 @@ async function handleAdmin(req, res, ctx, url, user) {
   return true;
 }
 
+/** Give Native+ (days 0/null = forever). Keeps a longer existing gift. */
+function givePlus(userId, { days = 0, note = '', by = null } = {}) {
+  const current = sql().prepare('SELECT expires_at FROM plus_grants WHERE user_id = ?').get(String(userId));
+  const expiresAt = Number(days) > 0 ? Date.now() + Math.min(Number(days), 3650) * 86_400_000 : null;
+  const keep = current && current.expires_at == null; // already forever
+  if (!keep) {
+    sql().prepare(`INSERT INTO plus_grants (user_id, expires_at, note, granted_by, created_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET expires_at = excluded.expires_at, note = excluded.note, granted_by = excluded.granted_by`)
+      .run(String(userId), expiresAt, String(note).slice(0, 120), by ? String(by) : null, Date.now());
+  }
+  syncPlus(userId);
+}
+/** Take back a Native+ gift — only the one with this note, so other gifts stay. */
+function takePlus(userId, note) {
+  sql().prepare('DELETE FROM plus_grants WHERE user_id = ? AND note = ?').run(String(userId), String(note));
+  syncPlus(userId);
+}
+/** Remove an item that came from one source (e.g. 'beta'), taking it off if worn. */
+function takeItem(userId, itemId, source) {
+  const r = sql().prepare('DELETE FROM store_owned WHERE user_id = ? AND item_id = ? AND source = ?').run(String(userId), String(itemId), String(source));
+  if (r.changes) takeOffIfWearing(db.getUserById(userId), [String(itemId)]);
+  return r.changes > 0;
+}
+
 module.exports = {
-  handleBillingRoutes, setHooks, hasPlus, plusFor, isPaid, ownedSource, grantItem, syncPlus,
+  handleBillingRoutes, setHooks, hasPlus, plusFor, isPaid, ownedSource, grantItem, syncPlus, givePlus, takePlus, takeItem,
   verifySignature, handleEvent, redeem, enabled, config, activeEnv, publicSettings, saveSetting
 };
