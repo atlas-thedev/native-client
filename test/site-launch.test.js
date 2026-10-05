@@ -113,3 +113,18 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   r = await call('POST', '/v1/store/claim', { itemId: ids[1] }, user);
   assert.equal(r.status, 402); // paid now, not locked
 });
+
+test('pre-launch accounts get the beta tester badge', async () => {
+  const site = require('../server/site-routes');
+  const early = db.createUser({ email: 'beta1@example.com', username: 'BetaOne', password: 'correct horse battery' });
+  assert.deepEqual(site.sweepBetaBadges({ force: true }).includes(early.id), true);
+  const row = () => JSON.parse(db.getDb().prepare('SELECT badges FROM users WHERE id = ?').get(early.id).badges);
+  assert.ok(row().includes('beta_tester'));
+  assert.equal(site.sweepBetaBadges({ force: true }).includes(early.id), false, 'granted once');
+  const fresh = db.createUser({ email: 'beta2@example.com', username: 'BetaTwo', password: 'correct horse battery' });
+  assert.equal(site.onUserCreated(fresh), true);
+  assert.equal(site.onUserCreated(fresh), false);
+  // keeps other badges
+  db.setUserBadge(early.id, 'bug_hunter', true);
+  assert.deepEqual(row().sort(), ['beta_tester', 'bug_hunter']);
+});

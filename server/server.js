@@ -440,6 +440,7 @@ async function handler(req, res) {
         onGrant: (user, item) => events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: readProfile(user.username)?.capeStore || null, owned: true })
       });
       storeRoutes.ensureCatalog(textureHash);
+      siteRoutes.sweepBetaBadges();
       if (await siteRoutes.handleSiteRoutes(req, res, { ip, send, hit, tooMany, readJson, originOf })) return;
     } catch (siteError) {
       console.error('[Native Site]', siteError);
@@ -748,6 +749,7 @@ async function handler(req, res) {
       }
 
       const user = db.createUser({ email, username, password, model });
+      try { siteRoutes.onUserCreated(user); } catch (badgeError) { console.error('[Native Site] beta badge', badgeError); }
       db.clearVerificationCode(email);
       const session = db.createSession(user.id);
 
