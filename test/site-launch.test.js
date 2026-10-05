@@ -116,6 +116,10 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
 
 test('pre-launch accounts get the beta tester badge', async () => {
   const site = require('../server/site-routes');
+  const bossUser = db.createUser({ email: 'boss2@example.com', username: 'BossTwo', password: 'correct horse battery' });
+  db.setUserAdmin(bossUser.id, true);
+  const boss = db.createSession(bossUser.id).token;
+  assert.equal((await call('POST', '/v1/admin/site', { launch: { prelaunch: true } }, boss)).status, 200);
   const early = db.createUser({ email: 'beta1@example.com', username: 'BetaOne', password: 'correct horse battery' });
   assert.deepEqual(site.sweepBetaBadges({ force: true }).includes(early.id), true);
   const row = () => JSON.parse(db.getDb().prepare('SELECT badges FROM users WHERE id = ?').get(early.id).badges);
@@ -127,4 +131,9 @@ test('pre-launch accounts get the beta tester badge', async () => {
   // keeps other badges
   db.setUserBadge(early.id, 'bug_hunter', true);
   assert.deepEqual(row().sort(), ['beta_tester', 'bug_hunter']);
+  // after launch nobody new qualifies
+  assert.equal((await call('POST', '/v1/admin/site', { launch: { prelaunch: false } }, boss)).status, 200);
+  const late = db.createUser({ email: 'late@example.com', username: 'Late', password: 'correct horse battery' });
+  assert.equal(site.onUserCreated(late), false);
+  assert.equal(site.sweepBetaBadges({ force: true }).length, 0);
 });

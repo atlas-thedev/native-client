@@ -149,21 +149,19 @@ function addBadge(row) {
   sql().prepare('UPDATE users SET badges = ? WHERE id = ?').run(JSON.stringify(list), row.id);
   return true;
 }
-/** Every account made before launch is a beta tester. Never revoked. Returns ids that just got it. */
+/** Every account made before launch is a beta tester (granted while pre-launch). Never revoked. Returns ids that just got it. */
 function sweepBetaBadges({ force = false } = {}) {
   if (!force && Date.now() - betaSweptAt < 5 * 60_000) return [];
   betaSweptAt = Date.now();
-  const s = settings();
-  const cutoff = isPrelaunch(s) ? Math.max(Date.now() + 1, Number(s.launch.at || 0)) : Number(s.launch.at || 0);
-  const rows = sql().prepare("SELECT id, badges FROM users WHERE created_at < ? AND (badges IS NULL OR badges NOT LIKE '%\"beta_tester\"%')").all(cutoff);
+  // Only while pre-launch: after launch nobody new qualifies, and everyone who did already has it.
+  if (!isPrelaunch(settings())) return [];
+  const rows = sql().prepare("SELECT id, badges FROM users WHERE created_at <= ? AND (badges IS NULL OR badges NOT LIKE '%\"beta_tester\"%')").all(Date.now());
   return rows.filter(addBadge).map((r) => r.id);
 }
 /** Called right after sign-up: grants the beta tester badge while pre-launch. */
 function onUserCreated(user) {
   if (!user?.id) return false;
-  const s = settings();
-  const createdAt = Number(user.createdAt || user.created_at || Date.now());
-  if (!(isPrelaunch(s) || createdAt < Number(s.launch.at || 0))) return false;
+  if (!isPrelaunch(settings())) return false;
   const row = sql().prepare('SELECT id, badges FROM users WHERE id = ?').get(String(user.id));
   return row ? addBadge(row) : false;
 }
