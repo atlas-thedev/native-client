@@ -41,6 +41,7 @@ const db = require('./db');
 const capes = require('./capes');
 const events = require('./social-events');
 const billing = require('./billing');
+const site = () => require('./site-routes');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
@@ -211,6 +212,31 @@ function authorizeAnimation({ stripHash, user, existing }) {
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
   || String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '').trim();
 
+function saleOf(item) {
+  try { const o = site().offerFor(item); return o ? site().priceOf(item) : null; } catch { return null; }
+}
+function offerOf(item) {
+  try { const o = site().offerFor(item); return o ? site().publicOffer(o) : null; } catch { return null; }
+}
+const lockedFor = (user) => { try { return site().storeLocked() && !(user && user.is_admin); } catch { return false; } };
+const LOCKED = 'The Native store opens at launch. Pre-launch accounts can pick one free founder cape.';
+
+/** Bulk price change (admin). price 0 = free. Returns how many capes changed. */
+function setPrices(price, itemIds = null) {
+  const cat = current();
+  const value = priceFrom(price);
+  let changed = 0;
+  cat.items = cat.items.map((item) => {
+    if (item.exclusive) return item;
+    if (itemIds && itemIds.length && !itemIds.includes(item.id)) return item;
+    if (Number(item.price) === value) return item;
+    changed += 1;
+    return { ...item, price: value, updatedAt: Date.now() };
+  });
+  if (changed) persist();
+  return changed;
+}
+
 function publicItem(item, textureBase, counts) {
   return {
     id: item.id,
@@ -225,6 +251,8 @@ function publicItem(item, textureBase, counts) {
     isNew: Date.now() - (Number(item.createdAt) || 0) < NEW_FOR_MS,
     price: item.exclusive ? 0 : Math.max(0, Number(item.price) || 0),
     paid: billing.isPaid(item),
+    salePrice: saleOf(item),
+    offer: offerOf(item),
     animated: Boolean(item.animated),
     frames: item.animated ? item.frames : 1,
     fps: item.animated ? item.fps : 0,
@@ -365,8 +393,9 @@ async function handleStoreRoutes(req, res, ctx) {
       if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cape is no longer available.' }); return true; }
       if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
       if (!owns(user.id, item.id)) {
+        if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
         if (billing.isPaid(item)) {
-          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Native+.` }); return true; }
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${site().priceOf(item).toFixed(2)}. Buy it or join Native+.` }); return true; }
           grant(user.id, item.id, 'plus');
         } else {
           grant(user.id, item.id, 'free');
@@ -374,7 +403,7 @@ async function handleStoreRoutes(req, res, ctx) {
       }
     } else {
       if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} stays in your locker. You can take it off any time.` }); return true; }
-      if (['purchase', 'code'].includes(billing.ownedSource(user.id, item.id))) { send(res, 403, { ok: false, error: `${item.name} is yours to keep. You can take it off any time.` }); return true; }
+      if (['purchase', 'code', 'founder'].includes(billing.ownedSource(user.id, item.id))) { send(res, 403, { ok: false, error: `${item.name} is yours to keep. You can take it off any time.` }); return true; }
       revoke(user.id, item.id);
       const existing = ctx.readProfile(user.username);
       if (existing && existing.capeStore === item.id) {
@@ -415,8 +444,9 @@ async function handleStoreRoutes(req, res, ctx) {
       if (!owns(user.id, item.id)) {
         if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
         if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cape to your locker first.' }); return true; }
+        if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
         if (billing.isPaid(item)) {
-          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${Number(item.price).toFixed(2)}. Buy it or join Native+.` }); return true; }
+          if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${site().priceOf(item).toFixed(2)}. Buy it or join Native+.` }); return true; }
           grant(user.id, item.id, 'plus');
         } else {
           grant(user.id, item.id, 'free');
@@ -637,4 +667,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };
+module.exports = { setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };

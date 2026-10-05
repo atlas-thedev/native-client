@@ -11,6 +11,7 @@ const modRoutes = require('./mod-routes');
 const capes = require('./capes');
 const storeRoutes = require('./store-routes');
 const billing = require('./billing');
+const siteRoutes = require('./site-routes');
 
 /**
  * Native Backend & API Server
@@ -426,6 +427,23 @@ async function handler(req, res) {
       if (await modRoutes.handleModRoutes(req, res, { ip, send, hit, tooMany })) return;
     } catch (modError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Mod route failed.' });
+      return;
+    }
+
+    try {
+      siteRoutes.setHooks({
+        findItem: storeRoutes.findItem,
+        allItems: storeRoutes.allItems,
+        storeTexture: textureHash,
+        grant: (userId, itemId, source) => billing.grantItem(userId, itemId, source),
+        setPrices: storeRoutes.setPrices,
+        onGrant: (user, item) => events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: readProfile(user.username)?.capeStore || null, owned: true })
+      });
+      storeRoutes.ensureCatalog(textureHash);
+      if (await siteRoutes.handleSiteRoutes(req, res, { ip, send, hit, tooMany, readJson, originOf })) return;
+    } catch (siteError) {
+      console.error('[Native Site]', siteError);
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Site route failed.' });
       return;
     }
 
