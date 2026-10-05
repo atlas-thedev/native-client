@@ -39,6 +39,7 @@ const PLANS = {
 };
 const CODE_RE = /^[A-Z0-9][A-Z0-9-]{2,31}$/;
 
+const site = () => require('./site-routes');
 const env = (name) => String(process.env[name] || '').trim();
 const ENVS = ['sandbox', 'production'];
 const envDefault = () => (env('PADDLE_ENV') === 'production' ? 'production' : 'sandbox');
@@ -528,6 +529,7 @@ async function handleBillingRoutes(req, res, ctx) {
 
   if (req.method === 'POST' && url.pathname === '/v1/billing/checkout') {
     if (!hit('billing-checkout', user.id, 20, 10 * 60_000)) { tooMany(res, 600); return true; }
+    if (site().storeLocked() && !user.is_admin) { send(res, 423, { ok: false, locked: true, error: 'The Native store opens at launch.' }); return true; }
     const body = await ctx.readJson(req);
     const kind = body.kind === 'plus' ? 'plus' : 'cape';
     let items;
@@ -544,7 +546,7 @@ async function handleBillingRoutes(req, res, ctx) {
           name: item.name,
           description: `${item.name} cape for Native`,
           product_id: c.capeProduct,
-          unit_price: { amount: String(Math.round(Number(item.price) * 100)), currency_code: 'USD' },
+          unit_price: { amount: String(Math.round(site().priceOf(item) * 100)), currency_code: 'USD' },
           quantity: { minimum: 1, maximum: 1 },
           custom_data: { itemId: item.id }
         }
