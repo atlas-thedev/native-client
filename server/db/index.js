@@ -119,6 +119,9 @@ module.exports = {
   linkMinecraftAccount: (userId, profile) => usersMod.linkMinecraftAccount(getDb(), userId, profile),
   unlinkMinecraftAccount: (userId) => usersMod.unlinkMinecraftAccount(getDb(), userId),
   getUserByMinecraftUuid: (uuid) => usersMod.getUserByMinecraftUuid(getDb(), uuid),
+  getUserByMinecraftName: (name) => usersMod.getUserByMinecraftName(getDb(), name),
+  renameUser: (userId, username) => usersMod.renameUser(getDb(), userId, username),
+  transaction: (fn) => { const d = getDb(); d.exec('BEGIN'); try { const r = fn(); d.exec('COMMIT'); return r; } catch (e) { try { d.exec('ROLLBACK'); } catch {} throw e; } },
   refreshMinecraftName: (userId, name) => usersMod.refreshMinecraftName(getDb(), userId, name),
   deleteSession: (token) => usersMod.deleteSession(getDb(), token),
 
