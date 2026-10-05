@@ -169,7 +169,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const previewCapeUrl = showCape
     ? (showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
     : null;
-  const previewCapeAnim = previewCapeUrl && !showOfficialCards ? (wardrobe?.active?.capeAnim || null) : null;
+  // Animated Store capes animate in the preview on premium accounts too (the strip repaints the still).
+  const premiumCapeAnim = premiumCapeItem?.animated && premiumCapeItem.stripUrl && previewCapeUrl === premiumCapeItem.stillUrl
+    ? { stripUrl: premiumCapeItem.stripUrl, frames: premiumCapeItem.frames, fps: premiumCapeItem.fps }
+    : null;
+  const previewCapeAnim = previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (wardrobe?.active?.capeAnim || null)) : null;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
   const skinItems = useMemo(() => {

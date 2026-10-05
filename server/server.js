@@ -163,6 +163,13 @@ function textureHash(buffer) {
   return hash;
 }
 
+const { isSlimSkinPng } = require('./skin-model');
+/** True when the stored skin texture is unambiguously slim (its unused slim arm columns are empty). */
+function skinLooksSlim(hash) {
+  if (!hash || !/^[a-f0-9]{64}$/.test(hash)) return false;
+  try { return isSlimSkinPng(fs.readFileSync(path.join(texturesDir, hash))); } catch { return false; }
+}
+
 function profilePath(username) {
   return path.join(profilesDir, `${username.toLowerCase()}.json`);
 }
@@ -627,7 +634,8 @@ async function handler(req, res) {
         : (skin === (existing?.skin ?? null) ? (existing?.skinName ?? null) : null);
       const profile = {
         username,
-        model: body.model === 'slim' ? 'slim' : 'default',
+        // a slim skin saved as classic would show black/cut arms everywhere: trust the pixels
+        model: body.model === 'slim' || skinLooksSlim(skin) ? 'slim' : 'default',
         skin,
         ...(skinName ? { skinName } : {}),
         cape,
