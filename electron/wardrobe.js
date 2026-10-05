@@ -752,6 +752,22 @@ async function fetchStoreStrip(itemId) {
 }
 
 /** Equip (or, with itemId null, remove) a store cape on the signed-in Native account, then mirror it locally. */
+/** Wear a Native Store cape on the connected premium account's own name (or take it off). */
+async function equipPremiumStoreItem(account, itemId) {
+  const native = resolveBillingAccount(account);
+  requireStoreAccount(native);
+  const response = await fetch(`${apiRoot()}/v1/store/equip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...storeHeaders(native) },
+    body: JSON.stringify({ itemId: itemId || null, target: 'premium' }),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t equip that (HTTP ${response.status}).`);
+  return { premiumEquipped: body.premiumEquipped || null, owned: Array.isArray(body.owned) ? body.owned : null };
+}
+
 async function equipStoreItem(account, itemId) {
   if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
     throw new Error('Sign in with a Native account to use store items.');
@@ -800,7 +816,7 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
 }
 
 /** A premium account connected to Native (or its linked identity) uses the Native session stored in main. */
@@ -1747,13 +1763,13 @@ function init(dependencies, ipcMain) {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:me', async (_event, account) => {
-    try { return { ok: true, ...(await fetchStoreMe(account)) }; } catch (error) { return { ok: false, error: error.message }; }
+    try { return { ok: true, ...(await fetchStoreMe(resolveBillingAccount(account))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:claim', async (_event, { account, itemId }) => {
-    try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+    try { return { ok: true, ...(await claimStoreItem(resolveBillingAccount(account), String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:unclaim', async (_event, { account, itemId }) => {
-    try { return { ok: true, ...(await claimStoreItem(account, String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
+    try { return { ok: true, ...(await claimStoreItem(resolveBillingAccount(account), String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('billing:config', async () => {
     try {
@@ -1767,22 +1783,25 @@ function init(dependencies, ipcMain) {
   });
   ipc.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
     try {
-      const payload = await billingRequest(account, '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, plan } });
+      const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, plan } });
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open the checkout page.');
       return { ok: true, transactionId: payload.transactionId };
     } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('billing:portal', async (_event, account) => {
     try {
-      const payload = await billingRequest(account, '/v1/billing/portal', { method: 'POST', body: {} });
+      const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/portal', { method: 'POST', body: {} });
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open billing.');
       return { ok: true };
     } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:redeem', async (_event, { account, code }) => {
-    try { return { ok: true, ...(await billingRequest(account, '/v1/store/redeem', { method: 'POST', body: { code: String(code || '') } })) }; } catch (error) { return { ok: false, error: error.message }; }
+    try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/store/redeem', { method: 'POST', body: { code: String(code || '') } })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipc.handle('store:equip', async (_event, { account, itemId }) => {
+  ipc.handle('store:equip', async (_event, { account, itemId, target }) => {
+    if (target === 'premium') {
+      try { return { ok: true, ...(await equipPremiumStoreItem(account, itemId)) }; } catch (error) { return { ok: false, error: error.message }; }
+    }
     try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('wardrobe:officialProfile', profileResult((_event, account) => officialProfile(account)));

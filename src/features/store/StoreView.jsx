@@ -66,7 +66,9 @@ function SpotBackdrop() {
   );
 }
 
-const isStoreAccount = (account) => Boolean(account?.token || account?.linkedFrom) && account?.type === 'native';
+/** A premium (Microsoft) account connected to Native shops with that Native account. */
+const isPremiumLinked = (account) => account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected);
+const isStoreAccount = (account) => (Boolean(account?.token || account?.linkedFrom) && account?.type === 'native') || isPremiumLinked(account);
 
 /* Cached store billing state (localStorage): shown instantly, then refreshed from the server. */
 const BILLING_CACHE = 'native.store.billing.v1';
@@ -130,7 +132,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     }
     if (isStoreAccount(account)) {
       const mine = await window.native?.store?.me?.(account).catch(() => null);
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: mine.equipped || null });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null });
     }
   }, [account]);
 
@@ -148,7 +150,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         window.native?.billing?.me?.(account).catch(() => null)
       ]);
       if (stopped) return;
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: mine.equipped || null });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null });
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
@@ -278,9 +280,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   });
 
   const wear = (item) => run(`wear:${item?.id || 'off'}`, async () => {
-    const res = await window.native.store.equip(account, item?.id || null);
+    const premium = isPremiumLinked(account);
+    const res = await window.native.store.equip(account, item?.id || null, premium ? { target: 'premium' } : {});
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t equip that cape.');
-    if (res.state) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
+    if (res.state && !premium) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
     setMe((current) => ({ owned: item && !ownedIds.has(item.id) ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned, equipped: item?.id || null }));
     onNotify?.('Store', item ? `${item.name} is now your cape — in the launcher and in game.` : 'Cape taken off.');
   });
@@ -319,8 +322,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const unclaim = (item) => run(`unclaim:${item.id}`, async () => {
     const res = await window.native.store.unclaim(account, item.id);
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t remove that cape.');
-    if (res.state) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
-    setMe({ owned: res.owned || [], equipped: res.equipped || null });
+    if (res.state && !isPremiumLinked(account)) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
+    setMe((current) => ({ owned: res.owned || [], equipped: isPremiumLinked(account) ? (current.equipped && (res.owned || []).some((entry) => entry.id === current.equipped) ? current.equipped : null) : (res.equipped || null) }));
     onNotify?.('Store', `${item.name} was removed from your locker.`);
   });
 

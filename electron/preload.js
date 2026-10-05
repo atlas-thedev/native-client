@@ -78,7 +78,8 @@ const api = {
   store: {
     catalog: (options) => ipcRenderer.invoke('store:catalog', options),
     strip: (itemId) => ipcRenderer.invoke('store:strip', itemId),
-    equip: (account, itemId) => ipcRenderer.invoke('store:equip', { account, itemId }),
+    // options.target 'premium': wear it on the connected premium (Microsoft) account in game.
+    equip: (account, itemId, options = {}) => ipcRenderer.invoke('store:equip', { account, itemId, target: options?.target === 'premium' ? 'premium' : null }),
     me: (account) => ipcRenderer.invoke('store:me', account),
     claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
     unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId }),
