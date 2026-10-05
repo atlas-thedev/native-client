@@ -36,6 +36,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Native Store capes this account owns: [{ item, acquiredAt }]
   const [storeCapes, setStoreCapes] = useState([]);
   const [storeBusy, setStoreBusy] = useState(null);
+  // Premium account connected to Native: the store cape it wears on its own name in game.
+  const [premiumEquipped, setPremiumEquipped] = useState(null);
   const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [capeQuery, setCapeQuery] = useState('');
@@ -105,7 +107,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Native Store capes this account owns (claimed in the Store page or on the website).
   const storeSeq = useRef(0);
   const loadStoreCapes = async () => {
-    if (!(account?.token || account?.linkedFrom) || account?.type !== 'native' || localOnly) { setStoreCapes([]); return; }
+    const premiumLinked = account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected);
+    if (!premiumLinked && (!(account?.token || account?.linkedFrom) || account?.type !== 'native' || localOnly)) { setStoreCapes([]); setPremiumEquipped(null); return; }
     const run = ++storeSeq.current;
     try {
       const [catalog, mine] = await Promise.all([
@@ -115,9 +118,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (run !== storeSeq.current || !catalog?.ok || !mine?.ok) return;
       const byId = new Map((catalog.items || []).map((item) => [item.id, item]));
       setStoreCapes((mine.owned || []).filter((entry) => byId.has(entry.id)).map((entry) => ({ item: byId.get(entry.id), acquiredAt: entry.acquiredAt })));
+      setPremiumEquipped(premiumLinked ? (mine.premiumEquipped || null) : null);
     } catch {}
   };
-  useEffect(() => { loadStoreCapes(); }, [account?.id, account?.token, online]);
+  useEffect(() => { loadStoreCapes(); }, [account?.id, account?.token, account?.nativeLink?.connected, online]);
   useEffect(() => {
     const refresh = () => loadStoreCapes();
     window.addEventListener('native:wardrobe-refreshed', refresh);
@@ -161,8 +165,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const currentModel = officialSkin ? (String(officialSkin.variant || '').toUpperCase() === 'SLIM' ? 'slim' : 'classic') : (wardrobe?.model || account?.model || 'classic');
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
+  const premiumCapeItem = showOfficialCards && premiumEquipped ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
   const previewCapeUrl = showCape
-    ? (showOfficialCards ? (official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
+    ? (showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
     : null;
   const previewCapeAnim = previewCapeUrl && !showOfficialCards ? (wardrobe?.active?.capeAnim || null) : null;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
@@ -183,20 +188,30 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // locked, greyed placeholders; preset mode lists the bundled capes as before.
   const capeCards = useMemo(() => {
     if (showOfficialCards) {
-      const none = { key: 'none', kind: 'none', name: t('locker.noCapeOption'), textureUrl: null, active: !official.activeCapeId };
+      const none = { key: 'none', kind: 'none', name: t('locker.noCapeOption'), textureUrl: null, active: !official.activeCapeId && !premiumEquipped };
       const owned = official.capes.map((cape) => ({
         key: `own:${cape.id}`,
         kind: 'official',
         id: cape.id,
         name: cape.alias || cape.name || 'Cape',
         textureUrl: cape.url || null,
-        active: cape.state === 'ACTIVE'
+        active: cape.state === 'ACTIVE' && !premiumEquipped
+      }));
+      // Connected to Native: its Store capes (animated too) can be worn on this premium name.
+      const native = storeCapes.map(({ item }) => ({
+        key: `pstore:${item.id}`,
+        kind: 'premiumStore',
+        name: item.name,
+        textureUrl: item.stillUrl,
+        storeItem: item,
+        animated: Boolean(item.animated),
+        active: premiumEquipped === item.id
       }));
       const ownedTokens = new Set(official.capes.map((cape) => normalizeCapeName(cape.alias || cape.name || cape.id)));
       const locked = CAPE_PRESETS
         .filter((preset) => preset.textureUrl && !ownedTokens.has(normalizeCapeName(preset.name)))
         .map((preset) => ({ key: `lock:${preset.id}`, kind: 'locked', name: preset.name, textureUrl: preset.textureUrl, active: false }));
-      return [none, ...owned, ...locked];
+      return [none, ...owned, ...native, ...locked];
     }
     // Native Store capes in this account's locker sit right after "no cape" (animated ones only come from the Store).
     const wornStoreId = wardrobe?.active?.cape?.storeId || null;
@@ -219,7 +234,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       active: cape.id === 'none' ? !wardrobe?.active?.hasCape : (!wardrobe?.active?.cape?.storeId && activeCapeName === cape.name)
     }));
     return [...presets.slice(0, 1), ...animated, ...presets.slice(1)];
-  }, [showOfficialCards, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, wardrobe?.active?.cape?.storeId, wardrobe?.capes, activeCapeName, storeCapes, t]);
+  }, [showOfficialCards, premiumEquipped, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, wardrobe?.active?.cape?.storeId, wardrobe?.capes, activeCapeName, storeCapes, t]);
 
   const matches = (name, query) => !query.trim() || String(name || '').toLowerCase().includes(query.trim().toLowerCase());
   const shownCapes = useMemo(() => capeCards.filter((card) => matches(card.name, capeQuery)), [capeCards, capeQuery]);
@@ -350,6 +365,19 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip cape.'); }
   };
 
+  // Premium (Microsoft) account connected to Native: wear a Native Store cape on its own name.
+  const wearPremiumCape = async (item) => {
+    if (!account || storeBusy) return;
+    setStoreBusy(item?.id || 'off');
+    try {
+      const res = await window.native?.store?.equip?.(account, item?.id || null, { target: 'premium' });
+      if (!res?.ok) throw new Error(res?.error || 'Could not equip that cape.');
+      setPremiumEquipped(res.premiumEquipped || null);
+      if (item) onNotify?.(t('locker.title'), `${item.name} is now your cape in game on ${account.name}.`);
+    } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip that cape.'); }
+    finally { setStoreBusy(null); }
+  };
+
   const wearStoreCape = async (item) => {
     if (!account || storeBusy) return;
     setStoreBusy(item.id);
@@ -367,6 +395,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const handleCapeCardClick = (card) => {
     if (card.kind === 'locked' || (showOfficialCards && official.busy)) return;
     if (showOfficialCards) {
+      if (card.kind === 'premiumStore') { if (!card.active) wearPremiumCape(card.storeItem); return; }
+      if (premiumEquipped) wearPremiumCape(null);
       official.equip(card.kind === 'official' ? card.id : null);
       return;
     }
@@ -419,11 +449,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => applySkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
           {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
         </div></section>
-        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'OFFICIAL MINECRAFT' : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{!showOfficialCards && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Native Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
+        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? (storeCapes.length ? 'MINECRAFT + NATIVE' : 'OFFICIAL MINECRAFT') : 'COSMETIC PRESETS'}</span><h2>{t('locker.capes')}</h2></div><div className="locker-cape-actions">{(!showOfficialCards || account?.nativeLink?.connected) && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Animated capes from the Native Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search capes"/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
           {capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
           {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
           {!capesSkeleton && capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No capes match “{capeQuery.trim()}”.</p>}{!capesSkeleton && <div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && card.storeItem?.id === storeBusy && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>}
-          {showOfficialCards && <p className="locker-cape-hint">{t('locker.officialHint')}</p>}
+          {showOfficialCards && <p className="locker-cape-hint">{storeCapes.length ? 'Official capes come from your Microsoft account. Native capes show in game to everyone playing with Native.' : t('locker.officialHint')}</p>}
         </section>
       </main>
     </div>
