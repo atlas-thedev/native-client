@@ -274,6 +274,13 @@ function linkMinecraftAccount(db, userId, { uuid, name }) {
   return { uuid: cleanUuid, name: cleanName, linkedAt };
 }
 
+/** The Native user whose connected premium account currently has this Minecraft name. */
+function getUserByMinecraftName(db, name) {
+  const clean = String(name || '').trim();
+  if (!clean) return null;
+  return db.prepare('SELECT * FROM users WHERE lower(minecraft_username) = lower(?)').get(clean) || null;
+}
+
 function getUserByMinecraftUuid(db, uuid) {
   const cleanUuid = String(uuid || '').replace(/-/g, '').toLowerCase();
   if (!/^[a-f0-9]{32}$/.test(cleanUuid)) return null;
@@ -294,6 +301,12 @@ function unlinkMinecraftAccount(db, userId) {
     WHERE id = ?
   `).run(userId);
   return { ok: true };
+}
+
+/** Rename a Native account (the caller checks the name is valid and free). */
+function renameUser(db, userId, username) {
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(String(username).trim(), userId);
+  return getUserById(db, userId);
 }
 
 function deleteSession(db, token) {
@@ -331,6 +344,8 @@ module.exports = {
   linkMinecraftAccount,
   unlinkMinecraftAccount,
   getUserByMinecraftUuid,
+  getUserByMinecraftName,
   refreshMinecraftName,
+  renameUser,
   deleteSession
 };

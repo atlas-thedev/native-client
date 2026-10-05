@@ -175,6 +175,14 @@ const findByStrip = (hash) => current().items.find((item) => item.animated && it
  * The animation a profile may show: only a store cape that still exists, with the still frame
  * as its cape. Self-made animations (older launchers) are reduced to their first frame.
  */
+/** The store cape a connected profile wears on its premium name (still owned), or null. */
+function premiumEquippedOf(profile, user) {
+  const id = profile?.premiumCape?.store;
+  if (!id || !user) return null;
+  const item = findItem(String(id));
+  return item && owns(user.id, item.id) ? item.id : null;
+}
+
 function animationFor(profile) {
   if (!profile || !profile.capeAnim || !profile.capeStore || !HASH_RE.test(profile.capeAnim.strip || '')) return null;
   let item = null;
@@ -342,7 +350,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
+    send(res, 200, { ok: true, equipped, premiumEquipped: premiumEquippedOf(profile, user), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
     return true;
   }
 
@@ -390,8 +398,16 @@ async function handleStoreRoutes(req, res, ctx) {
       cape: null,
       authHash: null
     };
+    const forPremium = body.target === 'premium';
+    if (forPremium) {
+      let link = null;
+      try { link = db.getMinecraftLink(user.id); } catch {}
+      if (!link?.uuid) { send(res, 409, { ok: false, error: 'Connect a premium Minecraft account to wear Native capes on it.' }); return true; }
+    }
     let next;
-    if (body.itemId == null || body.itemId === '') {
+    if (forPremium && (body.itemId == null || body.itemId === '')) {
+      next = { ...existing, premiumCape: null };
+    } else if (body.itemId == null || body.itemId === '') {
       next = { ...existing, cape: null, capeAnim: null, capeStore: null };
     } else {
       const item = findItem(String(body.itemId));
@@ -406,16 +422,18 @@ async function handleStoreRoutes(req, res, ctx) {
           grant(user.id, item.id, 'free');
         }
       }
-      next = {
-        ...existing,
-        cape: item.still,
-        capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
-        capeStore: item.id
-      };
+      next = forPremium
+        ? { ...existing, premiumCape: { store: item.id, at: new Date().toISOString() } }
+        : {
+          ...existing,
+          cape: item.still,
+          capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
+          capeStore: item.id
+        };
     }
     next.updatedAt = new Date().toISOString();
     const saved = ctx.saveProfile(next, req, user);
-    send(res, 200, { ok: true, equipped: saved.capeStore || null, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
+    send(res, 200, { ok: true, equipped: saved.capeStore || null, premiumEquipped: premiumEquippedOf(saved, user), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
     return true;
   }
 
