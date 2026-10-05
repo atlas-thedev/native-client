@@ -353,7 +353,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                   {row.coreVersion && (
                     <span className="im-file-version-tag">{row.coreVersion}</span>
                   )}
-                  {row.metadata?.version && (
+                  {row.metadata?.version && row.metadata.version !== row.coreVersion && (
                     <span className="im-file-version-tag">{row.metadata.version}</span>
                   )}
                   {health.updatesByFile[row.filename] && (
