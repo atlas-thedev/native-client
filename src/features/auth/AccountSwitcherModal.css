@@ -1104,3 +1104,29 @@
 .account-login-group .account-login-children { padding: 0 6px 6px; }
 .account-login-group .account-login-children::before,
 .account-login-group .account-login-item.is-child::before { display: none; }
+
+.native-name-claim {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+.native-name-claim-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.native-name-claim-text strong { font-size: 13px; color: #fff; }
+.native-name-claim-text span { font-size: 12px; color: var(--text-secondary, rgba(255, 255, 255, 0.6)); line-height: 1.4; }
+.native-name-claim-btn {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: none;
+  background: #fff;
+  color: #0b0b0b;
+  font-weight: 650;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.native-name-claim-btn:disabled { opacity: 0.6; cursor: default; }

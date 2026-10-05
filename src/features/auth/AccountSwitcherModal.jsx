@@ -64,7 +64,7 @@ export default function AccountSwitcherModal({
   onNativeLogin,
   onRemoveAccount,
   onConnectNative,
-  onDisconnectNative,
+  onDisconnectNative, onClaimName,
   connectRequest = null
 }) {
   const { t } = useI18n();
@@ -73,6 +73,7 @@ export default function AccountSwitcherModal({
   const [view, setView] = useState('main');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [nameClaim, setNameClaim] = useState(null);
   const [isMaximized, setIsMaximized] = useState(false);
 
   // Login form state
@@ -158,6 +159,19 @@ export default function AccountSwitcherModal({
     return () => clearInterval(timer);
   }, [view, countdown]);
 
+  const claimTarget = view === 'native-connect' && open
+    ? accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft' && acc.nativeLink?.connected) || null
+    : null;
+  useEffect(() => {
+    setNameClaim(null);
+    if (!claimTarget || !window.native?.accounts?.nameClaim) return undefined;
+    let cancelled = false;
+    window.native.accounts.nameClaim(claimTarget.id)
+      .then((res) => { if (!cancelled && res?.ok) setNameClaim(res.claim || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [claimTarget?.id, claimTarget?.nativeLink?.name]);
+
   if (!open) return null;
 
   const openExternal = (url) => window.native?.openExternal?.(url);
@@ -206,6 +220,21 @@ export default function AccountSwitcherModal({
       setConnectDone(false);
     } catch (err) {
       setError(err?.message || 'Could not disconnect.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClaimName = async () => {
+    if (!connectTarget || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await onClaimName?.(connectTarget.id);
+      if (!result?.ok) throw new Error(result?.error || 'Could not change your Native name.');
+      setNameClaim(null);
+    } catch (err) {
+      setError(err?.message || 'Could not change your Native name.');
     } finally {
       setBusy(false);
     }
@@ -808,6 +837,21 @@ export default function AccountSwitcherModal({
                             on this PC and any other where you use this premium account. Relay, friends and chat just work.
                           </p>
                         </div>
+                        {nameClaim?.name && (
+                          <div className="native-name-claim">
+                            <div className="native-name-claim-text">
+                              <strong>Use {nameClaim.name} as your Native name</strong>
+                              <span>
+                                {nameClaim.taken
+                                  ? `Someone else registered ${nameClaim.name} on Native. It's your premium name, so they'll be renamed.`
+                                  : `Friends will see you as ${nameClaim.name} instead of ${connectTarget.nativeLink.name}.`}
+                              </span>
+                            </div>
+                            <button type="button" className="native-name-claim-btn" onClick={handleClaimName} disabled={busy}>
+                              {busy ? 'Changing…' : `Use ${nameClaim.name}`}
+                            </button>
+                          </div>
+                        )}
                         {error && <div className="account-login-error" role="alert">{error}</div>}
                         <div className="native-connect-actions">
                           <button type="button" className="native-auth-primary-btn" onClick={() => { setView('main'); setConnectDone(false); }}>
