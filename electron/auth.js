@@ -503,6 +503,79 @@ function storeLink(microsoftId, nativeAccount, token) {
   return publicLink(updated);
 }
 
+/** Token + Native user id for a saved account (Native, or premium connected to Native). */
+function nativeSessionOf(account) {
+  if (!account) return null;
+  if (account.type === 'native') {
+    const token = account.token || account.sessionToken;
+    return token ? { token, userId: account.id } : null;
+  }
+  if (account.type === 'microsoft' && account.nativeToken && account.nativeLink?.userId) {
+    return { token: account.nativeToken, userId: account.nativeLink.userId };
+  }
+  return null;
+}
+
+/** Writes a new Native name everywhere this launcher remembers it. */
+function applyNativeName(userId, name) {
+  if (!userId || !name) return false;
+  const data = readAccounts();
+  let changed = false;
+  data.accounts = data.accounts.map((account) => {
+    if (account.type === 'native' && account.id === userId && account.name !== name) {
+      changed = true;
+      return { ...account, name };
+    }
+    if (account.type === 'microsoft' && account.nativeLink?.userId === userId && account.nativeLink.name !== name) {
+      changed = true;
+      return { ...account, nativeLink: { ...account.nativeLink, name } };
+    }
+    return account;
+  });
+  if (changed) saveAccounts(data);
+  return changed;
+}
+
+/** Picks up Native names changed elsewhere (e.g. a premium owner claimed one). */
+async function refreshNativeNames() {
+  const seen = new Set();
+  let changed = false;
+  for (const account of readAccounts().accounts) {
+    const session = nativeSessionOf(account);
+    if (!session || seen.has(session.userId)) continue;
+    seen.add(session.userId);
+    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: session.token });
+    if (status === 200 && data?.account?.id === session.userId && data.account.name) {
+      if (applyNativeName(session.userId, data.account.name)) changed = true;
+    }
+  }
+  return { ok: true, changed };
+}
+
+/** Whether this premium account's name can become its Native name. */
+async function premiumNameClaim(microsoftId) {
+  const account = readAccounts().accounts.find((a) => a.id === microsoftId && a.type === 'microsoft');
+  const session = nativeSessionOf(account);
+  if (!session) return { ok: false, claim: null };
+  const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: session.token });
+  if (status !== 200 || !data?.ok) return { ok: false, claim: null };
+  if (data.account?.name) applyNativeName(session.userId, data.account.name);
+  return { ok: true, claim: data.nameClaim || null };
+}
+
+/** Makes the premium name the Native name (whoever else had it is renamed). */
+async function claimPremiumName(microsoftId) {
+  const account = readAccounts().accounts.find((a) => a.id === microsoftId && a.type === 'microsoft');
+  const session = nativeSessionOf(account);
+  if (!session) return { ok: false, error: 'Connect a Native account first.' };
+  let minecraftAccessToken = await getMinecraftAccessToken(microsoftId, { forceRefresh: true });
+  if (!minecraftAccessToken) return { ok: false, error: 'Your Microsoft sign-in expired. Sign in with Microsoft again.' };
+  const { data } = await apiRequest('/v1/account/minecraft/claim-name', { body: { minecraftAccessToken }, token: session.token });
+  if (!data?.ok || !data.account?.name) return { ok: false, error: data?.error || 'Could not change your Native name.' };
+  applyNativeName(session.userId, data.account.name);
+  return { ok: true, name: data.account.name, renamed: data.renamed || null };
+}
+
 function clearLink(microsoftId, { notLinked = false } = {}) {
   updateMicrosoftAccount(microsoftId, {
     nativeToken: undefined,
@@ -886,6 +959,9 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:ensureNative', async (_event, microsoftAccountId, options = {}) =>
     ensurePremiumLink(microsoftAccountId, { force: Boolean(options?.force) }));
   ipcMain.handle('accounts:connectNative', async (_event, payload = {}) => connectNative(payload));
+  ipcMain.handle('accounts:nameClaim', async (_event, microsoftAccountId) => premiumNameClaim(microsoftAccountId));
+  ipcMain.handle('accounts:claimName', async (_event, microsoftAccountId) => claimPremiumName(microsoftAccountId));
+  ipcMain.handle('accounts:refreshNames', async () => refreshNativeNames().catch(() => ({ ok: false, changed: false })));
   ipcMain.handle('accounts:disconnectNative', async (_event, microsoftAccountId) => disconnectNative(microsoftAccountId));
 
   ipcMain.handle('accounts:getAvatar', async (_event, uuid) => {

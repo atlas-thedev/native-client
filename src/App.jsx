@@ -295,6 +295,17 @@ export default function App() {
     return res || { ok: false, error: 'Disconnecting accounts is not available in this build.' };
   };
 
+  // Native names can change elsewhere (a premium owner claiming theirs).
+  useEffect(() => {
+    window.native?.accounts?.refreshNames?.().then((res) => { if (res?.changed) refreshAccounts(); }).catch(() => {});
+  }, []);
+
+  const handleClaimName = async (microsoftAccountId) => {
+    const res = await window.native?.accounts?.claimName?.(microsoftAccountId);
+    await refreshAccounts();
+    return res || { ok: false, error: 'Not available in this build.' };
+  };
+
   const ensuredPremiumRef = useRef(null);
   useEffect(() => {
     if (!activeAccount || activeAccount.type !== 'microsoft' || !window.native?.accounts?.ensureNative) return undefined;
@@ -380,6 +391,7 @@ export default function App() {
         onRemoveAccount={handleRemoveAccount}
         onConnectNative={handleConnectNative}
         onDisconnectNative={handleDisconnectNative}
+        onClaimName={handleClaimName}
         onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
         updateStatus={updater.status}
         networkStatus={network.status}
