@@ -248,6 +248,7 @@ export default function ClustersView({
   const artFor = (line, patch) => {
     const exact = line.known?.versions?.find((v) => v.version === patch)?.art;
     if (exact) return exact;
+    if (/^26\.3(\.\d+)?$/.test(String(patch))) return getClusterArt({ version: patch, mc_version: patch });
     const banner = bannerFor(banners, patch, line.versions);
     if (banner?.image) return banner.image;
     return getClusterArt({ version: patch, mc_version: patch }) || line.art || ART_ASSETS.default;

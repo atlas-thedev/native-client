@@ -19,6 +19,7 @@ import CombatUpdateArt from '../assets/backgrounds/Combat_Update.jpg';
 import BountifulUpdateArt from '../assets/backgrounds/Bountiful_Update.jpg';
 import ClassicLegacyArt from '../assets/backgrounds/Classic_Legacy.jpg';
 import SnapshotArt from '../assets/backgrounds/Snapshot_Art.jpg';
+import DappledCampArt from '../assets/backgrounds/Dappled_Camp.jpg';
 
 export const ART_ASSETS = {
   Chaos_Cubed: ChaosCubedArt,
@@ -41,6 +42,7 @@ export const ART_ASSETS = {
   Bountiful_Update: BountifulUpdateArt,
   Classic_Legacy: ClassicLegacyArt,
   Snapshot_Art: SnapshotArt,
+  Dappled_Camp: DappledCampArt,
   default: ChaosCubedArt
 };
 
@@ -100,6 +102,18 @@ export const INITIAL_CLUSTERS = [
 ];
 
 export const RELEASE_LINES = [
+  {
+    id: '26.3',
+    major: '26.3',
+    name: 'Minecraft 26.3',
+    artKey: 'Dappled_Camp',
+    art: DappledCampArt,
+    description: 'Minecraft 26.3, the newest release.',
+    tags: ['Release', 'PvP', 'Survival'],
+    versions: [
+      { version: '26.3', name: 'Minecraft 26.3', artKey: 'Dappled_Camp', art: DappledCampArt, loader: 'Fabric' }
+    ]
+  },
   {
     id: '26.2',
     major: '26.2',
@@ -367,6 +381,13 @@ export function getClusterArt(cluster) {
 
   // 26.3 and newer have no bundled picture. Never show an older release's image
   // for them: use Mojang's banner, or a neutral picture while it loads.
+  if (/^26\.3(\.\d+)?$/.test(wantedVersion)) {
+    // 26.3 art ships inside the launcher: instant on first paint, no network.
+    const isCustom = savedArt && !MOJANG_BANNER.test(savedArt) && !BUNDLED_ART_URLS().has(savedArt) && !/^file:/i.test(savedArt) &&
+      !savedArt.startsWith('/src/assets/') && !/(^|\/)assets\/[^?]+\.(jpe?g|png|webp)/i.test(savedArt);
+    return isCustom ? cluster.art : DappledCampArt;
+  }
+
   if (lacksBundledArt(wantedVersion)) {
     if (MOJANG_BANNER.test(savedArt)) return savedArt;
     const banner = mojangBannerFor(wantedVersion);
@@ -397,6 +418,7 @@ export function getClusterArt(cluster) {
   if (!ver) return ART_ASSETS.default;
 
   if (ver.startsWith('26.1')) return TinyTakeoverArt;
+  if (ver.startsWith('26.3')) return DappledCampArt;
   if (ver.startsWith('26.2')) return ChaosCubedArt;
   if (ver.startsWith('1.21.11') || ver.includes('Mounts')) return MountsMayhemArt;
   if (ver.startsWith('1.21.10') || ver.includes('Copper')) return CopperAgeArt;

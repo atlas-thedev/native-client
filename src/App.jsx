@@ -395,6 +395,7 @@ export default function App() {
         onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
         updateStatus={updater.status}
         networkStatus={network.status}
+        onRetryNetwork={network.refresh}
         onOpenUpdater={() => setUpdateOpen(true)}
       />
     </div>
