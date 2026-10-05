@@ -114,26 +114,59 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   assert.equal(r.status, 402); // paid now, not locked
 });
 
-test('pre-launch accounts get the beta tester badge', async () => {
-  const site = require('../server/site-routes');
-  const bossUser = db.createUser({ email: 'boss2@example.com', username: 'BossTwo', password: 'correct horse battery' });
+test('beta program: apply, admin review grants badge + cape + lifetime Native+, reject revokes', async () => {
+  const billing = require('../server/billing');
+  const bossUser = db.createUser({ email: 'boss3@example.com', username: 'BossThree', password: 'correct horse battery' });
   db.setUserAdmin(bossUser.id, true);
   const boss = db.createSession(bossUser.id).token;
-  assert.equal((await call('POST', '/v1/admin/site', { launch: { prelaunch: true } }, boss)).status, 200);
-  const early = db.createUser({ email: 'beta1@example.com', username: 'BetaOne', password: 'correct horse battery' });
-  assert.deepEqual(site.sweepBetaBadges({ force: true }).includes(early.id), true);
-  const row = () => JSON.parse(db.getDb().prepare('SELECT badges FROM users WHERE id = ?').get(early.id).badges);
-  assert.ok(row().includes('beta_tester'));
-  assert.equal(site.sweepBetaBadges({ force: true }).includes(early.id), false, 'granted once');
-  const fresh = db.createUser({ email: 'beta2@example.com', username: 'BetaTwo', password: 'correct horse battery' });
-  assert.equal(site.onUserCreated(fresh), true);
-  assert.equal(site.onUserCreated(fresh), false);
-  // keeps other badges
-  db.setUserBadge(early.id, 'bug_hunter', true);
-  assert.deepEqual(row().sort(), ['beta_tester', 'bug_hunter']);
-  // after launch nobody new qualifies
-  assert.equal((await call('POST', '/v1/admin/site', { launch: { prelaunch: false } }, boss)).status, 200);
-  const late = db.createUser({ email: 'late@example.com', username: 'Late', password: 'correct horse battery' });
-  assert.equal(site.onUserCreated(late), false);
-  assert.equal(site.sweepBetaBadges({ force: true }).length, 0);
+  const tester = db.createUser({ email: 'tester@example.com', username: 'Tester', password: 'correct horse battery' });
+  const tok = db.createSession(tester.id).token;
+  const badges = () => JSON.parse(db.getUserById(tester.id).badges || '[]');
+
+  // nobody gets a badge just for signing up
+  assert.ok(!badges().includes('super_beta_tester'));
+  let r = await call('GET', '/v1/beta/me', undefined, tok);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.open, true);
+  assert.equal(r.body.application, null);
+  assert.equal((await call('GET', '/v1/beta/me')).status, 401);
+
+  const form = { discord: 'tester#1', platform: 'windows', age: '18-24', specs: 'Ryzen 5, RTX 3060, 16GB', versions: ['1.21.1'], hours: 12, playstyle: ['survival'], experience: 'Tested mods', why: 'I love breaking launchers and writing very detailed bug reports for them.', timezone: 'UTC', agree: true };
+  r = await call('POST', '/v1/beta/apply', { ...form, why: 'short' }, tok);
+  assert.equal(r.status, 400);
+  r = await call('POST', '/v1/beta/apply', { ...form, age: 'under13' }, tok);
+  assert.equal(r.status, 400);
+  r = await call('POST', '/v1/beta/apply', form, tok);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.application.status, 'pending');
+
+  assert.equal((await call('GET', '/v1/admin/beta', undefined, tok)).status, 403);
+  r = await call('GET', '/v1/admin/beta?status=pending', undefined, boss);
+  assert.equal(r.status, 200);
+  const app = r.body.applications.find((a) => a.username === 'Tester');
+  assert.ok(app);
+  assert.equal(r.body.counts.pending >= 1, true);
+
+  r = await call('PATCH', `/v1/admin/beta/${app.id}`, { status: 'approved', note: 'Welcome aboard!' }, boss);
+  assert.equal(r.status, 200);
+  assert.ok(badges().includes('super_beta_tester'));
+  assert.equal(billing.hasPlus(tester.id), true);
+  assert.equal(billing.plusFor(tester.id).endsAt, null, 'lifetime');
+  assert.equal(billing.ownedSource(tester.id, 'super-beta-tester'), 'beta');
+  r = await call('GET', '/v1/beta/me', undefined, tok);
+  assert.equal(r.body.application.status, 'approved');
+  assert.equal(r.body.application.note, 'Welcome aboard!');
+  assert.equal((await call('POST', '/v1/beta/apply', form, tok)).status, 409);
+
+  r = await call('PATCH', `/v1/admin/beta/${app.id}`, { status: 'rejected' }, boss);
+  assert.ok(!badges().includes('super_beta_tester'));
+  assert.equal(billing.hasPlus(tester.id), false);
+  assert.ok(!billing.ownedSource(tester.id, 'super-beta-tester'));
+  assert.equal((await call('POST', '/v1/beta/apply', form, tok)).status, 409, 'cool-down before re-applying');
+
+  // closing applications
+  await call('POST', '/v1/admin/site', { beta: { open: false } }, boss);
+  const other = db.createSession(db.createUser({ email: 'late2@example.com', username: 'LateTwo', password: 'correct horse battery' }).id).token;
+  assert.equal((await call('POST', '/v1/beta/apply', form, other)).status, 423);
+  assert.equal((await json('/v1/site/config')).body.beta.open, false);
 });

@@ -12,7 +12,7 @@
  *   POST /v1/polls/:id/vote              { optionId }  vote (you may change it while the vote is open)
  * Admin (session with is_admin)
  *   GET  /v1/admin/site                  settings + overview numbers
- *   POST /v1/admin/site                  { launch?, maintenance?, announcement? } partial update
+ *   POST /v1/admin/site                  { launch?, maintenance?, announcement?, beta? } partial update
  *   POST /v1/admin/site/offers           create an offer        PATCH/DELETE /v1/admin/site/offers/:id
  *   POST /v1/admin/site/prices           { price, itemIds? }  set the price of many capes at once
  *   GET  /v1/admin/polls                 every vote with full results
@@ -43,6 +43,7 @@ const DEFAULTS = () => ({
   },
   maintenance: { enabled: false, message: 'We’re upgrading Native. Back very soon.', until: null },
   announcement: { enabled: false, text: '', href: '', cta: '' },
+  beta: { open: true, closesAt: null, maxTesters: 0 },
   offers: []
 });
 
@@ -137,33 +138,24 @@ function founderEligible(user) {
   return Number(user.created_at || 0) < Number(s.launch.at || 0) || isPrelaunch(s);
 }
 
-/* ── beta tester badge ────────────────────────────────────────────── */
-const BETA_BADGE = 'beta_tester';
-let betaSweptAt = 0;
-function addBadge(row) {
-  let list = [];
-  try { list = JSON.parse(row.badges || '[]'); } catch { list = []; }
-  if (!Array.isArray(list)) list = [];
-  if (list.includes(BETA_BADGE)) return false;
-  list.push(BETA_BADGE);
-  sql().prepare('UPDATE users SET badges = ? WHERE id = ?').run(JSON.stringify(list), row.id);
-  return true;
-}
-/** Every account made before launch is a beta tester (granted while pre-launch). Never revoked. Returns ids that just got it. */
-function sweepBetaBadges({ force = false } = {}) {
-  if (!force && Date.now() - betaSweptAt < 5 * 60_000) return [];
-  betaSweptAt = Date.now();
-  // Only while pre-launch: after launch nobody new qualifies, and everyone who did already has it.
-  if (!isPrelaunch(settings())) return [];
-  const rows = sql().prepare("SELECT id, badges FROM users WHERE created_at <= ? AND (badges IS NULL OR badges NOT LIKE '%\"beta_tester\"%')").all(Date.now());
-  return rows.filter(addBadge).map((r) => r.id);
-}
-/** Called right after sign-up: grants the beta tester badge while pre-launch. */
-function onUserCreated(user) {
-  if (!user?.id) return false;
-  if (!isPrelaunch(settings())) return false;
-  const row = sql().prepare('SELECT id, badges FROM users WHERE id = ?').get(String(user.id));
-  return row ? addBadge(row) : false;
+/* ── one-time cleanups ─────────────────────────────────────────────── */
+/** An earlier build gave every pre-launch account an automatic 'beta_tester' badge. Beta is now by application only. */
+let droppedAutoBeta = false;
+function dropAutoBetaBadges() {
+  if (droppedAutoBeta) return 0;
+  droppedAutoBeta = true;
+  const h = sql();
+  if (h.prepare("SELECT 1 FROM site_settings WHERE key = 'migr_drop_auto_beta'").get()) return 0;
+  let n = 0;
+  for (const row of h.prepare("SELECT id, badges FROM users WHERE badges LIKE '%\"beta_tester\"%'").all()) {
+    let list = [];
+    try { list = JSON.parse(row.badges || '[]'); } catch { list = []; }
+    if (!Array.isArray(list)) continue;
+    h.prepare('UPDATE users SET badges = ? WHERE id = ?').run(JSON.stringify(list.filter((b) => b !== 'beta_tester')), row.id);
+    n += 1;
+  }
+  h.prepare("INSERT INTO site_settings (key, value, updated_at) VALUES ('migr_drop_auto_beta', ?, ?)").run(JSON.stringify(n), Date.now());
+  return n;
 }
 
 /* ── polls ─────────────────────────────────────────────────────────── */
@@ -230,6 +222,12 @@ function applyMaintenance(prev, b) {
   if (b.until !== undefined) next.until = timeOf(b.until) || null;
   return next;
 }
+function applyBeta(prev, b) {
+  const next = { ...prev, open: bool(b.open, prev.open) };
+  if (b.closesAt !== undefined) next.closesAt = timeOf(b.closesAt) || null;
+  if (b.maxTesters !== undefined) next.maxTesters = Math.max(0, Math.min(100000, Math.round(Number(b.maxTesters) || 0)));
+  return next;
+}
 function applyAnnouncement(prev, b) {
   const next = { ...prev, enabled: bool(b.enabled, prev.enabled) };
   if (b.text !== undefined) next.text = clean(b.text, 160);
@@ -278,6 +276,7 @@ function publicConfig() {
     },
     maintenance: s.maintenance,
     announcement: s.announcement,
+    beta: { open: Boolean(s.beta.open) && (!s.beta.closesAt || Date.now() < Number(s.beta.closesAt)), closesAt: s.beta.closesAt || null },
     offers: s.offers.filter((o) => offerLive(o)).map(publicOffer)
   };
 }
@@ -327,6 +326,7 @@ async function handleSiteRoutes(req, res, ctx) {
         if (body.launch) save('launch', applyLaunch(s.launch, body.launch));
         if (body.maintenance) save('maintenance', applyMaintenance(s.maintenance, body.maintenance));
         if (body.announcement) save('announcement', applyAnnouncement(s.announcement, body.announcement));
+        if (body.beta) save('beta', applyBeta(s.beta, body.beta));
         send(res, 200, adminDoc(), noStore);
         return true;
       }
@@ -469,4 +469,4 @@ async function handleSiteRoutes(req, res, ctx) {
 /** Test hook. */
 function resetCache() { cache = null; ready = false; }
 
-module.exports = { BETA_BADGE, sweepBetaBadges, onUserCreated, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, founderCapes, resetCache };
+module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, founderCapes, resetCache };
