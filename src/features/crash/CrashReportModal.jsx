@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, History, LoaderCircle, X } from 'lucide-react';
+import { Check, ChevronDown, History, LoaderCircle, Search, X } from 'lucide-react';
 import './CrashReportModal.css';
 
 const RENDERER_KINDS = new Set(['memory', 'java-auto', 'jvm-reset', 'jvm-add', 'loader-latest']);

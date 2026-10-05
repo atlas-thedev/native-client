@@ -27,6 +27,7 @@ import { installImageSkeletons } from '../../lib/imageSkeleton.js';
 import CrashReportModal from '../crash/CrashReportModal.jsx';
 import useCrashReports from '../crash/useCrashReports.js';
 import NativeAccountGate from '../../components/ui/NativeAccountGate.jsx';
+import OfflineGate from '../../components/ui/OfflineGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
 import WelcomeTour from './WelcomeTour.jsx';
 import QuickSearch from '../search/QuickSearch.jsx';
@@ -87,9 +88,12 @@ export default function Shell({
   onWardrobeChanged,
   onOpenUpdater,
   updateStatus,
-  networkStatus
+  networkStatus,
+  onRetryNetwork
 }) {
   const { locale, t } = useI18n();
+  // No internet: Locker, Relay, Discover and Store are locked until it returns.
+  const netBlocked = !!networkStatus && networkStatus.state !== 'online';
   // Instance management is an overlay; opening it never replaces this page.
   const [currentTab, setCurrentTab] = useState('home');
   const [previousTab, setPreviousTab] = useState('home');
@@ -760,7 +764,9 @@ export default function Shell({
           )}
 
         {currentTab === 'skins' && (
-          canUseLocker || canUseLocalLocker ? (
+          netBlocked ? (
+            <OfflineGate feature="locker" onRetry={onRetryNetwork} onBackHome={() => setCurrentTab('home')} />
+          ) : canUseLocker || canUseLocalLocker ? (
             <LockerView
               key={launchAccount?.id || 'locker'}
               account={launchAccount}
@@ -779,6 +785,9 @@ export default function Shell({
         )}
 
         {currentTab === 'store' && (
+          netBlocked ? (
+            <OfflineGate feature="store" onRetry={onRetryNetwork} onBackHome={() => setCurrentTab('home')} />
+          ) : (
           <StoreView
             account={launchAccount}
             onNotify={notify}
@@ -786,10 +795,13 @@ export default function Shell({
             onOpenLocker={() => setCurrentTab('skins')}
             onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
           />
+          )
         )}
 
         {currentTab === 'relay' && (
-          hasNative ? (
+          netBlocked ? (
+            <OfflineGate feature="relay" onRetry={onRetryNetwork} onBackHome={() => setCurrentTab('home')} />
+          ) : hasNative ? (
             <RelayPage
               account={socialAccount}
               isPlus={isPlus}
@@ -844,6 +856,9 @@ export default function Shell({
         )}
 
         {currentTab === 'discover' && (
+          netBlocked ? (
+            <OfflineGate feature="discover" onRetry={onRetryNetwork} onBackHome={() => setCurrentTab('home')} />
+          ) : (
           <BrowseView
             initialIntent={browseIntent}
             instances={instancesManager.instances}
@@ -857,6 +872,7 @@ export default function Shell({
             onNotify={notify}
             pageTitle="Discover"
           />
+          )
         )}
 
         {currentTab === 'guides' && (
