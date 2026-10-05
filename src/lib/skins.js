@@ -161,17 +161,17 @@ export function isSlimArmTexture(context) {
           whiteCount += 1;
         }
       }
-      return transparentCount > 0 || blackCount === totalPixels || whiteCount === totalPixels;
+      // the whole unused strip must be empty (or one flat fill): a single stray transparent pixel on a
+      // classic skin must not turn it slim, which draws its arms with the outer column cut off
+      return transparentCount === totalPixels || blackCount === totalPixels || whiteCount === totalPixels;
     } catch {
       return false;
     }
   };
 
   return (
-    checkArea(54, 20, 2, 12) ||
-    checkArea(46, 52, 2, 12) ||
-    checkArea(50, 16, 2, 4) ||
-    checkArea(42, 48, 2, 4)
+    (checkArea(54, 20, 2, 12) && checkArea(50, 16, 2, 4)) ||
+    (checkArea(46, 52, 2, 12) && checkArea(42, 48, 2, 4))
   );
 }
 
