@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import LockerSwitch from './LockerSwitch.jsx';
-import ItemIcon from '../../components/ui/ItemIcon.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -17,12 +17,12 @@ const SECTION_KEY = 'native.locker.section';
 const COS_TAB_KEY = 'native.locker.cosTab';
 // Cosmetics sub-tabs. `slot` = a 3D cosmetic slot; cloaks come from the Store, capes from Minecraft.
 const COS_TABS = [
-  { id: 'cloaks', label: 'Cloaks', icon: 'capes', kicker: 'Native Store', title: 'Cloaks', noun: 'cloaks' },
-  { id: 'hats', label: 'Hats', icon: 'hats', slot: 'hats', kicker: 'Native Store · 3D', title: 'Hats', noun: 'hats' },
-  { id: 'glasses', label: 'Glasses', icon: 'glasses', slot: 'glasses', kicker: 'Native Store · 3D', title: 'Glasses', noun: 'glasses' },
-  { id: 'back', label: 'Wings', icon: 'back', slot: 'back', kicker: 'Native Store · 3D', title: 'Wings & Backpacks', noun: 'wings or backpacks' },
-  { id: 'shoes', label: 'Shoes', icon: 'shoes', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
-  { id: 'capes', label: 'Capes', icon: 'mcape', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
+  { id: 'cloaks', label: 'Cloaks', color: '#b48cff', kicker: 'Native Store', title: 'Cloaks', noun: 'cloaks' },
+  { id: 'hats', label: 'Hats', color: '#ff8a7a', slot: 'hats', kicker: 'Native Store · 3D', title: 'Hats', noun: 'hats' },
+  { id: 'glasses', label: 'Glasses', color: '#7fb2ff', slot: 'glasses', kicker: 'Native Store · 3D', title: 'Glasses', noun: 'glasses' },
+  { id: 'back', label: 'Wings', color: '#9fe0ff', slot: 'back', kicker: 'Native Store · 3D', title: 'Wings & Backpacks', noun: 'wings or backpacks' },
+  { id: 'shoes', label: 'Shoes', color: '#ffb45c', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
+  { id: 'capes', label: 'Capes', color: '#8ee07a', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
 ];
 // Front-facing slots turn the player to face you; the rest show the back.
 const FRONT_TABS = new Set(['hats', 'glasses', 'shoes']);
@@ -87,6 +87,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     try { localStorage.setItem(SECTION_KEY, next); } catch {}
   };
   const viewerRef = useRef(null);
+  // Camera: eases to the part being dressed (head for hats, feet for shoes...) and zooms in/out.
+  const camRef = useRef(null);
+  const stageRef = useRef(null);
+  const [viewerTick, setViewerTick] = useState(0);
+  const [zoomState, setZoomState] = useState({ in: true, out: true });
+  const syncZoom = () => { const cam = camRef.current; if (cam) setZoomState({ in: cam.canZoomIn(), out: cam.canZoomOut() }); };
+  const zoomBy = (factor, animate = true) => { camRef.current?.zoomBy(factor, { animate }); syncZoom(); };
   const fileInputRef = useRef(null);
   const [capeQuery, setCapeQuery] = useState('');
   const [skinQuery, setSkinQuery] = useState('');
@@ -348,6 +355,30 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     return () => { cancelAnimationFrame(frame); player.position.y = baseY; };
   }, [viewAngle]);
 
+  const shotKey = section === 'cosmetics' ? ({ cloaks: 'cloak', capes: 'cloak' }[cosTab] || cosTab) : 'all';
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return undefined;
+    const cam = createCamera(viewer);
+    camRef.current = cam;
+    cam.fly(SHOTS[shotKey] || SHOTS.all, { duration: 0 });
+    syncZoom();
+    return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
+  }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mouse wheel / trackpad zoom on the stage.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return undefined;
+    const onWheel = (event) => {
+      if (!camRef.current) return;
+      event.preventDefault();
+      zoomBy(Math.exp(-event.deltaY * 0.0016), false);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [viewerTick, skeleton]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleResetView = () => {
     const viewer = viewerRef.current;
     if (!viewer) return;
@@ -358,6 +389,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       viewer.controls?.update?.();
       viewer.playerObject?.rotation.set(0, viewAngle, 0);
       viewer.playerObject?.resetJoints?.();
+      camRef.current?.reset();
+      syncZoom();
       viewer.render?.();
     } catch (error) {
       console.warn('Could not reset the skin view:', error);
@@ -702,7 +735,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           label="Cosmetic types"
           value={tab.id}
           onChange={switchCosTab}
-          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, icon: <ItemIcon name={entry.icon} size={20}/>, count: count || null }; })}
+          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, color: entry.color, count: count || null }; })}
         />
       </div>
       <div key={`cos:${tab.id}`} className={`locker-subpanel${cosDir ? ` from-${cosDir}` : ''}`}>
@@ -746,7 +779,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     <div className="locker-workspace">
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>
         <div className="locker-stage-heading"><h2>{t('locker.currentSkin')}</h2><div className="locker-stage-toggles"><button type="button" className={showCape ? 'active' : ''} onClick={() => setShowCape((value) => !value)} title={showCape ? 'Hide cape' : 'Show cape'}>{showCape ? <Eye size={15}/> : <EyeOff size={15}/>}</button><button type="button" className={showLayers ? 'active' : ''} onClick={() => setShowLayers((value) => !value)} title={showLayers ? 'Hide outer layer' : 'Show outer layer'}><Layers size={15}/></button>{Object.keys(wearing || {}).length > 0 && <button type="button" className={showCosmetics ? 'active' : ''} onClick={() => setShowCosmetics((value) => !value)} title={showCosmetics ? 'Hide hats, glasses, wings and shoes' : 'Show hats, glasses, wings and shoes'}><Sparkles size={15}/></button>}</div></div>
-        <div className="locker-stage-model">{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; }}/>}</div>
+        <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
         {tryOn && section === 'cosmetics' && <div key={`try:${tryOn.id}`} className="locker-tryon" role="status">
           <div className="locker-tryon-text"><span>Trying on</span><strong>{tryOn.name}</strong></div>
           <div className="locker-tryon-actions">
@@ -758,7 +791,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
             <PixelIconButton size="sm" icon={<X size={14} strokeWidth={3}/>} label="Stop trying on" onClick={() => setTryOn(null)}/>
           </div>
         </div>}
-        <div className="locker-stage-actions"><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
+        <div className="locker-stage-actions"><div><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><button type="button" onClick={() => zoomBy(1 / 1.25)} disabled={!zoomState.out} title="Zoom out"><ZoomOut size={16}/></button><button type="button" onClick={() => zoomBy(1.25)} disabled={!zoomState.in} title="Zoom in"><ZoomIn size={16}/></button></div><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
         <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} capeUrl={wornCapeUrl} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>

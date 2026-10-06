@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { drawCapeFront } from '../../lib/animatedCape.js';
 import migratorCape from '../../assets/capes/migrator.png';
 import './LockerSwitch.css';
@@ -9,40 +9,9 @@ import './LockerSwitch.css';
  * pops, and a little burst of pixels flies out where you clicked.
  */
 
-// 5x7 pixel font, just the letters the two labels need.
-const GLYPHS = {
-  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
-  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
-  I: ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '###'],
-  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
-  C: ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
-  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-  M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
-  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
-  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..']
-};
-
-function wordPixels(word) {
-  const pixels = [];
-  let x = 0;
-  for (const letter of word) {
-    const glyph = GLYPHS[letter];
-    if (!glyph) { x += 4; continue; }
-    glyph.forEach((row, y) => [...row].forEach((cell, dx) => { if (cell === '#') pixels.push([x + dx, y]); }));
-    x += glyph[0].length + 1;
-  }
-  return { pixels, width: Math.max(1, x - 1) };
-}
-
+// Clean, bold label (was a pixel font).
 function PixelWord({ word }) {
-  const { pixels, width } = useMemo(() => wordPixels(word), [word]);
-  const path = pixels.map(([x, y]) => `M${x} ${y}h1v1h-1z`).join('');
-  return (
-    <svg className="lsw-word" viewBox={`0 0 ${width + 1} 8`} style={{ width: (width + 1) * 3, height: 24 }} aria-hidden="true" shapeRendering="crispEdges">
-      <path d={path} className="lsw-word-shadow" transform="translate(1 1)" />
-      <path d={path} className="lsw-word-face" />
-    </svg>
-  );
+  return <span className="lsw-word">{word.charAt(0) + word.slice(1).toLowerCase()}</span>;
 }
 
 // The player's own face (8x8 + hat layer) cut from the skin texture.
