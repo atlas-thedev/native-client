@@ -78,16 +78,33 @@ test('model validation follows the mod limits', () => {
   assert.throws(() => cosmetics.validateModel({ parts: [{ id: 'empty' }] }), /no cubes/);
 });
 
-test('every bundled cosmetic is in the catalogue with its model, texture and thumbnail', async () => {
-  const catalog = (await json('/v1/store/catalog')).body;
+/* No cosmetics ship with the server: admins upload them. These are made through the admin API. */
+const SEEDED = { 'propeller-cap': 'hats', 'royal-crown': 'hats', 'top-hat': 'hats', 'pixel-shades': 'glasses', 'angel-wings': 'back', 'street-sneakers': 'shoes', 'rocket-boots': 'shoes' };
+const boxModel = (attach, spin = false) => ({ format: 1, texture: [32, 32], parts: [{ id: 'box', attach, cubes: [{ origin: [-2, -10, -2], size: [4, 2, 4], uv: [0, 0] }], anim: spin ? [{ type: 'spin', speed: 90 }] : [] }] });
+const ATTACH_OF = { hats: 'head', glasses: 'head', back: 'body', shoes: 'rightLeg' };
+async function seedCosmetics() {
+  const admin = account('SeedAdmin');
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.user.id);
+  for (const [id, slot] of Object.entries(SEEDED)) {
+    const r = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', id, slot, name: id.replace(/-/g, ' '), price: 0, model: boxModel(ATTACH_OF[slot], id === 'propeller-cap'), texture: b64(png(32, 32)), thumb: b64(png(64, 64, 90)), featured: id === 'propeller-cap' }, admin.token);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+  }
+}
+
+test('no 3D cosmetics are built in; admin-made ones list with model, texture and thumbnail', async () => {
+  const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'catalog.json'), 'utf8')).items;
+  assert.equal(shipped.filter((i) => i.kind === 'cosmetic' || cosmetics.isSlot(i.section)).length, 0, 'no hardcoded cosmetics');
+  let catalog = (await json('/v1/store/catalog')).body;
   for (const slot of cosmetics.SLOTS) assert.ok(catalog.sections.some((s) => s.id === slot), `section ${slot}`);
-  const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'catalog.json'), 'utf8')).items.filter((i) => i.kind === 'cosmetic');
-  assert.ok(shipped.length >= 12);
-  for (const meta of shipped) {
-    const item = catalog.items.find((i) => i.id === meta.id);
-    assert.ok(item, `${meta.id} is listed`);
+  assert.equal(catalog.items.filter((i) => i.kind === 'cosmetic').length, 0);
+
+  await seedCosmetics();
+  catalog = (await json('/v1/store/catalog')).body;
+  for (const [id, slot] of Object.entries(SEEDED)) {
+    const item = catalog.items.find((i) => i.id === id);
+    assert.ok(item, `${id} is listed`);
     assert.equal(item.kind, 'cosmetic');
-    assert.equal(item.slot, meta.section);
+    assert.equal(item.slot, slot);
     assert.equal(item.animated, false, 'cosmetics are never animated capes');
     const model = await fetch(item.modelUrl);
     assert.equal(model.status, 200);
@@ -96,12 +113,26 @@ test('every bundled cosmetic is in the catalogue with its model, texture and thu
     assert.equal((await fetch(item.textureUrl)).status, 200);
     assert.equal((await fetch(item.stillUrl)).status, 200);
   }
-  // capes keep their shape
   assert.ok(catalog.items.filter((i) => i.kind === 'cape').every((i) => !i.modelUrl));
-  // the custom animated hat
   const cap = catalog.items.find((i) => i.id === 'propeller-cap');
   assert.equal(cap.motion, true);
   assert.equal(cap.featured, true);
+});
+
+test('built-in cosmetics from older deploys are removed from a saved catalogue', async () => {
+  const store = require('../server/store-routes');
+  const file = path.join(DATA_DIR, 'store', 'catalog.json');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const old = { ...saved.items.find((i) => i.id === 'top-hat'), id: 'old-builtin-hat', bundled: true };
+  saved.items.push(old);
+  fs.writeFileSync(file, JSON.stringify(saved));
+  db.getDb().prepare('INSERT OR IGNORE INTO store_owned (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)').run('someone', 'old-builtin-hat', Date.now(), 'free');
+  store.resetCatalog();
+  const catalog = (await json('/v1/store/catalog')).body;
+  assert.equal(catalog.items.find((i) => i.id === 'old-builtin-hat'), undefined);
+  assert.ok(catalog.items.find((i) => i.id === 'top-hat'), 'admin-made cosmetics stay');
+  assert.equal(db.getDb().prepare('SELECT COUNT(*) AS n FROM store_owned WHERE item_id = ?').get('old-builtin-hat').n, 0);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).items.some((i) => i.id === 'old-builtin-hat'), false);
 });
 
 test('wear one cosmetic per slot: profile, mod directory, CSL document and /me follow', async () => {
