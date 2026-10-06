@@ -758,3 +758,68 @@
 .locker-cosmetic-thumb.is-loading { border-radius: 10px; background: var(--lk-tile); animation: locker-cos-pulse 1.4s ease-in-out infinite; }
 @keyframes locker-cos-pulse { 50% { opacity: 0.45; } }
 .locker-inline-link { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── Cosmetics: sub-tabs, try-on, Store shelf ───────────── */
+.locker-cos-tabs { padding-top: 4px; }
+.locker-cos-tabs .pxt { width: 100%; box-sizing: border-box; }
+.locker-cos-tabs .pxt-tab { padding: 0 8px; }
+.locker-cos-tabs .pxt-tab:not(.is-active) .pxt-icon { opacity: 1; filter: saturate(0.55) brightness(0.78); transition: filter 0.2s var(--ease), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.locker-cos-tabs .pxt-tab:not(.is-active):hover .pxt-icon { filter: none; transform: translateY(-1px) rotate(-6deg); }
+.locker-cos-tabs .pxt-tab.is-active .pxt-icon { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35)); animation: locker-icon-hop 0.5s cubic-bezier(0.34, 1.6, 0.64, 1); }
+@keyframes locker-icon-hop { 0% { transform: scale(0.8) rotate(-10deg); } 50% { transform: translateY(-4px) scale(1.15) rotate(4deg); } 100% { transform: none; } }
+.item-icon { image-rendering: pixelated; }
+
+.locker-subpanel { display: flex; flex-direction: column; gap: 12px; min-width: 0; transform-origin: 50% 0; }
+.locker-subpanel.from-right { animation: locker-in-right 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both; }
+.locker-subpanel.from-left { animation: locker-in-left 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both; }
+.locker-subpanel.from-right .locker-pop,
+.locker-subpanel.from-left .locker-pop { animation: locker-card-pop 0.5s cubic-bezier(0.34, 1.6, 0.64, 1) both; animation-delay: calc(90ms + var(--i, 0) * 38ms); }
+.locker-panel { overflow-x: hidden; }
+
+/* Store items you don't own: dashed until you try one on */
+.locker-shop-row .locker-row-header { align-items: center; }
+.locker-shop-card { position: relative; border-style: dashed !important; transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s var(--ease), background 0.15s var(--ease); }
+.locker-shop-card:hover { transform: translateY(-3px); }
+.locker-shop-card:active { transform: scale(0.96); }
+.locker-shop-card .locker-cosmetic-thumb, .locker-shop-card .locker-cape-texture { opacity: 0.82; transition: opacity 0.15s var(--ease), transform 0.2s var(--ease); }
+.locker-shop-card:hover .locker-cosmetic-thumb, .locker-shop-card:hover .locker-cape-texture, .locker-shop-card.is-trying .locker-cosmetic-thumb { opacity: 1; }
+.locker-shop-card.is-trying { border-style: solid !important; border-color: #fff; color: var(--fg-primary-hover); background: var(--lk-tile-hover); animation: locker-try-pop 0.42s cubic-bezier(0.34, 1.6, 0.64, 1); }
+@keyframes locker-try-pop { 0% { transform: scale(0.94); } 60% { transform: scale(1.04, 0.97); } 100% { transform: none; } }
+.locker-price {
+  position: absolute; top: 7px; right: 7px;
+  padding: 2px 6px; border-radius: 6px;
+  font: 700 10px var(--font-sans); font-style: normal; letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.08); color: var(--fg-secondary);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+}
+.locker-price.is-free { background: #1fbf63; color: #062611; }
+.locker-price.is-paid { background: #ffd166; color: #2a1c00; }
+.locker-price.is-event { background: #9b6bff; color: #fff; }
+.locker-trying-tag { position: absolute; left: 7px; top: 7px; padding: 2px 6px; border-radius: 6px; background: #fff; color: #0b0b0f; font: 800 9.5px var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Try-on bar floating on the model */
+.locker-tryon {
+  position: absolute; left: 24px; right: 24px; bottom: 66px; z-index: 4;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  background: rgba(12, 12, 16, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  animation: locker-tryon-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes locker-tryon-in {
+  0% { opacity: 0; transform: translateY(18px) scale(0.92, 0.86); }
+  60% { opacity: 1; transform: translateY(-3px) scale(1.02, 1.03); }
+  100% { opacity: 1; transform: none; }
+}
+.locker-tryon-text { display: flex; flex-direction: column; min-width: 0; }
+.locker-tryon-text span { font: 700 10px var(--font-sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+.locker-tryon-text strong { font-size: 13.5px; color: var(--fg-primary-hover); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.locker-tryon-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .locker-subpanel, .locker-subpanel .locker-pop, .locker-tryon, .locker-shop-card.is-trying, .locker-cos-tabs .pxt-tab.is-active .pxt-icon { animation: none !important; }
+}
+.locker-subpanel > .locker-cape-hint { margin: 0; padding: 4px 14px; }

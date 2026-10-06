@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
-import { PixelCape, PixelGlasses, PixelGrid, PixelHat, PixelShoe, PixelStar, PixelWings } from './PixelIcons.jsx';
+import { PixelStar } from './PixelIcons.jsx';
+import ItemIcon from '../../components/ui/ItemIcon.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { Check, ChevronLeft, ChevronRight, Loader2, Lock, Package, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
@@ -24,8 +25,7 @@ const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
 const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
 const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes' };
-const SECTION_ICONS = { capes: PixelCape, hats: PixelHat, glasses: PixelGlasses, back: PixelWings, shoes: PixelShoe };
-const sectionIcon = (id, size = 18) => { const Icon = SECTION_ICONS[id] || PixelGrid; return <Icon size={size} className="px-icon" />; };
+const sectionIcon = (id, size = 20) => <ItemIcon name={id} size={size} className="px-icon" />;
 
 /** Featured items of one store section, capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
@@ -104,6 +104,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [error, setError] = useState('');
   const [me, setMe] = useState({ owned: [], equipped: null, wearing: {} });
   const [section, setSection] = useState('capes');
+  const [sectionDir, setSectionDir] = useState(null); // 'right' | 'left': where the new shelf slides in from
   const [cosAssets, setCosAssets] = useState({}); // cosmetic id -> { model, texture, thumb }
   const [busy, setBusy] = useState(null);
   const [query, setQuery] = useState('');
@@ -525,7 +526,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
       {catalog && !(catalog.items || []).length && (
         <div className="store-coming">
-          <span className="store-coming-icon"><PixelCape size={22} /></span>
+          <span className="store-coming-icon"><ItemIcon name="capes" size={24} /></span>
           <h2>New cloaks are on the way</h2>
           <p>The first Native cloaks are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
           <PixelButton variant="ghost" icon={<RefreshCw size={15} />} label="Check again" onClick={() => load(true)} />
@@ -622,12 +623,19 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <PixelTabs
                 label="Store sections"
                 value={section}
-                onChange={(id) => { setSection(id); setViewId(null); }}
+                onChange={(id) => {
+                  const from = sections.findIndex((entry) => entry.id === section);
+                  const to = sections.findIndex((entry) => entry.id === id);
+                  setSectionDir(to >= from ? 'right' : 'left');
+                  setSection(id);
+                  setViewId(null);
+                }}
                 items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, icon: sectionIcon(entry.id) }))}
               />
             </div>
           )}
 
+          <div key={`shelf:${section}`} className={`store-shelf${sectionDir ? ` from-${sectionDir}` : ''}`}>
           <div className="store-toolbar">
             <PixelTabs
               size="sm"
@@ -647,13 +655,14 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {items.length === 0 ? (
             <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : `No ${noun} match that.`}</span></div>
           ) : (
-            <div className="store-grid">
-              {items.map((item) => {
+            <div className="store-grid" key={`grid:${filter}:${sort}`}>
+              {items.map((item, index) => {
                 const owned = ownedIds.has(item.id);
                 return (
                   <article
                     key={item.id}
-                    className={`store-card${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
+                    style={{ '--i': Math.min(index, 14) }}
+                    className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
                     onClick={() => setViewId(item.id)}
                     tabIndex={0}
                     aria-haspopup="dialog"
@@ -681,6 +690,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               })}
             </div>
           )}
+          </div>
         </div>
       )}
       {viewing && (
@@ -692,7 +702,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <div className="store-viewer-art" aria-hidden="true">{isCosmetic(viewing) ? cosmeticArt(viewing, 'store-viewer-art-img') : <canvas ref={bindCanvas(`view:${viewing.id}`)} width={80} height={128} />}</div>
               <span className="store-viewer-hint">Drag to turn</span>
             </div>
-            <div className="store-viewer-info">
+            <div className="store-viewer-info" key={`vinfo:${viewing.id}`}>
               {renderDetails(viewing, { Heading: 'h3' })}
             </div>
             <PixelIconButton size="md" className="store-viewer-close" icon={<X size={16} strokeWidth={3} />} label="Close" onClick={() => setViewId(null)} />
