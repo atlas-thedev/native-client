@@ -1439,7 +1439,13 @@ async function applyOfficialSkin(account, id) {
   const form = new FormData();
   form.append('variant', item.model === 'slim' ? 'SLIM' : 'CLASSIC');
   form.append('file', new Blob([fs.readFileSync(filePath)], { type: 'image/png' }), `${item.name || 'skin'}.png`);
-  await minecraftRequest(account, '/minecraft/profile/skins', { method: 'PUT', body: form });
+  // Uploading a skin file is a multipart POST (PUT only exists on the old Mojang API and fails).
+  await minecraftRequest(account, '/minecraft/profile/skins', { method: 'POST', body: form });
+  // Avatars read the cached texture: replace it so they show the new skin straight away.
+  try {
+    fs.mkdirSync(cacheDir(), { recursive: true });
+    writeFileAtomic(skinCacheFile(account), fs.readFileSync(filePath));
+  } catch {}
   return officialProfile(account, { forceRefresh: true });
 }
 
