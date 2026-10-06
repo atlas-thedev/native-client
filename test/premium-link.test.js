@@ -45,12 +45,27 @@ const post = (pathname, body, token) => fetch(`${base}${pathname}`, {
   body: JSON.stringify(body)
 });
 
-test('premium sign-in: unlinked premium accounts are told to connect first', async () => {
+test('premium sign-in: a Microsoft account becomes a Native account on first sign-in', async () => {
   const res = await post('/v1/auth/minecraft', { minecraftAccessToken: ALEX });
-  assert.equal(res.status, 404);
+  assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.code, 'not_linked');
-  assert.equal(body.token, undefined);
+  assert.equal(body.created, true);
+  assert.equal(body.account.name, 'AlexPremium');
+  assert.match(body.token, /^nat_[a-f0-9]{64}$/);
+  const user = db.getUserBySession(body.token);
+  assert.equal(user.auth_type, 'premium');
+  assert.equal(user.email, null);
+  assert.equal(user.session_kind, 'premium');
+
+  // Signing in again reuses the same account.
+  const again = await (await post('/v1/auth/minecraft', { minecraftAccessToken: ALEX })).json();
+  assert.equal(again.created, false);
+  assert.equal(again.account.id, body.account.id);
+
+  // Logging out ends that session on the server.
+  assert.equal((await post('/v1/auth/logout', {}, again.token)).status, 200);
+  assert.equal(db.getUserBySession(again.token), null);
+  assert.ok(db.getUserBySession(body.token), 'other sessions stay');
 });
 
 test('premium sign-in: a bad Minecraft token never signs in', async () => {
@@ -60,43 +75,53 @@ test('premium sign-in: a bad Minecraft token never signs in', async () => {
   assert.equal(short.status, 400);
 });
 
-test('premium sign-in: once connected, the premium account signs into its Native account', async () => {
-  const user = db.createUser({ email: 'alex@test.local', username: 'AlexNative', password: 'password123' });
-  const session = db.createSession(user.id).token;
-
-  const link = await post('/v1/account/minecraft', { minecraftAccessToken: ALEX }, session);
-  assert.equal(link.status, 200);
-  assert.equal((await link.json()).profile.name, 'AlexPremium');
-
-  const signIn = await post('/v1/auth/minecraft', { minecraftAccessToken: ALEX });
-  assert.equal(signIn.status, 200);
-  const body = await signIn.json();
-  assert.equal(body.ok, true);
-  assert.equal(body.account.id, user.id);
-  assert.equal(body.account.name, 'AlexNative');
-  assert.match(body.token, /^noc_[a-f0-9]{64}$/);
-  assert.notEqual(body.token, session, 'the premium account gets its own session');
-
-  // The new session is a real Native session.
-  const status = await fetch(`${base}/v1/account/minecraft`, { headers: { Authorization: `Bearer ${body.token}` } });
-  assert.equal((await status.json()).profile.uuid, '0f8b3c1e2d4a4b5c9e6f7a8b9c0d1e2f');
-
-  // Another premium account can't sign into Alex's Native account.
-  const other = await post('/v1/auth/minecraft', { minecraftAccessToken: SAM });
-  assert.equal(other.status, 404);
+test('premium sign-in: the premium owner takes its name back from an email account', async () => {
+  const squatter = db.createUser({ email: 'squat@test.local', username: 'SamPremium', password: 'password123' });
+  const res = await (await post('/v1/auth/minecraft', { minecraftAccessToken: SAM })).json();
+  assert.equal(res.account.name, 'SamPremium');
+  const moved = db.getUserById(squatter.id);
+  assert.notEqual(moved.username.toLowerCase(), 'sampremium');
+  assert.match(moved.username, /^SamPremium_\d+$|^Sam/);
 });
 
-test('premium sign-in: one premium account connects to one Native account, and disconnecting stops auto sign-in', async () => {
-  const owner = db.createUser({ email: 'sam@test.local', username: 'SamNative', password: 'password123' });
-  const thief = db.createUser({ email: 'thief@test.local', username: 'Thief', password: 'password123' });
-  const ownerSession = db.createSession(owner.id).token;
-  const thiefSession = db.createSession(thief.id).token;
+test('merge: a premium account merges one-way into an email account and takes its name', async () => {
+  const native = db.createUser({ email: 'merge@test.local', username: 'MergeMe', password: 'password123' });
+  const premium = await (await post('/v1/auth/minecraft', { minecraftAccessToken: ALEX })).json();
 
-  assert.equal((await post('/v1/account/minecraft', { minecraftAccessToken: SAM }, ownerSession)).status, 200);
-  const steal = await post('/v1/account/minecraft', { minecraftAccessToken: SAM }, thiefSession);
-  assert.equal(steal.status, 409);
+  const wrong = await post('/v1/account/merge', { login: 'merge@test.local', password: 'nope' }, premium.token);
+  assert.equal(wrong.status, 401);
+  // Only premium sessions can start a merge.
+  const nativeSession = db.createSession(native.id).token;
+  assert.equal((await post('/v1/account/merge', { login: 'merge@test.local', password: 'password123' }, nativeSession)).status, 409);
 
-  const unlink = await fetch(`${base}/v1/account/minecraft`, { method: 'DELETE', headers: { Authorization: `Bearer ${ownerSession}` } });
-  assert.equal(unlink.status, 200);
-  assert.equal((await post('/v1/auth/minecraft', { minecraftAccessToken: SAM })).status, 404);
+  const res = await post('/v1/account/merge', { login: 'merge@test.local', password: 'password123' }, premium.token);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.account.id, native.id);
+  assert.equal(body.account.name, 'AlexPremium');
+  const merged = db.getUserBySession(body.token);
+  assert.equal(merged.auth_type, 'merged');
+  assert.equal(merged.email, 'merge@test.local');
+  assert.equal(db.getUserBySession(premium.token), null, 'old sessions end');
+  assert.equal(db.getUserBySession(nativeSession), null);
+
+  // The premium sign-in now lands on the merged account; the email login still works.
+  const later = await (await post('/v1/auth/minecraft', { minecraftAccessToken: ALEX })).json();
+  assert.equal(later.account.id, native.id);
+  const login = await post('/v1/auth/login', { login: 'merge@test.local', password: 'password123' });
+  assert.equal(login.status, 200);
+  assert.equal((await login.json()).account.name, 'AlexPremium');
+  assert.equal((await post('/v1/account/merge', { login: 'merge@test.local', password: 'password123' }, later.token)).status, 409);
+});
+
+test('web link: a launcher session opens the website once', async () => {
+  const { token } = await (await post('/v1/auth/minecraft', { minecraftAccessToken: SAM })).json();
+  assert.equal((await post('/v1/auth/web-link', {})).status, 401);
+  const { code } = await (await post('/v1/auth/web-link', {}, token)).json();
+  assert.ok(code);
+  const redeem = await post('/v1/auth/web-link/redeem', { code });
+  assert.equal(redeem.status, 200);
+  const web = await redeem.json();
+  assert.equal(db.getUserBySession(web.token).session_kind, 'web');
+  assert.equal((await post('/v1/auth/web-link/redeem', { code })).status, 400, 'single use');
 });

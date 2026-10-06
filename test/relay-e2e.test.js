@@ -85,9 +85,7 @@ async function openStream(token) {
 }
 
 function lastCode(email) {
-  const db = new DatabaseSync(path.join(dataDir, 'native.db'), { readOnly: true });
-  try { return db.prepare('SELECT code FROM verification_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1').get(email)?.code; }
-  finally { db.close(); }
+  return '123456'; // NATIVE_TEST_MODE: codes are stored hashed
 }
 
 async function register(username) {
@@ -103,7 +101,7 @@ async function register(username) {
 test.before(async () => {
   if (EXTERNAL) return;
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: dataDir, RESEND_API_KEY: 'test' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: dataDir, RESEND_API_KEY: 'test', NATIVE_TEST_MODE: '1' },
     stdio: 'ignore'
   });
   for (let i = 0; i < 60; i += 1) {

@@ -176,14 +176,6 @@ const findByStrip = (hash) => current().items.find((item) => item.animated && it
  * The animation a profile may show: only a store cape that still exists, with the still frame
  * as its cape. Self-made animations (older launchers) are reduced to their first frame.
  */
-/** The store cape a connected profile wears on its premium name (still owned), or null. */
-function premiumEquippedOf(profile, user) {
-  const id = profile?.premiumCape?.store;
-  if (!id || !user) return null;
-  const item = findItem(String(id));
-  return item && owns(user.id, item.id) ? item.id : null;
-}
-
 function animationFor(profile) {
   if (!profile || !profile.capeAnim || !profile.capeStore || !HASH_RE.test(profile.capeAnim.strip || '')) return null;
   let item = null;
@@ -343,7 +335,7 @@ async function handleStoreRoutes(req, res, ctx) {
   if (req.method === 'GET' && itemMatch) {
     if (!hit('store-catalog', ip, 120, 60_000)) { tooMany(res, 60); return true; }
     const item = findItem(decodeURIComponent(itemMatch[1]));
-    if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+    if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
     send(res, 200, { ok: true, textureBase, item: publicItem(item, textureBase, ownerCounts()) }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' });
     return true;
   }
@@ -372,25 +364,25 @@ async function handleStoreRoutes(req, res, ctx) {
   const user = signedIn();
 
   if (req.method === 'GET' && url.pathname === '/v1/store/me') {
-    if (!user) { send(res, 401, { ok: false, error: 'Sign in to see your capes.' }); return true; }
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to see your cloaks.' }); return true; }
     const profile = ctx.readProfile(user.username);
     const worn = profile?.capeStore ? findItem(profile.capeStore) : null;
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, premiumEquipped: premiumEquippedOf(profile, user), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
+    send(res, 200, { ok: true, equipped, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
     return true;
   }
 
   if (req.method === 'POST' && (url.pathname === '/v1/store/claim' || url.pathname === '/v1/store/unclaim')) {
-    if (!user) { send(res, 401, { ok: false, error: 'Sign in to add capes to your locker.' }); return true; }
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to add cloaks to your locker.' }); return true; }
     if (!hit('store-claim', user.id, 60, 10 * 60_000)) { tooMany(res, 600); return true; }
     const body = await ctx.readJson(req);
     const item = findItem(String(body.itemId || ''));
-    if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+    if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
     let profile = null;
     if (url.pathname === '/v1/store/claim') {
-      if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cape is no longer available.' }); return true; }
+      if (item.hidden && !owns(user.id, item.id)) { send(res, 410, { ok: false, error: 'That cloak is no longer available.' }); return true; }
       if (item.exclusive && !owns(user.id, item.id)) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
       if (!owns(user.id, item.id)) {
         if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
@@ -427,23 +419,15 @@ async function handleStoreRoutes(req, res, ctx) {
       cape: null,
       authHash: null
     };
-    const forPremium = body.target === 'premium';
-    if (forPremium) {
-      let link = null;
-      try { link = db.getMinecraftLink(user.id); } catch {}
-      if (!link?.uuid) { send(res, 409, { ok: false, error: 'Connect a premium Minecraft account to wear Native capes on it.' }); return true; }
-    }
     let next;
-    if (forPremium && (body.itemId == null || body.itemId === '')) {
-      next = { ...existing, premiumCape: null };
-    } else if (body.itemId == null || body.itemId === '') {
+    if (body.itemId == null || body.itemId === '') {
       next = { ...existing, cape: null, capeAnim: null, capeStore: null };
     } else {
       const item = findItem(String(body.itemId));
       if (!item) { send(res, 404, { ok: false, error: 'That store item does not exist.' }); return true; }
       if (!owns(user.id, item.id)) {
         if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
-        if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cape to your locker first.' }); return true; }
+        if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cloak to your locker first.' }); return true; }
         if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
         if (billing.isPaid(item)) {
           if (!billing.hasPlus(user.id)) { send(res, 402, { ok: false, needsPurchase: true, error: `${item.name} costs $${site().priceOf(item).toFixed(2)}. Buy it or join Native+.` }); return true; }
@@ -452,18 +436,16 @@ async function handleStoreRoutes(req, res, ctx) {
           grant(user.id, item.id, 'free');
         }
       }
-      next = forPremium
-        ? { ...existing, premiumCape: { store: item.id, at: new Date().toISOString() } }
-        : {
-          ...existing,
-          cape: item.still,
-          capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
-          capeStore: item.id
-        };
+      next = {
+        ...existing,
+        cape: item.still,
+        capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
+        capeStore: item.id
+      };
     }
     next.updatedAt = new Date().toISOString();
     const saved = ctx.saveProfile(next, req, user);
-    send(res, 200, { ok: true, equipped: saved.capeStore || null, premiumEquipped: premiumEquippedOf(saved, user), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
+    send(res, 200, { ok: true, equipped: saved.capeStore || null, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
     return true;
   }
 
@@ -488,10 +470,10 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   if (req.method === 'POST' && url.pathname === '/v1/admin/store/items') {
     const body = await ctx.readJson(req);
     const name = cleanText(body.name, 40);
-    if (name.length < 2) { send(res, 400, { ok: false, error: 'Give the cape a name (2-40 characters).' }); return true; }
+    if (name.length < 2) { send(res, 400, { ok: false, error: 'Give the cloak a name (2-40 characters).' }); return true; }
     const id = slug(body.id || name);
     if (!ID_RE.test(id)) { send(res, 400, { ok: false, error: 'The id may only use a-z, 0-9 and dashes.' }); return true; }
-    if (findItem(id)) { send(res, 409, { ok: false, error: `A cape with the id "${id}" already exists.` }); return true; }
+    if (findItem(id)) { send(res, 409, { ok: false, error: `A cloak with the id "${id}" already exists.` }); return true; }
     if (body.featured && featuredCount(cat.items) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
     let textures;
     try { textures = texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
@@ -542,7 +524,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     if (req.method === 'POST' && userMatch[2]) {
       const body = await ctx.readJson(req);
       const action = String(body.action || 'grant');
-      if (!['grant', 'revoke', 'equip', 'unequip'].includes(action)) { send(res, 400, { ok: false, error: 'Unknown cape action.' }); return true; }
+      if (!['grant', 'revoke', 'equip', 'unequip'].includes(action)) { send(res, 400, { ok: false, error: 'Unknown cloak action.' }); return true; }
       const existing = ctx.readProfile(target.username) || {
         username: target.username,
         model: target.model === 'slim' ? 'slim' : 'default',
@@ -555,7 +537,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
         if (existing.capeStore) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
       } else {
         const item = findItem(String(body.itemId || ''));
-        if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+        if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
         if (action === 'grant') billing.grantItem(target.id, item.id, 'admin');
         if (action === 'revoke') {
           revoke(target.id, item.id);
@@ -582,7 +564,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   const ownersMatch = url.pathname.match(/^\/v1\/admin\/store\/items\/([^/]+)\/(owners|grant|revoke)$/);
   if (ownersMatch) {
     const item = findItem(decodeURIComponent(ownersMatch[1]));
-    if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+    if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
     const owners = () => sql().prepare('SELECT user_id, acquired_at, source FROM store_owned WHERE item_id = ? ORDER BY acquired_at DESC LIMIT 500').all(item.id)
       .map((row) => {
         let account = null;
@@ -618,13 +600,13 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   const match = url.pathname.match(/^\/v1\/admin\/store\/items\/([^/]+)$/);
   if (match) {
     const item = findItem(decodeURIComponent(match[1]));
-    if (!item) { send(res, 404, { ok: false, error: 'That cape does not exist.' }); return true; }
+    if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
     if (req.method === 'PATCH') {
       const body = await ctx.readJson(req);
       const next = { ...item };
       if (body.name !== undefined) {
         next.name = cleanText(body.name, 40);
-        if (next.name.length < 2) { send(res, 400, { ok: false, error: 'Give the cape a name (2-40 characters).' }); return true; }
+        if (next.name.length < 2) { send(res, 400, { ok: false, error: 'Give the cloak a name (2-40 characters).' }); return true; }
       }
       if (body.description !== undefined) next.description = cleanText(body.description, 200);
       if (body.tags !== undefined) next.tags = cleanTags(body.tags);

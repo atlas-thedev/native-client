@@ -221,7 +221,7 @@ export default function QuickSearch({
     page('versions', 'Versions', 'Browse Minecraft releases', Blocks, ['releases', 'snapshots', 'minecraft versions', 'update']);
     page('discover', 'Discover', 'Mods, modpacks, shaders and packs', Compass, ['browse', 'modrinth', 'mods', 'modpacks', 'shaders', 'resource packs', 'store']);
     page('skins', 'Locker', 'Skins and capes', User, ['skin', 'cape', 'wardrobe', 'cosmetics']);
-    page('store', 'Store', 'Animated capes from Native', User, ['store', 'shop', 'cape', 'animated', 'buy']);
+    page('store', 'Store', 'Animated cloaks from Native', User, ['store', 'shop', 'cloak', 'cape', 'animated', 'buy']);
     page('relay', 'Relay', hasNative ? 'Friends and chat' : 'Friends and chat · needs Native', MessageSquare, ['chat', 'friends', 'messages', 'social', 'dm']);
     page('guides', 'How to', 'Video guides and answers', BookOpen, ['help', 'tutorial', 'guide', 'videos', 'faq', 'learn']);
     page('settings', 'Settings', 'Launcher, Minecraft, Java, storage', Settings, ['preferences', 'options', 'config']);
@@ -237,9 +237,9 @@ export default function QuickSearch({
     action('tour', 'Quick tour', 'Replay the animated launcher tour', CircleHelp, ['tutorial', 'help', 'intro', 'walkthrough', 'onboarding']);
     action('accounts', 'Switch account', account?.name ? `Signed in as ${account.name}` : 'Add or switch accounts', UserRound, ['account', 'login', 'sign in', 'logout', 'microsoft', 'offline', 'profile']);
     if (account?.type === 'microsoft') {
-      action('connect-native', account.nativeLink?.connected ? 'Native connection' : 'Connect Native account',
-        account.nativeLink?.connected ? `Connected to ${account.nativeLink.name}` : 'Use Relay and friends with your premium account',
-        Link2, ['link', 'premium', 'microsoft', 'native', 'connect', 'relay']);
+      action('connect-native', 'Merge with a Native account',
+        account.nativeLink?.type === 'merged' ? 'Already merged with your Native account' : 'Move your email Native account onto this Microsoft account',
+        Link2, ['link', 'premium', 'microsoft', 'native', 'merge', 'connect']);
     }
     action('notifications', 'Notifications', 'Recent launcher activity', Bell, ['alerts', 'inbox', 'activity']);
     action('updates', 'Check for updates', 'Launcher updates', Download, ['update', 'upgrade', 'new version', 'download']);

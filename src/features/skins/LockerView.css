@@ -636,3 +636,9 @@
 /* Animated store capes play right on their locker card. */
 .locker-cape-anim { display: block; width: 44px; height: 68px; }
 .locker-cape-canvas { display: block; width: 44px; height: 68px; box-sizing: border-box; border: 1px solid var(--lk-line-strong); background: var(--lk-tile); image-rendering: pixelated; border-radius: 4px; }
+
+/* Cloaks (Native Store) / Capes (Minecraft) switch */
+.locker-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-full); background: var(--lk-well); border: 1px solid var(--lk-line); }
+.locker-tabs button { padding: 5px 14px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--fg-muted); font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.locker-tabs button:hover { color: var(--fg-primary-hover); }
+.locker-tabs button.active { background: var(--fg-primary-hover); color: var(--bg-base, #0b080c); }

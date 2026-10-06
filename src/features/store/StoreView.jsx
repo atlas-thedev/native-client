@@ -154,7 +154,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
-        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cape is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
+        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cloak is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
         window.dispatchEvent(new Event('native:store-changed'));
         load(true);
         setPending(null);
@@ -274,7 +274,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   const claim = (item) => run(`claim:${item.id}`, async () => {
     const res = await window.native.store.claim(account, item.id);
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t add that cape.');
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t add that cloak.');
     setMe((current) => ({ ...current, owned: res.owned || current.owned }));
     onNotify?.('Store', `${item.name} was added to your locker.`);
   });
@@ -282,10 +282,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const wear = (item) => run(`wear:${item?.id || 'off'}`, async () => {
     const premium = isPremiumLinked(account);
     const res = await window.native.store.equip(account, item?.id || null, premium ? { target: 'premium' } : {});
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t equip that cape.');
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t equip that cloak.');
     if (res.state && !premium) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
     setMe((current) => ({ owned: item && !ownedIds.has(item.id) ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned, equipped: item?.id || null }));
-    onNotify?.('Store', item ? `${item.name} is now your cape — in the launcher and in game.` : 'Cape taken off.');
+    onNotify?.('Store', item ? `${item.name} is now your cloak — in the launcher and in game.` : 'Cloak taken off.');
   });
 
   const buy = (item) => run(`buy:${item.id}`, async () => {
@@ -315,13 +315,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       setRedeemOpen(false);
       await load(true);
       if (res.item?.id) setViewId(res.item.id);
-      onNotify?.('Store', `${res.item?.name || 'Your cape'} was added to your locker.`);
+      onNotify?.('Store', `${res.item?.name || 'Your cloak'} was added to your locker.`);
     });
   };
 
   const unclaim = (item) => run(`unclaim:${item.id}`, async () => {
     const res = await window.native.store.unclaim(account, item.id);
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t remove that cape.');
+    if (!res?.ok) throw new Error(res?.error || 'Couldn’t remove that cloak.');
     if (res.state && !isPremiumLinked(account)) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
     setMe((current) => ({ owned: res.owned || [], equipped: isPremiumLinked(account) ? (current.equipped && (res.owned || []).some((entry) => entry.id === current.equipped) ? current.equipped : null) : (res.equipped || null) }));
     onNotify?.('Store', `${item.name} was removed from your locker.`);
@@ -426,7 +426,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <header className="store-header">
         <div className="store-header-copy">
           <h1 className="store-title page-title">Store</h1>
-          <p className="store-subtitle">Capes made by Native. Add one to your locker and wear it everywhere — the launcher, the website and in game. Most capes are free — some are paid or included with Native+.</p>
+          <p className="store-subtitle">Cloaks made by Native. Add one to your locker and wear it everywhere — the launcher, the website and in game. Most cloaks are free — some are paid or included with Native+.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && capes.length > 0 && (
@@ -447,8 +447,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       {catalog && !(catalog.items || []).length && (
         <div className="store-coming">
           <span className="store-coming-icon"><PixelCape size={22} /></span>
-          <h2>New capes are on the way</h2>
-          <p>The first Native capes are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
+          <h2>New cloaks are on the way</h2>
+          <p>The first Native cloaks are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
           <button type="button" className="store-btn ghost" onClick={() => load(true)}><RefreshCw size={13} />Check again</button>
         </div>
       )}
@@ -458,7 +458,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {hero && (
             <section
               className={`store-spot${featured.length ? ' is-featured' : ''}`}
-              aria-label={featured.length ? 'Featured capes' : `${hero.name} details`}
+              aria-label={featured.length ? 'Featured cloaks' : `${hero.name} details`}
               aria-roledescription={featured.length > 1 ? 'carousel' : undefined}
               onMouseEnter={() => setHeroPaused(true)}
               onMouseLeave={() => setHeroPaused(false)}
@@ -513,10 +513,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <strong>{plus?.active ? 'You’re a Native+ member' : 'Native+'}</strong>
                 <span>
                   {plus?.active && plus.gifted
-                    ? `Given to you by the Native team${plus.endsAt ? ` until ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}. Every paid cape is yours to wear.`
+                    ? `Given to you by the Native team${plus.endsAt ? ` until ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}. Every paid cloak is yours to wear.`
                     : plus?.active
-                    ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid capes go back when it ends.` : `Every paid cape is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
-                    : 'Every paid cape while you’re a member, plus the Native+ badge. Cancel any time.'}
+                    ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid cloaks go back when it ends.` : `Every paid cloak is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
+                    : 'Every paid cloak while you’re a member, plus the Native+ badge. Cancel any time.'}
                 </span>
               </div>
               <div className="store-plus-actions">
@@ -548,13 +548,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             </div>
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capes" aria-label="Search capes" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search cloaks" aria-label="Search cloaks" />
             </label>
             <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((s) => ({ value: s.id, label: s.label }))} />
           </div>
 
           {items.length === 0 ? (
-            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? 'Your locker has no store capes yet.' : 'No capes match that.'}</span></div>
+            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? 'Your locker has no store cloaks yet.' : 'No cloaks match that.'}</span></div>
           ) : (
             <div className="store-grid">
               {items.map((item) => {
@@ -603,8 +603,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             <button type="button" className="store-icon-btn store-viewer-close" onClick={() => setViewId(null)} aria-label="Close"><X size={14} /></button>
             {items.length > 1 && (
               <div className="store-viewer-nav">
-                <button type="button" className="store-icon-btn" onClick={() => stepView(-1)} aria-label="Previous cape" title="Previous (←)"><ChevronLeft size={15} /></button>
-                <button type="button" className="store-icon-btn" onClick={() => stepView(1)} aria-label="Next cape" title="Next (→)"><ChevronRight size={15} /></button>
+                <button type="button" className="store-icon-btn" onClick={() => stepView(-1)} aria-label="Previous cloak" title="Previous (←)"><ChevronLeft size={15} /></button>
+                <button type="button" className="store-icon-btn" onClick={() => stepView(1)} aria-label="Next cloak" title="Next (→)"><ChevronRight size={15} /></button>
               </div>
             )}
           </div>
@@ -617,7 +617,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <span className="store-plus-mark"><Ticket size={16} /></span>
               <div>
                 <h3>Redeem a code</h3>
-                <p>Got a code from a Native event or a giveaway? Enter it to add the cape to your locker.</p>
+                <p>Got a code from a Native event or a giveaway? Enter it to add the cloak to your locker.</p>
               </div>
               <button type="button" className="store-icon-btn" onClick={() => setRedeemOpen(false)} aria-label="Close"><X size={14} /></button>
             </div>

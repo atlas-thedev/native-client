@@ -43,3 +43,18 @@ ls ~/native-server/.deploy/backups         # last 5 code backups (restore: tar -
 (see `mod-routes.js`). Game tickets are signed with `NATIVE_TICKET_SECRET` (optional; otherwise a random
 secret is generated once into `data/ticket.secret`). nginx must not buffer `/v1/skins/stream`
 (`proxy_buffering off;` – the server also sends `X-Accel-Buffering: no`).
+
+## Accounts
+
+- **Premium**: `POST /v1/auth/minecraft` with a Minecraft access token creates (first time) or signs into the
+  account named after the Minecraft profile. No email or password. Sessions last 7 days; the launcher renews them.
+- **Native**: email + password. Names that belong to a premium Minecraft account are refused (checked with
+  Mojang, fails closed). If a premium owner signs in and someone else holds the name, that account is renamed
+  to `Name_1234` and emailed.
+- **Merged**: `POST /v1/account/merge` (premium session + `{ login, password }` of an email account). One-way:
+  the email account takes the Minecraft name/UUID and everything the premium account owned.
+- Website sign-in from the launcher: `POST /v1/auth/web-link` → one-time 60 s code → the site calls
+  `POST /v1/auth/web-link/redeem`. `POST /v1/auth/logout` ends a session.
+- Sessions and email codes are stored hashed. Offline accounts never publish to the skin directory.
+- `NATIVE_TEST_MODE=1` (tests only, ignored when `NODE_ENV=production`) fixes email codes to `123456`
+  and skips Mojang lookups. Never set it on the VPS.

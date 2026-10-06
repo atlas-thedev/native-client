@@ -40,8 +40,7 @@ const U = {};
 let child;
 
 function codeFor(email) {
-  const db = new DatabaseSync(path.join(serverDir, 'native.db'), { readOnly: true });
-  try { return db.prepare('SELECT code FROM verification_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1').get(email)?.code; } finally { db.close(); }
+  return '123456'; // NATIVE_TEST_MODE: codes are stored hashed
 }
 async function register(name) {
   const email = `${name.toLowerCase()}@example.test`;
@@ -59,7 +58,7 @@ const waitFor = async (fn, timeout = 5000) => {
 
 test.before(async () => {
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: serverDir, RESEND_API_KEY: 'test' }, stdio: 'ignore'
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', NATIVE_DATA_DIR: serverDir, RESEND_API_KEY: 'test', NATIVE_TEST_MODE: '1' }, stdio: 'ignore'
   });
   for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/health`)).ok) break; } catch {} await sleep(250); }
   const tag = Math.random().toString(36).slice(2, 6);

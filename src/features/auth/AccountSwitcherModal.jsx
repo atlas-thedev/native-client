@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, Link2, Minus, Square, Unlink, WifiOff, X } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Globe, GitMerge, Minus, Square, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import ProviderLogo from '../../components/ui/ProviderLogo.jsx';
@@ -21,33 +21,6 @@ const COMMUNITY = {
 
 const LEGAL = 'https://nativelaunch.xyz';
 
-/**
- * Saved accounts with each linked Microsoft account nested under the Native account it signs
- * into (matched by user id, then email, then name). Unmatched accounts stay top-level.
- */
-function groupLinkedAccounts(accounts) {
-  const list = Array.isArray(accounts) ? accounts : [];
-  const native = list.filter((acc) => acc.type === 'native');
-  const parentOf = (acc) => {
-    const link = acc.type === 'microsoft' && acc.nativeLink?.connected ? acc.nativeLink : null;
-    if (!link) return null;
-    const lower = (v) => String(v || '').toLowerCase();
-    return native.find((n) => link.userId && n.id === link.userId)
-      || native.find((n) => link.email && lower(n.email) === lower(link.email))
-      || native.find((n) => link.name && lower(n.name) === lower(link.name))
-      || null;
-  };
-  const childrenOf = new Map();
-  const nested = new Set();
-  for (const acc of list) {
-    const parent = parentOf(acc);
-    if (!parent) continue;
-    nested.add(acc.id);
-    childrenOf.set(parent.id, [...(childrenOf.get(parent.id) || []), acc]);
-  }
-  return list.filter((acc) => !nested.has(acc.id)).map((acc) => ({ parent: acc, children: childrenOf.get(acc.id) || [] }));
-}
-
 export default function AccountSwitcherModal({
   open,
   firstRun = false,
@@ -63,8 +36,8 @@ export default function AccountSwitcherModal({
   onNativeVerifyRegister,
   onNativeLogin,
   onRemoveAccount,
-  onConnectNative,
-  onDisconnectNative, onClaimName,
+  onMergeNative,
+  onOpenWebsite,
   connectRequest = null
 }) {
   const { t } = useI18n();
@@ -73,7 +46,6 @@ export default function AccountSwitcherModal({
   const [view, setView] = useState('main');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [nameClaim, setNameClaim] = useState(null);
   const [isMaximized, setIsMaximized] = useState(false);
 
   // Login form state
@@ -93,7 +65,7 @@ export default function AccountSwitcherModal({
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
 
-  // Premium ↔ Native connection
+  // Merging a premium account into an email Native account
   const [connectTargetId, setConnectTargetId] = useState(null);
   const [connectDone, setConnectDone] = useState(false);
 
@@ -159,19 +131,6 @@ export default function AccountSwitcherModal({
     return () => clearInterval(timer);
   }, [view, countdown]);
 
-  const claimTarget = view === 'native-connect' && open
-    ? accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft' && acc.nativeLink?.connected) || null
-    : null;
-  useEffect(() => {
-    setNameClaim(null);
-    if (!claimTarget || !window.native?.accounts?.nameClaim) return undefined;
-    let cancelled = false;
-    window.native.accounts.nameClaim(claimTarget.id)
-      .then((res) => { if (!cancelled && res?.ok) setNameClaim(res.claim || null); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [claimTarget?.id, claimTarget?.nativeLink?.name]);
-
   if (!open) return null;
 
   const openExternal = (url) => window.native?.openExternal?.(url);
@@ -193,12 +152,12 @@ export default function AccountSwitcherModal({
     setBusy(true);
     setError('');
     try {
-      const result = await onConnectNative?.({ microsoftAccountId: connectTarget.id, ...payload });
-      if (!result?.ok) throw new Error(result?.error || 'Could not connect the accounts.');
+      const result = await onMergeNative?.({ microsoftAccountId: connectTarget.id, ...payload });
+      if (!result?.ok) throw new Error(result?.error || 'Could not merge the accounts.');
       setPasswordInput('');
       setConnectDone(true);
     } catch (err) {
-      setError(err?.message || 'Could not connect the accounts.');
+      setError(err?.message || 'Could not merge the accounts.');
     } finally {
       setBusy(false);
     }
@@ -210,34 +169,10 @@ export default function AccountSwitcherModal({
     runConnect({ login: loginInput.trim(), password: passwordInput });
   };
 
-  const handleDisconnect = async () => {
-    if (!connectTarget || busy) return;
-    setBusy(true);
+  const openWebsite = async (accountId) => {
     setError('');
-    try {
-      const result = await onDisconnectNative?.(connectTarget.id);
-      if (!result?.ok) throw new Error(result?.error || 'Could not disconnect.');
-      setConnectDone(false);
-    } catch (err) {
-      setError(err?.message || 'Could not disconnect.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleClaimName = async () => {
-    if (!connectTarget || busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      const result = await onClaimName?.(connectTarget.id);
-      if (!result?.ok) throw new Error(result?.error || 'Could not change your Native name.');
-      setNameClaim(null);
-    } catch (err) {
-      setError(err?.message || 'Could not change your Native name.');
-    } finally {
-      setBusy(false);
-    }
+    const result = await onOpenWebsite?.(accountId);
+    if (result && result.ok === false) setError(result.error || 'Could not open the website.');
   };
 
   const handleAddMicrosoft = async () => {
@@ -621,17 +556,19 @@ export default function AccountSwitcherModal({
                         <small>{accounts.length}</small>
                       </div>
                       <div className="account-login-list">
-                        {groupLinkedAccounts(accounts).map(({ parent, children }) => {
-                          const renderRow = (acc, { child = false } = {}) => {
+                        {accounts.map((acc) => {
                           const active = acc.id === activeId;
                           const choose = () => {
                             onSwitchAccount?.(acc.id);
                             if (firstRun) onClose?.();
                           };
+                          const microsoft = acc.type === 'microsoft';
+                          const merged = microsoft && acc.nativeLink?.type === 'merged';
+                          const hasNative = acc.type === 'native' || (microsoft && acc.nativeLink?.connected);
                           return (
                             <div
                               key={acc.id}
-                              className={`account-login-item ${active ? 'active' : ''}${child ? ' is-child' : ''}`}
+                              className={`account-login-item ${active ? 'active' : ''}`}
                               role="button"
                               tabIndex={0}
                               onClick={choose}
@@ -639,31 +576,45 @@ export default function AccountSwitcherModal({
                                 if (e.key === 'Enter' || e.key === ' ') choose();
                               }}
                             >
-                              <PlayerAvatar account={acc} kind="avatar" size={child ? 26 : 30} />
+                              <PlayerAvatar account={acc} kind="avatar" size={30} />
                               <div className="account-login-item-text">
                                 <strong>{acc.name}</strong>
-                                <small className={acc.type === 'microsoft' ? 'is-ms' : 'is-native'}>
-                                  {acc.type === 'microsoft' ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.native'))}
-                                  {acc.type === 'microsoft' && acc.nativeLink?.connected && !child && (
-                                    <span className="account-login-item-link" title={`Signs into Native as ${acc.nativeLink.name}`}>
-                                      <Link2 size={10} strokeWidth={2.4} aria-hidden="true" /> {acc.nativeLink.name}
+                                <small className={microsoft ? 'is-ms' : 'is-native'}>
+                                  {microsoft ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.native'))}
+                                  {merged && (
+                                    <span className="account-login-item-link" title={`Merged with ${acc.nativeLink.email || 'your Native account'}`}>
+                                      <GitMerge size={10} strokeWidth={2.4} aria-hidden="true" /> Merged
                                     </span>
                                   )}
                                 </small>
                               </div>
-                              {acc.type === 'microsoft' && onConnectNative && (
+                              {microsoft && !merged && onMergeNative && (
                                 <button
                                   type="button"
-                                  className={`account-login-item-connect${acc.nativeLink?.connected ? ' is-connected' : ''}`}
-                                  title={acc.nativeLink?.connected ? 'Native connection' : 'Connect a Native account'}
-                                  aria-label={acc.nativeLink?.connected ? `Native connection for ${acc.name}` : `Connect a Native account to ${acc.name}`}
+                                  className="account-login-item-connect"
+                                  title="Merge with an email Native account"
+                                  aria-label={`Merge ${acc.name} with a Native account`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openConnect(acc.id);
                                   }}
                                 >
-                                  <Link2 size={12} strokeWidth={2.2} aria-hidden="true" />
-                                  {!acc.nativeLink?.connected && <span>Connect</span>}
+                                  <GitMerge size={12} strokeWidth={2.2} aria-hidden="true" />
+                                  <span>Merge</span>
+                                </button>
+                              )}
+                              {hasNative && onOpenWebsite && (
+                                <button
+                                  type="button"
+                                  className="account-login-item-connect is-connected"
+                                  title="Open nativelaunch.xyz signed in"
+                                  aria-label={`Open the Native website as ${acc.name}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openWebsite(acc.id);
+                                  }}
+                                >
+                                  <Globe size={12} strokeWidth={2.2} aria-hidden="true" />
                                 </button>
                               )}
                               {active && <span className="account-login-item-active">Active</span>}
@@ -679,71 +630,6 @@ export default function AccountSwitcherModal({
                               >
                                 <NativeIcon name="trash" size={13} />
                               </button>
-                            </div>
-                          );
-                        };
-                          if (!children.length) return renderRow(parent);
-                          const [linked, ...others] = children;
-                          const renderSide = (acc) => {
-                            const active = acc.id === activeId;
-                            const choose = () => {
-                              onSwitchAccount?.(acc.id);
-                              if (firstRun) onClose?.();
-                            };
-                            const microsoft = acc.type === 'microsoft';
-                            return (
-                              <div
-                                className={`account-login-side${active ? ' active' : ''}`}
-                                role="button"
-                                tabIndex={0}
-                                onClick={choose}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') choose();
-                                }}
-                              >
-                                <span className="account-login-side-avatar">
-                                  <PlayerAvatar account={acc} kind="avatar" size={36} />
-                                  <span className="account-login-side-badge"><ProviderLogo kind={microsoft ? 'microsoft' : 'native'} size={11} /></span>
-                                </span>
-                                <strong>{acc.name}</strong>
-                                <small>{microsoft ? t('account.microsoft') : t('account.native')}</small>
-                                {active && <span className="account-login-side-active">Active</span>}
-                                <button
-                                  type="button"
-                                  className="account-login-item-remove"
-                                  title={t('account.remove')}
-                                  aria-label={t('account.remove')}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onRemoveAccount?.(acc.id);
-                                  }}
-                                >
-                                  <NativeIcon name="trash" size={13} />
-                                </button>
-                              </div>
-                            );
-                          };
-                          return (
-                            <div key={`group-${parent.id}`} className="account-login-group">
-                              <div className="account-login-pair">
-                                {renderSide(parent)}
-                                <button
-                                  type="button"
-                                  className="account-login-pair-link"
-                                  title="Native connection"
-                                  aria-label={`Native connection for ${linked.name}`}
-                                  disabled={!onConnectNative}
-                                  onClick={() => openConnect(linked.id)}
-                                >
-                                  <Link2 size={13} strokeWidth={2.3} aria-hidden="true" />
-                                </button>
-                                {renderSide(linked)}
-                              </div>
-                              {others.length > 0 && (
-                                <div className="account-login-children">
-                                  {others.map((acc) => renderRow(acc, { child: true }))}
-                                </div>
-                              )}
                             </div>
                           );
                         })}
@@ -808,19 +694,19 @@ export default function AccountSwitcherModal({
 
                 {!connectTarget ? (
                   <div className="native-auth-header">
-                    <h2 className="native-auth-title">Connect Native</h2>
-                    <p className="native-auth-sub">Sign in with Microsoft first, then connect your Native account to it.</p>
+                    <h2 className="native-auth-title">Merge accounts</h2>
+                    <p className="native-auth-sub">Sign in with Microsoft first, then merge your Native account into it.</p>
                   </div>
                 ) : (
                   <>
-                    <div className={`native-connect-hero${connectTarget.nativeLink?.connected ? ' is-linked' : ''}${connectDone ? ' is-done' : ''}`} aria-hidden="true">
+                    <div className={`native-connect-hero${connectTarget.nativeLink?.type === 'merged' ? ' is-linked' : ''}${connectDone ? ' is-done' : ''}`} aria-hidden="true">
                       <span className="native-connect-node">
                         <PlayerAvatar account={connectTarget} kind="avatar" size={44} />
                       </span>
                       <span className="native-connect-wire">
                         <i /><i /><i />
                         <b className="native-connect-badge">
-                          {connectTarget.nativeLink?.connected ? <Check size={13} strokeWidth={3} /> : <Link2 size={13} strokeWidth={2.4} />}
+                          {connectTarget.nativeLink?.type === 'merged' ? <Check size={13} strokeWidth={3} /> : <GitMerge size={13} strokeWidth={2.4} />}
                         </b>
                       </span>
                       <span className="native-connect-node is-native">
@@ -828,70 +714,51 @@ export default function AccountSwitcherModal({
                       </span>
                     </div>
 
-                    {connectTarget.nativeLink?.connected ? (
+                    {connectTarget.nativeLink?.type === 'merged' ? (
                       <div className="native-connect-body">
                         <div className="native-auth-header">
-                          <h2 className="native-auth-title">{connectDone ? 'Connected' : 'Native is connected'}</h2>
+                          <h2 className="native-auth-title">{connectDone ? 'Merged' : 'Accounts merged'}</h2>
                           <p className="native-auth-sub">
-                            <strong>{connectTarget.name}</strong> signs into Native as <strong>{connectTarget.nativeLink.name}</strong> automatically,
-                            on this PC and any other where you use this premium account. Relay, friends and chat just work.
+                            Your Native account{connectTarget.nativeLink.email ? <> (<strong>{connectTarget.nativeLink.email}</strong>)</> : null} is now <strong>{connectTarget.nativeLink.name}</strong>.
+                            Friends, chats and cloaks came along. Sign in with Microsoft on any PC, or with your email and password on the website.
                           </p>
                         </div>
-                        {nameClaim?.name && (
-                          <div className="native-name-claim">
-                            <div className="native-name-claim-text">
-                              <strong>Use {nameClaim.name} as your Native name</strong>
-                              <span>
-                                {nameClaim.taken
-                                  ? `Someone else registered ${nameClaim.name} on Native. It's your premium name, so they'll be renamed.`
-                                  : `Friends will see you as ${nameClaim.name} instead of ${connectTarget.nativeLink.name}.`}
-                              </span>
-                            </div>
-                            <button type="button" className="native-name-claim-btn" onClick={handleClaimName} disabled={busy}>
-                              {busy ? 'Changing…' : `Use ${nameClaim.name}`}
-                            </button>
-                          </div>
-                        )}
                         {error && <div className="account-login-error" role="alert">{error}</div>}
                         <div className="native-connect-actions">
                           <button type="button" className="native-auth-primary-btn" onClick={() => { setView('main'); setConnectDone(false); }}>
                             Done
-                          </button>
-                          <button type="button" className="native-connect-disconnect" onClick={handleDisconnect} disabled={busy}>
-                            <Unlink size={13} aria-hidden="true" />
-                            <span>{busy ? 'Disconnecting…' : 'Disconnect'}</span>
                           </button>
                         </div>
                       </div>
                     ) : (
                       <div className="native-connect-body">
                         <div className="native-auth-header">
-                          <h2 className="native-auth-title">Connect Native to {connectTarget.name}</h2>
+                          <h2 className="native-auth-title">Merge a Native account into {connectTarget.name}</h2>
                           <p className="native-auth-sub">
-                            Do it once. Every time you sign in with this premium account, Native signs you in too.
+                            Your Native account takes the name <strong>{connectTarget.name}</strong> and keeps its friends, chats and cloaks.
+                            Anything this Microsoft account had on Native moves into it. This can’t be undone.
                           </p>
                         </div>
 
                         {savedNativeAccounts.length > 0 && (
                           <div className="native-connect-saved">
-                            <span className="native-form-label">Use a signed-in Native account</span>
+                            <span className="native-form-label">Your signed-in Native accounts</span>
                             {savedNativeAccounts.map((acc) => (
                               <button
                                 key={acc.id}
                                 type="button"
                                 className="account-login-item native-connect-choice"
                                 disabled={busy}
-                                onClick={() => runConnect({ nativeAccountId: acc.id })}
+                                onClick={() => { setLoginInput(acc.email || acc.name); setError(''); }}
                               >
                                 <PlayerAvatar account={acc} kind="avatar" size={26} />
                                 <span className="account-login-item-text">
                                   <strong>{acc.name}</strong>
-                                  <small className="is-native">Native</small>
+                                  <small className="is-native">{acc.email || 'Native'}</small>
                                 </span>
-                                <span className="native-connect-choice-cta">Connect</span>
+                                <span className="native-connect-choice-cta">Use</span>
                               </button>
                             ))}
-                            <span className="native-connect-or"><i />or sign in<i /></span>
                           </div>
                         )}
 
@@ -943,14 +810,14 @@ export default function AccountSwitcherModal({
                             {busy ? (
                               <span className="native-btn-spinner">
                                 <NativeIcon name="refresh" size={16} className="is-spinning" />
-                                <span>Connecting…</span>
+                                <span>Merging…</span>
                               </span>
                             ) : (
-                              'Connect accounts'
+                              'Merge accounts'
                             )}
                           </button>
                           <p className="native-connect-fine">
-                            Native checks with Microsoft that you own this Minecraft account. Your Microsoft password never reaches Native.
+                            Merging is one-way. Your email and password keep working; your Microsoft password never reaches Native.
                           </p>
                         </form>
                       </div>

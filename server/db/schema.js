@@ -24,20 +24,33 @@ function initSchema(db) {
     PRAGMA cache_size = -64000;
     PRAGMA busy_timeout = 5000;
 
+    -- Accounts. auth_type:
+    --   premium  created automatically the first time a real Microsoft/Minecraft
+    --            account signs in (no email, no password; the Minecraft name and UUID)
+    --   native   email + password account (no Minecraft ownership)
+    --   merged   a native account merged with a premium one (both sign-ins work,
+    --            the name and UUID are the Minecraft ones)
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE,
       username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      salt TEXT NOT NULL,
+      password_hash TEXT,
+      salt TEXT,
       uuid TEXT NOT NULL,
       model TEXT DEFAULT 'classic',
+      auth_type TEXT NOT NULL DEFAULT 'native',
+      badges TEXT DEFAULT '[]',
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      minecraft_uuid TEXT DEFAULT NULL,
+      minecraft_username TEXT DEFAULT NULL,
+      minecraft_linked_at INTEGER DEFAULT NULL,
       created_at INTEGER NOT NULL
     );
-
+    -- Sign-up codes. Only a salted hash of the 6-digit code is stored.
     CREATE TABLE IF NOT EXISTS verification_codes (
       email TEXT PRIMARY KEY,
       code TEXT NOT NULL,
+      salt TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
     );
@@ -52,14 +65,16 @@ function initSchema(db) {
       attempts INTEGER NOT NULL DEFAULT 0
     );
 
+    -- Sessions. Only the sha256 of a token is stored, so a database copy never
+    -- holds a working sign-in. kind: password | premium | web
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'password',
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-
     CREATE TABLE IF NOT EXISTS friends (
       user_id TEXT NOT NULL,
       friend_id TEXT NOT NULL,
@@ -219,6 +234,9 @@ function initSchema(db) {
   safeAddColumn('users', 'minecraft_linked_at INTEGER DEFAULT NULL');
 
   safeAddColumn('verification_codes', 'attempts INTEGER NOT NULL DEFAULT 0');
+  safeAddColumn('verification_codes', "salt TEXT NOT NULL DEFAULT ''");
+  safeAddColumn('users', "auth_type TEXT NOT NULL DEFAULT 'native'");
+  safeAddColumn('sessions', "kind TEXT NOT NULL DEFAULT 'password'");
 
   // Admins are configured by verified email (NATIVE_ADMIN_EMAILS), never by
   // username: a username can be registered by anyone once it is free.
@@ -238,7 +256,8 @@ function initSchema(db) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_minecraft_uuid
       ON users(minecraft_uuid) WHERE minecraft_uuid IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, kind);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id);
     CREATE INDEX IF NOT EXISTS idx_friends_friend ON friends(friend_id);
     CREATE INDEX IF NOT EXISTS idx_requests_receiver ON friend_requests(receiver_id, status);

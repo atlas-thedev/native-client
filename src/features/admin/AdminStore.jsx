@@ -308,7 +308,7 @@ export default function AdminStore({ onNotify, onError }) {
                 <button type="button" title={confirmDelete === item.id ? 'Click again to delete' : 'Delete'} className={confirmDelete === item.id ? 'is-danger' : ''} disabled={busy === item.id} onClick={() => remove(item)}>{busy === item.id ? <LoaderCircle size={14} className="is-spinning"/> : <Trash2 size={14}/>}{confirmDelete === item.id && <span>Delete?</span>}</button>
               </div>
             </article>
-          )) : <div className="admin-loading"><span>{items.length ? 'No capes match this view.' : 'No capes yet — add the first one.'}</span></div>}
+          )) : <div className="admin-loading"><span>{items.length ? 'No cloaks match this view.' : 'No capes yet — add the first one.'}</span></div>}
         </div>
 
         {editing && (
@@ -343,12 +343,12 @@ export default function AdminStore({ onNotify, onError }) {
               <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
               <label className="admin-check" title={featuredFull && !draft.featured ? `Up to ${MAX_FEATURED} capes can be featured` : undefined}><input type="checkbox" checked={draft.featured} disabled={!draft.featured && featuredFull && !(editing !== 'new' && items?.find((item) => item.id === editing)?.featured)} onChange={set('featured')}/><span>Featured ({totals.featured}/{MAX_FEATURED})</span></label>
               <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
-              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Event cape: never sold. Give it out by hand or with redeem codes</span></label>
+              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Event cloak: never sold. Give it out by hand or with redeem codes</span></label>
             </div>
 
             {editingItem && <CapeOwners item={editingItem} onNotify={onNotify} onChanged={(next) => next && setItems(next)}/>}
 
-            <p className="admin-note">{draft.exclusive ? 'Event cape: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Native+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
+            <p className="admin-note">{draft.exclusive ? 'Event cloak: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Native+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
             {fileError && <div className="admin-error" role="alert"><span>{fileError}</span></div>}
 
             <footer>

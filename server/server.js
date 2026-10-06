@@ -67,69 +67,88 @@ function send(res, status, value, headers = {}) {
   res.end(body);
 }
 
+/* ── Names ─────────────────────────────────────────────────────────────── */
+
+/** One-time website sign-in links (code -> { userId, expiresAt }). */
+const webLinks = new Map();
+const webLinkTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of webLinks) if (entry.expiresAt < now) webLinks.delete(code);
+}, 30_000);
+if (webLinkTimer.unref) webLinkTimer.unref();
+
+const MOJANG_NAME_URL = process.env.NATIVE_MOJANG_NAME_URL || 'https://api.mojang.com/users/profiles/minecraft/';
+const premiumNameCache = new Map(); // lower name -> { premium, at }
+
+// Local test runs only: fixed email codes and no Mojang lookups. Never in production.
+const TEST_MODE = process.env.NATIVE_TEST_MODE === '1' && process.env.NODE_ENV !== 'production';
+const newCode = () => (TEST_MODE ? '123456' : crypto.randomInt(100000, 1000000).toString());
+
 /**
- * Organic, time-aware player counter simulation:
- * - Natural 24-hour diurnal curve (peak around afternoon/evening, trough at late night/morning).
- * - Smooth random-walk drift (+/- 1-2 players every 10-15s) so numbers fluctuate gradually
- *   like genuine human sessions rather than jumping erratically.
- * - Adds actual real-time connected players on top.
+ * True when a real (premium) Minecraft account uses this name. Premium names
+ * are reserved for their owners, so email sign-ups can't take them. Fails
+ * closed: if Mojang can't be reached the caller refuses the name.
  */
-let simulatedOnline = null;
-let lastDriftAt = 0;
-
-// Reference launch epoch for automatic daily growth (October 1, 2026 UTC)
-const LAUNCH_EPOCH = new Date(process.env.NATIVE_LAUNCH_DATE || '2026-10-01T00:00:00Z').getTime();
-
-function getDynamicOnlineCount(realUsers = 0) {
-  if (process.env.NODE_ENV === 'test' || process.env.NATIVE_DATA_DIR) return realUsers;
-  const boostEnabled = (process.env.NATIVE_BOOST_ENABLED ?? process.env.NATIVE_BOOST_ENABLED) === 'true';
-  if (!boostEnabled) return realUsers;
-
-  const now = new Date();
-  const nowMs = now.getTime();
-
-  // Automatic daily growth: increases by ~50 players every 24 hours that pass
-  const daysElapsed = Math.max(0, (nowMs - LAUNCH_EPOCH) / 86_400_000);
-  const dailyGrowthRate = Number(process.env.NATIVE_DAILY_GROWTH) || 50;
-  const growthBonus = Math.floor(daysElapsed * dailyGrowthRate);
-
-  // Baseline range: late night valley to evening peak (+ daily growth bonus)
-  const baseMin = (Number(process.env.NATIVE_BOOST_MIN) || 140) + growthBonus;
-  const baseMax = (Number(process.env.NATIVE_BOOST_MAX) || 420) + growthBonus;
-
-  // Fractional UTC hour of the day (0.00 .. 23.99)
-  const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
-
-  // Diurnal curve: peak at ~18:30 UTC (EU/Asia gaming peak), lowest at ~05:00 UTC
-  const diurnalFactor = (Math.cos(((hour - 18.5) * 2 * Math.PI) / 24) + 1) / 2; // 0.0 to 1.0
-  const targetBase = Math.round(baseMin + (baseMax - baseMin) * diurnalFactor);
-
-  if (simulatedOnline === null) {
-    const initialJitter = Math.floor(Math.random() * 9) - 4;
-    simulatedOnline = Math.max(baseMin, targetBase + initialJitter);
-    lastDriftAt = nowMs;
-  } else {
-    const elapsed = nowMs - lastDriftAt;
-    if (elapsed >= 10_000) {
-      lastDriftAt = nowMs;
-      const difference = targetBase - simulatedOnline;
-
-      const rand = Math.random();
-      if (Math.abs(difference) > 8 && rand < 0.70) {
-        simulatedOnline += (difference > 0 ? (Math.random() < 0.7 ? 2 : 1) : (Math.random() < 0.7 ? -2 : -1));
-      } else if (rand < 0.40) {
-        simulatedOnline += (difference > 0 ? 1 : -1);
-      } else if (rand < 0.75) {
-        simulatedOnline += (Math.random() < 0.5 ? 1 : -1);
-      }
-
-      const floorLimit = Math.floor(baseMin * 0.85);
-      const ceilLimit = Math.ceil(baseMax * 1.15);
-      simulatedOnline = Math.max(floorLimit, Math.min(ceilLimit, simulatedOnline));
-    }
+async function isPremiumName(name) {
+  const key = String(name || '').toLowerCase();
+  if (db.getUserByMinecraftName(key)) return true;
+  if (TEST_MODE) return /^premium_/i.test(key);
+  const cached = premiumNameCache.get(key);
+  if (cached && Date.now() - cached.at < 10 * 60_000) return cached.premium;
+  let response;
+  try {
+    response = await fetch(`${MOJANG_NAME_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(8_000), headers: { Accept: 'application/json' } });
+  } catch {
+    throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
   }
+  let premium;
+  if (response.status === 200) premium = true;
+  else if (response.status === 204 || response.status === 404) premium = false;
+  else throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
+  premiumNameCache.set(key, { premium, at: Date.now() });
+  return premium;
+}
 
-  return simulatedOnline + (Number(realUsers) || 0);
+/** Wardrobe profiles are stored by name: move one along with a rename. */
+function moveProfile(from, to) {
+  const source = profilePath(from);
+  if (!fs.existsSync(source)) return;
+  try {
+    const doc = JSON.parse(fs.readFileSync(source, 'utf8'));
+    doc.username = to;
+    atomicWrite(profilePath(to), JSON.stringify(doc, null, 2));
+    if (profilePath(to) !== source) fs.unlinkSync(source);
+  } catch (error) { console.warn('[Native] profile move failed:', error.message); }
+}
+
+function announceRename(userId, from, to, reason) {
+  try { events.publish([...new Set([userId, ...db.getFriendIds(userId)])], 'friends:changed', { userId, renamed: { from, to } }); } catch {}
+  try { events.publish(userId, 'account:renamed', { from, to, reason }); } catch {}
+}
+
+/**
+ * Makes `name` free for its premium owner: whoever else holds it on Native is
+ * renamed to Name_1234 and emailed. `exceptId` is the owner's own account.
+ */
+async function freeNameFor(name, exceptId) {
+  const holder = db.getUserByUsername(name);
+  if (!holder || holder.id === exceptId) return null;
+  const isFree = (candidate) => !db.getUserByUsername(candidate) && !db.getUserByMinecraftName(candidate);
+  let next = null;
+  for (let attempt = 0; attempt < 40 && !next; attempt += 1) {
+    const candidate = `${String(name).slice(0, 11)}_${crypto.randomInt(1000, 10000)}`;
+    if (isFree(candidate)) next = candidate;
+  }
+  if (!next) throw new Error('Could not free that name.');
+  db.renameUser(holder.id, next);
+  moveProfile(holder.username, next);
+  try { modRoutes.noteRename([{ from: holder.username, to: next }]); } catch {}
+  announceRename(holder.id, holder.username, next, 'premium-owner');
+  if (holder.email) {
+    const text = `Hi ${next},\n\nThe name "${holder.username}" belongs to a premium Minecraft account, and its owner has signed in to Native. Your Native account was renamed to "${next}". Your friends, chats and cloaks are unchanged.\n\nSign in with your email from now on.\n\n— Native`;
+    sendEmail({ to: holder.email, subject: 'Your Native name was changed', text, html: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>') }).catch(() => {});
+  }
+  return { id: holder.id, from: holder.username, to: next };
 }
 
 function usernameOf(value) {
@@ -391,6 +410,7 @@ function nativeAccountPayload(user, token) {
     email: user.email,
     uuid: user.uuid,
     type: 'native',
+    authType: user.auth_type || 'native',
     model: user.model,
     token
   };
@@ -493,13 +513,7 @@ async function handler(req, res) {
     // CustomSkinLoader profile document
     const profileMatch = url.pathname.match(/^\/csl\/([A-Za-z0-9_]{3,16})(?:\.json)?$/);
     if (req.method === 'GET' && profileMatch) {
-      // A connected premium name shows its Native cape (never a Native skin: Mojang's stays).
-      const premium = modRoutes.premiumProfileFor(profileMatch[1]);
-      // A Native account that merely shares a connected premium name never speaks for that player.
-      let premiumOwner = null;
-      try { premiumOwner = db.getUserByMinecraftName(profileMatch[1]); } catch {}
-      const shadowed = premiumOwner && premiumOwner.username.toLowerCase() !== profileMatch[1].toLowerCase();
-      const profile = premium || (shadowed ? null : readProfile(profileMatch[1]));
+      const profile = readProfile(profileMatch[1]);
       if (!profile) return send(res, 404, { error: 'Profile not found.' });
       const etag = `W/"${profile.updatedAt || 'static'}"`;
       if (req.headers['if-none-match'] === etag) return send(res, 304, '', { ETag: etag });
@@ -554,67 +568,25 @@ async function handler(req, res) {
       return fs.createReadStream(target).pipe(res);
     }
 
-    // Wardrobe publication
+    // Wardrobe publication. Only a signed-in Native account can publish, and only
+    // under its own name. Offline launcher accounts never reach this (local only).
+    // Premium and merged accounts keep their real Mojang skin: only the cloak is published.
     if (req.method === 'POST' && url.pathname === '/v1/wardrobe') {
-      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      const nativeToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '');
-      if (token.length < 32 && (!nativeToken || nativeToken.length < 32)) {
-        return send(res, 401, { error: 'Missing wardrobe key.' });
-      }
+      const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const nativeToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '').trim();
+      const sessionUser = db.getUserBySession(nativeToken || bearer);
+      if (!sessionUser) return send(res, 401, { ok: false, error: 'Sign in to your Native account to save your look.' });
+      if (!hit('wardrobe', sessionUser.id, 60, 10 * 60_000)) return tooMany(res, 600);
       const body = await readJson(req);
-      const username = usernameOf(body.username);
+      if (body.username && String(body.username).toLowerCase() !== sessionUser.username.toLowerCase()) {
+        return send(res, 403, { ok: false, error: 'You can only change your own look.' });
+      }
+      const username = sessionUser.username;
       const existing = readProfile(username);
-      const authHash = crypto.createHash('sha256').update(token || nativeToken).digest('hex');
-
-      let authorized = false;
-      let sessionAuthorized = false;
-
-      // 1. Session token check
-      const checkSessionToken = (nativeToken && nativeToken.length >= 32) ? nativeToken : ((token.startsWith('noc_') || token.startsWith('nat_')) ? token : (token.length >= 32 ? token : null));
-      if (checkSessionToken) {
-        try {
-          const sessionUser = db.getUserBySession(checkSessionToken);
-          if (sessionUser && sessionUser.username.toLowerCase() === username.toLowerCase()) {
-            authorized = true;
-            sessionAuthorized = true;
-          }
-        } catch {}
-      }
-
-      // 2. Registered Native names can only be published with that account's session.
-      let registeredUser = null;
-      try { registeredUser = db.getUserByUsername(username); } catch {}
-
-      // 3. Unregistered names: the key that first claimed the profile owns it.
-      // (The old deterministic sha256("noctra-wardrobe-v2:<name>") key was
-      // computable by anyone and is no longer accepted on its own.)
-      if (!authorized && !registeredUser && existing?.authHash) {
-        try {
-          if (crypto.timingSafeEqual(Buffer.from(existing.authHash, 'hex'), Buffer.from(authHash, 'hex'))) {
-            authorized = true;
-          }
-        } catch {}
-      }
-
-      // 4. Unclaimed, unregistered name: first publisher claims it.
-      if (!authorized && !existing && !registeredUser) {
-        authorized = true;
-      }
-
-      if (!authorized) {
-        return send(res, 403, { error: registeredUser ? 'Sign in to this Native account to change its wardrobe.' : 'This wardrobe belongs to another key.' });
-      }
-
-      // Clients replace a legacy (guessable) key with a random one.
-      const rotateKey = String(req.headers['x-native-rotate-key'] || req.headers['x-noctra-rotate-key'] || '');
-      let nextAuthHash = authHash;
-      if (rotateKey.length >= 32 && rotateKey.length <= 256) {
-        nextAuthHash = crypto.createHash('sha256').update(rotateKey).digest('hex');
-      } else if (sessionAuthorized && existing?.authHash) {
-        nextAuthHash = existing.authHash;
-      }
-
-      const skin = body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
+      const premiumSkin = sessionUser.auth_type === 'premium' || sessionUser.auth_type === 'merged';
+      const skin = premiumSkin
+        ? null
+        : body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
       let cape = existing?.cape ?? null;
       let capeRefused = false;
       if (body.cape !== undefined) {
@@ -627,24 +599,19 @@ async function handler(req, res) {
       let capeStore = existing?.capeStore ?? null;
       let animationRefused = false;
       // Older launchers re-send the (static) first frame on every sync. Only a
-      // genuinely different cape, or an explicit capeAnim field, drops the animation.
+      // genuinely different cloak, or an explicit capeAnim field, drops the animation.
       const capeChanged = cape !== (existing?.cape ?? null);
       if (body.capeAnim !== undefined || capeChanged) {
         capeStore = null;
         capeAnim = null;
       }
       if (body.capeAnim) {
-        // Animated cape: `cape` is the first frame, capeAnim.strip the whole strip.
         try {
           const strip = capes.pngFromBase64(body.capeAnim.strip);
           const still = body.cape ? pngBuffer(body.cape) : null;
-          if (!strip || !still) throw new Error('An animated cape needs its frame strip and its first frame.');
-          const described = capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
-          // Animated capes are Native store capes only: the strip must be a store item this
-          // account owns. Anything else keeps its still first frame as a normal cape.
+          if (!strip || !still) throw new Error('An animated cloak needs its frame strip and its first frame.');
+          capes.validateAnimation({ strip, still, frames: body.capeAnim.frames, fps: body.capeAnim.fps });
           const stripHash = crypto.createHash('sha256').update(strip).digest('hex');
-          let sessionUser = null;
-          if (sessionAuthorized) { try { sessionUser = db.getUserByUsername(username); } catch {} }
           const storeId = storeRoutes.authorizeAnimation({ stripHash, user: sessionUser, existing });
           const item = storeId ? storeRoutes.findItem(storeId) : null;
           if (item && item.still === cape) {
@@ -654,11 +621,10 @@ async function handler(req, res) {
             animationRefused = true;
           }
         } catch (error) {
-          return send(res, 400, { ok: false, error: error.message || 'Invalid animated cape.' });
+          return send(res, 400, { ok: false, error: error.message || 'Invalid animated cloak.' });
         }
       }
       if (!cape) { capeAnim = null; capeStore = null; }
-      // The name the player gave this skin in their locker, so every device shows the same one.
       const cleanSkinName = (value) => String(value ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) || null;
       const skinName = !skin ? null
         : body.skinName !== undefined ? cleanSkinName(body.skinName)
@@ -672,13 +638,9 @@ async function handler(req, res) {
         cape,
         ...(capeAnim ? { capeAnim } : {}),
         ...(capeStore ? { capeStore } : {}),
-        // The premium-name cape is chosen separately (store equip) — keep it.
-        ...(existing?.premiumCape ? { premiumCape: existing.premiumCape } : {}),
-        authHash: nextAuthHash,
         updatedAt: new Date().toISOString()
       };
-      saveProfile(profile, req);
-
+      saveProfile(profile, req, sessionUser);
       return send(res, 200, {
         ok: true,
         username,
@@ -686,7 +648,7 @@ async function handler(req, res) {
         skins: profile.skin ? [profile.skin] : [],
         capes: shownCape(profile) ? [profile.cape] : [],
         animated: Boolean(storeRoutes.animationFor(profile)),
-        ...(capeRefused ? { notice: 'Only Native capes can be worn. Pick one from your locker.' } : animationRefused ? { notice: 'Animated capes come from the Native Store. Your cape was saved as a still image.' } : {}),
+        ...(capeRefused ? { notice: 'Only Native cloaks can be worn. Pick one from your locker.' } : animationRefused ? { notice: 'Animated cloaks come from the Native Store. Your cloak was saved as a still image.' } : {}),
         profile: customSkinProfile(profile, originOf(req))
       });
     }
@@ -708,8 +670,10 @@ async function handler(req, res) {
         if (db.getUserByUsername(rawUsername)) {
           return send(res, 400, { ok: false, error: 'This Minecraft username is already registered.' });
         }
-        if (db.getUserByMinecraftName(rawUsername)) {
-          return send(res, 400, { ok: false, error: 'This name belongs to a premium Minecraft account connected to Native.' });
+        try {
+          if (await isPremiumName(rawUsername)) return send(res, 400, { ok: false, premiumName: true, error: 'This name belongs to a premium Minecraft account. Sign in with Microsoft to use it.' });
+        } catch (err) {
+          return send(res, err.status || 503, { ok: false, error: err.message });
         }
       }
       if (db.getUserByEmail(email)) {
@@ -720,7 +684,7 @@ async function handler(req, res) {
       if (cooldown > 0) return tooMany(res, cooldown / 1000, 'A code was just sent. Please wait a moment before requesting another.');
       if (!hit('code-email', email, 5, 60 * 60_000)) return tooMany(res, 3600, 'Too many codes requested for this email. Try again later.');
 
-      const code = crypto.randomInt(100000, 1000000).toString();
+      const code = newCode();
       db.saveVerificationCode(email, code);
 
       try {
@@ -756,8 +720,10 @@ async function handler(req, res) {
       if (db.getUserByUsername(username)) {
         return send(res, 400, { ok: false, error: 'This Minecraft username is already taken.' });
       }
-      if (db.getUserByMinecraftName(username)) {
-        return send(res, 400, { ok: false, error: 'This name belongs to a premium Minecraft account connected to Native.' });
+      try {
+        if (await isPremiumName(username)) return send(res, 400, { ok: false, premiumName: true, error: 'This name belongs to a premium Minecraft account. Sign in with Microsoft to use it.' });
+      } catch (err) {
+        return send(res, err.status || 503, { ok: false, error: err.message });
       }
 
       const user = db.createUser({ email, username, password, model });
@@ -794,7 +760,10 @@ async function handler(req, res) {
       }
 
       const user = db.getUserByLogin(login);
-      if (!user || !(await db.verifyPasswordAsync(password, user.password_hash, user.salt))) {
+      if (user && user.auth_type === 'premium' && !user.password_hash) {
+        return send(res, 401, { ok: false, premium: true, error: 'This is a Microsoft account. Sign in with Microsoft instead.' });
+      }
+      if (!user || !user.password_hash || !(await db.verifyPasswordAsync(password, user.password_hash, user.salt))) {
         hit('login-fail', loginKey, 10, 15 * 60_000);
         return send(res, 401, { ok: false, error: 'Invalid username/email or password.' });
       }
@@ -815,8 +784,9 @@ async function handler(req, res) {
       });
     }
 
-    // ── Premium sign-in: a Minecraft session for a linked premium account
-    //    signs straight into its Native account (no password on this device).
+    // ── Premium sign-in ───────────────────────────────────────────────────
+    // A real Minecraft account signs straight in. The first time we see its UUID
+    // the account is created automatically (Minecraft name + UUID, no email).
     if (req.method === 'POST' && url.pathname === '/v1/auth/minecraft') {
       if (!hit('mc-login-ip', ip, 30, 10 * 60_000)) {
         return tooMany(res, 600, 'Too many sign-in attempts. Please wait a few minutes and try again.');
@@ -828,24 +798,71 @@ async function handler(req, res) {
       } catch (error) {
         return send(res, error.status || 401, { ok: false, error: error.message });
       }
-      const user = db.getUserByMinecraftUuid(profile.uuid);
-      if (!user) {
-        return send(res, 404, {
-          ok: false,
-          code: 'not_linked',
-          error: 'This premium account is not connected to a Native account yet.',
-          profile
-        });
+      let user = db.getUserByMinecraftUuid(profile.uuid);
+      let created = false;
+      try {
+        if (!user) {
+          await freeNameFor(profile.name, null);
+          user = db.createPremiumUser(profile);
+          created = true;
+        } else if (user.username !== profile.name) {
+          // Renamed on minecraft.net: follow it (whoever else holds the new name moves aside).
+          const oldName = user.username;
+          if (oldName.toLowerCase() !== profile.name.toLowerCase()) await freeNameFor(profile.name, user.id);
+          db.renameUser(user.id, profile.name);
+          moveProfile(oldName, profile.name);
+          try { modRoutes.noteRename([{ from: oldName, to: profile.name }]); } catch {}
+          announceRename(user.id, oldName, profile.name, 'minecraft');
+          user = db.getUserById(user.id);
+        }
+      } catch (error) {
+        console.error('[Native Auth] premium sign-in failed:', error);
+        return send(res, 409, { ok: false, error: 'Could not set up your Native account. Try again in a moment.' });
       }
       db.refreshMinecraftName(user.id, profile.name);
       try { modRoutes.noteProfile(user.username); } catch {}
-      const session = db.createSession(user.id);
+      const session = db.createSession(user.id, 'premium');
       return send(res, 200, {
         ok: true,
+        created,
         token: session.token,
+        expiresAt: session.expiresAt,
         account: nativeAccountPayload(user, session.token),
         profile: { uuid: profile.uuid, name: profile.name }
       });
+    }
+
+    // Ends this session on the server (signing out of the launcher or the website).
+    if (req.method === 'POST' && url.pathname === '/v1/auth/logout') {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      if (token) { try { db.deleteSession(token); } catch {} }
+      return send(res, 200, { ok: true });
+    }
+
+    // One-time link that signs a launcher user into the website (60 s, single use).
+    if (req.method === 'POST' && url.pathname === '/v1/auth/web-link') {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const authUser = db.getUserBySession(token);
+      if (!authUser) return send(res, 401, { ok: false, error: 'Native account session required.' });
+      if (!hit('web-link', authUser.id, 20, 10 * 60_000)) return tooMany(res, 600);
+      const code = crypto.randomBytes(32).toString('base64url');
+      webLinks.set(code, { userId: authUser.id, expiresAt: Date.now() + 60_000 });
+      return send(res, 200, { ok: true, code, expiresAt: Date.now() + 60_000 });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/v1/auth/web-link/redeem') {
+      if (!hit('web-link-redeem', ip, 30, 10 * 60_000)) return tooMany(res, 600);
+      const body = await readJson(req);
+      const code = String(body.code || '');
+      const entry = webLinks.get(code);
+      webLinks.delete(code);
+      if (!entry || entry.expiresAt < Date.now()) {
+        return send(res, 400, { ok: false, error: 'This sign-in link has expired. Open the website from the launcher again.' });
+      }
+      const user = db.getUserById(entry.userId);
+      if (!user) return send(res, 400, { ok: false, error: 'This sign-in link has expired.' });
+      const session = db.createSession(user.id, 'web');
+      return send(res, 200, { ok: true, token: session.token, account: nativeAccountPayload(user, session.token) });
     }
 
     if (req.method === 'POST' && url.pathname === '/v1/auth/resend-code') {
@@ -865,7 +882,7 @@ async function handler(req, res) {
       if (cooldown > 0) return tooMany(res, cooldown / 1000, 'A code was just sent. Please wait a moment before requesting another.');
       if (!hit('code-email', email, 5, 60 * 60_000)) return tooMany(res, 3600, 'Too many codes requested for this email. Try again later.');
 
-      const code = crypto.randomInt(100000, 1000000).toString();
+      const code = newCode();
       db.saveVerificationCode(email, code);
 
       try {
@@ -894,7 +911,7 @@ async function handler(req, res) {
       const user = db.getUserByEmail(email);
       if (!user || db.passwordResetCooldown(email) > 0) return send(res, 200, generic);
 
-      const code = crypto.randomInt(100000, 1000000).toString();
+      const code = newCode();
       db.savePasswordReset(email, code);
       try {
         await sendPasswordResetEmail(email, code, user.username);
@@ -947,137 +964,71 @@ async function handler(req, res) {
       });
     }
 
-    // ── Premium Minecraft link (Native session + Microsoft proof) ────────
-    // The verified owner of a connected premium account takes its name as their
-    // Native name. Whoever registered that name on Native first is renamed.
-    if (req.method === 'POST' && url.pathname === '/v1/account/minecraft/claim-name') {
+    // ── Account: Minecraft status and merging ─────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/v1/account/minecraft') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
       const authUser = db.getUserBySession(token);
       if (!authUser) return send(res, 401, { ok: false, error: 'Native account session required.' });
-      if (!hit('claim-name', authUser.id, 5, 60 * 60_000)) return tooMany(res, 3600);
-      const link = db.getMinecraftLink(authUser.id);
-      if (!link?.uuid) return send(res, 409, { ok: false, error: 'Connect your premium Minecraft account first.' });
-      const body = await readJson(req);
-      let minecraftProfile;
-      try {
-        minecraftProfile = await verifyMinecraftToken(body.minecraftAccessToken);
-      } catch (error) {
-        return send(res, error.status || 401, { ok: false, error: error.message });
-      }
-      const clean = (value) => String(value || '').replace(/-/g, '').toLowerCase();
-      if (clean(minecraftProfile.uuid) !== clean(link.uuid)) {
-        return send(res, 403, { ok: false, error: 'That Microsoft account is not the one connected to this Native account.' });
-      }
-      const name = minecraftProfile.name;
-      try { usernameOf(name); } catch { return send(res, 400, { ok: false, error: 'That Minecraft name can’t be used as a Native name.' }); }
-      db.refreshMinecraftName(authUser.id, name);
-      if (authUser.username.toLowerCase() === name.toLowerCase()) {
-        if (authUser.username !== name) db.renameUser(authUser.id, name);
-        const current = db.getUserById(authUser.id);
-        return send(res, 200, { ok: true, account: nativeAccountPayload(current, token), renamed: null }, { 'Cache-Control': 'no-store' });
-      }
-      const holder = db.getUserByUsername(name);
-      const isFree = (candidate) => !db.getUserByUsername(candidate) && !db.getUserByMinecraftName(candidate);
-      let moved = null;
-      if (holder && holder.id !== authUser.id) {
-        let next = null;
-        for (let attempt = 0; attempt < 40 && !next; attempt += 1) {
-          const candidate = `${name.slice(0, 11)}_${crypto.randomInt(1000, 10000)}`;
-          if (isFree(candidate)) next = candidate;
-        }
-        if (!next) return send(res, 500, { ok: false, error: 'Could not free that name. Try again.' });
-        moved = { id: holder.id, email: holder.email, from: holder.username, to: next };
-      }
-      const oldName = authUser.username;
-      try {
-        db.transaction(() => {
-          if (moved) db.renameUser(moved.id, moved.to);
-          db.renameUser(authUser.id, name);
-        });
-      } catch (error) {
-        return send(res, 409, { ok: false, error: 'Could not change the name. Try again.' });
-      }
-      // Wardrobe profiles are stored by name: move them along.
-      const moveProfile = (from, to) => {
-        const source = profilePath(from);
-        if (!fs.existsSync(source)) return;
-        try {
-          const doc = JSON.parse(fs.readFileSync(source, 'utf8'));
-          doc.username = to;
-          atomicWrite(profilePath(to), JSON.stringify(doc, null, 2));
-          if (profilePath(to) !== source) fs.unlinkSync(source);
-        } catch (error) { console.warn('[claim-name] profile move failed:', error.message); }
-      };
-      if (moved) moveProfile(moved.from, moved.to);
-      moveProfile(oldName, name);
-      try {
-        modRoutes.noteRename([...(moved ? [{ from: moved.from, to: moved.to }] : []), { from: oldName, to: name }]);
-      } catch (error) { console.warn('[claim-name] directory update failed:', error.message); }
-      const changed = (userId, from, to, reason) => {
-        try { events.publish([...new Set([userId, ...db.getFriendIds(userId)])], 'friends:changed', { userId, renamed: { from, to } }); } catch {}
-        try { events.publish(userId, 'account:renamed', { from, to, reason }); } catch {}
-      };
-      changed(authUser.id, oldName, name, 'claimed');
-      if (moved) {
-        changed(moved.id, moved.from, moved.to, 'premium-owner');
-        if (moved.email) {
-          const text = `Hi ${moved.to},\n\nThe name "${moved.from}" belongs to a premium Minecraft account, and its owner has connected it to Native. Your Native account was renamed to "${moved.to}". Your friends, chats, skins and capes are unchanged.\n\nSign in with your email or your new name. You can't use "${moved.from}" on Native any more.\n\n— Native`;
-          sendEmail({ to: moved.email, subject: 'Your Native name was changed', text, html: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>') }).catch(() => {});
-        }
-      }
-      const current = db.getUserById(authUser.id);
       return send(res, 200, {
         ok: true,
-        account: nativeAccountPayload(current, token),
-        renamed: moved ? { from: moved.from, to: moved.to } : null
+        profile: db.getMinecraftLink(authUser.id),
+        account: { id: authUser.id, name: authUser.username, type: authUser.auth_type || 'native' }
       }, { 'Cache-Control': 'no-store' });
     }
 
-    if (url.pathname === '/v1/account/minecraft') {
+    /**
+     * Merge a premium account (the caller's premium session) with a Native email
+     * account (its login + password). The email account survives with the
+     * Minecraft name and UUID, and gets everything the premium account owned.
+     * One-way. Every older sign-in of both accounts ends.
+     */
+    if (req.method === 'POST' && url.pathname === '/v1/account/merge') {
       const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-      const authUser = db.getUserBySession(token);
-      if (!authUser) {
-        return send(res, 401, { ok: false, error: 'Native account session required.' });
+      const premiumUser = db.getUserBySession(token);
+      if (!premiumUser) return send(res, 401, { ok: false, error: 'Sign in with Microsoft first.' });
+      if (premiumUser.auth_type !== 'premium') {
+        return send(res, 409, { ok: false, error: premiumUser.auth_type === 'merged' ? 'This account is already merged.' : 'Merging starts from a Microsoft account.' });
       }
-
-      if (req.method === 'GET') {
-        const profile = db.getMinecraftLink(authUser.id);
-        // The owner can take the premium name as their Native name (see claim-name).
-        let nameClaim = null;
-        if (profile?.name && profile.name.toLowerCase() !== authUser.username.toLowerCase()) {
-          const holder = db.getUserByUsername(profile.name);
-          nameClaim = { name: profile.name, taken: Boolean(holder && holder.id !== authUser.id) };
-        }
-        return send(res, 200, { ok: true, profile, nameClaim, account: { id: authUser.id, name: authUser.username } }, { 'Cache-Control': 'no-store' });
+      if (!hit('merge', premiumUser.id, 10, 60 * 60_000)) return tooMany(res, 3600);
+      const body = await readJson(req);
+      const login = String(body.login || '').trim();
+      const password = String(body.password || '');
+      const loginKey = login.toLowerCase();
+      if (!login || !password) return send(res, 400, { ok: false, error: 'Enter your Native email or username and password.' });
+      if (blocked('login-fail', loginKey, 10, 15 * 60_000)) return tooMany(res, 900, 'Too many sign-in attempts. Please wait 15 minutes and try again.');
+      const nativeUser = db.getUserByLogin(login);
+      if (!nativeUser || !nativeUser.password_hash || !(await db.verifyPasswordAsync(password, nativeUser.password_hash, nativeUser.salt))) {
+        hit('login-fail', loginKey, 10, 15 * 60_000);
+        return send(res, 401, { ok: false, error: 'Invalid username/email or password.' });
       }
-
-      if (req.method === 'DELETE') {
-        db.unlinkMinecraftAccount(authUser.id);
-        try { modRoutes.noteProfile(authUser.username); } catch {}
-        return send(res, 200, { ok: true, profile: null }, { 'Cache-Control': 'no-store' });
+      if (nativeUser.auth_type !== 'native') return send(res, 409, { ok: false, error: 'That Native account is already merged with a Microsoft account.' });
+      let result;
+      try {
+        result = db.mergePremiumInto(premiumUser.id, nativeUser.id);
+      } catch (error) {
+        console.error('[Native Merge]', error);
+        return send(res, 409, { ok: false, error: error.message || 'Could not merge the accounts.' });
       }
-
-      if (req.method === 'POST') {
-        const body = await readJson(req);
-        let minecraftProfile;
-        try {
-          minecraftProfile = await verifyMinecraftToken(body.minecraftAccessToken);
-        } catch (error) {
-          return send(res, error.status || 401, { ok: false, error: error.message });
-        }
-        try {
-          const profile = db.linkMinecraftAccount(authUser.id, {
-            uuid: minecraftProfile.uuid,
-            name: minecraftProfile.name
-          });
-          try { modRoutes.noteProfile(authUser.username); } catch {}
-          return send(res, 200, { ok: true, profile }, { 'Cache-Control': 'no-store' });
-        } catch (error) {
-          return send(res, 409, { ok: false, error: error.message });
-        }
-      }
-
-      return send(res, 405, { ok: false, error: 'Method not allowed.' });
+      const merged = result.user;
+      // Wardrobe: keep the email account's cloak, drop its Native skin (the Mojang skin is used).
+      const nativeProfile = readProfile(result.from.native);
+      const premiumProfile = readProfile(result.from.premium);
+      const base = nativeProfile || premiumProfile || { username: merged.username, model: 'default', skin: null, cape: null };
+      try { fs.rmSync(profilePath(result.from.native), { force: true }); } catch {}
+      try { fs.rmSync(profilePath(result.from.premium), { force: true }); } catch {}
+      saveProfile({
+        ...(base.cape ? base : (premiumProfile || base)),
+        username: merged.username,
+        skin: null,
+        skinName: undefined,
+        authHash: null,
+        updatedAt: new Date().toISOString()
+      }, req, merged);
+      try { modRoutes.noteRename([{ from: result.from.native, to: merged.username }]); } catch {}
+      try { billing.syncPlus?.(merged.id); } catch {}
+      events.publish([...new Set([merged.id, ...db.getFriendIds(merged.id)])], 'friends:changed', { userId: merged.id, renamed: { from: result.from.native, to: merged.username } });
+      const session = db.createSession(merged.id, 'premium');
+      return send(res, 200, { ok: true, token: session.token, account: nativeAccountPayload(merged, session.token) }, { 'Cache-Control': 'no-store' });
     }
 
     // ── Admin APIs (session + database role required) ─────────────────────
@@ -1167,10 +1118,9 @@ async function handler(req, res) {
       const headerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
       if (req.method === 'GET' && url.pathname === '/v1/social/stats') {
         const realCount = events.connectedUserCount();
-        const displayCount = getDynamicOnlineCount(realCount);
         return send(res, 200, {
           ok: true,
-          onlineUsers: displayCount,
+          onlineUsers: realCount,
           realOnlineUsers: realCount,
           updatedAt: Date.now()
         }, { 'Cache-Control': 'no-store' });

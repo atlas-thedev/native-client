@@ -112,6 +112,7 @@ export default function AppNavbar({
   isNative = false,
   isPlus = false,
   canUseLocker = isNative,
+  isOffline = false,
   notifications = 0,
   isMaximized,
   onMinimize,
@@ -253,7 +254,8 @@ export default function AppNavbar({
         <span className="rail-divider" aria-hidden="true" />
 
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
-          {PERSONAL_NAV_ITEMS.map(({ id, labelKey, icon }) => {
+          {/* Offline accounts have no Native account: no Relay or Store, only a local Locker. */}
+          {PERSONAL_NAV_ITEMS.filter(({ id }) => !isOffline || id === 'skins').map(({ id, labelKey, icon }) => {
             const isRestricted = id === 'skins' ? !canUseLocker : id === 'relay' && !isNative;
             return (
               <RailButton

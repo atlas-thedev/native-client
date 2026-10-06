@@ -68,7 +68,7 @@ function listUsers(db, { query = '', page = 1, pageSize = 50 } = {}) {
 
   const rows = db.prepare(`
     SELECT
-      u.id, u.email, u.username, u.uuid, u.model, u.badges, u.is_admin, u.created_at,
+      u.id, u.email, u.username, u.uuid, u.model, u.badges, u.is_admin, u.created_at, u.auth_type,
       p.status, p.last_seen,
       (SELECT COUNT(*) FROM friends f WHERE f.user_id = u.id) AS friend_count,
       (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id OR m.receiver_id = u.id) AS message_count,
@@ -89,6 +89,7 @@ function listUsers(db, { query = '', page = 1, pageSize = 50 } = {}) {
       model: row.model || 'classic',
       badges: parseBadges(row.badges),
       isAdmin: Boolean(row.is_admin),
+      authType: row.auth_type || 'native',
       createdAt: row.created_at,
       status: row.last_seen >= Date.now() - 120_000 && row.status !== 'offline' ? (row.status || 'online') : 'offline',
       lastSeen: row.last_seen || null,

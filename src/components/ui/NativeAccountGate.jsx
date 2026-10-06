@@ -9,7 +9,7 @@ const SUBTITLE = {
 };
 
 const PREMIUM_SUBTITLE = {
-  relay: 'Connect your Native account to this premium account once. After that, Relay signs in on its own whenever you play with it.'
+  relay: 'Your Microsoft account is your Native account, but we couldn’t sign it in just now. Check your connection and try again.'
 };
 
 export default function NativeAccountGate({ feature = 'locker', premium = false, onConnectPremium, onOpenAccountSwitcher, onBackHome }) {
@@ -18,12 +18,12 @@ export default function NativeAccountGate({ feature = 'locker', premium = false,
     <div className="native-account-gate" role="region" aria-label="Native account required">
       <div className="gate-content">
         <img src={mascotImg} alt="" className="gate-mascot" draggable="false" width={182} height={193} />
-        <h2 className="gate-title">{canConnect ? 'Connect your Native account' : 'Native account required'}</h2>
+        <h2 className="gate-title">{canConnect ? 'Signing in to Native' : 'Native account required'}</h2>
         <p className="gate-subtitle">{canConnect ? PREMIUM_SUBTITLE[feature] : (SUBTITLE[feature] || SUBTITLE.profile)}</p>
         <div className="gate-actions">
           {canConnect ? (
             <button type="button" className="gate-btn-signin" onClick={onConnectPremium}>
-              Connect Native
+              Try again
             </button>
           ) : (
             <button type="button" className="gate-btn-signin" onClick={onOpenAccountSwitcher}>

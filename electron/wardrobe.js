@@ -701,6 +701,23 @@ function warmTextureCache(account) {
   return textureCache.dir();
 }
 
+/**
+ * An offline account's worn look, for the Native mod to show on this PC only
+ * (never published: other players can't see offline skins). Textures are
+ * written into the shared cache; returns their hashes, or null.
+ */
+function localLook(account) {
+  if (!isLocalOnlyAccount(account) || !account?.name) return null;
+  try {
+    const { metadata, skin, cape } = readActiveBuffers(account);
+    const skinHash = skin ? textureCache.write(skin) : null;
+    const capeHash = cape ? textureCache.write(cape) : null;
+    if (!skinHash && !capeHash) return null;
+    const skinItem = activeItem(metadata, 'skin');
+    return { name: String(account.name), skin: skinHash, cape: capeHash, slim: (skinItem?.model || metadata.model) === 'slim' };
+  } catch { return null; }
+}
+
 /* ── cape store (website + launcher) ─────────────────────────── */
 
 let catalogCache = { at: 0, data: null };
@@ -751,23 +768,23 @@ async function fetchStoreStrip(itemId) {
   return value;
 }
 
-/** Equip (or, with itemId null, remove) a store cape on the signed-in Native account, then mirror it locally. */
-/** Wear a Native Store cape on the connected premium account's own name (or take it off). */
+/** Wear a Native Store cloak on a premium account (or take it off). Its Mojang skin stays. */
 async function equipPremiumStoreItem(account, itemId) {
   const native = resolveBillingAccount(account);
   requireStoreAccount(native);
   const response = await fetch(`${apiRoot()}/v1/store/equip`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...storeHeaders(native) },
-    body: JSON.stringify({ itemId: itemId || null, target: 'premium' }),
+    body: JSON.stringify({ itemId: itemId || null }),
     signal: AbortSignal.timeout(15_000)
   });
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t equip that (HTTP ${response.status}).`);
-  return { premiumEquipped: body.premiumEquipped || null, owned: Array.isArray(body.owned) ? body.owned : null };
+  return { premiumEquipped: body.equipped || null, equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : null };
 }
 
+/** Equip (or, with itemId null, remove) a store cloak on the signed-in Native account, then mirror it locally. */
 async function equipStoreItem(account, itemId) {
   if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
     throw new Error('Sign in with a Native account to use store items.');
@@ -1799,7 +1816,7 @@ function init(dependencies, ipcMain) {
     try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/store/redeem', { method: 'POST', body: { code: String(code || '') } })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:equip', async (_event, { account, itemId, target }) => {
-    if (target === 'premium') {
+    if (target === 'premium' || isMicrosoftAccount(account)) {
       try { return { ok: true, ...(await equipPremiumStoreItem(account, itemId)) }; } catch (error) { return { ok: false, error: error.message }; }
     }
     try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
@@ -1815,6 +1832,7 @@ function init(dependencies, ipcMain) {
 module.exports = {
   init,
   warmTextureCache,
+  localLook,
   publicState,
   pngInfo,
   pngInfoBuffer,

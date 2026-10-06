@@ -101,7 +101,9 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   const server = await listen(0, '127.0.0.1');
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
-  const key = crypto.randomBytes(32).toString('hex');
+  const authDb = require('../server/db');
+  const owner = authDb.createUser({ email: 'notch@example.com', username: 'Notch', password: 'password123' });
+  const key = authDb.createSession(owner.id).token;
   const skin = makePng(0x11);
   const cape = VANILLA_PNG;
 
@@ -148,10 +150,17 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
   });
   assert.match(spoofed.skins.slim, /^https:\/\/api\.nativelaunch\.xyz\/csl\/textures\//);
 
-  // A different key must not hijack the profile.
-  const conflict = await fetch(`${base}/v1/wardrobe`, {
+  // Without a session nobody can publish; another account can't touch this name.
+  const anonymous = await fetch(`${base}/v1/wardrobe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${crypto.randomBytes(32).toString('hex')}` },
+    body: JSON.stringify({ username: 'Notch', skin: skin.toString('base64') })
+  });
+  assert.equal(anonymous.status, 401);
+  const other = authDb.createUser({ email: 'jeb@example.com', username: 'Jeb_', password: 'password123' });
+  const conflict = await fetch(`${base}/v1/wardrobe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authDb.createSession(other.id).token}` },
     body: JSON.stringify({ username: 'Notch', skin: skin.toString('base64') })
   });
   assert.equal(conflict.status, 403);
@@ -183,30 +192,31 @@ test('multi-device sync succeeds with a Native session token', async (t) => {
   assert.equal((await upload(sessionDevice2.token, skinB)).status, 200);
 
   // A registered name can't be changed without that account's session.
-  assert.equal((await upload(null, skinA)).status, 403);
+  assert.equal((await upload(null, skinA)).status, 401);
 
   const profile = await (await fetch(`${base}/csl/SteveTest.json`)).json();
   const served = Buffer.from(await (await fetch(profile.skins.default)).arrayBuffer());
   assert.ok(served.equals(skinB));
 });
 
-test('the old guessable wardrobe key cannot take over an offline profile', async (t) => {
+test('offline names are never published and premium accounts publish only their cloak', async (t) => {
+  const authDb = require('../server/db');
   const server = await listen(0, '127.0.0.1');
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
-  const owner = crypto.randomBytes(24).toString('hex');
-  const guessable = crypto.createHash('sha256').update('noctra-wardrobe-v2:alexoffline').digest('hex').slice(0, 48);
-  const post = (key, extra = {}) => fetch(`${base}/v1/wardrobe`, {
+  const post = (key, body) => fetch(`${base}/v1/wardrobe`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...extra },
-    body: JSON.stringify({ username: 'AlexOffline', skin: makePng(0x55).toString('base64') })
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body)
   });
-  assert.equal((await post(owner)).status, 200, 'first publisher claims the name');
-  assert.equal((await post(guessable)).status, 403, 'deterministic key is not accepted');
+  // An offline player (no Native session) can't claim a name any more.
+  assert.equal((await post(crypto.randomBytes(24).toString('hex'), { username: 'AlexOffline', skin: makePng(0x55).toString('base64') })).status, 401);
+  assert.equal((await fetch(`${base}/csl/AlexOffline.json`)).status, 404);
 
-  // Rotating a key: the old key authorises, the new key owns the profile afterwards.
-  const rotated = crypto.randomBytes(24).toString('hex');
-  assert.equal((await post(owner, { 'X-Native-Rotate-Key': rotated })).status, 200);
-  assert.equal((await post(owner)).status, 403);
-  assert.equal((await post(rotated)).status, 200);
+  const premium = authDb.createPremiumUser({ uuid: '853c80ef3c3749fdaa49938b674adae6', name: 'jeb' });
+  const token = authDb.createSession(premium.id, 'premium').token;
+  assert.equal((await post(token, { skin: makePng(0x66).toString('base64'), cape: VANILLA_PNG.toString('base64') })).status, 200);
+  const profile = await (await fetch(`${base}/csl/jeb.json`)).json();
+  assert.deepEqual(profile.skins, {}, 'the Mojang skin stays');
+  assert.match(profile.capes.default, /\/csl\/textures\/[a-f0-9]{64}$/);
 });
