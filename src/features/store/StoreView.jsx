@@ -158,7 +158,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
-        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cloak is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
+        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cloak and cosmetic is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
         window.dispatchEvent(new Event('native:store-changed'));
         load(true);
         setPending(null);
@@ -678,10 +678,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <strong>{plus?.active ? 'You’re a Native+ member' : 'Native+'}</strong>
                 <span>
                   {plus?.active && plus.gifted
-                    ? `Given to you by the Native team${plus.endsAt ? ` until ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}. Every paid cloak is yours to wear.`
+                    ? `Given to you by the Native team${plus.endsAt ? ` until ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}. Every paid cloak and cosmetic is yours to wear.`
                     : plus?.active
-                    ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid cloaks go back when it ends.` : `Every paid cloak is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
-                    : 'Every paid cloak while you’re a member, plus the Native+ badge. Cancel any time.'}
+                    ? (plus.endsAt ? `Ends ${new Date(plus.endsAt).toLocaleDateString([], { dateStyle: 'medium' })}. Paid cloaks and cosmetics go back when it ends.` : `Every paid cloak is yours to wear${plus.renewsAt ? ` · renews ${new Date(plus.renewsAt).toLocaleDateString([], { dateStyle: 'medium' })}` : ''}.`)
+                    : 'Every paid cloak and cosmetic while you’re a member, plus the Native+ badge. Cancel any time.'}
                 </span>
               </div>
               <div className="store-plus-actions">
