@@ -140,7 +140,7 @@ export default function SettingsView({
   const [updates, setUpdates] = useState({
     checkOnStartup: true,
     backgroundChecks: true,
-    autoDownload: false
+    autoDownload: true
   });
 
   const buildVersion = window.native?.version || packageInfo.version || '3.9.110';
@@ -164,7 +164,7 @@ export default function SettingsView({
           setUpdates({
             checkOnStartup: u.checkOnStartup !== false,
             backgroundChecks: u.backgroundChecks !== false,
-            autoDownload: u.autoDownload === true
+            autoDownload: u.autoDownload !== false
           });
         }
       } catch {

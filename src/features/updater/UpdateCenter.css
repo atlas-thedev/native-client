@@ -258,3 +258,42 @@
   .uc-status-card .uc-status-orbit,
   .uc-spin { animation: none !important; }
 }
+
+/* parts: one segment per downloaded part */
+.uc-parts { display: flex; gap: 3px; height: 10px; }
+.uc-part { flex: 1; min-width: 2px; border-radius: 3px; background: var(--page-sunken); border: 1px solid var(--hairline-strong); transition: background 0.3s var(--ease-out), border-color 0.3s var(--ease-out); }
+.uc-part.is-done { background: var(--accent-text); border-color: var(--accent-text); }
+.uc-part.is-pending { animation: uc-part-wait 1.6s ease-in-out infinite; }
+.uc-part.is-pending:nth-child(3n+2) { animation-delay: 0.25s; }
+.uc-part.is-pending:nth-child(3n) { animation-delay: 0.5s; }
+@keyframes uc-part-wait { 50% { background: var(--ghost-overlay-hover); } }
+.uc-progress-fill.is-paused { opacity: 0.55; }
+.uc-btn svg { margin-right: 6px; }
+
+/* "update ready" toast */
+.uc-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(440px, calc(100vw - 40px));
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--radius-xl);
+  background: var(--page-elevated);
+  border: 1px solid var(--component-border-hover);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-sans);
+  animation: uc-toast-in 0.32s var(--ease-out) both;
+}
+.uc-toast-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-lg); background: var(--accent-text); color: var(--page); }
+.uc-toast-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.uc-toast-text strong { font-size: 13.5px; color: var(--fg-primary-hover); }
+.uc-toast-text span { font-size: 12px; color: var(--fg-secondary); }
+.uc-toast-btn { height: 32px; padding: 0 14px; }
+.uc-toast-close { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--fg-muted); cursor: pointer; }
+.uc-toast-close:hover { background: var(--ghost-overlay-hover); color: var(--fg-primary-hover); }
+@keyframes uc-toast-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .uc-toast, .uc-part.is-pending { animation: none !important; } }

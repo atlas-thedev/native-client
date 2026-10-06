@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Shell from './features/shell/Shell.jsx';
-import UpdateCenter from './features/updater/UpdateCenter.jsx';
+import UpdateCenter, { UpdateToast } from './features/updater/UpdateCenter.jsx';
 import useUpdater from './features/updater/useUpdater.js';
 import useNetwork from './features/network/useNetwork.js';
 import OnboardingFlow from './features/onboarding/OnboardingFlow.jsx';
@@ -21,6 +21,7 @@ export default function App() {
   const [activeId, setActiveId] = useState(null);
   const [startup, setStartup] = useState({ ready: false, onboarding: false, settings: null });
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [toastVersion, setToastVersion] = useState(null);
   const [wardrobe, setWardrobe] = useState(null);
   const autoShownVersion = useRef(null);
   const updater = useUpdater();
@@ -193,12 +194,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Updates run in the background: nothing pops up while they download.
+    // Once one is ready, a small toast offers a restart (once per version).
     const { type, version } = updater.status;
-    if (type === 'available' && version && autoShownVersion.current !== version) {
+    if (type === 'downloaded' && version && autoShownVersion.current !== version) {
       autoShownVersion.current = version;
-      setUpdateOpen(true);
+      setToastVersion(version);
     }
-    if (type === 'downloaded') setUpdateOpen(true);
   }, [updater.status]);
 
   const refreshAccounts = async () => {
@@ -368,9 +370,17 @@ export default function App() {
         status={updater.status}
         onCheck={updater.check}
         onDownload={updater.download}
-        onCancel={updater.cancel}
+        onPause={updater.pause}
         onInstall={updater.install}
       />
+      {toastVersion && toastVersion === updater.status.version && !updateOpen && (
+        <UpdateToast
+          status={updater.status}
+          onInstall={updater.install}
+          onOpen={() => { setToastVersion(null); setUpdateOpen(true); }}
+          onDismiss={() => setToastVersion(null)}
+        />
+      )}
       <Shell
         isMaximized={isMaximized}
         account={account}

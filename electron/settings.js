@@ -38,7 +38,8 @@ const DEFAULTS = {
   updates: {
     checkOnStartup: true,
     backgroundChecks: true,
-    autoDownload: false
+    autoDownload: true,
+    installOnQuit: true
   }
 };
 
@@ -76,6 +77,11 @@ function load() {
     cache = deepMerge(DEFAULTS, saved);
     if (!cache.appearance || cache.appearance.theme !== 'black') {
       cache.appearance = { ...(cache.appearance || {}), theme: 'black' };
+      shouldSave = true;
+    }
+    // 4.2: updates download in the background by default (the old default was off).
+    if (cache.updates && !cache.updates.backgroundDefaults) {
+      cache.updates = { ...cache.updates, autoDownload: true, installOnQuit: true, backgroundDefaults: true };
       shouldSave = true;
     }
     if (shouldSave && deps?.app) {

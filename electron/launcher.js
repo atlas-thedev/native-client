@@ -983,6 +983,7 @@ function init(dependencies, ipcMain) {
 
 module.exports = {
   init,
+  isGameRunning: () => Boolean(activeChild),
   // Exported for focused launch-pipeline regression tests.
   _internals: {
     classifyExit,

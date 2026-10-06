@@ -185,7 +185,7 @@ javaMod.init({ app, getWin: () => win }, ipcMain);
 loadersMod.init({ app, getWin: () => win }, ipcMain);
 modUpdatesMod.init({ app, getWin: () => win }, ipcMain);
 modpacksMod.init({ app, getWin: () => win }, ipcMain);
-updaterMod.init({ app, getWin: () => win, getSettings: () => settingsMod.get() }, ipcMain);
+updaterMod.init({ app, getWin: () => win, getSettings: () => settingsMod.get(), isGameRunning: () => gameLauncher.isGameRunning?.() === true }, ipcMain);
 instanceMod.init({ app }, ipcMain);
 newsMod.init({ app }, ipcMain);
 serverPingMod.init({ app }, ipcMain);

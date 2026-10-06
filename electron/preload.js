@@ -179,6 +179,7 @@ const api = {
     check: () => ipcRenderer.invoke('updater:check'),
     download: () => ipcRenderer.invoke('updater:download'),
     cancel: () => ipcRenderer.invoke('updater:cancel'),
+    pause: () => ipcRenderer.invoke('updater:pause'),
     install: () => ipcRenderer.invoke('updater:install'),
     onStatus: (callback) => subscribe('updater:status', callback)
   },
