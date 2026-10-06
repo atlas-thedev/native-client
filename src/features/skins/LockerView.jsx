@@ -6,6 +6,7 @@ import LockerSwitch from './LockerSwitch.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
+import { loadStoreCape, peekStoreCape } from '../../lib/storeCapeCache.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
@@ -53,6 +54,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [storeBusy, setStoreBusy] = useState(null);
   // Premium account: the Native cloak it wears in game (other Native players see it).
   const [premiumEquipped, setPremiumEquipped] = useState(null);
+  // The worn Store cloak as the server knows it. Remembered per account so the cape is on the model the moment the Locker opens.
+  const wornHintKey = `native.locker.worn.${account?.id || 'guest'}`;
+  const [storeEquipped, setStoreEquipped] = useState(() => { try { return localStorage.getItem(`native.locker.worn.${account?.id || 'guest'}`) || null; } catch { return null; } });
+  const [capeReady, setCapeReady] = useState(0); // bumps when a cloak texture finishes loading
   // 3D cosmetics: what's worn per slot ({ hats: id, ... }) and each owned cosmetic's model/texture/thumb
   const [wearing, setWearing] = useState({});
   const [cosAssets, setCosAssets] = useState({});
@@ -166,13 +171,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     if (!premiumLinked && (!(account?.token || account?.linkedFrom) || account?.type !== 'native' || localOnly)) { setStoreCapes([]); setPremiumEquipped(null); return; }
     const run = ++storeSeq.current;
     try {
-      const [catalog, mine] = await Promise.all([
-        window.native?.store?.catalog?.({}),
-        window.native?.store?.me?.(account)
-      ]);
+      // The catalogue is cached locally, so show it (and start loading the worn cloak) without waiting for the account call.
+      const catalogJob = Promise.resolve(window.native?.store?.catalog?.({}));
+      catalogJob.then((early) => { if (run === storeSeq.current && early?.ok) setCatalogItems(early.items || []); }).catch(() => {});
+      const [catalog, mine] = await Promise.all([catalogJob, window.native?.store?.me?.(account)]);
       if (run !== storeSeq.current || !catalog?.ok || !mine?.ok) return;
       const byId = new Map((catalog.items || []).map((item) => [item.id, item]));
       setCatalogItems(catalog.items || []);
+      setStoreEquipped(mine.equipped || null);
+      try { if (mine.equipped) localStorage.setItem(wornHintKey, mine.equipped); else localStorage.removeItem(wornHintKey); } catch {}
       setStoreCapes((mine.owned || []).filter((entry) => byId.has(entry.id)).map((entry) => ({ item: byId.get(entry.id), acquiredAt: entry.acquiredAt })));
       setPremiumEquipped(premiumLinked ? (mine.equipped || null) : null);
       setWearing(mine.wearing || {});
@@ -240,16 +247,26 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
   const premiumCapeItem = showOfficialCards && premiumEquipped ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
-  const wornCapeUrl = showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null);
+  // A worn Store cloak the wardrobe hasn't caught up with yet (cloud sync still downloading): show it straight from the Store cache.
+  const earlyCapeItem = !officialMode && !wardrobe?.active?.cape?.storeId && storeEquipped
+    ? (catalogItems.find((item) => item.id === storeEquipped && item.kind !== 'cosmetic') || null) : null;
+  const wornCapeUrl = showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || earlyCapeItem?.stillUrl || null);
   const tryCloak = tryOn && tryOn.kind !== 'cosmetic' ? tryOn : null;
-  const previewCapeUrl = tryCloak ? (tryCloak.stillUrl || null) : (showCape ? wornCapeUrl : null);
+  const previewStoreItem = tryCloak || (showCape ? (premiumCapeItem || earlyCapeItem) : null);
+  useEffect(() => {
+    if (!previewStoreItem || peekStoreCape(previewStoreItem)) return undefined;
+    let live = true;
+    loadStoreCape(previewStoreItem).then((hit) => { if (live && hit) setCapeReady((n) => n + 1); });
+    return () => { live = false; };
+  }, [previewStoreItem?.id, previewStoreItem?.stripUrl, previewStoreItem?.stillUrl]);
+  const storePreview = previewStoreItem ? peekStoreCape(previewStoreItem) : null; // data URLs once loaded, so the model never waits on the network
+  const previewCapeUrl = tryCloak ? (storePreview?.still || tryCloak.stillUrl || null) : (showCape ? (premiumCapeItem || earlyCapeItem ? (storePreview?.still || wornCapeUrl) : wornCapeUrl) : null);
   // Animated Store capes animate in the preview on premium accounts too (the strip repaints the still).
-  const premiumCapeAnim = premiumCapeItem?.animated && premiumCapeItem.stripUrl && previewCapeUrl === premiumCapeItem.stillUrl
-    ? { stripUrl: premiumCapeItem.stripUrl, frames: premiumCapeItem.frames, fps: premiumCapeItem.fps }
-    : null;
+  const storeAnimOf = (item) => (item?.animated && item.stripUrl ? { stripUrl: storePreview?.strip || item.stripUrl, frames: item.frames, fps: item.fps } : null);
+  const premiumCapeAnim = previewCapeUrl ? storeAnimOf(premiumCapeItem) : null;
   const previewCapeAnim = tryCloak
-    ? (tryCloak.animated && tryCloak.stripUrl ? { stripUrl: tryCloak.stripUrl, frames: tryCloak.frames, fps: tryCloak.fps } : null)
-    : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (wardrobe?.active?.capeAnim || null)) : null;
+    ? storeAnimOf(tryCloak)
+    : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (earlyCapeItem ? storeAnimOf(earlyCapeItem) : (wardrobe?.active?.capeAnim || null))) : null;
   const [showCosmetics, setShowCosmetics] = useState(true);
   // What the player wears, with the item being tried on swapped into its slot.
   const wornCosmetics = useMemo(() => {
