@@ -416,3 +416,26 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 /* Event items: solid purple pill, same as the Locker. */
 .store-event-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #9b6bff; color: #fff; font: 700 11px/1 var(--font-sans, inherit); letter-spacing: 0.01em; text-transform: none; white-space: nowrap; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
 .store-price.is-exclusive { color: #c9b0ff; border-color: rgba(155, 107, 255, 0.45); }
+
+/* wishlist heart, New badge, Just added shelf, loading skeleton */
+.store-wish {
+  position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border-radius: 8px; border: 1px solid var(--st-line-strong); background: rgba(0, 0, 0, 0.62); color: var(--fg-secondary);
+  cursor: pointer; opacity: 0; transform: scale(0.9); transition: opacity 0.15s var(--ease), transform 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.store-card:hover .store-wish, .store-card:focus-within .store-wish, .store-wish.is-on { opacity: 1; transform: none; }
+.store-wish:hover { color: #fff; background: rgba(0, 0, 0, 0.85); }
+.store-wish.is-on { color: #ff6b8b; border-color: rgba(255, 107, 139, 0.5); }
+:root .store-wish.is-on svg, :root .store-wish.is-on svg * { color: #ff6b8b !important; stroke: #ff6b8b !important; }
+.store-new-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #5ee69a; color: #062611; font: 700 11px/1 var(--font-sans, inherit); }
+.store-card-canvas.is-pending { opacity: 0.35; animation: store-thumb-pulse 1.4s ease-in-out infinite; }
+.store-new-shelf { margin: 4px 0 18px; }
+.store-shelf-head { display: flex; align-items: center; gap: 8px; margin: 2px 2px 10px; }
+.store-shelf-head strong { font: 700 14px var(--font-sans); color: var(--fg-primary); }
+.store-shelf-head span { font: 12px var(--font-sans); color: var(--fg-muted); }
+.store-new-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.store-skeleton { pointer-events: none; cursor: default; }
+.store-skeleton .store-card-art { animation: store-thumb-pulse 1.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 90ms); }
+.store-skeleton .store-card-meta { gap: 8px; padding: 12px 8px 14px; }
+.store-skeleton .store-card-meta span { display: block; width: 62%; height: 12px; border-radius: 4px; background: rgba(255, 255, 255, 0.07); }
+.store-skeleton .store-card-meta small { display: block; width: 30%; height: 10px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); }

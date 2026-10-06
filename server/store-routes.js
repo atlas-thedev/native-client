@@ -5,6 +5,8 @@
  * Public
  *   GET  /v1/store/catalog         visible items (newest/featured first) with texture URLs + owner counts
  *   GET  /v1/store/items/:id       one item (hidden items too, so retired capes still have a page)
+ *   GET  /v1/store/users?q=        find players by name (no q = top collectors)
+ *   GET  /v1/store/users/:name     a player's public profile: worn items, locker, wishlist
  * Signed in (Bearer or X-Native-Token)
  *   GET  /v1/store/me              { equipped, wearing: { slot: itemId }, owned: [{ id, acquiredAt }] }
  *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
@@ -13,6 +15,9 @@
  *                                   Free items are added to the locker automatically. A cosmetic
  *                                   (hat, glasses, back item, shoes) goes into its slot;
  *                                   { slot, itemId: null } takes that slot off.
+ *   GET  /v1/store/wishlist        { wishlist: [{ id, addedAt }], prefs }
+ *   POST /v1/store/wishlist        { itemId, on? }  add/remove (toggles when `on` is omitted)
+ *   POST /v1/store/prefs           { hideLocker?, hideWishlist? }  what other players see on your profile
  *   GET  /v1/store/stream          SSE: wardrobe:changed for the signed-in account
  * Admin (session with is_admin)
  *   GET    /v1/admin/store/items           every item, hidden ones included
@@ -123,6 +128,17 @@ function sql() {
       PRIMARY KEY (user_id, item_id)
     )`);
     handle.exec('CREATE INDEX IF NOT EXISTS idx_store_owned_item ON store_owned(item_id)');
+    handle.exec(`CREATE TABLE IF NOT EXISTS store_wishlist (
+      user_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      added_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, item_id)
+    )`);
+    handle.exec(`CREATE TABLE IF NOT EXISTS store_prefs (
+      user_id TEXT PRIMARY KEY,
+      hide_locker INTEGER NOT NULL DEFAULT 0,
+      hide_wishlist INTEGER NOT NULL DEFAULT 0
+    )`);
     tableReady = true;
   }
   return handle;
@@ -147,6 +163,67 @@ function ownerCounts() {
     for (const row of sql().prepare('SELECT item_id, COUNT(*) AS n FROM store_owned GROUP BY item_id').all()) counts.set(row.item_id, Number(row.n));
   } catch {}
   return counts;
+}
+
+
+/* ── wishlist + public profile ─────────────────────────────────────── */
+
+function wishlistOf(userId) {
+  return sql().prepare('SELECT item_id, added_at FROM store_wishlist WHERE user_id = ? ORDER BY added_at DESC').all(String(userId))
+    .map((row) => ({ id: row.item_id, addedAt: Number(row.added_at) })).filter((entry) => findItem(entry.id));
+}
+function setWish(userId, itemId, on) {
+  if (on) sql().prepare('INSERT OR IGNORE INTO store_wishlist (user_id, item_id, added_at) VALUES (?, ?, ?)').run(String(userId), String(itemId), Date.now());
+  else sql().prepare('DELETE FROM store_wishlist WHERE user_id = ? AND item_id = ?').run(String(userId), String(itemId));
+}
+function prefsOf(userId) {
+  const row = sql().prepare('SELECT hide_locker, hide_wishlist FROM store_prefs WHERE user_id = ?').get(String(userId));
+  return { hideLocker: Boolean(row?.hide_locker), hideWishlist: Boolean(row?.hide_wishlist) };
+}
+function setPrefs(userId, next) {
+  const now = { ...prefsOf(userId), ...next };
+  sql().prepare('INSERT INTO store_prefs (user_id, hide_locker, hide_wishlist) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET hide_locker = excluded.hide_locker, hide_wishlist = excluded.hide_wishlist')
+    .run(String(userId), now.hideLocker ? 1 : 0, now.hideWishlist ? 1 : 0);
+  return now;
+}
+function parseBadges(value) { try { const list = JSON.parse(value || '[]'); return Array.isArray(list) ? list.map(String).slice(0, 12) : []; } catch { return []; } }
+function userCard(row) {
+  return { name: row.username, uuid: row.uuid, model: row.model === 'slim' ? 'slim' : 'default', joinedAt: Number(row.created_at) || 0 };
+}
+const USER_NAME_RE = /^[A-Za-z0-9_.\- ]{1,32}$/;
+/** Everyone's lockers are public by default; owners can hide the locker and/or wishlist. */
+function publicProfile(row, profile) {
+  const prefs = prefsOf(row.id);
+  const owned = ownedBy(row.id).filter((entry) => findItem(entry.id));
+  const wish = wishlistOf(row.id).filter((entry) => !owned.some((o) => o.id === entry.id));
+  const worn = profile?.capeStore ? findItem(profile.capeStore) : null;
+  return {
+    ...userCard(row),
+    badges: parseBadges(row.badges),
+    admin: Boolean(row.is_admin),
+    plus: (() => { try { return Boolean(billing.hasPlus(row.id)); } catch { return false; } })(),
+    equipped: worn ? worn.id : null,
+    wearing: wearingOf(profile),
+    counts: { owned: owned.length, wishlist: wish.length },
+    hidden: { locker: prefs.hideLocker, wishlist: prefs.hideWishlist },
+    owned: prefs.hideLocker ? [] : owned.map(({ id, acquiredAt }) => ({ id, acquiredAt })),
+    wishlist: prefs.hideWishlist ? [] : wish
+  };
+}
+function searchUsers(query) {
+  const h = sql();
+  const q = String(query || '').trim().slice(0, 32).replace(/[%_\\]/g, '');
+  if (!q) {
+    return h.prepare(`SELECT u.username, u.uuid, u.model, u.created_at, COUNT(o.item_id) AS n
+      FROM users u JOIN store_owned o ON o.user_id = u.id
+      LEFT JOIN store_prefs p ON p.user_id = u.id
+      WHERE COALESCE(p.hide_locker, 0) = 0
+      GROUP BY u.id ORDER BY n DESC, u.created_at ASC LIMIT 12`).all().map((row) => ({ ...userCard(row), owned: Number(row.n) }));
+  }
+  return h.prepare(`SELECT u.username, u.uuid, u.model, u.created_at,
+      (SELECT COUNT(*) FROM store_owned o WHERE o.user_id = u.id) AS n
+    FROM users u WHERE u.username LIKE ? ORDER BY (lower(u.username) = lower(?)) DESC, length(u.username) ASC LIMIT 12`)
+    .all(`${q}%`, q).map((row) => ({ ...userCard(row), owned: Number(row.n) }));
 }
 
 /* ── animation policy (used by server.js and mod-routes.js) ───────── */
@@ -422,6 +499,22 @@ async function handleStoreRoutes(req, res, ctx) {
     return true;
   }
 
+  if (req.method === 'GET' && url.pathname === '/v1/store/users') {
+    if (!hit('store-users', ip, 60, 60_000)) { tooMany(res, 60); return true; }
+    send(res, 200, { ok: true, users: searchUsers(url.searchParams.get('q')) }, { 'Cache-Control': 'public, max-age=20', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
+  const userMatch = url.pathname.match(/^\/v1\/store\/users\/([^/]+)$/);
+  if (req.method === 'GET' && userMatch) {
+    if (!hit('store-users', ip, 60, 60_000)) { tooMany(res, 60); return true; }
+    const name = decodeURIComponent(userMatch[1]).trim();
+    const row = USER_NAME_RE.test(name) ? db.getUserByUsername(name) : null;
+    if (!row) { send(res, 404, { ok: false, error: 'No Native player with that name.' }); return true; }
+    send(res, 200, { ok: true, textureBase, profile: publicProfile(row, ctx.readProfile(row.username)) }, { 'Cache-Control': 'public, max-age=15', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
   // Live refresh for the website: pushes `wardrobe:changed` whenever this account's locker changes.
   if (req.method === 'GET' && url.pathname === '/v1/store/stream') {
     const token = bearerOf(req) || String(url.searchParams.get('token') || '').trim();
@@ -452,7 +545,38 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
+    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/store/wishlist') {
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to see your wishlist.' }); return true; }
+    send(res, 200, { ok: true, wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/store/wishlist') {
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to save items to your wishlist.' }); return true; }
+    if (!hit('store-wish', user.id, 120, 10 * 60_000)) { tooMany(res, 600); return true; }
+    const body = await ctx.readJson(req);
+    const item = findItem(String(body.itemId || ''));
+    if (!item || item.hidden) { send(res, 404, { ok: false, error: 'That item does not exist.' }); return true; }
+    const on = body.on === undefined ? !wishlistOf(user.id).some((entry) => entry.id === item.id) : Boolean(body.on);
+    if (on && wishlistOf(user.id).length >= 200) { send(res, 409, { ok: false, error: 'Your wishlist is full (200 items).' }); return true; }
+    setWish(user.id, item.id, on);
+    events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, wishlist: true });
+    send(res, 200, { ok: true, wishlist: wishlistOf(user.id) }, noStore);
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/store/prefs') {
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in first.' }); return true; }
+    if (!hit('store-prefs', user.id, 30, 10 * 60_000)) { tooMany(res, 600); return true; }
+    const body = await ctx.readJson(req);
+    const next = {};
+    if (body.hideLocker !== undefined) next.hideLocker = Boolean(body.hideLocker);
+    if (body.hideWishlist !== undefined) next.hideWishlist = Boolean(body.hideWishlist);
+    send(res, 200, { ok: true, prefs: setPrefs(user.id, next) }, noStore);
     return true;
   }
 
