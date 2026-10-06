@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
  */
 
 const SIZE = 288;
-const VERSION = 'v3';
+const VERSION = 'v4';
 const memory = new Map(); // key -> data URL
 const waiting = new Map(); // key -> Promise
 let chain = Promise.resolve();
@@ -82,19 +82,37 @@ function frameShot(viewer, THREE, built) {
   const skin = viewer.playerObject.skin;
   viewer.playerObject.updateMatrixWorld(true);
   const piece = new THREE.Box3();
-  for (const r of built.roots) piece.expandByObject(r.object);
-  const region = piece.clone();
-  const attached = new Set(built.roots.map((r) => r.attach));
-  const add = (part) => { if (part) region.expandByObject(part); };
-  for (const name of attached) {
-    if (name === 'head') { add(skin.head); }
-    else if (name === 'body') { add(skin.body); add(skin.head); }
-    else if (name === 'rightLeg' || name === 'leftLeg') { add(skin.rightLeg); add(skin.leftLeg); }
-    else add(skin[name]);
+  for (const r of built.roots) if (r.object.visible !== false) piece.expandByObject(r.object);
+  // the points that must be in frame: every vertex of the piece, plus the slice of the body it sits on (for context)
+  const pts = [];
+  const v = new THREE.Vector3();
+  for (const r of built.roots) {
+    if (r.object.visible === false) continue;
+    r.object.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i += 1) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
+    });
   }
-  // shoes: show the feet and a little leg, not the whole body
-  if ((attached.has('rightLeg') || attached.has('leftLeg')) && !attached.has('body') && !attached.has('head')) region.max.y = Math.min(region.max.y, piece.max.y + 5);
-  const center = region.getCenter(new THREE.Vector3());
+  const attached = new Set(built.roots.filter((r) => r.object.visible !== false).map((r) => r.attach));
+  const context = piece.clone().expandByScalar(5);
+  const floating = attached.has('body') && built.roots.some((r) => r.side); // balloons: show the whole player
+  const addPart = (part) => {
+    if (!part) return;
+    const whole = new THREE.Box3().expandByObject(part);
+    // a piece that floats away from the body (balloons) shows the whole part instead of a clipped sliver
+    const box = !floating && piece.intersectsBox(whole) ? whole.clone().intersect(context) : whole;
+    if (box.isEmpty()) return;
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) pts.push(new THREE.Vector3(x, y, z));
+  };
+  for (const name of attached) {
+    if (name === 'head') addPart(skin.head);
+    else if (name === 'body') { addPart(skin.body); addPart(skin.head); }
+    else if (name === 'rightLeg' || name === 'leftLeg') { addPart(skin.rightLeg); addPart(skin.leftLeg); }
+    else addPart(skin[name]);
+  }
+  if (!pts.length) return;
+  const all = new THREE.Box3().setFromPoints(pts);
   const behind = piece.getCenter(new THREE.Vector3()).z < -1.5;
   const yaw = behind ? Math.PI - 0.5 : 0.5;
   const pitch = 0.14;
@@ -102,13 +120,17 @@ function frameShot(viewer, THREE, built) {
   const up = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3().crossVectors(up, dir).normalize();
   const trueUp = new THREE.Vector3().crossVectors(dir, right).normalize();
-  const tan = Math.tan((viewer.fov / 2) * Math.PI / 180) / 1.1; // 10% padding
-  let distance = 10;
-  const { min, max } = region;
-  for (const x of [min.x, max.x]) for (const y of [min.y, max.y]) for (const z of [min.z, max.z]) {
-    const offset = new THREE.Vector3(x, y, z).sub(center);
-    const side = Math.max(Math.abs(offset.dot(right)), Math.abs(offset.dot(trueUp)));
-    distance = Math.max(distance, side / tan + offset.dot(dir));
+  const base = all.getCenter(new THREE.Vector3());
+  // centre on the middle of what is actually visible from the camera, not on the middle of the box
+  let loA = Infinity, hiA = -Infinity, loB = Infinity, hiB = -Infinity;
+  for (const p of pts) { const o = p.clone().sub(base); const a = o.dot(right), b = o.dot(trueUp); loA = Math.min(loA, a); hiA = Math.max(hiA, a); loB = Math.min(loB, b); hiB = Math.max(hiB, b); }
+  const center = base.clone().addScaledVector(right, (loA + hiA) / 2).addScaledVector(trueUp, (loB + hiB) / 2);
+  const tan = Math.tan((viewer.fov / 2) * Math.PI / 180) / 1.05; // 5% padding
+  let distance = 8;
+  for (const p of pts) {
+    const o = p.clone().sub(center);
+    const side = Math.max(Math.abs(o.dot(right)), Math.abs(o.dot(trueUp)));
+    distance = Math.max(distance, side / tan + o.dot(dir));
   }
   viewer.camera.position.copy(center).addScaledVector(dir, distance);
   viewer.camera.lookAt(center);
