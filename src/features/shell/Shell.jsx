@@ -29,7 +29,6 @@ import useCrashReports from '../crash/useCrashReports.js';
 import NativeAccountGate from '../../components/ui/NativeAccountGate.jsx';
 import OfflineGate from '../../components/ui/OfflineGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
-import WelcomeTour from './WelcomeTour.jsx';
 import QuickSearch from '../search/QuickSearch.jsx';
 import GuidesView from '../guides/GuidesView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
@@ -37,7 +36,6 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
 import '../../lib/whitePrimary.css';
 
-const WELCOME_TOUR_KEY = 'native.welcome-tour.v1';
 const playRelayChime = () => {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -105,7 +103,6 @@ export default function Shell({
   const [browseBack, setBrowseBack] = useState(null);
   const [createInstanceOpen, setCreateInstanceOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [tourOpen, setTourOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [guideRequest, setGuideRequest] = useState(null);
   const [createSeed, setCreateSeed] = useState(null);
@@ -201,33 +198,6 @@ export default function Shell({
   const crash = useCrashReports();
   const instancesRef = useRef(instancesManager.instances);
   instancesRef.current = instancesManager.instances;
-
-  useEffect(() => {
-    if (!hasValidAccount || accountSwitcherOpen || settingsOpen || notificationsOpen || createInstanceOpen || instanceManagerOpen) return undefined;
-    let completed = false;
-    try {
-      completed = localStorage.getItem(WELCOME_TOUR_KEY) === 'complete';
-    } catch {}
-    if (completed) return undefined;
-    const timer = window.setTimeout(() => setTourOpen(true), 850);
-    return () => window.clearTimeout(timer);
-  }, [accountSwitcherOpen, createInstanceOpen, hasValidAccount, instanceManagerOpen, notificationsOpen, settingsOpen]);
-
-  const openTutorial = useCallback(() => {
-    setSettingsOpen(false);
-    setNotificationsOpen(false);
-    setAccountSwitcherOpen(false);
-    setCreateInstanceOpen(false);
-    setInstanceManagerOpen(false);
-    setTourOpen(true);
-  }, []);
-
-  const closeTutorial = useCallback(() => {
-    setTourOpen(false);
-    try {
-      localStorage.setItem(WELCOME_TOUR_KEY, 'complete');
-    } catch {}
-  }, []);
 
   /* Ctrl/Cmd + K (and "/" outside text fields) opens quick search. */
   useEffect(() => {
@@ -589,7 +559,6 @@ export default function Shell({
           case 'discover-mods': openDiscover({ contentType: 'mod' }); break;
           case 'discover-modpacks': openDiscover({ contentType: 'modpack' }); break;
           case 'discover-shaders': openDiscover({ contentType: 'shader' }); break;
-          case 'tour': openTutorial(); break;
           case 'accounts': setAccountSwitcherOpen(true); break;
           case 'connect-native':
             if (account?.type === 'microsoft') openConnectNative(account.id);
@@ -611,7 +580,6 @@ export default function Shell({
   const runGuideAction = (action) => {
     if (!action) return;
     switch (action.kind) {
-      case 'tour': runCommand({ type: 'action', id: 'tour' }); break;
       case 'create-instance': runCommand({ type: 'action', id: 'new-instance' }); break;
       case 'tab': runCommand({ type: 'tab', tab: action.tab }); break;
       case 'discover': runCommand({ type: 'discover', contentType: action.contentType }); break;
@@ -648,8 +616,6 @@ export default function Shell({
           updateStatus={updateStatus}
           networkStatus={networkStatus}
           onOpenUpdater={openUpdater}
-          onOpenTutorial={openTutorial}
-          isTutorialOpen={tourOpen}
           onOpenSearch={hasValidAccount ? () => setSearchOpen(true) : undefined}
           isSearchOpen={searchOpen}
           friendsBadge={hasNative ? social.badgeTotal : 0}
@@ -937,7 +903,6 @@ export default function Shell({
         runningInstanceId={launcher.status === 'running' ? launcher.instanceId : null}
       />
 
-      <WelcomeTour open={tourOpen} onClose={closeTutorial} />
     </div>
     </DownloadManagerProvider>
   );

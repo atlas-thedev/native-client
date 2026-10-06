@@ -732,6 +732,7 @@ async function fetchStoreCatalog({ force = false } = {}) {
     const data = await response.json();
     if (!data?.ok || !Array.isArray(data.items)) throw new Error('Bad catalogue');
     catalogCache = { at: Date.now(), data };
+    scheduleStorePrefetch();
     return data;
   } catch (error) {
     if (catalogCache.data) return catalogCache.data;
@@ -763,7 +764,7 @@ async function fetchStoreStrip(itemId) {
   if (!bytes) throw new Error('Couldn’t download that cape.');
   pngInfoBuffer(bytes, item.stripUrl ? 'animation' : 'cape', { animated: Boolean(item.stripUrl) });
   const value = `data:image/png;base64,${bytes.toString('base64')}`;
-  if (stripCache.size > 12) stripCache.delete(stripCache.keys().next().value);
+  if (stripCache.size > 40) stripCache.delete(stripCache.keys().next().value);
   stripCache.set(url, value);
   return value;
 }
@@ -794,9 +795,41 @@ async function fetchStoreCosmetic(itemId) {
     texture: `data:image/png;base64,${texture.toString('base64')}`,
     thumb: thumb ? `data:image/png;base64,${thumb.toString('base64')}` : null
   };
-  if (cosmeticCache.size > 40) cosmeticCache.delete(cosmeticCache.keys().next().value);
+  if (cosmeticCache.size > 150) cosmeticCache.delete(cosmeticCache.keys().next().value);
   cosmeticCache.set(itemId, { key, value });
   return value;
+}
+
+/**
+ * Warm every store cape/cosmetic in the background (shared disk cache + memory) so the Store and
+ * Locker open instantly. Runs a few downloads at a time, never throws, and skips what's already warm.
+ */
+let prefetchTimer = null;
+let prefetchRunning = false;
+function scheduleStorePrefetch(delay = 1500) {
+  if (prefetchTimer || prefetchRunning) return;
+  prefetchTimer = setTimeout(() => { prefetchTimer = null; prefetchStoreAssets().catch(() => {}); }, delay);
+  prefetchTimer.unref?.();
+}
+async function prefetchStoreAssets() {
+  if (prefetchRunning) return;
+  prefetchRunning = true;
+  try {
+    const items = (catalogCache.data?.items || []).slice();
+    const queue = items.filter((item) => (item.kind === 'cosmetic' ? item.modelUrl && item.textureUrl : item.stripUrl || item.stillUrl));
+    const worker = async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        try {
+          if (item.kind === 'cosmetic') await fetchStoreCosmetic(item.id);
+          else await fetchStoreStrip(item.id);
+        } catch { /* best-effort */ }
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+  } finally {
+    prefetchRunning = false;
+  }
 }
 
 /**
@@ -1739,6 +1772,8 @@ async function artifactMatches(filePath, { sha1, size }) {
 function init(dependencies, ipcMain) {
   deps = dependencies;
   try { textureCache.init(deps.app.getPath('userData')); } catch { /* cache is optional */ }
+  /* Pull the store catalogue and every cape/cosmetic in the background once the launcher is up. */
+  setTimeout(() => { fetchStoreCatalog().catch(() => {}); }, 2500).unref?.();
   /* A premium account playing as its linked Native identity sends that identity
      without a token (the renderer never sees it); act with the Native session
      stored on the Microsoft account in main. */

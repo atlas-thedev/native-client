@@ -234,7 +234,6 @@ export default function QuickSearch({
     action('discover-mods', 'Browse mods', 'Open Discover on mods', Package, ['install', 'download', 'modrinth']);
     action('discover-modpacks', 'Browse modpacks', 'Open Discover on modpacks', Layers3, ['install', 'download', 'pack']);
     action('discover-shaders', 'Browse shaders', 'Open Discover on shaders', Sparkles, ['shader', 'graphics', 'iris', 'optifine']);
-    action('tour', 'Quick tour', 'Replay the animated launcher tour', CircleHelp, ['tutorial', 'help', 'intro', 'walkthrough', 'onboarding']);
     action('accounts', 'Switch account', account?.name ? `Signed in as ${account.name}` : 'Add or switch accounts', UserRound, ['account', 'login', 'sign in', 'logout', 'microsoft', 'offline', 'profile']);
     if (account?.type === 'microsoft') {
       action('connect-native', 'Merge with a Native account',
@@ -345,7 +344,7 @@ export default function QuickSearch({
           .filter((item) => allowed.has(item.group))
           .slice(0, 24);
       }
-      const suggestedIds = ['action:new-instance', 'page:discover', 'page:guides', 'action:tour'];
+      const suggestedIds = ['action:new-instance', 'page:discover', 'page:guides'];
       const recentIds = new Set(recentItems.map((item) => item.id));
       const firstInstances = localItems.filter((item) => item.group === 'instances').slice(0, 3).map((item) => ({ ...item, group: 'suggested' }));
       const suggested = [

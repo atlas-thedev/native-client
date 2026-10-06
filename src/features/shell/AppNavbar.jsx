@@ -121,8 +121,6 @@ export default function AppNavbar({
   updateStatus = null,
   networkStatus = null,
   onOpenUpdater,
-  onOpenTutorial,
-  isTutorialOpen = false,
   onOpenSearch,
   isSearchOpen = false,
   friendsBadge = 0,
@@ -204,17 +202,6 @@ export default function AppNavbar({
           )}
           <RunningGamePill game={runningGame} onStop={onStopGame} onOpen={onOpenRunningGame} />
           <DownloadManagerButton />
-          <button
-            type="button"
-            className={`quick-tutorial-btn${isTutorialOpen ? ' is-active' : ''}`}
-            onClick={onOpenTutorial}
-            aria-label="Open quick tutorial"
-            title="Open quick tutorial"
-            data-tour="tutorial"
-          >
-            <CircleHelp size={13} />
-            <span>Quick tour</span>
-          </button>
           <div className="window-controls-group">
             <button className="window-ctrl-btn" onClick={onMinimize} aria-label={t('window.minimize')}><Minus size={14} /></button>
             <button className="window-ctrl-btn" onClick={onMaximize} aria-label={t(isMaximized ? 'window.restore' : 'window.maximize')}><NativeIcon name={isMaximized ? 'restore' : 'maximize'} size={12} /></button>
