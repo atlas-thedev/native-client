@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crown, Feather, Flag, Footprints, Glasses, Shirt, Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
-import LockerSwitch from './LockerSwitch.jsx';
-import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
+import { ShopTabs, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
+import '../../components/ui/shop.css';
+import { PixelButton, PixelIconButton } from '../../components/ui/PixelControls.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import useOfficialCapes from './useOfficialCapes.js';
@@ -24,6 +25,7 @@ const COS_TABS = [
   { id: 'shoes', label: 'Shoes', color: '#ffb45c', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
   { id: 'capes', label: 'Capes', color: '#8ee07a', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
 ];
+const COS_ICONS = { cloaks: <Shirt />, hats: <Crown />, glasses: <Glasses />, back: <Feather />, shoes: <Footprints />, capes: <Flag /> };
 // Front-facing slots turn the player to face you; the rest show the back.
 const FRONT_TABS = new Set(['hats', 'glasses', 'shoes']);
 const priceLabel = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
@@ -729,13 +731,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     }
     return <div className="locker-cosmetics">
       <div className="locker-cos-tabs">
-        <PixelTabs
+        <ShopTabs
           size="sm"
           fill
           label="Cosmetic types"
           value={tab.id}
           onChange={switchCosTab}
-          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, color: entry.color, count: count || null }; })}
+          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, icon: COS_ICONS[entry.id], count: count || null }; })}
         />
       </div>
       <div key={`cos:${tab.id}`} className={`locker-subpanel${cosDir ? ` from-${cosDir}` : ''}`}>
@@ -746,10 +748,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
 
   return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); switchSection('skins'); processFile(event.dataTransfer?.files?.[0]); }}>
-    <header className="locker-header">
+    <header className="locker-header shop-hero">
+      <SpotBackdrop />
       <div>
         <h1 className="locker-title page-title">{t('locker.title') || 'LOCKER'}</h1>
-        <p className="locker-subtitle">{t('locker.subtitle')}</p>
+        <p className="locker-subtitle shop-hero-blurb">{t('locker.subtitle')}</p>
       </div>
       {localOnly ? (
         <div className="locker-local-note" role="note">
@@ -794,7 +797,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><div><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><button type="button" onClick={() => zoomBy(1 / 1.25)} disabled={!zoomState.out} title="Zoom out"><ZoomOut size={16}/></button><button type="button" onClick={() => zoomBy(1.25)} disabled={!zoomState.in} title="Zoom in"><ZoomIn size={16}/></button></div><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} capeUrl={wornCapeUrl} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>
+        <ShopTabs size="lg" fill label="Locker sections" value={section} onChange={switchSection} items={[{ id: 'skins', label: 'Skins', icon: <Shirt />, count: skinItems.length }, { id: 'cosmetics', label: 'Cosmetics', icon: <Sparkles />, count: storeCapes.length }]} />
         <div className="locker-panels">
           {leaving && leaving !== section && <div key={`out-${leaving}`} className={`locker-panel is-leaving to-${section === 'cosmetics' ? 'left' : 'right'}`} aria-hidden="true" onAnimationEnd={(event) => { if (event.target === event.currentTarget) setLeaving(null); }}>{leaving === 'skins' ? renderSkins() : renderCosmetics()}</div>}
           <div key={`in-${section}`} className={`locker-panel ${leaving ? `is-entering from-${section === 'cosmetics' ? 'right' : 'left'}` : ''}`} role="tabpanel">{section === 'skins' ? renderSkins() : renderCosmetics()}</div>
