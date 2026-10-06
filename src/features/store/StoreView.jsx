@@ -4,7 +4,7 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -43,7 +43,8 @@ const FILTERS = [
   { id: 'free', label: 'Free' },
   { id: 'paid', label: 'Paid' },
   { id: 'new', label: 'New' },
-  { id: 'owned', label: 'In my locker' }
+  { id: 'owned', label: 'In my locker' },
+  { id: 'wish', label: 'Wishlist' }
 ];
 const SORTS = [
   { id: 'featured', label: 'Featured' },
@@ -81,7 +82,8 @@ function writeCache(key, value) {
 export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccountSwitcher, onWardrobeChanged }) {
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
-  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {} });
+  const [offline, setOffline] = useState(false);
+  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [] });
   const [section, setSection] = useState('capes');
   const [sectionDir, setSectionDir] = useState(null); // 'right' | 'left': where the new shelf slides in from
   const [cosAssets, setCosAssets] = useState({}); // cosmetic id -> { model, texture, thumb }
@@ -125,12 +127,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       const res = await window.native?.store?.catalog?.({ force });
       if (!res?.ok) throw new Error(res?.error || 'Couldn’t load the store.');
       setCatalog(res);
+      setOffline(Boolean(res.stale));
     } catch (e) {
       setError(e?.message || 'Couldn’t load the store.');
     }
     if (isStoreAccount(account)) {
       const mine = await window.native?.store?.me?.(account).catch(() => null);
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [] });
     }
   }, [account]);
 
@@ -148,7 +151,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         window.native?.billing?.me?.(account).catch(() => null)
       ]);
       if (stopped) return;
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [] });
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
@@ -227,6 +230,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [catalog, section]);
 
   const ownedIds = useMemo(() => new Set(me.owned.map((entry) => entry.id)), [me.owned]);
+  const wishIds = useMemo(() => new Set((me.wishlist || []).map((entry) => entry.id)), [me.wishlist]);
   const items = useMemo(() => {
     const list = (catalog?.items || []).filter((item) => sectionOf(item) === section);
     const q = query.trim().toLowerCase();
@@ -237,6 +241,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       if (filter === 'paid') return item.paid;
       if (filter === 'new') return item.isNew;
       if (filter === 'owned') return ownedIds.has(item.id);
+      if (filter === 'wish') return wishIds.has(item.id);
       return true;
     });
     const by = {
@@ -246,7 +251,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       name: (a, b) => a.name.localeCompare(b.name)
     }[sort];
     return sort === 'featured' ? filtered : [...filtered].sort(by);
-  }, [catalog, query, filter, sort, ownedIds, section]);
+  }, [catalog, query, filter, sort, ownedIds, wishIds, section]);
+
+  const newest = useMemo(() => (filter === 'all' && !query.trim() && sort === 'featured'
+    ? (catalog?.items || []).filter((item) => sectionOf(item) === section && item.isNew && !item.exclusive).sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0)).slice(0, 4)
+    : []), [catalog, section, filter, query, sort]);
 
   const featured = useMemo(() => featuredIn(catalog?.items || [], section), [catalog, section]);
   const heroList = featured.length ? featured : (items[0] ? [items[0]] : []);
@@ -298,27 +307,63 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     onNotify?.('Store', `${item.name} was added to your locker.`);
   });
 
-  /** Hats, glasses, back items and shoes: one per slot, on top of the cape. */
-  const wearCosmetic = (item, off = false) => run(`wear:${off ? `off:${item.slot}` : item.id}`, async () => {
-    const res = await window.native.store.wear(account, off ? null : item.id, item.slot);
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t do that.');
-    setMe((current) => ({
-      ...current,
-      owned: res.owned || (!off && !ownedIds.has(item.id) ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned),
-      wearing: res.wearing || {}
-    }));
-    const word = SLOT_WORDS[item.slot] || 'cosmetic';
-    onNotify?.('Store', off ? `${item.name} taken off.` : `${item.name} is now your ${word} — in the launcher and in game.`);
-  });
+  /** Applies a change at once, then confirms with the server (and rolls back if it fails). */
+  const optimistic = async (apply, request, confirm) => {
+    const before = me;
+    setMe(apply);
+    try {
+      const res = await request();
+      if (!res?.ok) throw new Error(res?.error || 'Couldn’t do that.');
+      confirm?.(res);
+      window.dispatchEvent(new Event('native:store-changed'));
+    } catch (e) {
+      setMe(before);
+      onNotify?.('Store', e?.message || 'Something went wrong.');
+    }
+  };
 
-  const wear = (item) => run(`wear:${item?.id || 'off'}`, async () => {
+  /** Hats, glasses, back items and shoes: one per slot, on top of the cape. */
+  const wearCosmetic = (item, off = false) => {
+    const word = SLOT_WORDS[item.slot] || 'cosmetic';
+    const isOwned = ownedIds.has(item.id);
+    const message = off ? `${item.name} taken off.` : `${item.name} is now your ${word} — in the launcher and in game.`;
+    return optimistic(
+      (current) => {
+        const wearing = { ...(current.wearing || {}) };
+        if (off) delete wearing[item.slot]; else wearing[item.slot] = item.id;
+        return { ...current, wearing, owned: !off && !isOwned ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned };
+      },
+      () => window.native.store.wear(account, off ? null : item.id, item.slot),
+      (res) => { setMe((current) => ({ ...current, owned: res.owned || current.owned, wearing: res.wearing || current.wearing })); onNotify?.('Store', message); }
+    );
+  };
+
+  const wear = (item) => {
     const premium = isPremiumLinked(account);
-    const res = await window.native.store.equip(account, item?.id || null, premium ? { target: 'premium' } : {});
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t equip that cloak.');
-    if (res.state && !premium) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
-    setMe((current) => ({ ...current, owned: item && !ownedIds.has(item.id) ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned, equipped: item?.id || null }));
-    onNotify?.('Store', item ? `${item.name} is now your cloak — in the launcher and in game.` : 'Cloak taken off.');
-  });
+    const isOwned = item ? ownedIds.has(item.id) : true;
+    const message = item ? `${item.name} is now your cloak — in the launcher and in game.` : 'Cloak taken off.';
+    return optimistic(
+      (current) => ({ ...current, owned: item && !isOwned ? [{ id: item.id, acquiredAt: Date.now() }, ...current.owned] : current.owned, equipped: item?.id || null }),
+      () => window.native.store.equip(account, item?.id || null, premium ? { target: 'premium' } : {}),
+      (res) => { if (res.state && !premium) { setWardrobe(res.state); onWardrobeChanged?.(res.state); } onNotify?.('Store', message); }
+    );
+  };
+
+  const toggleWish = (item) => {
+    const on = !wishIds.has(item.id);
+    return optimistic(
+      (current) => ({ ...current, wishlist: on ? [{ id: item.id, addedAt: Date.now() }, ...(current.wishlist || [])] : (current.wishlist || []).filter((entry) => entry.id !== item.id) }),
+      () => window.native.store.wish(account, item.id, on),
+      (res) => setMe((current) => ({ ...current, wishlist: res.wishlist || current.wishlist }))
+    );
+  };
+
+  const shareUrl = (item) => `https://nativelaunch.xyz/${isCosmetic(item) ? 'cosmetics' : 'cloaks'}/${encodeURIComponent(item.id)}`;
+  const copyLink = async (item) => {
+    try { await navigator.clipboard.writeText(shareUrl(item)); onNotify?.('Store', `Link to ${item.name} copied. Paste it anywhere to show it off.`); }
+    catch { window.native?.openExternal?.(shareUrl(item)); }
+  };
+  const myProfileUrl = () => `https://nativelaunch.xyz/u/${encodeURIComponent(account?.name || account?.username || '')}`;
 
   const buy = (item) => run(`buy:${item.id}`, async () => {
     const res = await window.native.billing.checkout(account, { kind: 'cape', itemId: item.id });
@@ -355,7 +400,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const res = await window.native.store.unclaim(account, item.id);
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t remove that cloak.');
     if (res.state && !isPremiumLinked(account)) { setWardrobe(res.state); onWardrobeChanged?.(res.state); }
-    setMe((current) => ({ wearing: res.wearing || Object.fromEntries(Object.entries(current.wearing || {}).filter(([, id]) => id !== item.id)), owned: res.owned || [], equipped: isPremiumLinked(account) ? (current.equipped && (res.owned || []).some((entry) => entry.id === current.equipped) ? current.equipped : null) : (res.equipped || null) }));
+    setMe((current) => ({ ...current, wearing: res.wearing || Object.fromEntries(Object.entries(current.wearing || {}).filter(([, id]) => id !== item.id)), owned: res.owned || [], equipped: isPremiumLinked(account) ? (current.equipped && (res.owned || []).some((entry) => entry.id === current.equipped) ? current.equipped : null) : (res.equipped || null) }));
     onNotify?.('Store', `${item.name} was removed from your locker.`);
   });
 
@@ -435,7 +480,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     free: inSection.filter((item) => !item.paid && !item.exclusive).length,
     paid: inSection.filter((item) => item.paid).length,
     new: inSection.filter((item) => item.isNew).length,
-    owned: inSection.filter((item) => ownedIds.has(item.id)).length
+    owned: inSection.filter((item) => ownedIds.has(item.id)).length,
+    wish: inSection.filter((item) => wishIds.has(item.id)).length
   };
   const everything = catalog?.items || [];
   const ownedTotal = everything.filter((item) => ownedIds.has(item.id)).length;
@@ -481,10 +527,52 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       )}
       <div className="store-detail-actions">
         {actionFor(item)}
+        {signedIn && <PixelButton variant="ghost" size="lg" icon={<Heart size={15} fill={wishIds.has(item.id) ? 'currentColor' : 'none'} />} label={wishIds.has(item.id) ? 'Wishlisted' : 'Wishlist'} title="Save for later" onClick={() => toggleWish(item)} />}
+        <PixelIconButton size="lg" icon={<Copy size={15} />} label="Copy link" title="Copy a shareable link" onClick={() => copyLink(item)} />
         {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <PixelButton variant="danger" size="lg" disabled={busy !== null} busy={busy === `unclaim:${item.id}`} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<Trash2 size={15} />} label="Remove" title="Remove from your locker" onClick={() => unclaim(item)} />}
       </div>
     </>
   );
+
+  const renderCard = (item, index, prefix = '') => {
+    const owned = ownedIds.has(item.id);
+    const wished = wishIds.has(item.id);
+    return (
+      <article
+        key={`${prefix}${item.id}`}
+        style={{ '--i': Math.min(index, 14) }}
+        className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
+        onClick={() => setViewId(item.id)}
+        tabIndex={0}
+        aria-haspopup="dialog"
+        aria-label={`${item.name}: view in 3D`}
+        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setViewId(item.id); } }}
+      >
+        <div className="store-card-art">
+          {isCosmetic(item)
+            ? cosmeticArt(item, 'store-card-thumb')
+            : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
+          <div className="store-card-badges">
+            {item.exclusive && <span className="store-event-badge">Event</span>}
+            {!item.exclusive && item.isNew && <span className="store-new-badge">New</span>}
+          </div>
+          {signedIn && (
+            <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
+              <Heart size={14} fill={wished ? 'currentColor' : 'none'} />
+            </button>
+          )}
+          {owned && (isCosmetic(item) && (me.wearing || {})[item.slot] === item.id
+            ? <span className="store-card-state is-worn"><i />Wearing</span>
+            : <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>)}
+        </div>
+        <div className="store-card-meta">
+          <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
+          <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
+        </div>
+        <div className="store-card-action">{actionFor(item, true)}</div>
+      </article>
+    );
+  };
 
   return (
     <div className="store-view">
@@ -503,12 +591,18 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           )}
           {signedIn && <PixelButton variant="ghost" icon={<Ticket size={15} />} label="Redeem code" onClick={() => setRedeemOpen(true)} />}
           {signedIn && <PixelButton variant="ghost" icon={<Package size={15} />} label="My locker" onClick={onOpenLocker} />}
+          {signedIn && <PixelButton variant="ghost" icon={<UserRound size={15} />} label="My profile" title="Open your public profile to share it" onClick={() => window.native?.openExternal?.(myProfileUrl())} />}
           <PixelIconButton size="md" icon={<RefreshCw size={15} />} label="Refresh the store" title="Refresh" onClick={() => load(true)} />
         </div>
       </header>
 
       {error && <div className="store-note is-error" role="alert">{error}</div>}
-      {!catalog && !error && <div className="store-note"><Loader2 size={14} className="is-spinning" /> Loading the store…</div>}
+      {offline && catalog && <div className="store-note">You’re offline. Showing the last store we saved.</div>}
+      {!catalog && !error && (
+        <div className="store-scroll" aria-busy="true" aria-label="Loading the store">
+          <div className="store-grid">{Array.from({ length: 8 }, (_, index) => <div key={index} className="store-card store-skeleton" style={{ '--i': index }}><div className="store-card-art" /><div className="store-card-meta"><span /><small /></div></div>)}</div>
+        </div>
+      )}
 
       {catalog && !(catalog.items || []).length && (
         <div className="store-coming">
@@ -622,6 +716,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           )}
 
           <div key={`shelf:${section}`} className={`store-shelf${sectionDir ? ` from-${sectionDir}` : ''}`}>
+          {newest.length > 0 && (
+            <section className="store-new-shelf" aria-label="Just added">
+              <div className="store-shelf-head"><Sparkles size={14} /><strong>Just added</strong><span>New in the last 3 weeks</span></div>
+              <div className="store-grid store-new-grid">{newest.map((item, index) => renderCard(item, index, 'new'))}</div>
+            </section>
+          )}
           <div className="store-toolbar">
             <PixelTabs
               size="sm"
@@ -629,7 +729,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               label="Filter"
               value={filter}
               onChange={setFilter}
-              items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
+              items={FILTERS.filter((f) => (f.id !== 'owned' && f.id !== 'wish') || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
             />
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
@@ -639,41 +739,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           </div>
 
           {items.length === 0 ? (
-            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : `No ${noun} match that.`}</span></div>
+            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : filter === 'wish' ? `Tap the heart on any item to save it here.` : `No ${noun} match that.`}</span></div>
           ) : (
             <div className="store-grid" key={`grid:${filter}:${sort}`}>
-              {items.map((item, index) => {
-                const owned = ownedIds.has(item.id);
-                return (
-                  <article
-                    key={item.id}
-                    style={{ '--i': Math.min(index, 14) }}
-                    className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
-                    onClick={() => setViewId(item.id)}
-                    tabIndex={0}
-                    aria-haspopup="dialog"
-                    aria-label={`${item.name}: view in 3D`}
-                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setViewId(item.id); } }}
-                  >
-                    <div className="store-card-art">
-                      {isCosmetic(item)
-                        ? cosmeticArt(item, 'store-card-thumb')
-                        : <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />}
-                      <div className="store-card-badges">
-                        {item.exclusive && <span className="store-event-badge">Event</span>}
-                      </div>
-                      {owned && (isCosmetic(item) && (me.wearing || {})[item.slot] === item.id
-                        ? <span className="store-card-state is-worn"><i />Wearing</span>
-                        : <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>)}
-                    </div>
-                    <div className="store-card-meta">
-                      <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
-                      <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
-                    </div>
-                    <div className="store-card-action">{actionFor(item, true)}</div>
-                  </article>
-                );
-              })}
+              {items.map((item, index) => renderCard(item, index))}
             </div>
           )}
           </div>

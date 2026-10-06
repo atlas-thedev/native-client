@@ -722,6 +722,17 @@ function localLook(account) {
 
 let catalogCache = { at: 0, data: null };
 const CATALOG_TTL = 60_000;
+const catalogDiskFile = () => path.join(deps.app.getPath('userData'), 'store-catalog.json');
+/** The last catalogue we saw, kept on disk so the Store still opens offline. */
+function readCatalogFromDisk() {
+  try {
+    const data = JSON.parse(fs.readFileSync(catalogDiskFile(), 'utf8'));
+    return data && Array.isArray(data.items) ? data : null;
+  } catch { return null; }
+}
+function writeCatalogToDisk(data) {
+  try { fs.writeFileSync(catalogDiskFile(), JSON.stringify(data)); } catch { /* best-effort */ }
+}
 
 /** Public store catalogue (sections + items). Falls back to the last good copy when offline. */
 async function fetchStoreCatalog({ force = false } = {}) {
@@ -732,10 +743,12 @@ async function fetchStoreCatalog({ force = false } = {}) {
     const data = await response.json();
     if (!data?.ok || !Array.isArray(data.items)) throw new Error('Bad catalogue');
     catalogCache = { at: Date.now(), data };
+    writeCatalogToDisk(data);
     scheduleStorePrefetch();
     return data;
   } catch (error) {
-    if (catalogCache.data) return catalogCache.data;
+    if (!catalogCache.data) { const saved = readCatalogFromDisk(); if (saved) catalogCache = { at: 0, data: saved }; }
+    if (catalogCache.data) return { ...catalogCache.data, stale: true };
     throw new Error(`Couldn't load the store (${error?.message || 'offline'}).`);
   }
 }
@@ -916,7 +929,23 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : [] };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : [], wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
+}
+async function toggleStoreWish(account, itemId, on) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/store/wishlist`, { method: 'POST', headers: storeHeaders(account), body: JSON.stringify({ itemId, on: Boolean(on) }), signal: AbortSignal.timeout(10_000) });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t update your wishlist (HTTP ${response.status}).`);
+  return { wishlist: Array.isArray(body.wishlist) ? body.wishlist : [] };
+}
+async function setStorePrefs(account, prefs) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/store/prefs`, { method: 'POST', headers: storeHeaders(account), body: JSON.stringify(prefs || {}), signal: AbortSignal.timeout(10_000) });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t save that (HTTP ${response.status}).`);
+  return { prefs: body.prefs || null };
 }
 
 /** A premium account connected to Native (or its linked identity) uses the Native session stored in main. */
@@ -1872,6 +1901,12 @@ function init(dependencies, ipcMain) {
   });
   ipc.handle('store:cosmetic', async (_event, itemId) => {
     try { return { ok: true, ...(await fetchStoreCosmetic(String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:wish', async (_event, { account, itemId, on }) => {
+    try { return { ok: true, ...(await toggleStoreWish(resolveBillingAccount(account), String(itemId || ''), on)) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:prefs', async (_event, { account, prefs }) => {
+    try { return { ok: true, ...(await setStorePrefs(resolveBillingAccount(account), prefs)) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:wear', async (_event, { account, itemId, slot }) => {
     try { return { ok: true, ...(await wearStoreCosmetic(account, itemId ? String(itemId) : null, String(slot || ''))) }; } catch (error) { return { ok: false, error: error.message }; }

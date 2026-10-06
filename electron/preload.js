@@ -84,7 +84,9 @@ const api = {
     me: (account) => ipcRenderer.invoke('store:me', account),
     claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
     unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId }),
-    redeem: (account, code) => ipcRenderer.invoke('store:redeem', { account, code })
+    redeem: (account, code) => ipcRenderer.invoke('store:redeem', { account, code }),
+    wish: (account, itemId, on) => ipcRenderer.invoke('store:wish', { account, itemId, on }),
+    prefs: (account, prefs) => ipcRenderer.invoke('store:prefs', { account, prefs })
   },
   billing: {
     config: () => ipcRenderer.invoke('billing:config'),
