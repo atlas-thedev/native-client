@@ -76,6 +76,9 @@ const api = {
   store: {
     catalog: (options) => ipcRenderer.invoke('store:catalog', options),
     strip: (itemId) => ipcRenderer.invoke('store:strip', itemId),
+    // 3D cosmetics: { model, texture, thumb } for previews; wear(account, itemId) / wear(account, null, slot)
+    cosmetic: (itemId) => ipcRenderer.invoke('store:cosmetic', itemId),
+    wear: (account, itemId, slot = null) => ipcRenderer.invoke('store:wear', { account, itemId, slot }),
     // options.target 'premium': wear it on the connected premium (Microsoft) account in game.
     equip: (account, itemId, options = {}) => ipcRenderer.invoke('store:equip', { account, itemId, target: options?.target === 'premium' ? 'premium' : null }),
     me: (account) => ipcRenderer.invoke('store:me', account),

@@ -307,3 +307,28 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
   .store-spot-info, .store-viewer { animation: none; }
   .store-spot-progress { display: none; }
 }
+
+/* 3D cosmetics: section tabs + transparent thumbnails */
+.store-sections { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.store-section-tab {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 1px solid var(--st-line);
+  border-radius: 10px; background: var(--st-tile); color: var(--fg-muted); font: 700 12.5px var(--font-sans); cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.store-section-tab:hover { color: var(--fg-primary); border-color: var(--st-line-strong); }
+.store-section-tab.active { background: #fff; border-color: #fff; color: #0b0b0f; }
+.store-section-tab small { padding: 1px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 10.5px; }
+.store-section-tab.active small { background: rgba(0, 0, 0, 0.1); }
+.store-card-thumb { width: 150px; height: 150px; object-fit: contain; image-rendering: auto; transition: transform 0.25s var(--ease); }
+.store-card:hover .store-card-thumb { transform: scale(1.06) rotate(-2deg); }
+.store-card-thumb.is-loading, .store-spot-art-img.is-loading, .store-spot-thumb-img.is-loading, .store-viewer-art-img.is-loading {
+  display: block; border-radius: 12px; background: rgba(255, 255, 255, 0.04); animation: store-thumb-pulse 1.4s ease-in-out infinite;
+}
+.store-card-thumb.is-loading { width: 96px; height: 96px; }
+.store-spot-art-img { width: 120px; height: 120px; object-fit: contain; }
+.store-spot-thumb-img { flex: none; width: 34px; height: 34px; object-fit: contain; }
+.store-spot-thumb-img.is-loading { width: 34px; height: 34px; }
+.store-viewer-art-img { display: block; width: 56px; height: 56px; object-fit: contain; }
+.store-viewer-art-img.is-loading { width: 56px; height: 56px; }
+@keyframes store-thumb-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .store-card:hover .store-card-thumb { transform: none; } }

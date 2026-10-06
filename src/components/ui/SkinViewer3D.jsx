@@ -71,7 +71,9 @@ export default function SkinViewer3D({
   paused = false,
   autoRotate = false,
   className = '',
-  onViewer = null
+  onViewer = null,
+  cosmetics = null,
+  zoom = 0.82
 }) {
   const canvasRef = useRef(null);
   const viewerRef = useRef(null);
@@ -116,6 +118,16 @@ export default function SkinViewer3D({
   const skinReqRef = useRef(0);
   const capeReqRef = useRef(0);
 
+  // 3D cosmetics (hats, glasses, back items, shoes): [{ id, model, texture }] (NCM JSON + image URL)
+  const cosmeticsRef = useRef([]);
+  const walkRef = useRef(0);
+  walkRef.current = animation === 'walk' || animation === 'run' ? 1 : 0;
+  const cosmeticKey = (cosmetics || []).filter((c) => c && c.model && c.texture).map((c) => `${c.id}:${String(c.texture).length}:${String(c.texture).slice(-24)}`).join('|');
+  const cosmeticSource = useRef(cosmetics);
+  cosmeticSource.current = cosmetics;
+
+  const cosmeticsMove = () => cosmeticsRef.current.some((b) => b.model.flat.some((part) => part.anim.length));
+
   const onViewerRef = useRef(onViewer);
   onViewerRef.current = onViewer;
 
@@ -138,7 +150,7 @@ export default function SkinViewer3D({
         });
 
         viewer.fov = 42;
-        viewer.zoom = 0.82;
+        viewer.zoom = zoom;
         viewer.autoRotate = autoRotate;
         viewer.autoRotateSpeed = 0.7;
 
@@ -169,6 +181,15 @@ export default function SkinViewer3D({
           });
         }
 
+        // cosmetics animate with the player (propellers, flapping wings, ...)
+        const baseRender = viewer.render.bind(viewer);
+        const started = performance.now();
+        viewer.render = () => {
+          const t = (performance.now() - started) / 1000;
+          for (const built of cosmeticsRef.current) built.update(t, walkRef.current);
+          baseRender();
+        };
+
         viewerRef.current = viewer;
         onViewerRef.current?.(viewer);
         setReady(true);
@@ -179,6 +200,8 @@ export default function SkinViewer3D({
 
     return () => {
       disposed = true;
+      cosmeticsRef.current.forEach((built) => { try { built.dispose(); } catch {} });
+      cosmeticsRef.current = [];
       capeAnimRef.current?.stop();
       capeAnimRef.current = null;
       try {
@@ -267,6 +290,36 @@ export default function SkinViewer3D({
     }
   }, [skinUrl, capeUrl, animKey, effectiveModel, ready]);
 
+  /* ---- 3D cosmetics ---- */
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !ready) return undefined;
+    let cancelled = false;
+    const clear = () => {
+      cosmeticsRef.current.forEach((built) => { try { built.dispose(); } catch {} });
+      cosmeticsRef.current = [];
+    };
+    clear();
+    const list = (cosmeticSource.current || []).filter((c) => c && c.model && c.texture);
+    if (!list.length) { if (viewer.renderPaused) viewer.render(); return undefined; }
+    Promise.all([import('three'), import('../../lib/ncm.js')]).then(async ([THREE, ncm]) => {
+      const built = [];
+      for (const item of list) {
+        try {
+          const image = await ncm.loadImage(item.texture);
+          if (cancelled) return;
+          built.push(ncm.attachToPlayer(ncm.buildCosmetic(THREE, item.model, image), viewer.playerObject.skin));
+        } catch { /* a broken cosmetic is skipped, the rest still show */ }
+      }
+      if (cancelled) { built.forEach((b) => b.dispose()); return; }
+      cosmeticsRef.current = built;
+      // moving parts need frames even when the player stands still
+      if (cosmeticsMove()) viewer.renderPaused = false;
+      viewer.render();
+    }).catch(() => {});
+    return () => { cancelled = true; clear(); };
+  }, [cosmeticKey, ready]);
+
   /* ---- live auto-rotate toggle ---- */
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -290,7 +343,7 @@ export default function SkinViewer3D({
         viewer.playerObject.skin.rightLeg.rotation.set(0, 0, 0);
         viewer.playerObject.skin.head.rotation.set(0, 0, 0);
       }
-      if (!autoRotate) {
+      if (!autoRotate && !cosmeticsMove()) {
         viewer.renderPaused = true;
       }
       viewer.render();
@@ -308,7 +361,7 @@ export default function SkinViewer3D({
     const next = build();
     if (!next) {
       viewer.animation = null;
-      if (!autoRotate) viewer.renderPaused = true;
+      if (!autoRotate && !cosmeticsMove()) viewer.renderPaused = true;
       viewer.render();
       return;
     }

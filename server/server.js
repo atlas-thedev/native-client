@@ -10,6 +10,7 @@ const media = require('./media');
 const modRoutes = require('./mod-routes');
 const capes = require('./capes');
 const storeRoutes = require('./store-routes');
+const cosmetics = require('./cosmetics');
 const billing = require('./billing');
 const siteRoutes = require('./site-routes');
 const betaRoutes = require('./beta-routes');
@@ -221,6 +222,8 @@ function saveProfile(profile, req, owner) {
           return anim ? { url: `${origin}/csl/textures/${anim.strip}`, frames: anim.frames, fps: anim.fps } : null;
         })(),
         capeStore: profile.capeStore || null,
+        wearing: storeRoutes.wearingOf(profile),
+        cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`),
         updatedAt: profile.updatedAt
       };
       events.publish(db.getFriendIds(user.id), 'skin:updated', payload);
@@ -380,6 +383,9 @@ function customSkinProfile(profile, origin) {
     };
   }
   if (profile.capeStore) document.capeStore = profile.capeStore;
+  // 3D cosmetics (hats, glasses, back items, shoes): NCM model + texture per slot
+  const worn = cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`);
+  if (worn.length) document.cosmetics = worn;
   return document;
 }
 
@@ -650,6 +656,8 @@ async function handler(req, res) {
         cape,
         ...(capeAnim ? { capeAnim } : {}),
         ...(capeStore ? { capeStore } : {}),
+        // 3D cosmetics are only changed through the store (POST /v1/store/equip), never by a wardrobe sync
+        ...(existing?.cosmetics && Object.keys(existing.cosmetics).length ? { cosmetics: existing.cosmetics } : {}),
         updatedAt: new Date().toISOString()
       };
       saveProfile(profile, req, sessionUser);
@@ -1028,8 +1036,10 @@ async function handler(req, res) {
       const base = nativeProfile || premiumProfile || { username: merged.username, model: 'default', skin: null, cape: null };
       try { fs.rmSync(profilePath(result.from.native), { force: true }); } catch {}
       try { fs.rmSync(profilePath(result.from.premium), { force: true }); } catch {}
+      const wornCosmetics = (nativeProfile && nativeProfile.cosmetics) || (premiumProfile && premiumProfile.cosmetics) || null;
       saveProfile({
         ...(base.cape ? base : (premiumProfile || base)),
+        ...(wornCosmetics ? { cosmetics: wornCosmetics } : {}),
         username: merged.username,
         skin: null,
         skinName: undefined,

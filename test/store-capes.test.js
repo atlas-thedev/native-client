@@ -198,7 +198,7 @@ test('admin store: at most 5 capes can be featured (the launcher hero rotates th
 
   const listed = await req('GET', '/v1/admin/store/items');
   assert.equal(listed.body.maxFeatured, 5);
-  const already = listed.body.items.filter((item) => item.featured).length;
+  const already = listed.body.items.filter((item) => item.featured && item.section === 'capes').length;
   assert.ok(already <= 5);
   const created = [];
   for (let i = already; i < 5; i += 1) {
@@ -215,12 +215,12 @@ test('admin store: at most 5 capes can be featured (the launcher hero rotates th
   created.push(plain.body.item.id);
   assert.equal((await req('PATCH', `/v1/admin/store/items/${plain.body.item.id}`, { featured: true })).status, 409);
   // Editing a featured cape (without changing that) still works when the list is full.
-  const featuredId = (await req('GET', '/v1/admin/store/items')).body.items.find((item) => item.featured && !created.includes(item.id)).id;
+  const featuredId = (await req('GET', '/v1/admin/store/items')).body.items.find((item) => item.featured && item.section === 'capes' && !created.includes(item.id)).id;
   assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: true, description: 'Still featured.' })).status, 200);
   // Free a slot, then the other cape can be featured.
   assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: false })).status, 200);
   assert.equal((await req('PATCH', `/v1/admin/store/items/${plain.body.item.id}`, { featured: true })).status, 200);
-  assert.equal((await req('GET', '/v1/admin/store/items')).body.items.filter((item) => item.featured).length, 5);
+  assert.equal((await req('GET', '/v1/admin/store/items')).body.items.filter((item) => item.featured && item.section === 'capes').length, 5);
   // Put things back for the other tests.
   assert.equal((await req('PATCH', `/v1/admin/store/items/${featuredId}`, { featured: true })).status, 409);
   for (const id of created) assert.equal((await req('DELETE', `/v1/admin/store/items/${id}`)).status, 200);
@@ -235,7 +235,7 @@ test('store: catalogue is public, equip needs a session, equip/unequip are live'
   assert.equal(cat.frames, 26);
   assert.equal(cat.width, 512);
   assert.equal(cat.frameHeight, 256);
-  for (const item of catalog.body.items) {
+  for (const item of catalog.body.items.filter((i) => i.kind === 'cape')) {
     assert.equal(item.animated, true);
     const strip = await fetch(item.stripUrl);
     const still = await fetch(item.stillUrl);

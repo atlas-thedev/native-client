@@ -127,7 +127,7 @@ const publicOffer = (o) => ({ id: o.id, title: o.title, description: o.descripti
 function founderCapes() {
   const s = settings();
   const wanted = (s.launch.founderCapes || []).map((id) => hooks.findItem(id)).filter((it) => it && !it.hidden);
-  const list = wanted.length ? wanted : hooks.allItems().filter((it) => !it.hidden && !it.exclusive).slice(0, 3);
+  const list = wanted.length ? wanted : hooks.allItems().filter((it) => !it.hidden && !it.exclusive && it.kind !== 'cosmetic').slice(0, 3);
   return list.slice(0, 6);
 }
 const pickOf = (userId) => sql().prepare('SELECT item_id, picked_at FROM founder_picks WHERE user_id = ?').get(String(userId)) || null;
@@ -209,7 +209,7 @@ function applyLaunch(prev, b) {
   }
   for (const k of ['prelaunch', 'lockStore', 'lockDownloads', 'founderPick']) next[k] = bool(b[k], prev[k]);
   if (b.founderCapes !== undefined) {
-    const ids = (Array.isArray(b.founderCapes) ? b.founderCapes : []).map(String).filter((id) => hooks.findItem(id));
+    const ids = (Array.isArray(b.founderCapes) ? b.founderCapes : []).map(String).filter((id) => { const it = hooks.findItem(id); return it && it.kind !== 'cosmetic'; });
     next.founderCapes = [...new Set(ids)].slice(0, 6);
   }
   if (b.headline !== undefined) next.headline = clean(b.headline, 80);

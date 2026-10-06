@@ -6,11 +6,13 @@
  *   GET  /v1/store/catalog         visible items (newest/featured first) with texture URLs + owner counts
  *   GET  /v1/store/items/:id       one item (hidden items too, so retired capes still have a page)
  * Signed in (Bearer or X-Native-Token)
- *   GET  /v1/store/me              { equipped, owned: [{ id, acquiredAt }] }
+ *   GET  /v1/store/me              { equipped, wearing: { slot: itemId }, owned: [{ id, acquiredAt }] }
  *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
  *   POST /v1/store/unclaim         { itemId }  remove it from your locker (takes it off if worn)
  *   POST /v1/store/equip           { itemId }  wear an item from your locker (null = take the cape off).
- *                                   Free items are added to the locker automatically.
+ *                                   Free items are added to the locker automatically. A cosmetic
+ *                                   (hat, glasses, back item, shoes) goes into its slot;
+ *                                   { slot, itemId: null } takes that slot off.
  *   GET  /v1/store/stream          SSE: wardrobe:changed for the signed-in account
  * Admin (session with is_admin)
  *   GET    /v1/admin/store/items           every item, hidden ones included
@@ -41,6 +43,7 @@ const db = require('./db');
 const capes = require('./capes');
 const events = require('./social-events');
 const billing = require('./billing');
+const cosmetics = require('./cosmetics');
 const site = () => require('./site-routes');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
@@ -75,6 +78,17 @@ function ensureCatalog(textureFn) {
   if (saved && Array.isArray(saved.items)) {
     catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items };
     let added = false;
+    // sections added in later deploys (hats, glasses, ...) appear after the saved ones
+    for (const section of bundled.sections) {
+      if (!catalog.sections.some((x) => x.id === section.id)) { catalog.sections = [...catalog.sections, section]; added = true; }
+    }
+    // bundled cosmetics nobody re-textured follow the shipped model/texture/thumbnail
+    catalog.items = catalog.items.map((item) => {
+      const fresh = item.bundled && bundled.items.find((x) => x.id === item.id && x.kind === 'cosmetic');
+      if (!fresh || (item.model === fresh.model && item.texture === fresh.texture && item.still === fresh.still && item.motion === fresh.motion)) return item;
+      added = true;
+      return { ...item, model: fresh.model, texture: fresh.texture, still: fresh.still, motion: fresh.motion, width: fresh.width, frameHeight: fresh.frameHeight };
+    });
     bundled.items.forEach((item, index) => {
       if (catalog.items.some((x) => x.id === item.id) || catalog.deleted.includes(item.id)) return;
       catalog.items.push({ ...item, hidden: false, order: catalog.items.length + index, createdAt: now, updatedAt: now });
@@ -169,7 +183,7 @@ const PRESET_CAPE_HASHES = new Set([
  */
 const capeAllowed = (hash, profile = null) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash, profile);
 const isStoreStill = (hash, profile = null) => Boolean(hash) && current().items.some((item) =>
-  item.still === hash && (!item.exclusive || (profile && profile.capeStore === item.id)));
+  !cosmetics.isCosmetic(item) && item.still === hash && (!item.exclusive || (profile && profile.capeStore === item.id)));
 const findByStrip = (hash) => current().items.find((item) => item.animated && item.strip === hash) || null;
 
 /**
@@ -252,6 +266,13 @@ function publicItem(item, textureBase, counts) {
     frameHeight: item.frameHeight,
     stripUrl: item.animated ? `${textureBase}${item.strip}` : null,
     stillUrl: `${textureBase}${item.still}`,
+    ...(cosmetics.isCosmetic(item) ? {
+      kind: 'cosmetic',
+      slot: item.slot,
+      motion: Boolean(item.motion),
+      modelUrl: `${textureBase}${item.model}`,
+      textureUrl: `${textureBase}${item.texture}`
+    } : { kind: 'cape' }),
     owners: counts ? (counts.get(item.id) || 0) : undefined,
     createdAt: Number(item.createdAt) || 0
   };
@@ -259,8 +280,9 @@ function publicItem(item, textureBase, counts) {
 
 /** The launcher's store hero rotates through at most this many featured capes. */
 const MAX_FEATURED = 5;
-const featuredCount = (items, exceptId = null) => items.filter((item) => item.featured && item.id !== exceptId).length;
-const tooManyFeatured = () => `Up to ${MAX_FEATURED} capes can be featured. Unfeature one first.`;
+/** Featured items are counted per section (capes, hats, glasses, ...). */
+const featuredCount = (items, exceptId = null, section = 'capes') => items.filter((item) => item.featured && item.id !== exceptId && (item.section || 'capes') === section).length;
+const tooManyFeatured = () => `Up to ${MAX_FEATURED} items per section can be featured. Unfeature one first.`;
 
 const sorted = (items) => [...items].sort((a, b) =>
   Number(Boolean(b.featured)) - Number(Boolean(a.featured))
@@ -295,6 +317,63 @@ function texturesFrom(body) {
   const { width, height } = capes.pngSize(still);
   if (width < 16 || height < 8 || width > 4096 || height > 4096) throw new Error('That cape size is not supported.');
   return { animated: false, frames: 1, fps: 0, width, frameHeight: height, strip: null, still: storeTexture(still) };
+}
+
+/** Validates an uploaded cosmetic (model JSON + texture PNG + thumbnail PNG). Returns item fields. */
+function cosmeticFrom(body, previous = null) {
+  const out = {};
+  if (body.model !== undefined && body.model !== null && body.model !== '') {
+    const text = typeof body.model === 'string' ? body.model : JSON.stringify(body.model);
+    const info = cosmetics.validateModel(text);
+    out.model = storeTexture(Buffer.from(text, 'utf8'));
+    out.motion = info.animated;
+  } else if (!previous) throw new Error('Choose the cosmetic model (.json).');
+  if (body.texture) {
+    const texture = capes.pngFromBase64(body.texture, cosmetics.MAX_TEXTURE_BYTES);
+    if (!texture) throw new Error('Choose the cosmetic texture PNG.');
+    capes.pngSize(texture);
+    out.texture = storeTexture(texture);
+  } else if (!previous) throw new Error('Choose the cosmetic texture PNG.');
+  const thumbSource = body.thumb || body.still;
+  if (thumbSource) {
+    const thumb = capes.pngFromBase64(thumbSource, 5 * 1024 * 1024);
+    if (!thumb) throw new Error('Choose a thumbnail PNG.');
+    const { width, height } = capes.pngSize(thumb);
+    Object.assign(out, { still: storeTexture(thumb), width, frameHeight: height });
+  } else if (!previous) {
+    // no thumbnail yet: the texture stands in until one is uploaded
+    Object.assign(out, { still: out.texture, ...(() => { const t = capes.pngSize(capes.pngFromBase64(body.texture, cosmetics.MAX_TEXTURE_BYTES)); return { width: t.width, frameHeight: t.height }; })() });
+  }
+  return { ...out, animated: false, frames: 1, fps: 0, strip: null, bundled: false };
+}
+
+/** What a profile wears in the cosmetic slots: { hats: 'propeller-cap', ... }. */
+const wearingOf = (profile) => cosmetics.wearing(profile, findItem);
+
+/** Takes `item` off a profile (cape or cosmetic). Returns the next profile, or null when it wasn't worn. */
+function takenOff(profile, item) {
+  if (!profile || !item) return null;
+  if (cosmetics.isCosmetic(item)) return cosmetics.withoutItem(profile, item.id);
+  if (profile.capeStore === item.id) return { ...profile, cape: null, capeAnim: null, capeStore: null };
+  return null;
+}
+
+/** Re-publishes the mod directory entries of everyone wearing `itemId` (its model/texture changed or it was deleted). */
+function refreshWearers(ctx, itemId, userIds) {
+  for (const userId of userIds) {
+    try {
+      const account = db.getUserById(userId);
+      const profile = account ? ctx.readProfile(account.username) : null;
+      if (profile && profile.cosmetics && Object.values(profile.cosmetics).includes(itemId)) require('./mod-routes').noteProfile(profile);
+    } catch {}
+  }
+}
+const ownerIds = (itemId) => { try { return sql().prepare('SELECT user_id FROM store_owned WHERE item_id = ?').all(itemId).map((row) => row.user_id); } catch { return []; } };
+
+/** Puts `item` on a profile (cape or cosmetic). */
+function putOn(profile, item) {
+  if (cosmetics.isCosmetic(item)) return cosmetics.withItem(profile, item);
+  return { ...profile, cape: item.still, capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null, capeStore: item.id };
 }
 
 /**
@@ -370,7 +449,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
+    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)) }, noStore);
     return true;
   }
 
@@ -398,13 +477,12 @@ async function handleStoreRoutes(req, res, ctx) {
       if (['purchase', 'code', 'founder'].includes(billing.ownedSource(user.id, item.id))) { send(res, 403, { ok: false, error: `${item.name} is yours to keep. You can take it off any time.` }); return true; }
       revoke(user.id, item.id);
       const existing = ctx.readProfile(user.username);
-      if (existing && existing.capeStore === item.id) {
-        profile = ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: new Date().toISOString() }, req, user);
-      }
+      const off = takenOff(existing, item);
+      if (off) profile = ctx.saveProfile({ ...off, updatedAt: new Date().toISOString() }, req, user);
     }
     const current = ctx.readProfile(user.username);
-    events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: current?.capeStore || null, owned: true });
-    send(res, 200, { ok: true, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), equipped: current?.capeStore || null, ...(profile ? { profile: ctx.profileDocument(profile, req) } : {}) }, noStore);
+    events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: current?.capeStore || null, wearing: wearingOf(current), owned: true });
+    send(res, 200, { ok: true, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), equipped: current?.capeStore || null, wearing: wearingOf(current), ...(profile ? { profile: ctx.profileDocument(profile, req) } : {}) }, noStore);
     return true;
   }
 
@@ -420,7 +498,10 @@ async function handleStoreRoutes(req, res, ctx) {
       authHash: null
     };
     let next;
-    if (body.itemId == null || body.itemId === '') {
+    if ((body.itemId == null || body.itemId === '') && body.slot !== undefined && body.slot !== 'capes') {
+      if (!cosmetics.isSlot(body.slot)) { send(res, 400, { ok: false, error: 'Unknown cosmetic slot.' }); return true; }
+      next = cosmetics.withoutSlot(existing, body.slot);
+    } else if (body.itemId == null || body.itemId === '') {
       next = { ...existing, cape: null, capeAnim: null, capeStore: null };
     } else {
       const item = findItem(String(body.itemId));
@@ -436,16 +517,11 @@ async function handleStoreRoutes(req, res, ctx) {
           grant(user.id, item.id, 'free');
         }
       }
-      next = {
-        ...existing,
-        cape: item.still,
-        capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
-        capeStore: item.id
-      };
+      next = putOn(existing, item);
     }
     next.updatedAt = new Date().toISOString();
     const saved = ctx.saveProfile(next, req, user);
-    send(res, 200, { ok: true, equipped: saved.capeStore || null, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
+    send(res, 200, { ok: true, equipped: saved.capeStore || null, wearing: wearingOf(saved), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
     return true;
   }
 
@@ -474,13 +550,16 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     const id = slug(body.id || name);
     if (!ID_RE.test(id)) { send(res, 400, { ok: false, error: 'The id may only use a-z, 0-9 and dashes.' }); return true; }
     if (findItem(id)) { send(res, 409, { ok: false, error: `A cloak with the id "${id}" already exists.` }); return true; }
-    if (body.featured && featuredCount(cat.items) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
+    const slot = body.kind === 'cosmetic' || cosmetics.isSlot(body.slot) || cosmetics.isSlot(body.section) ? String(body.slot || body.section || '') : null;
+    if (slot !== null && !cosmetics.isSlot(slot)) { send(res, 400, { ok: false, error: `Pick a slot: ${cosmetics.SLOTS.join(', ')}.` }); return true; }
+    if (body.featured && featuredCount(cat.items, null, slot || 'capes') >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
     let textures;
-    try { textures = texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+    try { textures = slot ? cosmeticFrom(body) : texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
     const now = Date.now();
     const item = {
       id,
-      section: 'capes',
+      section: slot || 'capes',
+      ...(slot ? { kind: 'cosmetic', slot } : {}),
       name,
       description: cleanText(body.description, 200),
       tags: cleanTags(body.tags),
@@ -514,6 +593,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
         ...(facts || { id: target.id, username: target.username, email: target.email, isAdmin: Boolean(target.is_admin), createdAt: target.created_at }),
         owned: ownedBy(target.id).filter((entry) => findItem(entry.id)),
         equipped: profile?.capeStore || null,
+        wearing: wearingOf(profile),
         hasCustomCape: Boolean(profile?.cape && !profile?.capeStore)
       };
     };
@@ -534,28 +614,29 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       };
       const stamp = () => new Date().toISOString();
       if (action === 'unequip') {
-        if (existing.capeStore) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
+        const item = body.itemId ? findItem(String(body.itemId)) : null;
+        if (item) {
+          const off = takenOff(existing, item);
+          if (off) ctx.saveProfile({ ...off, updatedAt: stamp() }, req, target);
+        } else if (cosmetics.isSlot(body.slot)) {
+          ctx.saveProfile({ ...cosmetics.withoutSlot(existing, body.slot), updatedAt: stamp() }, req, target);
+        } else if (existing.capeStore) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
       } else {
         const item = findItem(String(body.itemId || ''));
         if (!item) { send(res, 404, { ok: false, error: 'That cloak does not exist.' }); return true; }
         if (action === 'grant') billing.grantItem(target.id, item.id, 'admin');
         if (action === 'revoke') {
           revoke(target.id, item.id);
-          if (existing.capeStore === item.id) ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: stamp() }, req, target);
+          const off = takenOff(existing, item);
+          if (off) ctx.saveProfile({ ...off, updatedAt: stamp() }, req, target);
         }
         if (action === 'equip') {
           if (!owns(target.id, item.id)) billing.grantItem(target.id, item.id, 'admin');
-          ctx.saveProfile({
-            ...existing,
-            cape: item.still,
-            capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
-            capeStore: item.id,
-            updatedAt: stamp()
-          }, req, target);
+          ctx.saveProfile({ ...putOn(existing, item), updatedAt: stamp() }, req, target);
         }
       }
       const user = detail();
-      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: user.equipped, owned: true });
+      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: user.equipped, wearing: user.wearing, owned: true });
       send(res, 200, { ok: true, user, items: list() }, noStore);
       return true;
     }
@@ -585,13 +666,11 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
         billing.grantItem(target.id, item.id, 'admin');
       } else {
         revoke(target.id, item.id);
-        const existing = ctx.readProfile(target.username);
-        if (existing && existing.capeStore === item.id) {
-          ctx.saveProfile({ ...existing, cape: null, capeAnim: null, capeStore: null, updatedAt: new Date().toISOString() }, req, target);
-        }
+        const off = takenOff(ctx.readProfile(target.username), item);
+        if (off) ctx.saveProfile({ ...off, updatedAt: new Date().toISOString() }, req, target);
       }
       const profile = ctx.readProfile(target.username);
-      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: profile?.capeStore || null, owned: true });
+      events.publish(target.id, 'wardrobe:changed', { userId: target.id, name: target.username, capeStore: profile?.capeStore || null, wearing: wearingOf(profile), owned: true });
       send(res, 200, { ok: true, owners: owners(), items: list() }, noStore);
       return true;
     }
@@ -613,13 +692,17 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       if (body.author !== undefined) next.author = cleanText(body.author, 40) || 'Native';
       if (body.featured !== undefined) {
         next.featured = Boolean(body.featured);
-        if (next.featured && !item.featured && featuredCount(cat.items, item.id) >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
+        if (next.featured && !item.featured && featuredCount(cat.items, item.id, item.section || 'capes') >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
       }
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
       if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
       if (body.price !== undefined) next.price = priceFrom(body.price);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
-      if (body.strip || body.still) {
+      if (cosmetics.isCosmetic(item)) {
+        if (body.model || body.texture || body.thumb || body.still) {
+          try { Object.assign(next, cosmeticFrom(body, item)); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+        }
+      } else if (body.strip || body.still) {
         try { Object.assign(next, texturesFrom({ ...body, animated: body.animated !== undefined ? body.animated : item.animated })); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
       } else if (item.animated && body.fps !== undefined) {
         const fps = Number(body.fps);
@@ -629,14 +712,17 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       next.updatedAt = Date.now();
       cat.items[cat.items.indexOf(item)] = next;
       persist();
+      if (cosmetics.isCosmetic(item) && (next.model !== item.model || next.texture !== item.texture)) refreshWearers(ctx, item.id, ownerIds(item.id));
       send(res, 200, { ok: true, item: publicItem(next, textureBase), items: list() }, noStore);
       return true;
     }
     if (req.method === 'DELETE') {
+      const wearers = cosmetics.isCosmetic(item) ? ownerIds(item.id) : [];
       cat.items = cat.items.filter((entry) => entry !== item);
       if (!cat.deleted.includes(item.id)) cat.deleted.push(item.id);
       try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
       persist();
+      refreshWearers(ctx, item.id, wearers);
       send(res, 200, { ok: true, items: list() }, noStore);
       return true;
     }
@@ -649,4 +735,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };
+module.exports = { wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };

@@ -55,7 +55,13 @@ function entryFor(profile) {
   // Only Native store cloaks animate (see store-routes.animationFor).
   let allowed = null;
   let capeOk = true;
-  try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape, profile); } catch {}
+  let k = [];
+  try {
+    const store = require('./store-routes');
+    allowed = store.animationFor(profile);
+    capeOk = store.capeAllowed(profile.cape, profile);
+    k = require('./cosmetics').directoryRefs(profile, store.findItem).filter((ref) => HASH.test(ref.m) && HASH.test(ref.x));
+  } catch {}
   const cape = HASH.test(profile.cape || '') && capeOk ? profile.cape : null;
   const anim = allowed && cape
     ? { h: allowed.strip, f: Number(allowed.frames) || 0, p: Number(allowed.fps) || 0 }
@@ -72,6 +78,8 @@ function entryFor(profile) {
     u: mcUuid,
     // Premium players: cloak only, the Mojang skin stays (mods up to 1.4 read `p`).
     ...(premiumUser ? { p: { c: cape, a } } : {}),
+    // 3D cosmetics (mod 1.5+): item id, NCM model hash, texture hash
+    ...(k.length ? { k } : {}),
     t: Date.parse(profile.updatedAt) || 0
   };
 }
@@ -89,7 +97,7 @@ function load() {
     try {
       const profile = JSON.parse(fs.readFileSync(path.join(profilesDir, file), 'utf8'));
       const entry = entryFor(profile);
-      if (entry && (entry.s || entry.c)) index.set(entry.n.toLowerCase(), { ...entry, r: 0 });
+      if (entry && (entry.s || entry.c || entry.k)) index.set(entry.n.toLowerCase(), { ...entry, r: 0 });
     } catch { /* skip unreadable profile */ }
   }
 }
@@ -104,14 +112,15 @@ function broadcast(entry) {
 }
 
 const animKey = (e) => (e && e.a ? `${e.a.h}:${e.a.f}:${e.a.p}` : '');
+const cosmeticKey = (e) => (e && e.k ? e.k.map((ref) => `${ref.i}:${ref.m}:${ref.x}`).join(',') : '');
 
-/** Store and broadcast one directory entry (an entry with no skin or cloak removes the player). */
+/** Store and broadcast one directory entry (an entry with no skin, cloak or cosmetic removes the player). */
 function upsert(entry) {
   const key = entry.n.toLowerCase();
   const previous = index.get(key);
-  const empty = !entry.s && !entry.c;
+  const empty = !entry.s && !entry.c && !(entry.k && entry.k.length);
   if (!previous && empty) return;
-  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && Boolean(previous.p) === Boolean(entry.p)) return;
+  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && cosmeticKey(previous) === cosmeticKey(entry) && Boolean(previous.p) === Boolean(entry.p)) return;
   rev += 1;
   const stored = { ...entry, r: rev };
   if (empty) index.delete(key); else index.set(key, stored);

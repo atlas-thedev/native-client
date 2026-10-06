@@ -1,0 +1,146 @@
+[
+  {
+    "id": "propeller-cap",
+    "section": "hats",
+    "name": "Propeller Cap",
+    "description": "A rainbow beanie with a propeller that never stops spinning. Faster when you sprint.",
+    "tags": [
+      "animated",
+      "fun"
+    ],
+    "featured": true
+  },
+  {
+    "id": "royal-crown",
+    "section": "hats",
+    "name": "Royal Crown",
+    "description": "Solid gold, glowing gems. For the ruler of the lobby.",
+    "tags": [
+      "royal",
+      "glow"
+    ],
+    "featured": false
+  },
+  {
+    "id": "angel-halo",
+    "section": "hats",
+    "name": "Angel Halo",
+    "description": "A warm glowing halo that floats and drifts above your head.",
+    "tags": [
+      "animated",
+      "glow"
+    ],
+    "featured": false
+  },
+  {
+    "id": "top-hat",
+    "section": "hats",
+    "name": "Gentleman Top Hat",
+    "description": "Tall, black and very proper, with a crimson band.",
+    "tags": [
+      "classic"
+    ],
+    "featured": false
+  },
+  {
+    "id": "pixel-shades",
+    "section": "glasses",
+    "name": "Pixel Shades",
+    "description": "Deal with it. Pixel-perfect black shades.",
+    "tags": [
+      "meme",
+      "cool"
+    ],
+    "featured": true
+  },
+  {
+    "id": "nerd-glasses",
+    "section": "glasses",
+    "name": "Study Glasses",
+    "description": "Thick tortoiseshell frames with real glass lenses.",
+    "tags": [
+      "smart"
+    ],
+    "featured": false
+  },
+  {
+    "id": "cyber-visor",
+    "section": "glasses",
+    "name": "Cyber Visor",
+    "description": "A neon HUD visor with a scanner that sweeps side to side.",
+    "tags": [
+      "animated",
+      "glow",
+      "tech"
+    ],
+    "featured": true
+  },
+  {
+    "id": "angel-wings",
+    "section": "back",
+    "name": "Angel Wings",
+    "description": "Soft white feathered wings that gently flap, and beat harder when you run.",
+    "tags": [
+      "animated",
+      "wings"
+    ],
+    "featured": true
+  },
+  {
+    "id": "dragon-wings",
+    "section": "back",
+    "name": "Dragon Wings",
+    "description": "Leathery wings with bony spines and claws. Slow, powerful beats.",
+    "tags": [
+      "animated",
+      "wings",
+      "dark"
+    ],
+    "featured": false
+  },
+  {
+    "id": "explorer-backpack",
+    "section": "back",
+    "name": "Explorer Backpack",
+    "description": "A leather adventuring pack with a bedroll. It bounces as you walk.",
+    "tags": [
+      "animated",
+      "adventure"
+    ],
+    "featured": false
+  },
+  {
+    "id": "rocket-jetpack",
+    "section": "back",
+    "name": "Rocket Jetpack",
+    "description": "Twin-tank jetpack with flickering rocket flames. Liftoff not included.",
+    "tags": [
+      "animated",
+      "glow",
+      "tech"
+    ],
+    "featured": true
+  },
+  {
+    "id": "street-sneakers",
+    "section": "shoes",
+    "name": "Street Sneakers",
+    "description": "Fresh red kicks with white soles and laces.",
+    "tags": [
+      "street"
+    ],
+    "featured": false
+  },
+  {
+    "id": "rocket-boots",
+    "section": "shoes",
+    "name": "Rocket Boots",
+    "description": "Chrome boots with glowing heel thrusters that sputter as you move.",
+    "tags": [
+      "animated",
+      "glow",
+      "tech"
+    ],
+    "featured": false
+  }
+]
