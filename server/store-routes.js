@@ -82,13 +82,16 @@ function ensureCatalog(textureFn) {
     for (const section of bundled.sections) {
       if (!catalog.sections.some((x) => x.id === section.id)) { catalog.sections = [...catalog.sections, section]; added = true; }
     }
-    // bundled cosmetics nobody re-textured follow the shipped model/texture/thumbnail
-    catalog.items = catalog.items.map((item) => {
-      const fresh = item.bundled && bundled.items.find((x) => x.id === item.id && x.kind === 'cosmetic');
-      if (!fresh || (item.model === fresh.model && item.texture === fresh.texture && item.still === fresh.still && item.motion === fresh.motion)) return item;
+    // the 3D cosmetics that used to ship with the server are gone: drop them (and their locker rows)
+    const retired = catalog.items.filter((item) => item.bundled && cosmetics.isCosmetic(item));
+    if (retired.length) {
+      catalog.items = catalog.items.filter((item) => !retired.includes(item));
+      for (const item of retired) {
+        try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
+      }
+      console.log(`[Native Store] Removed ${retired.length} built-in cosmetics: ${retired.map((item) => item.id).join(', ')}`);
       added = true;
-      return { ...item, model: fresh.model, texture: fresh.texture, still: fresh.still, motion: fresh.motion, width: fresh.width, frameHeight: fresh.frameHeight };
-    });
+    }
     bundled.items.forEach((item, index) => {
       if (catalog.items.some((x) => x.id === item.id) || catalog.deleted.includes(item.id)) return;
       catalog.items.push({ ...item, hidden: false, order: catalog.items.length + index, createdAt: now, updatedAt: now });

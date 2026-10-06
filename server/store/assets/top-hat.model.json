@@ -1,1 +1,0 @@
-{"format":1,"texture":[64,64],"parts":[{"id":"hat","attach":"head","armor":{"slot":"head"},"cubes":[{"origin":[-6,-9,-6],"size":[12,1,12],"uv":[0,15]},{"origin":[-4,-16,-4],"size":[8,7,8],"uv":[0,0],"inflate":0.3},{"origin":[-4,-11,-4],"size":[8,2,8],"uv":[0,28],"inflate":0.45}]}]}

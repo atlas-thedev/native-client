@@ -86,41 +86,6 @@ function readAsset(name) {
   return Buffer.from(fs.readFileSync(path.join(ASSET_DIR, name), 'utf8').trim(), 'base64');
 }
 
-/** A bundled 3D cosmetic: <id>.model.json + <id>.texture.png.b64 + <id>.thumb.png.b64. */
-function bundledCosmetic(item, storeTexture) {
-  if (!cosmetics.isSlot(item.section)) throw new Error(`unknown cosmetic slot "${item.section}"`);
-  const model = fs.readFileSync(path.join(ASSET_DIR, `${item.id}.model.json`));
-  const info = cosmetics.validateModel(model);
-  const texture = readAsset(`${item.id}.texture.png.b64`);
-  pngSize(texture);
-  const thumb = readAsset(`${item.id}.thumb.png.b64`);
-  const { width, height } = pngSize(thumb);
-  return {
-    id: item.id,
-    kind: 'cosmetic',
-    section: item.section,
-    slot: item.section,
-    name: item.name,
-    description: item.description || '',
-    tags: Array.isArray(item.tags) ? item.tags : [],
-    author: item.author || 'Native',
-    featured: Boolean(item.featured),
-    exclusive: Boolean(item.exclusive),
-    price: 0,
-    animated: false,
-    motion: info.animated,
-    frames: 1,
-    fps: 0,
-    width,
-    frameHeight: height,
-    strip: null,
-    still: storeTexture(thumb),
-    model: storeTexture(model),
-    texture: storeTexture(texture),
-    bundled: true
-  };
-}
-
 /**
  * Loads the bundled catalogue and publishes its textures through `storeTexture`
  * (which hashes + writes them like any other texture).
@@ -129,10 +94,8 @@ function loadCatalog(storeTexture) {
   const meta = JSON.parse(fs.readFileSync(path.join(STORE_DIR, 'catalog.json'), 'utf8'));
   const items = [];
   for (const item of meta.items || []) {
-    if (item.kind === 'cosmetic' || cosmetics.isSlot(item.section)) {
-      try { items.push(bundledCosmetic(item, storeTexture)); } catch (error) { console.warn(`[Native Store] Skipping "${item.id}": ${error.message}`); }
-      continue;
-    }
+    // 3D cosmetics are never bundled: admins upload them (POST /v1/admin/store/items with kind: 'cosmetic')
+    if (item.kind === 'cosmetic' || cosmetics.isSlot(item.section)) continue;
     try {
       const strip = readAsset(`${item.id}.strip.png.b64`);
       const still = readAsset(`${item.id}.still.png.b64`);
@@ -162,4 +125,4 @@ function loadCatalog(storeTexture) {
   return { sections: meta.sections || [], items };
 }
 
-module.exports = { LIMITS, pngSize, pngFromBase64, validateAnimation, loadCatalog, bundledCosmetic };
+module.exports = { LIMITS, pngSize, pngFromBase64, validateAnimation, loadCatalog };

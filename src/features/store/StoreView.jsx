@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
-import { PixelCape, PixelStar } from './PixelIcons.jsx';
+import { PixelCape, PixelGlasses, PixelGrid, PixelHat, PixelShoe, PixelStar, PixelWings } from './PixelIcons.jsx';
+import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { Check, ChevronLeft, ChevronRight, Loader2, Lock, Package, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
@@ -21,8 +22,10 @@ export const featuredCapes = (items = []) => items
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
-const SECTION_LABELS = { capes: 'Capes', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
+const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
 const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes' };
+const SECTION_ICONS = { capes: PixelCape, hats: PixelHat, glasses: PixelGlasses, back: PixelWings, shoes: PixelShoe };
+const sectionIcon = (id, size = 18) => { const Icon = SECTION_ICONS[id] || PixelGrid; return <Icon size={size} className="px-icon" />; };
 
 /** Featured items of one store section, capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
@@ -410,40 +413,39 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   const actionFor = (item, compact = false) => {
     const owned = ownedIds.has(item.id);
+    const size = compact ? 'md' : 'lg';
+    const block = compact;
+    const spin = <Loader2 size={15} className="is-spinning" />;
+    const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
     if (item.exclusive && !owned) {
-      return <span className="store-exclusive-pill" title="Not sold. You get it at Native events or with a code."><Lock size={12} />{compact ? 'Event only' : 'Events & codes only'}</span>;
+      return <PixelButton variant="exclusive" size={size} block={block} icon={<PixelStar size={12} className="px-icon" />} label={compact ? 'Event only' : 'Events & codes only'} title="Not sold. You get it at Native events or with a code." onClick={(event) => event.stopPropagation()} />;
     }
     if (!signedIn) {
-      return <button type="button" className="store-btn ghost" onClick={(event) => { event.stopPropagation(); onOpenAccountSwitcher?.(); }}><Lock size={13} />{compact ? 'Sign in' : 'Sign in with Native'}</button>;
+      return <PixelButton variant="ghost" size={size} block={block} icon={<Lock size={15} />} label={compact ? 'Sign in' : 'Sign in with Native'} onClick={stop(() => onOpenAccountSwitcher?.())} />;
     }
     const wearing = isCosmetic(item) ? (me.wearing || {})[item.slot] === item.id : me.equipped === item.id;
     const put = isCosmetic(item) ? () => wearCosmetic(item) : () => wear(item);
     const off = isCosmetic(item) ? () => wearCosmetic(item, true) : () => wear(null);
     const offKey = isCosmetic(item) ? `wear:off:${item.slot}` : 'wear:off';
+    const locked = busy !== null;
     if (!owned && item.paid) {
-      const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
       if (plus?.active) {
-        return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => claim(item))}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <NativePlusIcon size={13} />}{compact ? 'Add with Plus' : 'Add with Native+'}</button>;
+        return <PixelButton variant="gold" size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label={compact ? 'Plus' : 'Add with Native+'} title="Included with Native+" onClick={stop(() => claim(item))} />;
       }
       if (!billing.enabled) {
-        return <span className="store-exclusive-pill" title="Payments are switched on soon.">{`$${Number(item.price).toFixed(2)} · soon`}</span>;
+        return <PixelButton variant="locked" size={size} block={block} label={`$${Number(item.price).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
       }
       if (pending?.itemId === item.id) {
-        return <button type="button" className="store-btn ghost" onClick={stop(() => setPending(null))} title="Waiting for your payment. Click to stop waiting."><Loader2 size={13} className="is-spinning" />{compact ? 'Waiting…' : 'Finish paying in your browser…'}</button>;
+        return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : 'Finish paying in your browser…'} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
-      return <button type="button" className="store-btn" disabled={busy !== null} onClick={stop(() => buy(item))}>{busy === `buy:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <ShoppingBag size={13} />}{`Buy $${Number(item.price).toFixed(2)}`}</button>;
+      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${Number(item.price).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
     if (!owned) {
-      return <button type="button" className="store-btn" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); claim(item); }}>{busy === `claim:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Plus size={13} />}Add to locker</button>;
-    }
-    if (compact) {
-      return wearing
-        ? <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); off(); }}>{busy === offKey ? <Loader2 size={13} className="is-spinning" /> : null}Take off</button>
-        : <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={(event) => { event.stopPropagation(); put(); }}>{busy === `wear:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Shirt size={13} />}Wear</button>;
+      return <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label={compact ? 'Add' : 'Add to locker'} title="Add to your locker" onClick={stop(() => claim(item))} />;
     }
     return wearing
-      ? <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={off}>{busy === offKey ? <Loader2 size={13} className="is-spinning" /> : null}Take off</button>
-      : <button type="button" className="store-btn" disabled={busy !== null} onClick={put}>{busy === `wear:${item.id}` ? <Loader2 size={13} className="is-spinning" /> : <Shirt size={13} />}Wear now</button>;
+      ? <PixelButton variant="ghost" size={size} block={block} disabled={locked} busy={busy === offKey} busyIcon={spin} icon={<X size={15} strokeWidth={3} />} label="Take off" onClick={stop(off)} />
+      : <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `wear:${item.id}`} busyIcon={spin} icon={<Shirt size={15} />} label={compact ? 'Wear' : 'Wear now'} onClick={stop(put)} />;
   };
 
   const inSection = (catalog?.items || []).filter((item) => sectionOf(item) === section);
@@ -461,7 +463,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const known = (catalog?.sections || []).map((entry) => entry.id);
     const ids = [...new Set(['capes', ...known, ...everything.map(sectionOf)])];
     return ids.filter((id) => id === 'capes' || everything.some((item) => sectionOf(item) === id))
-      .map((id) => ({ id, label: (catalog?.sections || []).find((entry) => entry.id === id)?.name || SECTION_LABELS[id] || id, count: everything.filter((item) => sectionOf(item) === id).length }));
+      .map((id) => ({ id, label: id === 'capes' ? SECTION_LABELS.capes : (catalog?.sections || []).find((entry) => entry.id === id)?.name || SECTION_LABELS[id] || id, count: everything.filter((item) => sectionOf(item) === id).length }));
   })();
   const noun = section === 'capes' ? 'cloaks' : (SECTION_LABELS[section] || 'items').toLowerCase();
   const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
@@ -493,7 +495,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       )}
       <div className="store-detail-actions">
         {actionFor(item)}
-        {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <button type="button" className="store-btn ghost subtle" disabled={busy !== null} onClick={() => unclaim(item)} title="Remove from locker"><Trash2 size={13} />Remove</button>}
+        {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <PixelButton variant="danger" size="lg" disabled={busy !== null} busy={busy === `unclaim:${item.id}`} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<Trash2 size={15} />} label="Remove" title="Remove from your locker" onClick={() => unclaim(item)} />}
       </div>
     </>
   );
@@ -512,9 +514,9 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <div className="store-collection-bar"><i style={{ width: `${everything.length ? Math.round((ownedTotal / everything.length) * 100) : 0}%` }} /></div>
             </div>
           )}
-          {signedIn && <button type="button" className="store-btn ghost" onClick={() => setRedeemOpen(true)}><Ticket size={13} />Redeem code</button>}
-          {signedIn && <button type="button" className="store-btn ghost" onClick={onOpenLocker}><Package size={13} />My locker</button>}
-          <button type="button" className="store-icon-btn" onClick={() => load(true)} title="Refresh" aria-label="Refresh the store"><RefreshCw size={14} /></button>
+          {signedIn && <PixelButton variant="ghost" icon={<Ticket size={15} />} label="Redeem code" onClick={() => setRedeemOpen(true)} />}
+          {signedIn && <PixelButton variant="ghost" icon={<Package size={15} />} label="My locker" onClick={onOpenLocker} />}
+          <PixelIconButton size="md" icon={<RefreshCw size={15} />} label="Refresh the store" title="Refresh" onClick={() => load(true)} />
         </div>
       </header>
 
@@ -526,7 +528,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           <span className="store-coming-icon"><PixelCape size={22} /></span>
           <h2>New cloaks are on the way</h2>
           <p>The first Native cloaks are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
-          <button type="button" className="store-btn ghost" onClick={() => load(true)}><RefreshCw size={13} />Check again</button>
+          <PixelButton variant="ghost" icon={<RefreshCw size={15} />} label="Check again" onClick={() => load(true)} />
         </div>
       )}
 
@@ -598,17 +600,17 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               </div>
               <div className="store-plus-actions">
                 {!signedIn ? (
-                  <button type="button" className="store-btn ghost" onClick={onOpenAccountSwitcher}><Lock size={13} />Sign in with Native</button>
+                  <PixelButton variant="ghost" icon={<Lock size={15} />} label="Sign in with Native" onClick={onOpenAccountSwitcher} />
                 ) : plus?.active && plus.gifted ? (
                   null
                 ) : plus?.active ? (
-                  <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={manageBilling}>{busy === 'portal' ? <Loader2 size={13} className="is-spinning" /> : null}Manage</button>
+                  <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'portal'} busyIcon={<Loader2 size={15} className="is-spinning" />} label="Manage" onClick={manageBilling} />
                 ) : pending?.kind === 'plus' ? (
-                  <button type="button" className="store-btn ghost" onClick={() => setPending(null)}><Loader2 size={13} className="is-spinning" />Finish paying in your browser…</button>
+                  <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label="Finish paying in your browser…" onClick={() => setPending(null)} />
                 ) : (
                   <>
-                    <button type="button" className="store-btn ghost" disabled={busy !== null} onClick={() => joinPlus('monthly')}>{busy === 'plus:monthly' ? <Loader2 size={13} className="is-spinning" /> : null}${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month</button>
-                    <button type="button" className="store-btn" disabled={busy !== null} onClick={() => joinPlus('yearly')}>{busy === 'plus:yearly' ? <Loader2 size={13} className="is-spinning" /> : <NativePlusIcon size={13} />}${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year</button>
+                    <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'plus:monthly'} busyIcon={<Loader2 size={15} className="is-spinning" />} label={`$${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month`} onClick={() => joinPlus('monthly')} />
+                    <PixelButton variant="gold" poof disabled={busy !== null} busy={busy === 'plus:yearly'} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<NativePlusIcon size={15} />} label={`$${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year`} onClick={() => joinPlus('yearly')} />
                   </>
                 )}
               </div>
@@ -616,23 +618,25 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           )}
 
           {sections.length > 1 && (
-            <nav className="store-sections" role="tablist" aria-label="Store sections">
-              {sections.map((entry) => (
-                <button key={entry.id} type="button" role="tab" aria-selected={section === entry.id} className={`store-section-tab${section === entry.id ? ' active' : ''}`} onClick={() => { setSection(entry.id); setViewId(null); }}>
-                  <span>{entry.label}</span><small>{entry.count}</small>
-                </button>
-              ))}
-            </nav>
+            <div className="store-sections">
+              <PixelTabs
+                label="Store sections"
+                value={section}
+                onChange={(id) => { setSection(id); setViewId(null); }}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, icon: sectionIcon(entry.id) }))}
+              />
+            </div>
           )}
 
           <div className="store-toolbar">
-            <div className="store-chips" role="tablist" aria-label="Filter">
-              {FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => (
-                <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`store-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
-                  {f.label}<span className="store-chip-count">{counts[f.id]}</span>
-                </button>
-              ))}
-            </div>
+            <PixelTabs
+              size="sm"
+              className="store-chips"
+              label="Filter"
+              value={filter}
+              onChange={setFilter}
+              items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
+            />
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
@@ -691,11 +695,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             <div className="store-viewer-info">
               {renderDetails(viewing, { Heading: 'h3' })}
             </div>
-            <button type="button" className="store-icon-btn store-viewer-close" onClick={() => setViewId(null)} aria-label="Close"><X size={14} /></button>
+            <PixelIconButton size="md" className="store-viewer-close" icon={<X size={16} strokeWidth={3} />} label="Close" onClick={() => setViewId(null)} />
             {items.length > 1 && (
               <div className="store-viewer-nav">
-                <button type="button" className="store-icon-btn" onClick={() => stepView(-1)} aria-label="Previous item" title="Previous (←)"><ChevronLeft size={15} /></button>
-                <button type="button" className="store-icon-btn" onClick={() => stepView(1)} aria-label="Next item" title="Next (→)"><ChevronRight size={15} /></button>
+                <PixelIconButton size="md" icon={<ChevronLeft size={17} strokeWidth={3} />} label="Previous item" title="Previous (←)" onClick={() => stepView(-1)} />
+                <PixelIconButton size="md" icon={<ChevronRight size={17} strokeWidth={3} />} label="Next item" title="Next (→)" onClick={() => stepView(1)} />
               </div>
             )}
           </div>
@@ -710,10 +714,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <h3>Redeem a code</h3>
                 <p>Got a code from a Native event or a giveaway? Enter it to add the cloak to your locker.</p>
               </div>
-              <button type="button" className="store-icon-btn" onClick={() => setRedeemOpen(false)} aria-label="Close"><X size={14} /></button>
+              <PixelIconButton icon={<X size={15} strokeWidth={3} />} label="Close" onClick={() => setRedeemOpen(false)} />
             </div>
             <input className="store-code-input" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="SUMMER-26" maxLength={32} autoFocus aria-label="Code" />
-            <button type="submit" className="store-btn" disabled={!code.trim() || busy !== null}>{busy === 'redeem' ? <Loader2 size={13} className="is-spinning" /> : <Ticket size={13} />}Redeem</button>
+            <PixelButton type="submit" size="lg" block poof disabled={!code.trim() || busy !== null} busy={busy === 'redeem'} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<Ticket size={15} />} label="Redeem" />
           </form>
         </div>
       )}
