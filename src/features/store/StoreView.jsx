@@ -456,7 +456,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <div className="store-spot-badges">
         {kicker}
         {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
-        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Exclusive</span>}
+        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={9} />Event</span>}
         {ownedIds.has(item.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
       </div>
       <Heading className="store-spot-name">{item.name}</Heading>
@@ -660,7 +660,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                         ? cosmeticArt(item, 'store-card-thumb')
                         : <canvas ref={bindCanvas(item.id)} width={80} height={128} className="store-card-canvas" aria-hidden="true" />}
                       <div className="store-card-badges">
-                        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />Exclusive</span>}
+                        {item.exclusive && <span className="store-badge exclusive"><PixelStar size={8} />Event</span>}
                       </div>
                       {owned && (isCosmetic(item) && (me.wearing || {})[item.slot] === item.id
                         ? <span className="store-card-state is-worn"><i />Wearing</span>
