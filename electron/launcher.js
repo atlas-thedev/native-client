@@ -11,7 +11,7 @@ const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
 const nativeMod = require('./nativeMod');
 const socialMod = require('./social');
-const discordRpcMod = require('./discordRpc');
+const gamePresence = require('./gamePresence');
 const playHistory = require('./playHistory');
 const crashReporter = require('./crashReporter');
 const gameConsole = require('./gameConsole');
@@ -36,6 +36,8 @@ const { execFile } = require('child_process');
 const launcher = new Client();
 let deps = null; // { app, getWin }
 let activeChild = null;
+// The running game's mod-presence watcher (see gamePresence.js).
+let modPresence = null;
 let activeInstance = null;
 let launchInProgress = false;
 let activeFinish = null; // finish(code, signal) of the running game
@@ -599,6 +601,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           textureCache: (() => { try { return wardrobeMod.warmTextureCache(account); } catch { return null; } })(),
           // Offline accounts: their own skin shows in game on this PC only.
           local: offlineLook(rawAccount, account),
+          // Discord Rich Presence lives in the mod now; the launcher setting switches it.
+          presence: { discord: settingsMod.get().behavior?.discordRpc !== false },
           onState: (detail) => setState('preparing', detail)
         });
         if (modResult.warning) launcher.emit('debug', `[Native Client]: Native mod: ${modResult.warning}`);
@@ -646,11 +650,20 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       activity: payload?.quickJoinServer ? 'In-game: Connecting…' : 'In-game: Starting…',
       serverAddress: payload?.quickJoinServer || null
     });
-    discordRpcMod.setGameActivity({
-      instance,
-      status: 'launching',
-      server: payload?.quickJoinServer || null
+    // The Native mod reports exactly what the player is doing (it also drives Discord).
+    gamePresence.clear(instanceDir(instance.id));
+    modPresence?.stop();
+    const presenceWatch = gamePresence.watch(instanceDir(instance.id), {
+      since: launchedAt,
+      onPresence: (presence) => {
+        if (activeChild !== child) return;
+        if (presence.server) {
+          playHistory.recordServer({ address: presence.server.address, instanceId: instance.id ?? null, instanceName: instance.name ?? null });
+        }
+        socialMod.setPresence({ status: presence.status, activity: presence.activity, serverAddress: presence.serverAddress });
+      }
     });
+    modPresence = presenceWatch;
     send('launcher:progress', {
       percent: 100,
       detail: 'Starting Minecraft…',
@@ -665,8 +678,10 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     let crashKillTimer = null;
     let outputTail = '';
     const resetPresence = () => {
+      presenceWatch.stop();
+      if (modPresence === presenceWatch) modPresence = null;
+      gamePresence.clear(instanceDir(instance.id));
       socialMod.setPresence({ status: 'in-launcher', activity: 'In Launcher', serverAddress: null });
-      discordRpcMod.clearGameActivity();
     };
     // Chat shares stdout with the game's own diagnostics, so only trust
     // complete, non-chat lines when looking for crash markers.
@@ -696,13 +711,9 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         if (finished || crashSeen) return;
         setState('running', 'Minecraft is running');
         // The splash screen is up: stop advertising "Starting…" to friends.
-        if (!payload?.quickJoinServer) {
+        if (!payload?.quickJoinServer && !presenceWatch.isActive()) {
           socialMod.setPresence({ status: 'in-game', activity: 'In-game: Menus', serverAddress: null });
         }
-        discordRpcMod.setGameActivity({
-          instance: activeInstance,
-          status: 'running'
-        });
         // launcher behavior once the game is up
         const win = deps.getWin();
         const action = settingsMod.get().behavior.launcherAction;
@@ -907,8 +918,9 @@ function init(dependencies, ipcMain) {
 
   const formatServerActivity = gameLog.formatServerActivity;
 
+  // Fallback for games without the Native mod (vanilla, Forge, ...): guess from the log.
   const applyPresence = (hint) => {
-    if (!hint) return;
+    if (!hint || modPresence?.isActive()) return;
     if (hint.kind === 'server') {
       const { host, port } = hint;
       const serverAddress = `${host}:${port}`;
@@ -923,22 +935,14 @@ function init(dependencies, ipcMain) {
         activity: `In-game: ${activityName}`,
         serverAddress
       });
-      discordRpcMod.setGameActivity({
-        instance: activeInstance,
-        status: 'multiplayer',
-        server: activityName,
-        serverAddress
-      });
       return;
     }
     if (hint.kind === 'singleplayer') {
       socialMod.setPresence({ status: 'in-game', activity: 'In-game: Singleplayer', serverAddress: null });
-      discordRpcMod.setGameActivity({ instance: activeInstance, status: 'singleplayer' });
       return;
     }
     if (hint.kind === 'menus') {
       socialMod.setPresence({ status: 'in-game', activity: 'In-game: Menus', serverAddress: null });
-      discordRpcMod.setGameActivity({ instance: activeInstance, status: 'in-menus' });
     }
   };
 

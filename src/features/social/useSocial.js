@@ -437,7 +437,7 @@ export function useSocial(account) {
               status: event.status || 'offline',
               activity: event.status === 'offline' ? null : (event.activity || 'In Launcher'),
               serverAddress: event.status === 'offline' ? null : (event.serverAddress || null),
-              lastSeen: event.at || Date.now()
+              lastSeen: event.lastSeen || event.at || Date.now()
             }
             : friend
         )));

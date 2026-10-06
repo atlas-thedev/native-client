@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Play, MessageSquare, Layers, Star, Tag, Copy, UserMinus, Ban } from 'lucide-react';
 import './FriendContextMenu.css';
+import { canJoinServer } from './presence.js';
 
 export default function FriendContextMenu({ context, onClose, onJoinServer, onOpenChat, onToggleBestFriend, onSetNickname, onUnfriend, onBlock }) {
   const menuRef = useRef(null);
@@ -31,7 +32,7 @@ export default function FriendContextMenu({ context, onClose, onJoinServer, onOp
 
   if (!context?.friend) return null;
   const { friend } = context;
-  const isServerJoinable = Boolean(friend.status === 'in-game' && friend.serverAddress);
+  const isServerJoinable = canJoinServer(friend);
   const run = (action) => { action(); onClose(); };
 
   return (

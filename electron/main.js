@@ -17,7 +17,6 @@ const wardrobeMod = require('./wardrobe');
 const socialMod = require('./social');
 const relayMod = require('./relay');
 const adminMod = require('./admin');
-const discordRpcMod = require('./discordRpc');
 const crashReporterMod = require('./crashReporter');
 const gameConsoleMod = require('./gameConsole');
 const loadersMod = require('./loaders');
@@ -193,7 +192,6 @@ wardrobeMod.init({ app, auth: authMod }, ipcMain);
 socialMod.init({ app, getWin: () => win }, ipcMain);
 relayMod.init();
 adminMod.init();
-discordRpcMod.init({ app, getSettings: () => settingsMod.get() }, ipcMain);
 
 app.whenReady().then(() => {
   createWindow();
@@ -203,10 +201,6 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
-});
-
-app.on('before-quit', () => {
-  discordRpcMod.destroy();
 });
 
 app.on('window-all-closed', () => {

@@ -259,6 +259,18 @@ function allowed(ip) {
   return hit('global', ip, 240, 60_000);
 }
 
+// A launcher that vanished without closing its stream (sleep, crash, dropped Wi-Fi) stops
+// heartbeating: tell its friends it went offline instead of leaving a stale green dot.
+const presenceSweep = setInterval(() => {
+  try {
+    const live = (userId) => events.isConnected(userId) || events.isModConnected(userId);
+    for (const row of db.expireStalePresence(Date.now() - db.PRESENCE_TTL_MS, live)) {
+      events.publish(db.getFriendIds(row.userId), 'presence', { userId: row.userId, status: 'offline', activity: null, serverAddress: null, lastSeen: row.lastSeen });
+    }
+  } catch { /* best-effort */ }
+}, 15_000);
+if (presenceSweep.unref) presenceSweep.unref();
+
 const pruneTimer = setInterval(() => {
   const now = Date.now();
   for (const [id, item] of rateBuckets) {
@@ -1175,7 +1187,8 @@ async function handler(req, res) {
               userId: authUser.id,
               status: 'offline',
               activity: null,
-              serverAddress: null
+              serverAddress: null,
+              lastSeen: Date.now()
             });
           } catch {}
         };
@@ -1396,10 +1409,10 @@ async function handler(req, res) {
           previous.status !== next.status ||
           (previous.activity || null) !== (next.activity || null) ||
           (previous.server_address || null) !== (next.serverAddress || null) ||
-          (Date.now() - (previous.last_seen || 0)) > 120_000;
+          (Date.now() - (previous.last_seen || 0)) > db.PRESENCE_TTL_MS;
 
         if (changed) {
-          events.publish(db.getFriendIds(authUser.id), 'presence', { userId: authUser.id, ...next });
+          events.publish(db.getFriendIds(authUser.id), 'presence', { userId: authUser.id, ...next, lastSeen: Date.now() });
         }
         return send(res, 200, { ok: true }, { 'Cache-Control': 'no-store' });
       }

@@ -182,10 +182,17 @@ function writeHandoff(gameDir, { ticket, api, expiresAt, account }) {
  * Tells the mod where the launcher's shared texture cache lives (<gameDir>/.native/launcher.json),
  * so capes the launcher already downloaded are read from disk instead of the network.
  */
-function writeLauncherInfo(gameDir, { textureCache, local = null } = {}) {
+function writeLauncherInfo(gameDir, { textureCache, local = null, presence = null } = {}) {
   // `local`: an offline account's own skin/cape ({ name, skin, cape, slim } hashes in the
   // texture cache). The mod shows it on this PC only, for that player name only.
-  const info = { v: 1, launcher: 'native-client', textureCache: textureCache || null, ...(local ? { local } : {}) };
+  // `presence`: { discord } - the launcher's Discord Rich Presence switch (the mod shows it).
+  const info = {
+    v: 1,
+    launcher: 'native-client',
+    textureCache: textureCache || null,
+    ...(local ? { local } : {}),
+    presence: { discord: presence?.discord !== false }
+  };
   for (const dirName of ['.native', '.noctra']) {
     try {
       writeFileAtomic(path.join(gameDir, dirName, 'launcher.json'), JSON.stringify(info, null, 2));
@@ -230,7 +237,7 @@ function clearHandoff(gameDir) {
  *
  * @returns {{installed:boolean, version?:string, filename?:string, signedIn?:boolean, warning?:string, reason?:string}}
  */
-async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCache = null, local = null, fetchImpl = fetch, onState = () => {} }) {
+async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCache = null, local = null, presence = null, fetchImpl = fetch, onState = () => {} }) {
   const loader = instance?.loader || instance?.mc_loader;
   const mcVersion = String(instance?.version || instance?.mc_version || '');
   if (!supportsLoader(loader)) return { installed: false, reason: 'loader' };
@@ -248,14 +255,14 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCa
     const existing = findInstalled(path.join(gameDir, 'mods'));
     if (!existing) return { installed: false, warning: error.message, reason: 'unavailable' };
     clearHandoff(gameDir);
-    writeLauncherInfo(gameDir, { textureCache, local });
+    writeLauncherInfo(gameDir, { textureCache, local, presence });
     const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
     return { installed: true, filename: existing, signedIn, warning: `Using the installed mod: ${error.message}` };
   }
 
   const filename = installJar(jarPath, path.join(gameDir, 'mods'));
   clearHandoff(gameDir);
-  writeLauncherInfo(gameDir, { textureCache, local });
+  writeLauncherInfo(gameDir, { textureCache, local, presence });
   const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
   return { installed: true, version: manifest.version, filename, signedIn };
 }

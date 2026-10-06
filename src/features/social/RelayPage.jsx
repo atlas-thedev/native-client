@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { canJoinServer } from './presence.js';
 import {
   BellOff,
   Bell,
@@ -71,10 +72,14 @@ const dayLabelOf = (stamp) => {
 };
 
 /** "Last seen today at 14:30" / "… yesterday at …" / "… on 12 Sep at …". */
-const formatLastSeen = (stamp) => {
+const formatLastSeen = (stamp, now = Date.now()) => {
   if (!stamp) return 'Offline';
   const date = new Date(stamp);
   if (Number.isNaN(date.getTime())) return 'Offline';
+  // Recent: a live, relative time ("Last seen 4m ago"), refreshed every 30s.
+  const ago = Math.max(0, now - date.getTime());
+  if (ago < 60_000) return 'Last seen just now';
+  if (ago < 60 * 60_000) return `Last seen ${Math.floor(ago / 60_000)}m ago`;
 
   const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const today = new Date();
@@ -227,6 +232,12 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
   // ── Inbox data ──────────────────────────────────────────────────────
 
+  // Ticks so "Last seen 4m ago" stays true while the page is open.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   const mergedFriends = useMemo(() => {
     const live = social?.friends || [];
     const conversations = social?.conversations || {};
@@ -289,7 +300,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
             : status === 'offline' ? 'Offline' : 'In Launcher'),
         serverAddress: friend.serverAddress,
         lastSeenAt,
-        lastSeen: formatLastSeen(lastSeenAt),
+        lastSeen: formatLastSeen(lastSeenAt, clock),
         lastMessage: snippet,
         lastTime: time,
         lastStamp: lastMsg?.createdAt || friend.lastMessageTime || 0,
@@ -302,7 +313,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         unread: muted ? 0 : (friend.unreadCount || 0)
       };
     });
-  }, [social?.friends, social?.conversations, social?.typingBy, selfId, mutedIds, pinnedIds]);
+  }, [social?.friends, social?.conversations, social?.typingBy, selfId, mutedIds, pinnedIds, clock]);
 
   const formattedGroups = useMemo(() => {
     return (relayGroups.groups || []).map((group) => {
@@ -1086,7 +1097,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                   </div>
                   <div className="relay-peer-status-row">
                     <span className={`relay-peer-status-text ${activePresence.status}`}>{activePresence.text}</span>
-                    {activeEntity?.serverAddress && !isGroupThread && (
+                    {canJoinServer(activeEntity) && !isGroupThread && (
                       <button
                         type="button"
                         className="relay-join-inline"
