@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { drawCapeFront } from '../../lib/animatedCape.js';
+import migratorCape from '../../assets/capes/migrator.png';
 import './LockerSwitch.css';
 
 /*
@@ -70,38 +72,42 @@ function useSkinFace(skinUrl) {
   return face;
 }
 
-const CAPE_ICON = [
-  '##########',
-  '#........#',
-  '.#......#.',
-  '.#......#.',
-  '.#......#.',
-  '.#......#.',
-  '.#......#.',
-  '.#......#.',
-  '.#......#.',
-  '.##....##.',
-  '..######..'
-];
+// The Cosmetics tab shows a real cape front: the cape you wear, or the Migrator cape.
+function useCapeFront(capeUrl) {
+  const [front, setFront] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const draw = (src, fallback) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (cancelled) return;
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 10; canvas.height = 16;
+          drawCapeFront(canvas, img, 1, 0);
+          setFront(canvas.toDataURL());
+        } catch { if (fallback) draw(fallback, null); }
+      };
+      img.onerror = () => { if (!cancelled && fallback) draw(fallback, null); };
+      img.src = String(src).replace(/^http:\/\/textures\.minecraft\.net\//, 'https://textures.minecraft.net/');
+    };
+    draw(capeUrl || migratorCape, capeUrl ? migratorCape : null);
+    return () => { cancelled = true; };
+  }, [capeUrl]);
+  return front;
+}
 
-function CapeGlyph() {
-  const fill = [];
-  const edge = [];
-  CAPE_ICON.forEach((row, y) => [...row].forEach((cell, x) => {
-    if (cell === '#') edge.push(`M${x} ${y}h1v1h-1z`);
-    else if (y > 0 && x > (y > 1 ? 1 : 0) && x < row.length - (y > 1 ? 2 : 1) && y < CAPE_ICON.length - 1) fill.push(`M${x} ${y}h1v1h-1z`);
-  }));
-  return (
-    <svg className="lsw-icon lsw-icon-cape" viewBox="0 0 10 11" aria-hidden="true" shapeRendering="crispEdges">
-      <path d={fill.join('')} className="lsw-cape-fill" />
-      <path d={edge.join('')} className="lsw-cape-edge" />
-    </svg>
-  );
+function CapeIcon({ capeUrl }) {
+  const front = useCapeFront(capeUrl);
+  return front
+    ? <img className="lsw-icon lsw-icon-cape" src={front} alt="" />
+    : <span className="lsw-icon lsw-icon-cape is-empty" />;
 }
 
 const BURST = 12;
 
-export default function LockerSwitch({ value, onChange, skinUrl, counts = {} }) {
+export default function LockerSwitch({ value, onChange, skinUrl, capeUrl = null, counts = {} }) {
   const face = useSkinFace(skinUrl);
   const rootRef = useRef(null);
   const [motion, setMotion] = useState(null); // 'to-skins' | 'to-cosmetics'
@@ -150,7 +156,7 @@ export default function LockerSwitch({ value, onChange, skinUrl, counts = {} }) 
       </button>
       <button type="button" role="tab" aria-selected={value === 'cosmetics'} tabIndex={value === 'cosmetics' ? 0 : -1} className={`lsw-tab ${value === 'cosmetics' ? 'is-active' : ''}`} onClick={(event) => choose('cosmetics', event)}>
         <span className="lsw-tab-inner">
-          <CapeGlyph />
+          <CapeIcon capeUrl={capeUrl} />
           <PixelWord word="COSMETICS" />
           {counts.cosmetics > 0 && <span className="lsw-count">{counts.cosmetics}</span>}
         </span>

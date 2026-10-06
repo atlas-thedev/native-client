@@ -1,7 +1,6 @@
 import React from 'react';
 import { ArrowDownToLine, Check, Download, Heart, Loader2, Package, Trash2 } from 'lucide-react';
 import { useI18n } from '../../../i18n/I18nProvider.jsx';
-import defaultBanner from '../../../assets/backgrounds/Tricky_Trials.jpg';
 
 function formatDownloads(count) {
   const value = Number(count) || 0;
@@ -25,12 +24,8 @@ export default function ProjectCard({
   const { t } = useI18n();
 
   const projectId = project.project_id || project.id;
-  const bannerUrl =
-    project.featured_gallery ||
-    project.gallery?.[0]?.url ||
-    (Array.isArray(project.featured_gallery_images) && project.featured_gallery_images[0]) ||
-    defaultBanner;
-
+  // No banner on Discover cards: gallery images are heavy and slow the grid down.
+  // The banner only loads on the mod info page (ProjectDetail).
   const categories = (project.display_categories || project.categories || []).slice(0, 3);
   const isModOnVanilla = (contentType?.id === 'mod' || !contentType) && isVanillaInstance;
 
@@ -58,51 +53,37 @@ export default function ProjectCard({
         }
       }}
     >
-      {/* Banner / Card Header */}
-      <div className="browse-card-banner-wrap">
-        <img
-          src={bannerUrl}
-          alt=""
-          className="browse-card-banner"
-          loading="lazy"
-          onError={(e) => {
-            if (e.currentTarget.src !== defaultBanner) {
-              e.currentTarget.src = defaultBanner;
-            }
-          }}
-        />
-        <div className="browse-card-banner-scrim" />
-
-        {/* Project Icon */}
-        <div className="browse-card-icon-wrap">
-          {project.icon_url ? (
-            <img
-              src={project.icon_url}
-              alt=""
-              className="browse-card-icon"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="browse-card-icon-placeholder">
-              <Package size={22} />
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Card Body */}
+      {/* Card Header: icon + title (no banner image) */}
       <div className="browse-card-body">
-        <div className="browse-card-header-meta">
-          <h3 className="browse-card-title" title={project.title}>
-            {project.title}
-          </h3>
-          {project.author && (
-            <span className="browse-card-author">by {project.author}</span>
-          )}
+        <div className="browse-card-head">
+          <div className="browse-card-icon-wrap">
+            {project.icon_url ? (
+              <img
+                src={project.icon_url}
+                alt=""
+                className="browse-card-icon"
+                loading="lazy"
+                decoding="async"
+                width={48}
+                height={48}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="browse-card-icon-placeholder">
+                <Package size={22} />
+              </div>
+            )}
+          </div>
+          <div className="browse-card-header-meta">
+            <h3 className="browse-card-title" title={project.title}>
+              {project.title}
+            </h3>
+            {project.author && (
+              <span className="browse-card-author">by {project.author}</span>
+            )}
+          </div>
         </div>
 
         <p className="browse-card-desc">

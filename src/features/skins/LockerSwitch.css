@@ -114,10 +114,8 @@
 .lsw-icon-face { border-radius: 3px; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 2px 2px 0 2px rgba(0, 0, 0, 0.25); }
 .lsw-icon-face.is-empty { background: #2a2a2e; }
 .lsw-tab:not(.is-active) .lsw-icon { filter: grayscale(1) brightness(0.55); }
-.lsw-icon-cape { width: 24px; height: 26px; }
-.lsw-cape-edge { fill: rgba(0, 0, 0, 0.55); }
-.lsw-cape-fill { fill: currentColor; opacity: 0.9; }
-.lsw-tab.is-active .lsw-cape-fill { fill: #fff; }
+.lsw-icon-cape { width: 17px; height: 27px; border-radius: 2px; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 2px 2px 0 2px rgba(0, 0, 0, 0.25); }
+.lsw-icon-cape.is-empty { background: #2a2a2e; }
 
 .lsw-count {
   min-width: 22px;

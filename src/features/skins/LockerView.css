@@ -724,6 +724,8 @@
 .locker-cape-grid .locker-cape-card { min-height: 140px; }
 
 .locker-cosmetics-bar {
+  /* Room above so hover lifts and focus rings are not clipped by the scrolling panel. */
+  padding-top: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -744,7 +746,7 @@
   cursor: pointer;
   transition: border-color 0.14s var(--ease), color 0.14s var(--ease), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.locker-store-btn:hover { border-color: rgba(255, 255, 255, 0.28); color: var(--fg-primary-hover); transform: translateY(-1px); }
+.locker-store-btn:hover { border-color: rgba(255, 255, 255, 0.28); color: var(--fg-primary-hover); background: rgba(255, 255, 255, 0.06); }
 
 @media (max-width: 1180px) {
   .locker-skin-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
