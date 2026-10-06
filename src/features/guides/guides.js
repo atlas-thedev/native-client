@@ -32,8 +32,7 @@ export const GUIDES = [
       { title: 'Create an instance', body: 'An instance is one Minecraft install with its own version, mod loader, mods and worlds.' },
       { title: 'Add content', body: 'Open Discover to install mods, modpacks, shaders and resource packs into an instance.' },
       { title: 'Launch', body: 'Pick the instance on Home and press Launch. Native downloads everything the first time.' }
-    ],
-    action: { label: 'Take the quick tour', kind: 'tour' }
+    ]
   },
   {
     id: 'create-instance',
