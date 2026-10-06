@@ -178,9 +178,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
   const premiumCapeItem = showOfficialCards && premiumEquipped ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
-  const previewCapeUrl = showCape
-    ? (showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
-    : null;
+  const wornCapeUrl = showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null);
+  const previewCapeUrl = showCape ? wornCapeUrl : null;
   // Animated Store capes animate in the preview on premium accounts too (the strip repaints the still).
   const premiumCapeAnim = premiumCapeItem?.animated && premiumCapeItem.stripUrl && previewCapeUrl === premiumCapeItem.stillUrl
     ? { stripUrl: premiumCapeItem.stripUrl, frames: premiumCapeItem.frames, fps: premiumCapeItem.fps }
@@ -553,7 +552,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>
+        <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} capeUrl={wornCapeUrl} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>
         <div className="locker-panels">
           {leaving && leaving !== section && <div key={`out-${leaving}`} className={`locker-panel is-leaving to-${section === 'cosmetics' ? 'left' : 'right'}`} aria-hidden="true" onAnimationEnd={(event) => { if (event.target === event.currentTarget) setLeaving(null); }}>{leaving === 'skins' ? renderSkins() : renderCosmetics()}</div>}
           <div key={`in-${section}`} className={`locker-panel ${leaving ? `is-entering from-${section === 'cosmetics' ? 'right' : 'left'}` : ''}`} role="tabpanel">{section === 'skins' ? renderSkins() : renderCosmetics()}</div>

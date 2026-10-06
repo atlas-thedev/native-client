@@ -149,8 +149,8 @@ test('Instance manager renders big curved version banner, white active/hover ico
 
 test('Browse default banner, matching instance content headers, and white plus icons', () => {
   const cardCode = fs.readFileSync(path.join(ROOT, 'src/features/browser/components/ProjectCard.jsx'), 'utf8');
-  assert.ok(cardCode.includes('defaultBanner'), 'ProjectCard imports default banner');
-  assert.ok(cardCode.includes('Tricky_Trials.jpg'), 'ProjectCard uses Tricky_Trials default banner');
+  assert.ok(!cardCode.includes('defaultBanner'), 'Discover cards load no banner image');
+  assert.ok(!cardCode.includes('featured_gallery'), 'Discover cards skip gallery banners');
 
   const detailCode = fs.readFileSync(path.join(ROOT, 'src/features/browser/components/ProjectDetail.jsx'), 'utf8');
   assert.ok(detailCode.includes('defaultBanner'), 'ProjectDetail imports default banner');

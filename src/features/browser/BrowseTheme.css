@@ -366,6 +366,10 @@
   border-color: var(--nx-accent);
   box-shadow: 0 0 0 3px var(--nx-accent-soft);
 }
+.browse-page-root .browse-card-icon-wrap {
+  border-color: var(--nx-line);
+  background: var(--nx-sunken);
+}
 .browse-page-root .browse-card-chip {
   background: var(--nx-sunken);
   border-color: var(--nx-line);

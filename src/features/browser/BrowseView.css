@@ -917,64 +917,37 @@
   border-color: rgba(34, 197, 94, 0.3);
 }
 
-/* Card Banner */
-.browse-card-banner-wrap {
-  position: relative;
-  height: 110px;
-  width: 100%;
-  overflow: hidden;
-  isolation: isolate;
-  transform: translateZ(0);
-  background: rgba(255, 255, 255, 0.02);
+/* Card Header (icon + title). No banner image on Discover cards. */
+.browse-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
-.browse-card-banner {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  backface-visibility: hidden;
-  transform-origin: center;
-  transition: transform 0.3s var(--ease);
-}
-
-.browse-card:hover .browse-card-banner {
-  transform: scale(1.04);
-}
-
-.browse-card-banner-fallback {
-  width: 100%;
-  height: 100%;
-  background: url('../../assets/backgrounds/Tricky_Trials.jpg') center / cover no-repeat;
-}
-
-.browse-card-banner-scrim {
-  position: absolute;
-  inset: -1px;
-  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.7) 100%);
+.browse-card-head .browse-card-header-meta {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Card Icon */
 .browse-card-icon-wrap {
-  position: absolute;
-  bottom: 8px;
-  left: 12px;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.6);
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
   overflow: hidden;
   display: grid;
   place-items: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-  z-index: 2;
 }
 
 .browse-card-icon {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  image-rendering: auto;
 }
 
 .browse-card-icon-placeholder {
@@ -1004,7 +977,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 12px 14px 14px;
+  padding: 14px;
   gap: 10px;
 }
 
@@ -1234,11 +1207,14 @@
   border: 1px solid var(--component-border);
   background: var(--component-bg);
   overflow: hidden;
-  height: 240px;
+  height: 178px;
 }
 
 .skeleton-banner {
-  height: 110px;
+  width: 48px;
+  height: 48px;
+  margin: 14px 14px 0;
+  border-radius: 10px;
   background: var(--page-sunken);
   animation: browse-shimmer 1.5s infinite linear;
 }
