@@ -40,106 +40,34 @@ const HASH = /^[a-f0-9]{64}$/;
 
 function entryFor(profile) {
   if (!profile || typeof profile.username !== 'string') return null;
-  let mcUuid = null;
-  let sameNameUser = null;
-  try {
-    const user = db.getUserByUsername(profile.username);
-    mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
-    if (mcUuid && user.minecraft_username && user.minecraft_username.toLowerCase() === profile.username.toLowerCase()) sameNameUser = user;
-  } catch { /* the database may be unavailable in tests */ }
-  // Same Native and premium name: the premium player keeps the Mojang skin and wears
-  // only the cape picked for it in the Locker (`p`; older mods ignore it).
-  let premium = null;
-  if (sameNameUser) {
-    const item = premiumCapeFor(profile, sameNameUser);
-    const pAnim = item && item.animated && HASH.test(item.strip || '') && Number(item.frames) >= 2 && Number(item.fps) > 0
-      ? { h: item.strip, f: Number(item.frames), p: Number(item.fps) }
-      : null;
-    premium = { c: item ? item.still : null, a: pAnim };
-  }
-  // Only Native store capes animate (see store-routes.animationFor).
+  let user = null;
+  try { user = db.getUserByUsername(profile.username); } catch { /* the database may be unavailable in tests */ }
+  // Premium and merged accounts are named after their Minecraft profile, so the
+  // entry is pinned to that UUID. They keep their Mojang skin and only wear the
+  // Native cloak; offline players never reach the directory.
+  const mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
+  const premiumUser = Boolean(mcUuid && (user.auth_type === 'premium' || user.auth_type === 'merged'));
+  // Only Native store cloaks animate (see store-routes.animationFor).
   let allowed = null;
   let capeOk = true;
   try { const store = require('./store-routes'); allowed = store.animationFor(profile); capeOk = store.capeAllowed(profile.cape, profile); } catch {}
-  const anim = allowed && HASH.test(profile.cape || '')
+  const cape = HASH.test(profile.cape || '') && capeOk ? profile.cape : null;
+  const anim = allowed && cape
     ? { h: allowed.strip, f: Number(allowed.frames) || 0, p: Number(allowed.fps) || 0 }
     : null;
+  const a = anim && anim.f >= 2 && anim.p > 0 ? anim : null;
   return {
     n: profile.username,
     m: profile.model === 'slim' ? 'slim' : 'default',
-    s: HASH.test(profile.skin || '') ? profile.skin : null,
-    // For an animated cape `c` is its first frame: the game loads it as an ordinary cape.
-    c: HASH.test(profile.cape || '') && capeOk ? profile.cape : null,
+    s: !premiumUser && HASH.test(profile.skin || '') ? profile.skin : null,
+    // For an animated cloak `c` is its first frame: the game loads it as an ordinary cape.
+    c: cape,
     // Animation: strip hash, frame count, frames per second.
-    a: anim && anim.f >= 2 && anim.p > 0 ? anim : null,
+    a,
     u: mcUuid,
-    ...(premium ? { p: premium } : {}),
+    // Premium players: cloak only, the Mojang skin stays (mods up to 1.4 read `p`).
+    ...(premiumUser ? { p: { c: cape, a } } : {}),
     t: Date.parse(profile.updatedAt) || 0
-  };
-}
-
-/*
- * Premium (Microsoft) names. A Native account connected to a premium account can
- * wear one of its Native Store capes on that premium name too. The entry only
- * carries the cape (the Mojang skin stays) and is pinned to the premium UUID, so
- * the mod applies it to that real player only. A premium entry outranks any
- * Native profile that happens to share the name.
- */
-const premiumOf = new Map(); // native name (lower) -> premium name (lower)
-const premiumNames = new Map(); // premium name (lower) -> native name (lower)
-
-/** The store cape a profile wears on its premium name: { item } or null. */
-function premiumCapeFor(profile, user) {
-  const id = profile?.premiumCape?.store;
-  if (!id || !user) return null;
-  try {
-    const store = require('./store-routes');
-    const item = store.findItem(String(id));
-    if (!item || !HASH.test(item.still || '') || !store.owns(user.id, item.id)) return null;
-    return item;
-  } catch { return null; }
-}
-
-/** Directory entry for the premium name of a connected profile, or null. */
-function premiumEntryFor(profile) {
-  if (!profile || typeof profile.username !== 'string') return null;
-  let user = null;
-  try { user = db.getUserByUsername(profile.username); } catch { return null; }
-  if (!user?.minecraft_uuid || !user.minecraft_username) return null;
-  // Same name on both sides: the regular entry already covers that player.
-  if (user.minecraft_username.toLowerCase() === profile.username.toLowerCase()) return null;
-  const item = premiumCapeFor(profile, user);
-  const anim = item && item.animated && HASH.test(item.strip || '') && Number(item.frames) >= 2 && Number(item.fps) > 0
-    ? { h: item.strip, f: Number(item.frames), p: Number(item.fps) }
-    : null;
-  return {
-    n: user.minecraft_username,
-    m: 'default',
-    s: null,
-    c: item ? item.still : null,
-    a: anim,
-    u: cleanUuid(user.minecraft_uuid),
-    t: Date.parse(profile.premiumCape?.at || profile.updatedAt) || 0
-  };
-}
-
-/** A CustomSkinLoader-style profile for a connected premium name wearing a Native cape. */
-function premiumProfileFor(name) {
-  let user = null;
-  try { user = db.getUserByMinecraftName(String(name || '')); } catch { return null; }
-  if (!user || user.username.toLowerCase() === String(name).toLowerCase()) return null;
-  let profile = null;
-  try { profile = JSON.parse(fs.readFileSync(path.join(profilesDir, `${user.username.toLowerCase()}.json`), 'utf8')); } catch { return null; }
-  const item = premiumCapeFor(profile, user);
-  if (!item) return null;
-  return {
-    username: user.minecraft_username,
-    model: 'default',
-    skin: null,
-    cape: item.still,
-    capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null,
-    capeStore: item.id,
-    updatedAt: profile.premiumCape?.at || profile.updatedAt
   };
 }
 
@@ -152,24 +80,12 @@ function load() {
   loaded = true;
   let files = [];
   try { files = fs.readdirSync(profilesDir).filter((f) => f.endsWith('.json')); } catch { return; }
-  const profiles = [];
   for (const file of files) {
     try {
       const profile = JSON.parse(fs.readFileSync(path.join(profilesDir, file), 'utf8'));
-      profiles.push(profile);
       const entry = entryFor(profile);
-      if (entry && (entry.s || entry.c || entry.p?.c)) index.set(entry.n.toLowerCase(), { ...entry, r: 0 });
+      if (entry && (entry.s || entry.c)) index.set(entry.n.toLowerCase(), { ...entry, r: 0 });
     } catch { /* skip unreadable profile */ }
-  }
-  for (const profile of profiles) {
-    try {
-      const entry = premiumEntryFor(profile);
-      if (!entry || !entry.c) continue;
-      const key = entry.n.toLowerCase();
-      index.set(key, { ...entry, r: 0 });
-      premiumOf.set(profile.username.toLowerCase(), key);
-      premiumNames.set(key, profile.username.toLowerCase());
-    } catch { /* skip */ }
   }
 }
 
@@ -182,16 +98,15 @@ function broadcast(entry) {
   }
 }
 
-const premiumKey = (e) => (e && e.p ? `${e.p.c || ''}:${animKey(e.p)}` : '');
 const animKey = (e) => (e && e.a ? `${e.a.h}:${e.a.f}:${e.a.p}` : '');
 
-/** Store and broadcast one directory entry (an entry with no skin or cape removes the player). */
+/** Store and broadcast one directory entry (an entry with no skin or cloak removes the player). */
 function upsert(entry) {
   const key = entry.n.toLowerCase();
   const previous = index.get(key);
-  const empty = !entry.s && !entry.c && !(entry.p && entry.p.c);
+  const empty = !entry.s && !entry.c;
   if (!previous && empty) return;
-  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && premiumKey(previous) === premiumKey(entry)) return;
+  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && Boolean(previous.p) === Boolean(entry.p)) return;
   rev += 1;
   const stored = { ...entry, r: rev };
   if (empty) index.delete(key); else index.set(key, stored);
@@ -202,74 +117,33 @@ function upsert(entry) {
 
 const emptyEntry = (name) => ({ n: name, m: 'default', s: null, c: null, a: null, u: null, t: Date.now() });
 
-/** Call whenever a wardrobe (or its premium link) changes. */
+/** Call whenever a wardrobe changes. */
 function noteProfile(profileOrName) {
   load();
   let profile = profileOrName;
   if (typeof profileOrName === 'string') {
     profile = readProfileFile(profileOrName);
     if (!profile) {
-      // No wardrobe yet, but the premium link may have changed: drop any stale premium name.
-      releasePremium(String(profileOrName).toLowerCase());
+      const key = String(profileOrName).toLowerCase();
+      if (index.has(key)) upsert(emptyEntry(index.get(key).n));
       return;
     }
   }
   const entry = entryFor(profile);
-  if (!entry) return;
-  const nativeKey = entry.n.toLowerCase();
-  // A premium player with this name wears its own Native cape; keep that entry.
-  const owner = premiumNames.get(nativeKey);
-  if (!owner || owner === nativeKey) upsert(entry);
-
-  const premium = premiumEntryFor(profile);
-  const nextKey = premium && premium.c ? premium.n.toLowerCase() : null;
-  const prevKey = premiumOf.get(nativeKey) || null;
-  if (prevKey && prevKey !== nextKey) releasePremium(nativeKey);
-  if (nextKey) {
-    const other = premiumNames.get(nextKey);
-    if (!other || other === nativeKey) {
-      premiumOf.set(nativeKey, nextKey);
-      premiumNames.set(nextKey, nativeKey);
-      upsert(premium);
-    }
-  }
+  if (entry) upsert(entry);
 }
 
 /**
- * A Native account changed its name (e.g. the premium owner claimed it): drop the
- * entries under the old names, then publish the profiles under their new names.
+ * Accounts changed names (a premium owner took a name back, a merge, a
+ * minecraft.net rename): drop the old entries, then publish the new ones.
  */
 function noteRename(changes) {
   load();
-  for (const { from } of changes) {
-    const key = String(from).toLowerCase();
-    releasePremium(key);
-    if (premiumNames.get(key)) continue;
-    upsert(emptyEntry(index.get(key)?.n || from));
-  }
+  for (const { from } of changes) upsert(emptyEntry(index.get(String(from).toLowerCase())?.n || from));
   for (const { to } of changes) {
-    const key = String(to).toLowerCase();
-    if (premiumNames.has(key) && premiumNames.get(key) !== key) {
-      // The owner now uses the name themselves: their regular entry takes over.
-      const owner = premiumNames.get(key);
-      premiumOf.delete(owner);
-      premiumNames.delete(key);
-    }
-    upsert(emptyEntry(index.get(key)?.n || to));
+    upsert(emptyEntry(index.get(String(to).toLowerCase())?.n || to));
     noteProfile(to);
   }
-}
-
-/** Forget a profile's premium-name entry and bring back any Native profile with that name. */
-function releasePremium(nativeKey) {
-  const key = premiumOf.get(nativeKey);
-  if (!key) return;
-  premiumOf.delete(nativeKey);
-  if (premiumNames.get(key) === nativeKey) premiumNames.delete(key);
-  const shadowed = key !== nativeKey ? readProfileFile(key) : null;
-  const restored = shadowed ? entryFor(shadowed) : null;
-  if (restored && (restored.s || restored.c || restored.p?.c)) upsert(restored);
-  else upsert(emptyEntry(index.get(key)?.n || key));
 }
 
 function snapshot({ epoch, since }) {
@@ -332,6 +206,7 @@ function accountPayload(user) {
     model: user.model || 'classic',
     minecraftUuid: link?.uuid || null,
     premium: link ? { linked: true, name: link.name || null, uuid: link.uuid || null } : { linked: false, name: null, uuid: null },
+    type: user.auth_type || 'native',
     badges,
     memberSince: user.created_at || null
   };
@@ -539,9 +414,8 @@ module.exports = {
   handleModRoutes,
   noteProfile,
   noteRename,
-  premiumProfileFor,
   signTicket,
   verifyTicket,
   stopStreams,
-  _internals: { EPOCH, index, snapshot, entryFor, premiumEntryFor }
+  _internals: { EPOCH, index, snapshot, entryFor }
 };

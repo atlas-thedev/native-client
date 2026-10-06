@@ -385,46 +385,16 @@ async function getMinecraftProfile(accountId, options = {}) {
   return null;
 }
 
-async function nativeAccountFetch(nativeAccount, endpoint, { method = 'GET', body } = {}) {
-  const token = nativeAccount?.token || nativeAccount?.sessionToken;
-  if (!token) return { ok: false, error: 'Log in to this Native account again before connecting Minecraft.' };
-
-  const request = async (root) => {
-    const response = await fetch(`${root}${endpoint}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(20_000)
-    });
-    return response.json();
-  };
-
-  for (const root of apiRoots()) {
-    try {
-      return await request(root);
-    } catch { /* try the next configured root */ }
-  }
-  return { ok: false, error: 'Could not connect to the Native account service.' };
-}
-
-// Hosted API, plus a self-hosted one only when NATIVE_LOCAL_API is set.
-// Credentials are never sent to whatever happens to listen on localhost.
 function apiRoots() {
   return require('./social').API_ROOTS;
 }
 
-// ── Premium ↔ Native connection ───────────────────────────────────────────
-// A Microsoft account can carry a Native session (`nativeToken`, encrypted at
-// rest) for the Native account it is connected to. While that premium account
-// is active, Relay, friends and every other Native feature use that session,
-// so the player never has to switch accounts. The server only hands such a
-// session out to someone who proves they own the premium account (a live
-// Minecraft access token), so connecting once works on every device.
-
-const NOT_LINKED_RECHECK_MS = 6 * 60 * 60 * 1000;
+// ── Premium accounts ──────────────────────────────────────────────────────
+// Signing in with Microsoft is also the Native account: the server creates one
+// named after the Minecraft profile the first time (no email or password). The
+// Microsoft account carries that Native session (`nativeToken`, encrypted at
+// rest); Relay, friends and the store use it. It can be merged once into an
+// email Native account, which then takes the Minecraft name.
 
 const cleanUuid = (value) => String(value || '').replace(/-/g, '').toLowerCase();
 
@@ -454,8 +424,8 @@ async function apiRequest(endpoint, { method = 'POST', body, token } = {}) {
 /** What the renderer may know about a connection (never the token). */
 function publicLink(account) {
   if (!account || account.type !== 'microsoft' || !account.nativeToken || !account.nativeLink?.userId) return null;
-  const { userId, name, email, uuid, model, linkedAt } = account.nativeLink;
-  return { connected: true, userId, name, email: email || null, uuid: uuid || null, model: model || 'classic', linkedAt: linkedAt || null };
+  const { userId, name, email, uuid, model, linkedAt, type } = account.nativeLink;
+  return { connected: true, userId, name, email: email || null, uuid: uuid || null, model: model || 'classic', linkedAt: linkedAt || null, type: type || (email ? 'merged' : 'premium') };
 }
 
 /** The Native identity a connected premium account acts as. */
@@ -496,6 +466,7 @@ function storeLink(microsoftId, nativeAccount, token) {
       email: nativeAccount.email || null,
       uuid: nativeAccount.uuid || null,
       model: nativeAccount.model || 'classic',
+      type: nativeAccount.authType === 'merged' || nativeAccount.type === 'merged' || nativeAccount.email ? 'merged' : 'premium',
       linkedAt: Date.now()
     },
     nativeNotLinkedAt: undefined
@@ -552,39 +523,11 @@ async function refreshNativeNames() {
   return { ok: true, changed };
 }
 
-/** Whether this premium account's name can become its Native name. */
-async function premiumNameClaim(microsoftId) {
-  const account = readAccounts().accounts.find((a) => a.id === microsoftId && a.type === 'microsoft');
-  const session = nativeSessionOf(account);
-  if (!session) return { ok: false, claim: null };
-  const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: session.token });
-  if (status !== 200 || !data?.ok) return { ok: false, claim: null };
-  if (data.account?.name) applyNativeName(session.userId, data.account.name);
-  return { ok: true, claim: data.nameClaim || null };
+function clearLink(microsoftId) {
+  updateMicrosoftAccount(microsoftId, { nativeToken: undefined, nativeLink: undefined, nativeNotLinkedAt: undefined });
 }
 
-/** Makes the premium name the Native name (whoever else had it is renamed). */
-async function claimPremiumName(microsoftId) {
-  const account = readAccounts().accounts.find((a) => a.id === microsoftId && a.type === 'microsoft');
-  const session = nativeSessionOf(account);
-  if (!session) return { ok: false, error: 'Connect a Native account first.' };
-  let minecraftAccessToken = await getMinecraftAccessToken(microsoftId, { forceRefresh: true });
-  if (!minecraftAccessToken) return { ok: false, error: 'Your Microsoft sign-in expired. Sign in with Microsoft again.' };
-  const { data } = await apiRequest('/v1/account/minecraft/claim-name', { body: { minecraftAccessToken }, token: session.token });
-  if (!data?.ok || !data.account?.name) return { ok: false, error: data?.error || 'Could not change your Native name.' };
-  applyNativeName(session.userId, data.account.name);
-  return { ok: true, name: data.account.name, renamed: data.renamed || null };
-}
-
-function clearLink(microsoftId, { notLinked = false } = {}) {
-  updateMicrosoftAccount(microsoftId, {
-    nativeToken: undefined,
-    nativeLink: undefined,
-    nativeNotLinkedAt: notLinked ? Date.now() : undefined
-  });
-}
-
-/** Sign into the Native account connected to this premium account. */
+/** Sign into (or create) the Native account of this premium account. */
 async function premiumSignIn(microsoftId) {
   let minecraftAccessToken = await getMinecraftAccessToken(microsoftId);
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -598,10 +541,6 @@ async function premiumSignIn(microsoftId) {
     if (data?.ok && data.token && data.account) {
       return { ok: true, link: storeLink(microsoftId, data.account, data.token) };
     }
-    if (status === 404 && data?.code === 'not_linked') {
-      clearLink(microsoftId, { notLinked: true });
-      return { ok: false, code: 'not_linked', error: data.error };
-    }
     if (status === 401 && attempt === 0) {
       // A cached Minecraft token can expire early; refresh it once.
       minecraftAccessToken = null;
@@ -613,95 +552,85 @@ async function premiumSignIn(microsoftId) {
 }
 
 /**
- * Makes sure a premium account is signed into its connected Native account:
- * keeps a working session, renews an expired one, and picks up a connection
- * made on another device. `force` skips the "not connected" back-off.
+ * Makes sure a premium account is signed into its Native account: keeps a
+ * working session and renews an expired or revoked one.
  */
-async function ensurePremiumLink(microsoftId, { force = false } = {}) {
+async function ensurePremiumLink(microsoftId) {
   const account = readAccounts().accounts.find((a) => a.id === microsoftId);
   if (!account || account.type !== 'microsoft') return { ok: false, code: 'not_microsoft' };
 
   if (account.nativeToken) {
     const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: account.nativeToken });
     if (status === 0 || status >= 500) {
-      // Offline: keep the saved connection, it is checked again later.
+      // Offline: keep the saved session, it is checked again later.
       return { ok: true, link: publicLink(account), offline: true };
     }
-    if (status === 200 && data?.ok) {
-      if (data.profile?.uuid && cleanUuid(data.profile.uuid) === cleanUuid(account.uuid)) {
-        return { ok: true, link: publicLink(account) };
+    if (status === 200 && data?.ok && data.profile?.uuid && cleanUuid(data.profile.uuid) === cleanUuid(account.uuid)) {
+      if (data.account?.name) applyNativeName(data.account.id, data.account.name);
+      if (data.account?.type && account.nativeLink?.type !== data.account.type) {
+        updateMicrosoftAccount(microsoftId, { nativeLink: { ...account.nativeLink, type: data.account.type } });
       }
-      // Disconnected (or moved) on another device.
-      clearLink(microsoftId);
-    } else {
-      clearLink(microsoftId);
+      return { ok: true, link: publicLink(readAccounts().accounts.find((a) => a.id === microsoftId)) };
     }
-    return premiumSignIn(microsoftId);
-  }
-
-  if (!force && account.nativeNotLinkedAt && Date.now() - account.nativeNotLinkedAt < NOT_LINKED_RECHECK_MS) {
-    return { ok: false, code: 'not_linked' };
+    clearLink(microsoftId);
   }
   return premiumSignIn(microsoftId);
 }
 
-/** Connect a premium account to a Native account (saved, or by password). */
-async function connectNative({ microsoftAccountId, nativeAccountId, login, password } = {}) {
-  const accounts = readAccounts().accounts;
-  const microsoftAccount = accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
-  if (!microsoftAccount) return { ok: false, error: 'Choose a Microsoft account to connect.' };
-
-  let nativeToken = null;
-  let nativeAccount = null;
-  let ownSession = false;
-  if (nativeAccountId) {
-    const saved = accounts.find((a) => a.id === nativeAccountId && a.type === 'native');
-    nativeToken = saved?.token || saved?.sessionToken || null;
-    nativeAccount = saved || null;
-    if (!nativeToken) return { ok: false, error: 'Sign in to that Native account again, then connect.' };
-  } else {
-    if (!String(login || '').trim() || !password) {
-      return { ok: false, error: 'Enter your Native username or email and password.' };
-    }
-    const { data } = await apiRequest('/v1/auth/login', { body: { login: String(login).trim(), password: String(password) } });
-    if (!data?.ok || !data.token || !data.account) return { ok: false, error: data?.error || 'Could not sign in to Native.' };
-    nativeToken = data.token;
-    nativeAccount = data.account;
-    ownSession = true;
-  }
-
-  const minecraftAccessToken = await getMinecraftAccessToken(microsoftAccountId, { forceRefresh: true });
-  if (!minecraftAccessToken) {
-    return { ok: false, error: 'Your Microsoft sign-in expired. Sign in with Microsoft again to prove you own Minecraft.' };
-  }
-  const { data: linked } = await apiRequest('/v1/account/minecraft', {
-    method: 'POST',
-    token: nativeToken,
-    body: { minecraftAccessToken }
-  });
-  if (!linked?.ok) return { ok: false, error: linked?.error || 'Could not connect the accounts.' };
-
-  if (ownSession) {
-    return { ok: true, link: storeLink(microsoftAccountId, nativeAccount, nativeToken), profile: linked.profile };
-  }
-  // A saved Native account: give the premium account its own session so
-  // signing out of one never signs out the other.
-  const signedIn = await premiumSignIn(microsoftAccountId);
-  if (signedIn.ok) return { ...signedIn, profile: linked.profile };
-  return { ok: true, link: storeLink(microsoftAccountId, nativeAccount, nativeToken), profile: linked.profile };
+/** Ends a Native session on the server (best effort, never blocks signing out). */
+function revokeNativeSession(token) {
+  if (!token) return;
+  apiRequest('/v1/auth/logout', { token }).catch(() => {});
 }
 
-async function disconnectNative(microsoftAccountId) {
-  const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
-  if (!account) return { ok: false, error: 'Microsoft account not found.' };
-  if (account.nativeToken) {
-    const { status, data } = await apiRequest('/v1/account/minecraft', { method: 'DELETE', token: account.nativeToken });
-    if (status === 0 || status >= 500) {
-      return { ok: false, error: data?.error || 'Could not reach Native. Try again when you are online.' };
-    }
+/**
+ * Merges a premium account into an email Native account (one-way). The email
+ * account keeps its email and password, takes the Minecraft name, and gets
+ * everything the premium account had.
+ */
+async function mergeNative({ microsoftAccountId, login, password } = {}) {
+  const accounts = readAccounts().accounts;
+  const microsoftAccount = accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
+  if (!microsoftAccount) return { ok: false, error: 'Choose a Microsoft account to merge.' };
+  if (!String(login || '').trim() || !password) return { ok: false, error: 'Enter your Native email or username and password.' };
+  let session = await ensurePremiumLink(microsoftAccountId);
+  if (!session.ok) return { ok: false, error: session.error || 'Sign in with Microsoft again, then merge.' };
+  const token = readAccounts().accounts.find((a) => a.id === microsoftAccountId)?.nativeToken;
+  const { status, data } = await apiRequest('/v1/account/merge', { token, body: { login: String(login).trim(), password: String(password) } });
+  if (!data?.ok || !data.token || !data.account) {
+    return { ok: false, error: data?.error || (status === 0 ? 'Could not reach Native. Try again when you are online.' : 'Could not merge the accounts.') };
   }
-  clearLink(microsoftAccountId, { notLinked: true });
-  return { ok: true, link: null };
+  const link = storeLink(microsoftAccountId, { ...data.account, type: 'merged' }, data.token);
+  // The email account now signs in through Microsoft: drop its separate saved copy.
+  const next = readAccounts();
+  const before = next.accounts.length;
+  next.accounts = next.accounts.filter((a) => !(a.type === 'native' && a.id === data.account.id));
+  if (next.accounts.length !== before) {
+    if (!next.accounts.some((a) => a.id === next.activeId)) next.activeId = microsoftAccountId;
+    saveAccounts(next);
+  }
+  return { ok: true, link };
+}
+
+/** Opens nativelaunch.xyz signed in as this account (one-time, 60-second link). */
+async function openWebsite(accountId) {
+  const { shell } = require('electron');
+  const accounts = readAccounts().accounts;
+  const account = accounts.find((a) => a.id === (accountId || readAccounts().activeId));
+  if (account?.type === 'microsoft') await ensurePremiumLink(account.id).catch(() => null);
+  const session = nativeSessionOf(readAccounts().accounts.find((a) => a.id === account?.id));
+  const site = 'https://nativelaunch.xyz';
+  if (!session) {
+    await shell.openExternal(`${site}/login`);
+    return { ok: true, signedIn: false };
+  }
+  const { data } = await apiRequest('/v1/auth/web-link', { token: session.token });
+  if (!data?.ok || !data.code) {
+    await shell.openExternal(`${site}/login`);
+    return { ok: true, signedIn: false };
+  }
+  await shell.openExternal(`${site}/api/auth/link?code=${encodeURIComponent(data.code)}`);
+  return { ok: true, signedIn: true };
 }
 
 function init(dependencies, ipcMain) {
@@ -722,8 +651,8 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('auth:login', async () => {
     try {
       const profile = await loginMicrosoft();
-      // Premium accounts connected to Native (on any device) sign in automatically.
-      const link = await ensurePremiumLink(profile.id, { force: true }).catch(() => null);
+      // Every premium account is a Native account: sign it in (or create it) right away.
+      const link = await ensurePremiumLink(profile.id).catch(() => null);
       return { ok: true, profile, link: link?.ok ? link.link : null };
     } catch (err) {
       return { ok: false, error: String(err?.message ?? err) };
@@ -741,6 +670,7 @@ function init(dependencies, ipcMain) {
     const id = data.activeId;
     if (id) {
       delete mcSessions[id];
+      revokeNativeSession(nativeSessionOf(data.accounts.find((a) => a.id === id))?.token);
       data.accounts = data.accounts.filter(a => a.id !== id);
       data.activeId = data.accounts[0]?.id ?? null;
       saveAccounts(data);
@@ -897,72 +827,21 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:addMicrosoft', async () => {
     try {
       const profile = await loginMicrosoft();
-      return { ok: true, profile };
+      const link = await ensurePremiumLink(profile.id).catch(() => null);
+      return { ok: true, profile, link: link?.ok ? link.link : null };
     } catch (err) {
       return { ok: false, error: String(err?.message ?? err) };
     }
-  });
-
-  ipcMain.handle('accounts:getPremiumLink', async (_event, nativeAccountId) => {
-    const data = readAccounts();
-    const nativeAccount = data.accounts.find((account) => account.id === nativeAccountId && account.type === 'native');
-    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
-    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft');
-  });
-
-  ipcMain.handle('accounts:linkPremium', async (_event, payload = {}) => {
-    const data = readAccounts();
-    const nativeAccount = data.accounts.find(
-      (account) => account.id === payload.nativeAccountId && account.type === 'native'
-    );
-    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
-
-    let microsoftAccountId = payload.microsoftAccountId;
-    if (!microsoftAccountId) {
-      try {
-        const profile = await loginMicrosoft();
-        microsoftAccountId = profile.id;
-        const updated = readAccounts();
-        updated.activeId = nativeAccount.id;
-        saveAccounts(updated);
-      } catch (error) {
-        return { ok: false, error: String(error?.message || error) };
-      }
-    }
-
-    const microsoftAccount = readAccounts().accounts.find(
-      (account) => account.id === microsoftAccountId && account.type === 'microsoft'
-    );
-    if (!microsoftAccount) return { ok: false, error: 'Microsoft account not found.' };
-
-    const minecraftAccessToken = await getMinecraftAccessToken(microsoftAccount.id, { forceRefresh: true });
-    if (!minecraftAccessToken) {
-      return { ok: false, error: 'Microsoft sign-in expired. Sign in again to prove Minecraft ownership.' };
-    }
-    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft', {
-      method: 'POST',
-      body: { minecraftAccessToken }
-    });
-  });
-
-  ipcMain.handle('accounts:unlinkPremium', async (_event, nativeAccountId) => {
-    const data = readAccounts();
-    const nativeAccount = data.accounts.find((account) => account.id === nativeAccountId && account.type === 'native');
-    if (!nativeAccount) return { ok: false, error: 'Native account not found.' };
-    return nativeAccountFetch(nativeAccount, '/v1/account/minecraft', { method: 'DELETE' });
   });
 
   ipcMain.handle('accounts:premiumStatus', async (_event, microsoftAccountId) => {
     const account = readAccounts().accounts.find((a) => a.id === microsoftAccountId && a.type === 'microsoft');
     return { ok: Boolean(account), link: publicLink(account) };
   });
-  ipcMain.handle('accounts:ensureNative', async (_event, microsoftAccountId, options = {}) =>
-    ensurePremiumLink(microsoftAccountId, { force: Boolean(options?.force) }));
-  ipcMain.handle('accounts:connectNative', async (_event, payload = {}) => connectNative(payload));
-  ipcMain.handle('accounts:nameClaim', async (_event, microsoftAccountId) => premiumNameClaim(microsoftAccountId));
-  ipcMain.handle('accounts:claimName', async (_event, microsoftAccountId) => claimPremiumName(microsoftAccountId));
+  ipcMain.handle('accounts:ensureNative', async (_event, microsoftAccountId) => ensurePremiumLink(microsoftAccountId));
+  ipcMain.handle('accounts:merge', async (_event, payload = {}) => mergeNative(payload));
+  ipcMain.handle('accounts:openWebsite', async (_event, accountId) => openWebsite(accountId).catch((error) => ({ ok: false, error: String(error?.message || error) })));
   ipcMain.handle('accounts:refreshNames', async () => refreshNativeNames().catch(() => ({ ok: false, changed: false })));
-  ipcMain.handle('accounts:disconnectNative', async (_event, microsoftAccountId) => disconnectNative(microsoftAccountId));
 
   ipcMain.handle('accounts:getAvatar', async (_event, uuid) => {
     const avatarUuid = uuid || 'MHF_Steve';
@@ -1004,6 +883,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:remove', (_event, id) => {
     const data = readAccounts();
     delete mcSessions[id];
+    revokeNativeSession(nativeSessionOf(data.accounts.find((a) => a.id === id))?.token);
     data.accounts = data.accounts.filter(a => a.id !== id);
     if (data.activeId === id) data.activeId = data.accounts[0]?.id ?? null;
     saveAccounts(data);
@@ -1016,8 +896,8 @@ module.exports = {
   linkedIdentity,
   publicLink,
   ensurePremiumLink,
-  connectNative,
-  disconnectNative,
+  mergeNative,
+  openWebsite,
   premiumSignIn,
   init,
   getMclcAuth,

@@ -64,7 +64,9 @@ test('server/db: verifies WAL mode, foreign keys, indexes, and full user lifecyc
 
   // Sessions
   const session = db.createSession(user.id);
-  assert.ok(session.token.startsWith('noc_'));
+  assert.ok(session.token.startsWith('nat_'));
+  // Only a hash of the token is stored.
+  assert.equal(db.getDb().prepare('SELECT count(*) AS c FROM sessions WHERE token = ?').get(session.token).c, 0);
   const sessionUser = db.getUserBySession(session.token);
   assert.equal(sessionUser.id, user.id);
   assert.equal(sessionUser.username, 'NativeHero');
@@ -108,26 +110,31 @@ test('server/db: verifies foreign key cascades and relational integrity', () => 
   assert.equal(conn.prepare('SELECT count(*) as c FROM friend_requests WHERE sender_id = ? OR receiver_id = ?').get(u1.id, u1.id).c, 0);
 });
 
-test('server/db: premium Minecraft identities are unique, readable, and removable', () => {
-  const first = db.createUser({ email: 'link1@test.com', username: 'LinkTester1', password: 'password123' });
-  const second = db.createUser({ email: 'link2@test.com', username: 'LinkTester2', password: 'password123' });
-  const profile = {
-    uuid: '069a79f444e94726a5befca90e38aaf5',
-    name: 'Notch'
-  };
+test('server/db: premium accounts are created from Microsoft and merge one-way into email accounts', () => {
+  const profile = { uuid: '069a79f444e94726a5befca90e38aaf5', name: 'Notch' };
+  const premium = db.createPremiumUser(profile);
+  assert.equal(premium.auth_type, 'premium');
+  assert.equal(premium.email, null);
+  assert.equal(premium.username, 'Notch');
+  assert.equal(db.getUserByMinecraftUuid(profile.uuid).id, premium.id);
+  assert.throws(() => db.createPremiumUser(profile));
 
-  const linked = db.linkMinecraftAccount(first.id, profile);
-  assert.equal(linked.uuid, profile.uuid);
-  assert.equal(linked.name, profile.name);
-  assert.ok(linked.linkedAt > 0);
-  assert.deepEqual(db.getMinecraftLink(first.id), linked);
+  const native = db.createUser({ email: 'merge@test.com', username: 'MergeTester', password: 'password123' });
+  assert.equal(native.auth_type, 'native');
+  const friend = db.createUser({ email: 'friend@test.com', username: 'MergeFriend', password: 'password123' });
+  const conn = db.getDb();
+  conn.prepare('INSERT INTO friends (user_id, friend_id, created_at) VALUES (?, ?, ?)').run(premium.id, friend.id, Date.now());
+  conn.prepare('INSERT INTO friends (user_id, friend_id, created_at) VALUES (?, ?, ?)').run(friend.id, premium.id, Date.now());
+  const session = db.createSession(premium.id, 'premium');
+  assert.equal(db.getUserBySession(session.token).session_kind, 'premium');
 
-  assert.throws(
-    () => db.linkMinecraftAccount(second.id, profile),
-    /already connected to another Native account/
-  );
-
-  db.unlinkMinecraftAccount(first.id);
-  assert.equal(db.getMinecraftLink(first.id), null);
-  assert.equal(db.linkMinecraftAccount(second.id, profile).name, profile.name);
+  const { user } = db.mergePremiumInto(premium.id, native.id);
+  assert.equal(user.id, native.id);
+  assert.equal(user.username, 'Notch');
+  assert.equal(user.email, 'merge@test.com');
+  assert.equal(user.auth_type, 'merged');
+  assert.equal(db.getUserById(premium.id), null);
+  assert.equal(db.getUserBySession(session.token), null);
+  assert.equal(conn.prepare('SELECT count(*) AS c FROM friends WHERE user_id = ? AND friend_id = ?').get(native.id, friend.id).c, 1);
+  assert.throws(() => db.mergePremiumInto(premium.id, native.id), /already merged/);
 });

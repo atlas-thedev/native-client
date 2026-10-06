@@ -152,7 +152,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
           <div className="admin-wearing-art">{wearing ? thumb(wearing, 50, 80) : <Shirt size={18} />}</div>
           <div className="admin-wearing-copy">
             <small>Wearing now</small>
-            <strong>{wearing ? wearing.name : user?.hasCustomCape ? 'Their own uploaded cape' : 'No Store cape'}</strong>
+            <strong>{wearing ? wearing.name : user?.hasCustomCape ? 'Their own uploaded cape' : 'No Store cloak'}</strong>
             <span>{wearing ? 'Shows in the launcher, on the website and in game.' : 'Pick one below and press Wear to put it on them.'}</span>
           </div>
           {wearing && (
@@ -186,8 +186,8 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
             <span><Gift size={13} />Attach a cape</span>
             <label className="admin-search is-small"><Search size={12} /><input value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder="Find a cape" aria-label="Find a cape to attach" /></label>
           </div>
-          {!items ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading Store capes…</p>
-            : !attachable.length ? <p className="admin-note">{(items || []).length && !pickerQuery ? 'They already have every Store cape.' : 'No capes match.'}</p>
+          {!items ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading Store cloaks…</p>
+            : !attachable.length ? <p className="admin-note">{(items || []).length && !pickerQuery ? 'They already have every Store cape.' : 'No cloaks match.'}</p>
               : (
                 <div className="admin-attach-grid">
                   {attachable.map((item) => (

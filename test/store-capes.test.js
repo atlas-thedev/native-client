@@ -89,7 +89,7 @@ test('only Native store capes animate: own strips become still capes, owned stor
   const own = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(still), capeAnim: { strip: b64(strip), frames: 4, fps: 12 } }, session.token);
   assert.equal(own.status, 200);
   assert.equal(own.body.animated, false);
-  assert.match(own.body.notice, /Only Native capes/);
+  assert.match(own.body.notice, /Only Native (capes|cloaks)/i);
   assert.equal(own.body.profile.cape, null);
   assert.equal(own.body.profile.capeAnimation, undefined);
 
@@ -175,6 +175,7 @@ test('admin store: create animated + static capes, edit, hide, delete', async ()
   assert.equal((await json('/v1/store/me', { headers: { Authorization: `Bearer ${pleb}` } })).body.equipped, 'plain-black');
 
   const edit = await req('PATCH', '/v1/admin/store/items/galaxy-swirl', { name: 'Galaxy', hidden: true, fps: 15 });
+  assert.equal(edit.status, 200, JSON.stringify(edit.body));
   assert.equal(edit.body.item.name, 'Galaxy');
   assert.equal(edit.body.item.fps, 15);
   catalog = (await json('/v1/store/catalog')).body;

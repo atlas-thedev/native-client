@@ -53,16 +53,17 @@ const CODE_RESEND_COOLDOWN_MS = 60 * 1000;
 function saveVerificationCode(db, email, code) {
   const now = Date.now();
   const expiresAt = now + 10 * 60 * 1000; // 10 minutes
-  const stmt = db.prepare(`
-    INSERT INTO verification_codes (email, code, created_at, expires_at, attempts)
-    VALUES (?, ?, ?, ?, 0)
+  const salt = crypto.randomBytes(16).toString('hex');
+  db.prepare(`
+    INSERT INTO verification_codes (email, code, salt, created_at, expires_at, attempts)
+    VALUES (?, ?, ?, ?, ?, 0)
     ON CONFLICT(email) DO UPDATE SET
       code = excluded.code,
+      salt = excluded.salt,
       created_at = excluded.created_at,
       expires_at = excluded.expires_at,
       attempts = 0
-  `);
-  stmt.run(email.toLowerCase().trim(), String(code).trim(), now, expiresAt);
+  `).run(email.toLowerCase().trim(), hashResetCode(code, salt), salt, now, expiresAt);
   return { code, expiresAt };
 }
 
@@ -89,8 +90,8 @@ function checkVerificationCode(db, email, code) {
     clearVerificationCode(db, key);
     return false;
   }
-  const supplied = Buffer.from(String(code || '').trim().padEnd(6, ' ').slice(0, 16));
-  const expected = Buffer.from(String(row.code).trim().padEnd(6, ' ').slice(0, 16));
+  const supplied = Buffer.from(hashResetCode(String(code || '').trim(), row.salt || ''), 'hex');
+  const expected = Buffer.from(String(row.code), 'hex');
   const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
   if (!ok) {
     const attempts = Number(row.attempts || 0) + 1;
@@ -206,8 +207,8 @@ function createUser(db, { email, username, password, model = 'classic' }) {
   const isAdmin = adminEmails().includes(email.toLowerCase().trim()) ? 1 : 0;
 
   const stmt = db.prepare(`
-    INSERT INTO users (id, email, username, password_hash, salt, uuid, model, created_at, is_admin)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, username, password_hash, salt, uuid, model, created_at, is_admin, auth_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'native')
   `);
   stmt.run(id, email.toLowerCase().trim(), username.trim(), hash, salt, uuid, model === 'slim' ? 'slim' : 'classic', now, isAdmin);
 
@@ -218,32 +219,50 @@ function createUser(db, { email, username, password, model = 'classic' }) {
     uuid,
     model: model === 'slim' ? 'slim' : 'classic',
     createdAt: now,
-    isAdmin: Boolean(isAdmin)
+    isAdmin: Boolean(isAdmin),
+    auth_type: 'native'
   };
 }
 
-function createSession(db, userId) {
-  const token = `noc_${crypto.randomBytes(32).toString('hex')}`;
+const DAY = 24 * 60 * 60 * 1000;
+/**
+ * Session lifetimes by kind. Premium sessions are short: the launcher holds the
+ * Microsoft refresh token and renews them silently, so a leaked one dies quickly.
+ */
+const SESSION_TTL = { password: 30 * DAY, premium: 7 * DAY, web: 30 * DAY };
+const tokenHash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+
+function createSession(db, userId, kind = 'password') {
+  const safeKind = SESSION_TTL[kind] ? kind : 'password';
+  const token = `nat_${crypto.randomBytes(32).toString('hex')}`;
   const now = Date.now();
-  const expiresAt = now + 90 * 24 * 60 * 60 * 1000; // 90 days
-  const stmt = db.prepare(`
-    INSERT INTO sessions (token, user_id, created_at, expires_at)
-    VALUES (?, ?, ?, ?)
-  `);
-  stmt.run(token, userId, now, expiresAt);
-  return { token, expiresAt };
+  const expiresAt = now + SESSION_TTL[safeKind];
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?').run(userId, now);
+  db.prepare(`
+    INSERT INTO sessions (token, user_id, kind, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(tokenHash(token), userId, safeKind, now, expiresAt);
+  return { token, expiresAt, kind: safeKind };
+}
+
+/** Ends sessions for a user: every one, or only one kind (e.g. all premium sign-ins). */
+function revokeSessions(db, userId, kind = null) {
+  const result = kind
+    ? db.prepare('DELETE FROM sessions WHERE user_id = ? AND kind = ?').run(userId, kind)
+    : db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  return Number(result.changes || 0);
 }
 
 function getUserBySession(db, token) {
   if (!token) return null;
-  const stmt = db.prepare(`
+  return db.prepare(`
     SELECT u.id, u.email, u.username, u.uuid, u.model, u.badges, u.is_admin, u.created_at,
-           u.minecraft_uuid, u.minecraft_username, u.minecraft_linked_at
+           u.auth_type, u.minecraft_uuid, u.minecraft_username, u.minecraft_linked_at,
+           s.kind AS session_kind
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token = ? AND s.expires_at > ?
-  `);
-  return stmt.get(token, Date.now()) || null;
+  `).get(tokenHash(token), Date.now()) || null;
 }
 
 function getMinecraftLink(db, userId) {
@@ -253,25 +272,6 @@ function getMinecraftLink(db, userId) {
   `).get(userId);
   if (!row?.uuid) return null;
   return { uuid: row.uuid, name: row.name, linkedAt: row.linkedAt };
-}
-
-function linkMinecraftAccount(db, userId, { uuid, name }) {
-  const cleanUuid = String(uuid || '').replace(/-/g, '').toLowerCase();
-  const cleanName = String(name || '').trim();
-  if (!/^[a-f0-9]{32}$/.test(cleanUuid) || !/^[A-Za-z0-9_]{3,16}$/.test(cleanName)) {
-    throw new Error('Microsoft returned an invalid Minecraft profile.');
-  }
-
-  const owner = db.prepare('SELECT id FROM users WHERE minecraft_uuid = ? AND id != ?').get(cleanUuid, userId);
-  if (owner) throw new Error('That premium Minecraft account is already connected to another Native account.');
-
-  const linkedAt = Date.now();
-  db.prepare(`
-    UPDATE users
-    SET minecraft_uuid = ?, minecraft_username = ?, minecraft_linked_at = ?
-    WHERE id = ?
-  `).run(cleanUuid, cleanName, linkedAt, userId);
-  return { uuid: cleanUuid, name: cleanName, linkedAt };
 }
 
 /** The Native user whose connected premium account currently has this Minecraft name. */
@@ -294,15 +294,6 @@ function refreshMinecraftName(db, userId, name) {
   db.prepare('UPDATE users SET minecraft_username = ? WHERE id = ? AND minecraft_username IS NOT ?').run(cleanName, userId, cleanName);
 }
 
-function unlinkMinecraftAccount(db, userId) {
-  db.prepare(`
-    UPDATE users
-    SET minecraft_uuid = NULL, minecraft_username = NULL, minecraft_linked_at = NULL
-    WHERE id = ?
-  `).run(userId);
-  return { ok: true };
-}
-
 /** Rename a Native account (the caller checks the name is valid and free). */
 function renameUser(db, userId, username) {
   db.prepare('UPDATE users SET username = ? WHERE id = ?').run(String(username).trim(), userId);
@@ -311,7 +302,110 @@ function renameUser(db, userId, username) {
 
 function deleteSession(db, token) {
   if (!token) return;
-  db.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
+  db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash(token));
+}
+
+/* ── Premium (Microsoft) accounts ─────────────────────────────────────── */
+
+const dashedUuid = (hex) => `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+const cleanMcUuid = (value) => String(value || '').replace(/-/g, '').toLowerCase();
+
+/**
+ * Creates the account for a real Minecraft player the first time they sign in:
+ * the Minecraft name and UUID, no email, no password. The caller frees the name first.
+ */
+function createPremiumUser(db, { uuid, name }) {
+  const mc = cleanMcUuid(uuid);
+  const cleanName = String(name || '').trim();
+  if (!/^[a-f0-9]{32}$/.test(mc) || !/^[A-Za-z0-9_]{3,16}$/.test(cleanName)) {
+    throw new Error('Microsoft returned an invalid Minecraft profile.');
+  }
+  const id = `user-${crypto.randomBytes(6).toString('hex')}`;
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO users (id, email, username, password_hash, salt, uuid, model, created_at, is_admin, auth_type,
+                       minecraft_uuid, minecraft_username, minecraft_linked_at)
+    VALUES (?, NULL, ?, NULL, NULL, ?, 'classic', ?, 0, 'premium', ?, ?, ?)
+  `).run(id, cleanName, dashedUuid(mc), now, mc, cleanName, now);
+  return getUserById(db, id);
+}
+
+/**
+ * Merges a premium account into a native (email) account. The native account
+ * survives (its email and password keep working) and takes the Minecraft name
+ * and UUID. Everything the premium account had moves across; duplicates are
+ * dropped. One-way: there is no un-merge.
+ */
+function mergePremiumInto(db, premiumId, nativeId) {
+  const premium = getUserById(db, premiumId);
+  const native = getUserById(db, nativeId);
+  if (!premium || premium.auth_type !== 'premium') throw new Error('That Microsoft account is already merged.');
+  if (!native || native.auth_type !== 'native') throw new Error('That Native account is already merged with a Microsoft account.');
+  const p = premium.id;
+  const n = native.id;
+  // Tables created by optional modules (store, billing, site, beta) may not exist yet.
+  const run = (sql, ...args) => {
+    try { db.prepare(sql).run(...args); } catch (error) { if (!/no such table/.test(error.message)) throw error; }
+  };
+  db.exec('BEGIN');
+  try {
+    // Friends: one row per pair, never yourself.
+    run('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)', p, n, n, p);
+    run('UPDATE OR IGNORE friends SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE friends SET friend_id = ? WHERE friend_id = ?', n, p);
+    run('DELETE FROM friends WHERE user_id = ? OR friend_id = ?', p, p);
+    run('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', p, n, n, p);
+    run('UPDATE friend_requests SET sender_id = ? WHERE sender_id = ?', n, p);
+    run('UPDATE friend_requests SET receiver_id = ? WHERE receiver_id = ?', n, p);
+    run('UPDATE OR IGNORE blocks SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE blocks SET blocked_id = ? WHERE blocked_id = ?', n, p);
+    run('DELETE FROM blocks WHERE user_id = blocked_id OR user_id = ? OR blocked_id = ?', p, p);
+    // Messages and reactions.
+    run('UPDATE messages SET sender_id = ? WHERE sender_id = ?', n, p);
+    run('UPDATE messages SET receiver_id = ? WHERE receiver_id = ?', n, p);
+    run('DELETE FROM messages WHERE sender_id = receiver_id');
+    run('UPDATE OR IGNORE message_reactions SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE group_message_reactions SET user_id = ? WHERE user_id = ?', n, p);
+    // Groups: when both were members, keep the higher role.
+    run(`UPDATE group_members SET role = 'owner' WHERE user_id = ? AND group_id IN (SELECT group_id FROM group_members WHERE user_id = ? AND role = 'owner')`, n, p);
+    run(`UPDATE group_members SET role = 'admin' WHERE user_id = ? AND role = 'member' AND group_id IN (SELECT group_id FROM group_members WHERE user_id = ? AND role = 'admin')`, n, p);
+    run('UPDATE OR IGNORE group_members SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE groups SET owner_id = ? WHERE owner_id = ?', n, p);
+    run('UPDATE group_messages SET sender_id = ? WHERE sender_id = ?', n, p);
+    // Store, billing, Native+ and site data.
+    run('UPDATE OR IGNORE store_owned SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE billing_purchases SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE billing_subscriptions SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE billing_checkouts SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE billing_customer_ids SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE billing_customers SET user_id = ? WHERE user_id = ?', n, p);
+    run(`UPDATE plus_grants SET expires_at = CASE
+           WHEN expires_at IS NULL OR (SELECT g.expires_at FROM plus_grants g WHERE g.user_id = ?) IS NULL THEN NULL
+           ELSE MAX(expires_at, (SELECT g.expires_at FROM plus_grants g WHERE g.user_id = ?)) END
+         WHERE user_id = ? AND EXISTS (SELECT 1 FROM plus_grants g WHERE g.user_id = ?)`, p, p, n, p);
+    run('UPDATE OR IGNORE plus_grants SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE founder_picks SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE poll_votes SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE redeem_uses SET user_id = ? WHERE user_id = ?', n, p);
+    run('UPDATE OR IGNORE beta_applications SET user_id = ? WHERE user_id = ?', n, p);
+    let badges = [];
+    try { badges = [...new Set([...JSON.parse(native.badges || '[]'), ...JSON.parse(premium.badges || '[]')])]; } catch {}
+    // Every old sign-in ends; the caller hands out a fresh one.
+    run('DELETE FROM sessions WHERE user_id IN (?, ?)', p, n);
+    run('DELETE FROM presence WHERE user_id = ?', p);
+    run('DELETE FROM users WHERE id = ?', p);
+    db.prepare(`
+      UPDATE users SET username = ?, uuid = ?, auth_type = 'merged', badges = ?,
+        is_admin = MAX(is_admin, ?), minecraft_uuid = ?, minecraft_username = ?, minecraft_linked_at = ?
+      WHERE id = ?
+    `).run(premium.username, premium.uuid, JSON.stringify(badges), Number(premium.is_admin || 0),
+      premium.minecraft_uuid, premium.minecraft_username, Date.now(), n);
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw error;
+  }
+  return { user: getUserById(db, n), from: { native: native.username, premium: premium.username } };
 }
 
 module.exports = {
@@ -339,10 +433,13 @@ module.exports = {
   getUserByLogin,
   createUser,
   createSession,
+  revokeSessions,
+  tokenHash,
+  SESSION_TTL,
+  createPremiumUser,
+  mergePremiumInto,
   getUserBySession,
   getMinecraftLink,
-  linkMinecraftAccount,
-  unlinkMinecraftAccount,
   getUserByMinecraftUuid,
   getUserByMinecraftName,
   refreshMinecraftName,

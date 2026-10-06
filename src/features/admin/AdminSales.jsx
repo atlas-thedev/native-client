@@ -174,7 +174,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
             <label className="admin-field"><span>Note</span><input value={gift.note} onChange={(event) => setGift((current) => ({ ...current, note: event.target.value }))} placeholder="Giveaway winner" maxLength={120} /></label>
             <button type="submit" className="admin-btn primary" disabled={!gift.username.trim() || Boolean(busy)}>{busy === 'gift' ? <LoaderCircle size={13} className="is-spinning" /> : <Gift size={13} />}Give Native+</button>
           </form>
-          <p className="admin-note">Giving more time to someone who already has a gift adds to what they have left. They get every paid cape and the Native+ badge right away.</p>
+          <p className="admin-note">Giving more time to someone who already has a gift adds to what they have left. They get every paid cloak and the Native+ badge right away.</p>
           <div className="admin-code-list">
             {!gifts ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading…</p>
               : !gifts.length ? <p className="admin-note">Nobody has a given Native+ yet.</p>

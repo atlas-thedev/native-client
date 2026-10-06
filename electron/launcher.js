@@ -172,7 +172,7 @@ const setState = (status, detail = '') => {
 const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
 
-/** The Native session of the account being launched (Native account, or the one a premium account is connected to). */
+/** The Native session of the account being launched (Native account, or a premium account's own). */
 function nativeIdentityFor(rawAccount) {
   try {
     const data = auth.readAccounts(deps.app.getPath('userData'));
@@ -183,6 +183,23 @@ function nativeIdentityFor(rawAccount) {
       return token ? { id: saved.id, name: saved.name || saved.username, token } : null;
     }
     return auth.linkedIdentity(saved);
+  } catch { return null; }
+}
+
+/**
+ * An offline account's worn skin/cape for the Native mod (this PC only, never
+ * published). The textures go into Minecraft's own skin cache so the game
+ * reads them from disk.
+ */
+function offlineLook(rawAccount, account) {
+  if (rawAccount?.type !== 'offline') return null;
+  try {
+    const look = wardrobeMod.localLook({ ...account, ...rawAccount });
+    if (!look) return null;
+    const textureCache = require('./textureCache');
+    nativeMod.seedSkinCache(path.join(rootDir(), 'assets', 'skins'),
+      [look.skin, look.cape].filter(Boolean).map((hash) => ({ hash, bytes: textureCache.read(hash) })));
+    return look;
   } catch { return null; }
 }
 
@@ -580,6 +597,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           cacheDir: path.join(deps.app.getPath('userData'), 'native-mod'),
           roots: socialMod.API_ROOTS,
           textureCache: (() => { try { return wardrobeMod.warmTextureCache(account); } catch { return null; } })(),
+          // Offline accounts: their own skin shows in game on this PC only.
+          local: offlineLook(rawAccount, account),
           onState: (detail) => setState('preparing', detail)
         });
         if (modResult.warning) launcher.emit('debug', `[Native Client]: Native mod: ${modResult.warning}`);

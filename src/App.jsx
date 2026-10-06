@@ -281,30 +281,27 @@ export default function App() {
     }
   };
 
-  // Premium ↔ Native: connect, disconnect, and keep a connected premium
-  // account signed into its Native account in the background.
-  const handleConnectNative = async (payload) => {
-    const res = await window.native?.accounts?.connectNative?.(payload);
+  // Premium accounts are Native accounts. They can merge once into an email
+  // Native account; the launcher keeps them signed in in the background.
+  const handleMergeNative = async (payload) => {
+    const res = await window.native?.accounts?.merge?.(payload);
     await refreshAccounts();
-    return res || { ok: false, error: 'Connecting accounts is not available in this build.' };
+    return res || { ok: false, error: 'Merging accounts is not available in this build.' };
   };
 
-  const handleDisconnectNative = async (microsoftAccountId) => {
-    const res = await window.native?.accounts?.disconnectNative?.(microsoftAccountId);
+  const handleRetryNative = async (microsoftAccountId) => {
+    const res = await window.native?.accounts?.ensureNative?.(microsoftAccountId);
     await refreshAccounts();
-    return res || { ok: false, error: 'Disconnecting accounts is not available in this build.' };
+    return res;
   };
 
-  // Native names can change elsewhere (a premium owner claiming theirs).
+  const handleOpenWebsite = async (accountId) => window.native?.accounts?.openWebsite?.(accountId)
+    || { ok: false, error: 'Not available in this build.' };
+
+  // Native names can change elsewhere (a premium owner taking theirs back, a merge).
   useEffect(() => {
     window.native?.accounts?.refreshNames?.().then((res) => { if (res?.changed) refreshAccounts(); }).catch(() => {});
   }, []);
-
-  const handleClaimName = async (microsoftAccountId) => {
-    const res = await window.native?.accounts?.claimName?.(microsoftAccountId);
-    await refreshAccounts();
-    return res || { ok: false, error: 'Not available in this build.' };
-  };
 
   const ensuredPremiumRef = useRef(null);
   useEffect(() => {
@@ -315,7 +312,7 @@ export default function App() {
     const before = activeAccount.nativeLink?.userId || null;
     window.native.accounts.ensureNative(activeAccount.id).then((res) => {
       const after = res?.ok ? res.link?.userId || null : null;
-      if (!cancelled && after !== before) refreshAccounts();
+      if (!cancelled && (after !== before || res?.link?.name !== activeAccount.nativeLink?.name)) refreshAccounts();
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [activeAccount?.id, activeAccount?.type]);
@@ -389,9 +386,9 @@ export default function App() {
         onNativeLogin={handleNativeLogin}
         onSwitchAccount={handleSwitchAccount}
         onRemoveAccount={handleRemoveAccount}
-        onConnectNative={handleConnectNative}
-        onDisconnectNative={handleDisconnectNative}
-        onClaimName={handleClaimName}
+        onMergeNative={handleMergeNative}
+        onOpenWebsite={handleOpenWebsite}
+        onRetryNative={handleRetryNative}
         onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
         updateStatus={updater.status}
         networkStatus={network.status}

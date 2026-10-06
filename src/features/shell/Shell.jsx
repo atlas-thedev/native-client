@@ -38,16 +38,6 @@ import './Shell.css';
 import '../../lib/whitePrimary.css';
 
 const WELCOME_TOUR_KEY = 'native.welcome-tour.v1';
-const PLAY_AS_KEY = 'native.play-as.v1';
-
-const readPlayAs = () => {
-  try {
-    return JSON.parse(localStorage.getItem(PLAY_AS_KEY) || '{}') || {};
-  } catch {
-    return {};
-  }
-};
-
 const playRelayChime = () => {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -83,8 +73,9 @@ export default function Shell({
   onNativeLogin,
   onSwitchAccount,
   onRemoveAccount,
-  onConnectNative,
-  onDisconnectNative,
+  onMergeNative,
+  onOpenWebsite,
+  onRetryNative,
   onWardrobeChanged,
   onOpenUpdater,
   updateStatus,
@@ -118,7 +109,6 @@ export default function Shell({
   const [searchOpen, setSearchOpen] = useState(false);
   const [guideRequest, setGuideRequest] = useState(null);
   const [createSeed, setCreateSeed] = useState(null);
-  const [playAsMap, setPlayAsMap] = useState(readPlayAs);
 
   const [notifications, setNotifications] = useState([]);
   const [relayActiveThreadId, setRelayActiveThreadId] = useState(null);
@@ -168,92 +158,19 @@ export default function Shell({
   // Offline accounts get a local-only Locker (never synced to Native).
   const canUseLocalLocker = Boolean(hasValidAccount && account.type === 'offline');
 
-  /* A premium account linked to Native can play as either identity without
-     going back to the login screen. Premium = real Microsoft session (online
-     servers); Native = the linked Native profile (offline session + Native skins). */
-  const canSwitchIdentity = Boolean(premiumLink && socialAccount);
-  const playAs = canSwitchIdentity && playAsMap[account.id] === 'native' ? 'native' : 'premium';
-  /* The linked Native identity's own look (skin/cape from its Native wardrobe),
-     so the sidebar, home switcher and launch payload show the right avatar. */
-  const [identityLook, setIdentityLook] = useState(null);
-  useEffect(() => {
-    if (!canSwitchIdentity || !socialAccount?.id || !window.native?.wardrobe?.avatar) { setIdentityLook(null); return undefined; }
-    let cancelled = false;
-    window.native.wardrobe.avatar({ ...socialAccount, isMicrosoft: false, type: 'native' })
-      .then((look) => { if (!cancelled && look) setIdentityLook({ id: socialAccount.id, skinUrl: look.skinUrl || null, capeUrl: look.capeUrl || null, model: look.model || socialAccount.model || 'classic' }); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSwitchIdentity, socialAccount?.id]);
-  const nativeIdentity = useMemo(() => {
-    if (!socialAccount) return null;
-    const look = identityLook && identityLook.id === socialAccount.id ? identityLook : null;
-    return {
-      ...socialAccount,
-      isMicrosoft: false,
-      type: 'native',
-      ...(look ? { skinUrl: look.skinUrl, capeUrl: look.capeUrl, model: look.model, hasSkin: Boolean(look.skinUrl), hasCape: Boolean(look.capeUrl) } : {})
-    };
-  }, [socialAccount, identityLook]);
-  /* Playing as the linked Native identity: everything account-specific (launch,
-     sidebar avatar, Locker, Store) uses that Native identity, not the Microsoft one. */
-  const launchAccount = useMemo(() => {
-    if (playAs !== 'native' || !nativeIdentity) return account;
-    return nativeIdentity;
-  }, [playAs, nativeIdentity, account]);
-  const handleWardrobeChanged = useCallback((value) => {
-    if (playAs === 'native' && socialAccount?.id) {
-      const active = value?.active || {};
-      setIdentityLook({ id: socialAccount.id, skinUrl: active.skinUrl || null, capeUrl: active.capeUrl || null, model: active.model || value?.model || 'classic' });
-      return;
-    }
-    onWardrobeChanged?.(value);
-  }, [playAs, socialAccount?.id, onWardrobeChanged]);
-  const switchIdentity = useCallback((mode) => {
-    if (!account?.id) return;
-    setPlayAsMap((current) => {
-      const next = { ...current, [account.id]: mode === 'native' ? 'native' : 'premium' };
-      try {
-        localStorage.setItem(PLAY_AS_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }, [account?.id]);
-  /* Signed in with Native directly but a premium account in the switcher is
-     linked to it: the home switcher can hop to that premium identity too. */
-  const linkedPremiumAccount = useMemo(() => (
-    isNative ? accounts.find((entry) => entry?.type === 'microsoft' && entry.nativeLink?.connected && entry.nativeLink.userId === account.id) || null : null
-  ), [isNative, accounts, account?.id]);
-  const identity = useMemo(() => {
-    if (canSwitchIdentity) {
-      return {
-        mode: playAs,
-        premium: { name: account?.name, account },
-        native: { name: socialAccount?.name, account: nativeIdentity }
-      };
-    }
-    if (linkedPremiumAccount) {
-      return {
-        mode: 'native',
-        premium: { name: linkedPremiumAccount.name, account: linkedPremiumAccount },
-        native: { name: account?.name, account }
-      };
-    }
-    return null;
-  }, [canSwitchIdentity, playAs, account, socialAccount, nativeIdentity, linkedPremiumAccount]);
-  const chooseIdentity = useCallback((mode) => {
-    if (canSwitchIdentity) { switchIdentity(mode); return; }
-    if (linkedPremiumAccount && mode === 'premium') {
-      setPlayAsMap((current) => {
-        const next = { ...current, [linkedPremiumAccount.id]: 'premium' };
-        try { localStorage.setItem(PLAY_AS_KEY, JSON.stringify(next)); } catch {}
-        return next;
-      });
-      onSwitchAccount?.(linkedPremiumAccount.id);
-    }
-  }, [canSwitchIdentity, switchIdentity, linkedPremiumAccount, onSwitchAccount]);
+  /* Premium accounts are their own Native account (same name as Minecraft),
+     so there is a single identity to play as. */
+  const launchAccount = account;
+  const handleWardrobeChanged = useCallback((value) => { onWardrobeChanged?.(value); }, [onWardrobeChanged]);
+  const identity = null;
+  const chooseIdentity = useCallback(() => {}, []);
   const isPlus = usePlus(socialAccount, hasNative);
+  // Offline accounts never see Relay or the Store.
+  useEffect(() => {
+    if (canUseLocalLocker && (currentTab === 'relay' || currentTab === 'store')) setCurrentTab('home');
+  }, [canUseLocalLocker, currentTab]);
   const [connectRequest, setConnectRequest] = useState(null);
+  // Opens the account switcher on "Merge with a Native account" for this premium account.
   const openConnectNative = useCallback((microsoftAccountId) => {
     setConnectRequest({ id: microsoftAccountId, nonce: Date.now() });
     setAccountSwitcherOpen(true);
@@ -722,6 +639,7 @@ export default function Shell({
           isNative={hasNative}
           isPlus={isPlus}
           canUseLocker={canUseLocker || canUseLocalLocker}
+          isOffline={canUseLocalLocker}
           notifications={notifications.length}
           onOpenNotifications={() => setNotificationsOpen(true)}
           isMaximized={isMaximized}
@@ -814,7 +732,7 @@ export default function Shell({
             <NativeAccountGate
               feature="relay"
               premium={account?.type === 'microsoft'}
-              onConnectPremium={() => openConnectNative(account.id)}
+              onConnectPremium={() => onRetryNative?.(account.id)}
               onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
               onBackHome={() => setCurrentTab('home')}
             />
@@ -963,8 +881,8 @@ export default function Shell({
         onNativeVerifyRegister={onNativeVerifyRegister}
         onNativeLogin={onNativeLogin}
         onRemoveAccount={onRemoveAccount}
-        onConnectNative={onConnectNative}
-        onDisconnectNative={onDisconnectNative}
+        onMergeNative={onMergeNative}
+        onOpenWebsite={onOpenWebsite}
         connectRequest={connectRequest}
       />
 

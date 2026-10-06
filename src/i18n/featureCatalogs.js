@@ -24,7 +24,7 @@ const en = {
   settings: { discordPresence: 'Discord Rich Presence' },
   locker: {
     title: 'Locker',
-    subtitle: 'Skins, capes and cosmetics for your account.',
+    subtitle: 'Skins, Native cloaks and Minecraft capes for your account.',
     currentSkin: 'Current skin',
     uploadSkin: 'Upload skin',
     dragDrop: 'Drag & drop or browse',

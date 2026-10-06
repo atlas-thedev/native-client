@@ -413,7 +413,7 @@ function redeem(user, rawCode) {
   if (sql().prepare('SELECT 1 FROM redeem_uses WHERE code = ? AND user_id = ?').get(code, String(user.id))) return { status: 409, error: 'You already used this code.' };
   if (row.uses >= row.max_uses) return { status: 410, error: 'That code has been fully used.' };
   const item = hooks.findItem ? hooks.findItem(row.item_id) : null;
-  if (!item) return { status: 410, error: 'The cape for this code is gone.' };
+  if (!item) return { status: 410, error: 'The cloak for this code is gone.' };
   const take = sql().prepare('UPDATE redeem_codes SET uses = uses + 1 WHERE code = ? AND uses < max_uses').run(code);
   if (!take.changes) return { status: 410, error: 'That code has been fully used.' };
   sql().prepare('INSERT INTO redeem_uses (code, user_id, used_at) VALUES (?, ?, ?)').run(code, String(user.id), Date.now());
@@ -536,8 +536,8 @@ async function handleBillingRoutes(req, res, ctx) {
     let custom;
     if (kind === 'cape') {
       const item = ctx.findItem(String(body.itemId || ''));
-      if (!item || item.hidden) { send(res, 404, { ok: false, error: 'That cape isn’t for sale.' }); return true; }
-      if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} is an event cape. It can’t be bought.` }); return true; }
+      if (!item || item.hidden) { send(res, 404, { ok: false, error: 'That cloak isn’t for sale.' }); return true; }
+      if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} is an event cloak. It can’t be bought.` }); return true; }
       if (!isPaid(item)) { send(res, 400, { ok: false, error: `${item.name} is free. Add it to your locker instead.` }); return true; }
       if (ownedSource(user.id, item.id) && ownedSource(user.id, item.id) !== 'plus') { send(res, 409, { ok: false, error: `${item.name} is already yours.` }); return true; }
       items = [{
@@ -770,7 +770,7 @@ async function handleAdmin(req, res, ctx, url, user) {
     if (req.method === 'POST') {
       const body = await ctx.readJson(req);
       const item = ctx.findItem(String(body.itemId || ''));
-      if (!item) { send(res, 404, { ok: false, error: 'Pick a cape for this code.' }); return true; }
+      if (!item) { send(res, 404, { ok: false, error: 'Pick a cloak for this code.' }); return true; }
       const code = normalizeCode(body.code) || `${item.id.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
       if (!CODE_RE.test(code)) { send(res, 400, { ok: false, error: 'Codes use A-Z, 0-9 and dashes (3-32 characters).' }); return true; }
       const maxUses = Math.max(1, Math.min(100000, Math.floor(Number(body.maxUses) || 1)));

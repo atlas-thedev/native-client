@@ -110,29 +110,27 @@ export const GUIDES = [
   {
     id: 'connect-premium',
     category: 'account',
-    title: 'How do I connect my premium account to Native?',
-    summary: 'Connect once, and every time you sign in with Microsoft you are signed into Native too.',
-    video: 'connect-premium',
-    tags: ['premium', 'microsoft', 'link', 'connect', 'native account', 'auto', 'sign in', 'relay'],
+    title: 'How do premium accounts work with Native?',
+    summary: 'Signing in with Microsoft is your Native account. No email or password needed.',
+    tags: ['premium', 'microsoft', 'merge', 'native account', 'auto', 'sign in', 'relay'],
     steps: [
-      { title: 'Sign in with Microsoft', body: 'Add your premium (Microsoft) account in Accounts.' },
-      { title: 'Press Connect', body: 'Next to the Microsoft account, press Connect.' },
-      { title: 'Sign into Native', body: 'Choose a signed-in Native account or enter your Native login. Native checks with Microsoft that you own the game.' },
-      { title: 'Done', body: 'From now on, Relay, friends and chat work while you play with your premium account, on every PC.' }
+      { title: 'Sign in with Microsoft', body: 'Add your premium (Microsoft) account in Accounts. Native makes your account with your Minecraft name.' },
+      { title: 'Already have a Native account?', body: 'In Accounts, press Merge next to the Microsoft account and sign into your Native account. It takes your Minecraft name and keeps your friends, chats and cloaks. Merging can’t be undone.' },
+      { title: 'Done', body: 'Relay, friends and your cloaks work on every PC you sign in with Microsoft.' }
     ],
-    action: { label: 'Connect Native', kind: 'accounts', connect: true }
+    action: { label: 'Open Accounts', kind: 'accounts', connect: true }
   },
   {
     id: 'locker',
     category: 'account',
-    title: 'How do I change my skin and cape?',
-    summary: 'Upload skins, pick capes and preview them in 3D in the Locker.',
+    title: 'How do I change my skin, cloak and cape?',
+    summary: 'Upload skins, pick Native cloaks (and your Minecraft capes) and preview them in 3D in the Locker.',
     video: 'locker',
-    tags: ['skin', 'cape', 'locker', 'wardrobe', 'avatar', '3d', 'slim', 'classic'],
+    tags: ['skin', 'cape', 'cloak', 'locker', 'wardrobe', 'avatar', '3d', 'slim', 'classic'],
     steps: [
-      { title: 'Open Locker', body: 'Click Locker in the sidebar. It needs a Native account.' },
+      { title: 'Open Locker', body: 'Click Locker in the sidebar. Offline accounts get a local Locker only you see.' },
       { title: 'Add a skin', body: 'Drop a skin PNG or choose one, and pick the classic or slim model.' },
-      { title: 'Apply', body: 'Select a skin or cape to wear it. Other Native players see it in game.' }
+      { title: 'Apply', body: 'Select a skin, cloak or cape to wear it. Premium skins and capes change on your Minecraft profile; other Native players see your cloak in game.' }
     ],
     action: { label: 'Open Locker', kind: 'tab', tab: 'skins' }
   },
@@ -144,7 +142,7 @@ export const GUIDES = [
     video: 'relay',
     tags: ['friends', 'chat', 'relay', 'message', 'group', 'dm', 'add friend', 'social'],
     steps: [
-      { title: 'Open Relay', body: 'Click Relay in the sidebar. You need a Native account, or a premium account connected to one.' },
+      { title: 'Open Relay', body: 'Click Relay in the sidebar. You need a Native or premium (Microsoft) account.' },
       { title: 'Add a friend', body: 'Search their Native name and send a request. They accept it from their Relay.' },
       { title: 'Chat', body: 'Send messages, images and GIFs, or make a group for your crew.' }
     ],

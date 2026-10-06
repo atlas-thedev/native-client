@@ -211,7 +211,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       <header className="admin-header">
         <div className="admin-heading">
           <h1 className="admin-title page-title">Administration</h1>
-          <p className="admin-subtitle">Manage Native users, badges, Store capes, and database health.</p>
+          <p className="admin-subtitle">Manage Native users, badges, Store cloaks, and database health.</p>
         </div>
         <div className="admin-header-actions">
           <span className="admin-access-label"><i />Admin only</span>
