@@ -855,19 +855,19 @@ async function prefetchStoreAssets() {
  * Wear a 3D cosmetic (hat, glasses, back item, shoes) on the signed-in Native account, or with itemId null take
  * `slot` off. Cosmetics live on the server only (no local mirror): returns { wearing, owned }.
  */
-async function wearStoreCosmetic(account, itemId, slot) {
+async function wearStoreCosmetic(account, itemId, slot, side = null) {
   const native = resolveBillingAccount(account);
   requireStoreAccount(native);
   const response = await fetch(`${apiRoot()}/v1/store/equip`, {
     method: 'POST',
     headers: storeHeaders(native),
-    body: JSON.stringify(itemId ? { itemId } : { slot, itemId: null }),
+    body: JSON.stringify(itemId ? { itemId, ...(side ? { side } : {}) } : { slot, itemId: null, ...(side ? { side } : {}) }),
     signal: AbortSignal.timeout(15_000)
   });
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t do that (HTTP ${response.status}).`);
-  return { wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : null };
+  return { wearing: body.wearing || {}, sides: body.sides || null, owned: Array.isArray(body.owned) ? body.owned : null };
 }
 
 /** Wear a Native Store cloak on a premium account (or take it off). Its Mojang skin stays. */
@@ -935,7 +935,7 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : [], wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
 }
 async function toggleStoreWish(account, itemId, on) {
   requireStoreAccount(account);
@@ -1916,8 +1916,8 @@ function init(dependencies, ipcMain) {
   ipc.handle('store:prefs', async (_event, { account, prefs }) => {
     try { return { ok: true, ...(await setStorePrefs(resolveBillingAccount(account), prefs)) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipc.handle('store:wear', async (_event, { account, itemId, slot }) => {
-    try { return { ok: true, ...(await wearStoreCosmetic(account, itemId ? String(itemId) : null, String(slot || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  ipc.handle('store:wear', async (_event, { account, itemId, slot, side }) => {
+    try { return { ok: true, ...(await wearStoreCosmetic(account, itemId ? String(itemId) : null, String(slot || ''), side === 'left' || side === 'right' ? side : null)) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:me', async (_event, account) => {
     try { return { ok: true, ...(await fetchStoreMe(resolveBillingAccount(account))) }; } catch (error) { return { ok: false, error: error.message }; }

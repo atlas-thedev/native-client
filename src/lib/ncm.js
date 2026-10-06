@@ -9,8 +9,8 @@
  */
 
 const ATTACH = { head: 'head', body: 'body', back: 'body', torso: 'body', rightarm: 'rightArm', leftarm: 'leftArm', rightleg: 'rightLeg', rightfoot: 'rightLeg', leftleg: 'leftLeg', leftfoot: 'leftLeg' };
-const LIMIT_PARTS = 96;
-const LIMIT_CUBES = 512;
+const LIMIT_PARTS = 512;
+const LIMIT_CUBES = 2048;
 
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const clamp = (v, l) => Math.max(-l, Math.min(l, v));
@@ -22,7 +22,7 @@ export function parseCosmetic(json) {
   if (!root || typeof root !== 'object' || Array.isArray(root)) throw new Error('model is not an object');
   if (num(root.format, 1) !== 1) throw new Error('unsupported model format');
   const [tw, th] = vec(root.texture, 2, [64, 64]).map((v) => Math.trunc(v));
-  if (tw < 1 || th < 1 || tw > 1024 || th > 1024) throw new Error('bad texture size');
+  if (tw < 1 || th < 1 || tw > 2048 || th > 2048) throw new Error('bad texture size');
   if (!Array.isArray(root.parts) || !root.parts.length) throw new Error('model has no parts');
   const flat = [];
   let cubes = 0;
@@ -38,6 +38,7 @@ export function parseCosmetic(json) {
         attach,
         pivot: vec(o.pivot, 3, [0, 0, 0]).map((v) => clamp(v, 64)),
         rotation: vec(o.rotation, 3, [0, 0, 0]).map((v) => (clamp(v, 360) * Math.PI) / 180),
+        side: o.side === 'left' ? 1 : o.side === 'right' ? 2 : 0,
         layer: o.layer === 'glow' || o.layer === 'emissive' || o.glow === true ? 'glow' : o.layer === 'translucent' ? 'translucent' : 'cutout',
         armor: o.armor && typeof o.armor === 'object' ? { slot: String(o.armor.slot || 'none'), hide: o.armor.mode !== 'push', offset: vec(o.armor.offset, 3, [0, 0, 0]).map((v) => clamp(v, 8)) } : null,
         anim: (Array.isArray(o.anim) ? o.anim : []).slice(0, 8).map(parseAnim).filter(Boolean),
@@ -49,8 +50,8 @@ export function parseCosmetic(json) {
         if (++cubes > LIMIT_CUBES) throw new Error('too many cubes');
         part.cubes.push({
           origin: vec(c.origin, 3, [0, 0, 0]).map((v) => clamp(v, 64)),
-          size: vec(c.size, 3, [1, 1, 1]).map((v) => Math.max(0, Math.min(64, Math.round(v)))),
-          uv: vec(c.uv, 2, [0, 0]).map((v) => Math.max(0, Math.min(1024, Math.trunc(v)))),
+          size: vec(c.size, 3, [1, 1, 1]).map((v) => Math.max(0, Math.min(64, v))),
+          uv: vec(c.uv, 2, [0, 0]).map((v) => Math.max(0, Math.min(2048, Math.trunc(v)))),
           inflate: Math.max(-2, Math.min(4, num(c.inflate, 0))),
           mirror: c.mirror === true
         });
@@ -132,6 +133,7 @@ function cubeGeometry(THREE, c, tw, th) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setIndex(idx);
+  g.computeVertexNormals();
   return g;
 }
 
@@ -179,7 +181,7 @@ export function buildCosmetic(THREE, modelJson, image) {
     const space = new THREE.Group();
     space.rotation.x = Math.PI;
     space.add(make(part));
-    return { attach: part.attach, object: space, part };
+    return { attach: part.attach, object: space, part, side: part.side };
   });
   let armor = new Set();
   const pose = new Array(6);
@@ -198,6 +200,13 @@ export function buildCosmetic(THREE, modelJson, image) {
       }
     },
     setArmor(slots) { armor = new Set(slots || []); },
+    /** Hand items / balloons: which side (1 left, 2 right, or 'left'/'right') is shown; models without sided roots ignore it. */
+    setSide(side) {
+      const want = side === 'left' || side === 1 ? 1 : side === 'right' || side === 2 ? 2 : 0;
+      const first = roots.find((r) => r.side);
+      const pick = want || (first ? first.side : 0);
+      for (const r of roots) r.object.visible = !r.side || r.side === pick;
+    },
     detach() { for (const r of roots) r.object.parent?.remove(r.object); },
     dispose() {
       built.detach();
@@ -206,6 +215,7 @@ export function buildCosmetic(THREE, modelJson, image) {
       texture.dispose();
     }
   };
+  built.setSide(0);
   built.update(0, 0);
   return built;
 }

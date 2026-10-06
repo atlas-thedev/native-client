@@ -223,6 +223,7 @@ function saveProfile(profile, req, owner) {
         })(),
         capeStore: profile.capeStore || null,
         wearing: storeRoutes.wearingOf(profile),
+        sides: (profile && profile.cosmeticSides) || {},
         cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`),
         updatedAt: profile.updatedAt
       };
@@ -658,6 +659,7 @@ async function handler(req, res) {
         ...(capeStore ? { capeStore } : {}),
         // 3D cosmetics are only changed through the store (POST /v1/store/equip), never by a wardrobe sync
         ...(existing?.cosmetics && Object.keys(existing.cosmetics).length ? { cosmetics: existing.cosmetics } : {}),
+        ...(existing?.cosmeticSides && Object.keys(existing.cosmeticSides).length ? { cosmeticSides: existing.cosmeticSides } : {}),
         updatedAt: new Date().toISOString()
       };
       saveProfile(profile, req, sessionUser);

@@ -27,8 +27,8 @@ const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' 
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
-const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
-const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes' };
+const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items', balloon: 'Balloons' };
+const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item', balloon: 'balloon' };
 // Each section has its own slab colour, like the Locker switch (same pixel style, different colours).
 export const SECTION_COLORS = { capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c' };
 

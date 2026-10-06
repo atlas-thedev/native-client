@@ -124,7 +124,7 @@ export default function SkinViewer3D({
   const cosmeticsRef = useRef([]);
   const walkRef = useRef(0);
   walkRef.current = animation === 'walk' || animation === 'run' ? 1 : 0;
-  const cosmeticKey = (cosmetics || []).filter((c) => c && c.model && c.texture).map((c) => `${c.id}:${String(c.texture).length}:${String(c.texture).slice(-24)}`).join('|');
+  const cosmeticKey = (cosmetics || []).filter((c) => c && c.model && c.texture).map((c) => `${c.id}:${c.side || ''}:${String(c.texture).length}:${String(c.texture).slice(-24)}`).join('|');
   const cosmeticSource = useRef(cosmetics);
   cosmeticSource.current = cosmetics;
 
@@ -310,7 +310,9 @@ export default function SkinViewer3D({
         try {
           const image = await ncm.loadImage(item.texture);
           if (cancelled) return;
-          built.push(ncm.attachToPlayer(ncm.buildCosmetic(THREE, item.model, image), viewer.playerObject.skin));
+          const one = ncm.attachToPlayer(ncm.buildCosmetic(THREE, item.model, image), viewer.playerObject.skin);
+          one.setSide?.(item.side);
+          built.push(one);
         } catch { /* a broken cosmetic is skipped, the rest still show */ }
       }
       if (cancelled) { built.forEach((b) => b.dispose()); return; }

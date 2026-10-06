@@ -61,3 +61,8 @@
 .locker-search input::placeholder { color: var(--fg-muted); }
 .locker-search button { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--fg-muted); cursor: pointer; }
 .locker-search button:hover { color: var(--fg-primary-hover); }
+
+.locker-side-pick { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
+.locker-side-pick button { border: 0; background: transparent; color: inherit; opacity: 0.65; font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: background .15s, opacity .15s; }
+.locker-side-pick button:hover { opacity: 1; }
+.locker-side-pick button.on { background: rgba(255,255,255,0.16); opacity: 1; }

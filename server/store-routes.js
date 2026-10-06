@@ -203,7 +203,7 @@ function publicProfile(row, profile) {
     admin: Boolean(row.is_admin),
     plus: (() => { try { return Boolean(billing.hasPlus(row.id)); } catch { return false; } })(),
     equipped: worn ? worn.id : null,
-    wearing: wearingOf(profile),
+    wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {},
     counts: { owned: owned.length, wishlist: wish.length },
     hidden: { locker: prefs.hideLocker, wishlist: prefs.hideWishlist },
     owned: prefs.hideLocker ? [] : owned.map(({ id, acquiredAt }) => ({ id, acquiredAt })),
@@ -545,7 +545,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
     return true;
   }
 
@@ -625,7 +625,11 @@ async function handleStoreRoutes(req, res, ctx) {
       authHash: null
     };
     let next;
-    if ((body.itemId == null || body.itemId === '') && body.slot !== undefined && body.slot !== 'capes') {
+    if ((body.itemId == null || body.itemId === '') && body.side !== undefined && cosmetics.SIDED.includes(body.slot)) {
+      // just switching hands for a worn hand item / balloon
+      if (!cosmetics.isSide(body.side)) { send(res, 400, { ok: false, error: 'Pick left or right.' }); return true; }
+      next = cosmetics.withSide(existing, body.slot, body.side);
+    } else if ((body.itemId == null || body.itemId === '') && body.slot !== undefined && body.slot !== 'capes') {
       if (!cosmetics.isSlot(body.slot)) { send(res, 400, { ok: false, error: 'Unknown cosmetic slot.' }); return true; }
       next = cosmetics.withoutSlot(existing, body.slot);
     } else if (body.itemId == null || body.itemId === '') {
@@ -645,10 +649,11 @@ async function handleStoreRoutes(req, res, ctx) {
         }
       }
       next = putOn(existing, item);
+      if (cosmetics.isCosmetic(item) && body.side !== undefined) next = cosmetics.withSide(next, item.slot, body.side);
     }
     next.updatedAt = new Date().toISOString();
     const saved = ctx.saveProfile(next, req, user);
-    send(res, 200, { ok: true, equipped: saved.capeStore || null, wearing: wearingOf(saved), owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
+    send(res, 200, { ok: true, equipped: saved.capeStore || null, wearing: wearingOf(saved), sides: (saved && saved.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), profile: ctx.profileDocument(saved, req) }, noStore);
     return true;
   }
 

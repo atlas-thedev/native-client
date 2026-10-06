@@ -11,12 +11,13 @@
  * The mod gets `k: [{ i, m, x }]` (item id, model hash, texture hash) in each skin directory entry.
  */
 
-const SLOTS = ['hats', 'glasses', 'back', 'shoes'];
-const SLOT_NAMES = { hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
-const MAX_MODEL_BYTES = 256 * 1024; // the mod refuses bigger models
-const MAX_TEXTURE_BYTES = 1024 * 1024;
-const LIMIT_PARTS = 96;
-const LIMIT_CUBES = 512;
+const SLOTS = ['hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
+const SIDED = ['hand', 'balloon'];
+const SLOT_NAMES = { hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items', balloon: 'Balloons' };
+const MAX_MODEL_BYTES = 1024 * 1024; // the mod refuses bigger models
+const MAX_TEXTURE_BYTES = 2 * 1024 * 1024;
+const LIMIT_PARTS = 512;
+const LIMIT_CUBES = 2048;
 const ATTACH = { head: 'head', body: 'body', back: 'body', torso: 'body', rightarm: 'rightArm', leftarm: 'leftArm', rightleg: 'rightLeg', rightfoot: 'rightLeg', leftleg: 'leftLeg', leftfoot: 'leftLeg' };
 const ANIMS = ['spin', 'swing', 'flap', 'bob', 'blink'];
 
@@ -30,14 +31,14 @@ const num = (v) => typeof v === 'number' && Number.isFinite(v);
  */
 function validateModel(input) {
   const text = Buffer.isBuffer(input) ? input.toString('utf8') : typeof input === 'string' ? input : JSON.stringify(input);
-  if (Buffer.byteLength(text) > MAX_MODEL_BYTES) throw new Error('That model is too big (256 KB max).');
+  if (Buffer.byteLength(text) > MAX_MODEL_BYTES) throw new Error('That model is too big (1 MB max).');
   let root;
   try { root = JSON.parse(text); } catch { throw new Error('The model is not valid JSON.'); }
   if (!root || typeof root !== 'object' || Array.isArray(root)) throw new Error('The model must be a JSON object.');
   if (root.format !== undefined && root.format !== 1) throw new Error('Unsupported model format (use format 1).');
   const tex = Array.isArray(root.texture) ? root.texture : [64, 64];
   const [tw, th] = [Math.trunc(tex[0] ?? 64), Math.trunc(tex[1] ?? 64)];
-  if (!(tw >= 1 && th >= 1 && tw <= 1024 && th <= 1024)) throw new Error('The model texture size must be 1-1024.');
+  if (!(tw >= 1 && th >= 1 && tw <= 2048 && th <= 2048)) throw new Error('The model texture size must be 1-2048.');
   if (!Array.isArray(root.parts) || !root.parts.length) throw new Error('The model has no parts.');
   let parts = 0;
   let cubes = 0;
@@ -107,15 +108,28 @@ function withoutSlot(profile, slot) {
   return { ...profile, cosmetics };
 }
 
+const isSide = (value) => value === 'left' || value === 'right';
+
+/** A profile that wears the slot's item on `side` (hand items and balloons; ignored for other slots). */
+function withSide(profile, slot, side) {
+  if (!SIDED.includes(slot) || !isSide(side)) return profile;
+  return { ...profile, cosmeticSides: { ...(profile.cosmeticSides || {}), [slot]: side } };
+}
+
 /** Directory entries for the mod: [{ i, m, x }]. */
 function directoryRefs(profile, findItem) {
-  return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({ i: item.id, s: slot, m: item.model, x: item.texture }));
+  const sides = (profile && profile.cosmeticSides) || {};
+  return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({
+    i: item.id, s: slot, m: item.model, x: item.texture,
+    ...(SIDED.includes(slot) && isSide(sides[slot]) ? { h: sides[slot] === 'left' ? 'l' : 'r' } : {})
+  }));
 }
 
 /** Public description (CSL document, launcher, website). */
 function documentRefs(profile, findItem, textureBase) {
   return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({
     slot,
+    ...(SIDED.includes(slot) && isSide(((profile && profile.cosmeticSides) || {})[slot]) ? { side: profile.cosmeticSides[slot] } : {}),
     id: item.id,
     name: item.name,
     modelUrl: `${textureBase}${item.model}`,
@@ -125,5 +139,5 @@ function documentRefs(profile, findItem, textureBase) {
 
 module.exports = {
   SLOTS, SLOT_NAMES, MAX_MODEL_BYTES, MAX_TEXTURE_BYTES,
-  isSlot, isCosmetic, validateModel, wornItems, wearing, withoutItem, withItem, withoutSlot, directoryRefs, documentRefs
+  isSlot, isSide, withSide, SIDED, isCosmetic, validateModel, wornItems, wearing, withoutItem, withItem, withoutSlot, directoryRefs, documentRefs
 };
