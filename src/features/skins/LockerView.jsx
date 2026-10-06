@@ -1,3 +1,5 @@
+import { WornShot } from '../../lib/wornShot.jsx';
+import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
@@ -602,13 +604,18 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       {active && storeBusy !== `off:${slot}` && <Check size={13} className="locker-cape-check"/>}
     </button>;
   };
+  // Card art for a cosmetic: the piece worn on this player's skin (drawn once and cached), the flat thumbnail until then.
+  const shotSkin = skinTextureUrl({ ...account, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || account?.skinUrl || null });
+  const shotModel = currentModel === 'slim' ? 'slim' : currentModel === 'classic' ? 'default' : 'auto-detect';
+  const cosmeticShot = (item) => (cosAssets[item.id]
+    ? <WornShot item={item} asset={cosAssets[item.id]} skinUrl={shotSkin} model={shotModel} prepare={prepareSkinSource} fallback={cosAssets[item.id].thumb} className="locker-cosmetic-thumb" />
+    : <span className="locker-cosmetic-thumb is-loading"/>);
   // A Store item you don't own: click to try it on the model.
   const storeCard = (item, index) => {
     const trying = tryOn?.id === item.id;
-    const thumb = item.kind === 'cosmetic' ? cosAssets[item.id]?.thumb : null;
     return <button key={`shop:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-shop-card locker-pop ${item.kind === 'cosmetic' ? 'locker-cosmetic-card' : ''} ${trying ? 'is-trying' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => setTryOn(trying ? null : item)} title={trying ? 'Stop trying on' : `Try on ${item.name}`} aria-pressed={trying}>
       {item.kind === 'cosmetic'
-        ? (thumb ? <img className="locker-cosmetic-thumb" src={thumb} alt="" draggable={false}/> : <span className="locker-cosmetic-thumb is-loading"/>)
+        ? cosmeticShot(item)
         : item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}
       <span>{item.name}</span>
       <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{priceLabel(item)}</em>
@@ -630,9 +637,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
 
   const cosmeticCard = (item, index) => {
     const active = wearing?.[item.slot] === item.id;
-    const thumb = cosAssets[item.id]?.thumb;
     return <button key={`cos:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-cosmetic-card locker-pop ${active ? 'active' : ''}`.trim()} onClick={() => toggleCosmetic(item)} title={active ? `Take off ${item.name}` : `Wear ${item.name}`}>
-      {thumb ? <img className="locker-cosmetic-thumb" src={thumb} alt="" draggable={false}/> : <span className="locker-cosmetic-thumb is-loading"/>}
+      {cosmeticShot(item)}
       <span>{item.name}</span>
       {storeBusy === item.id && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
       {active && storeBusy !== item.id && <Check size={13} className="locker-cape-check"/>}

@@ -1,3 +1,5 @@
+import { WornShot } from '../../lib/wornShot.jsx';
+import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
@@ -21,6 +23,7 @@ export const featuredCapes = (items = []) => items
   .slice(0, MAX_FEATURED);
 
 /** 3D cosmetics (hats, glasses, back items, shoes) live in their own store sections. */
+const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' ? 'default' : 'auto-detect');
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
@@ -431,9 +434,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [cosAssets, me.wearing]);
   const heroCosmetics = useMemo(() => cosmeticsFor(hero), [cosmeticsFor, hero]);
   const viewCosmetics = useMemo(() => cosmeticsFor(viewing), [cosmeticsFor, viewing]);
-  /** Store art for a cosmetic: its transparent thumbnail. */
-  const cosmeticArt = (item, className) => (cosAssets[item.id]?.thumb
-    ? <img className={className} src={cosAssets[item.id].thumb} alt="" draggable={false} />
+  /** Store art for a cosmetic: the piece worn on the player's own skin (drawn once, then cached), the flat thumbnail until then. */
+  const shotSkin = skinTextureUrl({ ...account, skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null });
+  const shotModel = shotModelOf(wardrobe?.active?.model || wardrobe?.model || account?.model);
+  const cosmeticArt = (item, className) => (cosAssets[item.id]
+    ? <WornShot item={item} asset={cosAssets[item.id]} skinUrl={shotSkin} model={shotModel} prepare={prepareSkinSource} fallback={cosAssets[item.id].thumb} className={className} />
     : <span className={`${className} is-loading`} />);
 
   const actionFor = (item, compact = false) => {

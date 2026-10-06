@@ -23,7 +23,7 @@ export function capeTextureUrl(account) {
   return null;
 }
 
-function prepareSkinSource(url, modelOption) {
+export function prepareSkinSource(url, modelOption) {
   // Mojang hands out http:// texture URLs; over https the pixels can be read (CORS) to detect slim arms
   if (typeof url === 'string') url = url.replace(/^http:\/\/textures\.minecraft\.net\//, 'https://textures.minecraft.net/');
   return new Promise((resolve) => {
