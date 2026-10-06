@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
 /**
- * Store art for cosmetics: the piece worn on the player's own skin, framed on the part of the body it sits on
- * (hats and glasses on the head, wings from behind, shoes on the feet).
+ * Store art for cosmetics: the piece worn on the player's own skin. Nothing is hand-placed: the camera is fitted
+ * automatically to the piece plus the body part(s) it attaches to, and turns to whichever side the piece is on.
  *
  * Every shot is drawn once by one shared off-screen 3D viewer, one after another, and kept in memory and in
  * IndexedDB (keyed by the item's files and the skin), so the next visit paints instantly with no 3D work at all.
@@ -10,15 +10,6 @@ import React, { useEffect, useState } from 'react';
 
 const SIZE = 288;
 const VERSION = 'v3';
-// target = the point looked at (skinview3d units, feet at y -16), height = how much of the body fits the frame,
-// yaw = turn of the camera around the player (0 = from the front, PI = from behind).
-const FRAMES = {
-  hats: { target: [0, 12.5, 0], height: 23, yaw: 0.5, pitch: 0.16 },
-  glasses: { target: [0, 12, 0], height: 16.5, yaw: 0.42, pitch: 0.06 },
-  back: { target: [0, 3.5, 0], height: 38, yaw: Math.PI - 0.5, pitch: 0.1 },
-  shoes: { target: [0, -9.5, 0], height: 23, yaw: 0.55, pitch: 0.24 }
-};
-
 const memory = new Map(); // key -> data URL
 const waiting = new Map(); // key -> Promise
 let chain = Promise.resolve();
@@ -83,6 +74,47 @@ async function getStage() {
   return stage;
 }
 
+/**
+ * Fits the camera to the piece and the body part(s) it is attached to (a hat shows the whole head, wings the torso and
+ * head, shoes both legs), looking from the side the piece is on, with a little padding.
+ */
+function frameShot(viewer, THREE, built) {
+  const skin = viewer.playerObject.skin;
+  viewer.playerObject.updateMatrixWorld(true);
+  const piece = new THREE.Box3();
+  for (const r of built.roots) piece.expandByObject(r.object);
+  const region = piece.clone();
+  const attached = new Set(built.roots.map((r) => r.attach));
+  const add = (part) => { if (part) region.expandByObject(part); };
+  for (const name of attached) {
+    if (name === 'head') { add(skin.head); }
+    else if (name === 'body') { add(skin.body); add(skin.head); }
+    else if (name === 'rightLeg' || name === 'leftLeg') { add(skin.rightLeg); add(skin.leftLeg); }
+    else add(skin[name]);
+  }
+  // shoes: show the feet and a little leg, not the whole body
+  if ((attached.has('rightLeg') || attached.has('leftLeg')) && !attached.has('body') && !attached.has('head')) region.max.y = Math.min(region.max.y, piece.max.y + 5);
+  const center = region.getCenter(new THREE.Vector3());
+  const behind = piece.getCenter(new THREE.Vector3()).z < -1.5;
+  const yaw = behind ? Math.PI - 0.5 : 0.5;
+  const pitch = 0.14;
+  const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  const up = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3().crossVectors(up, dir).normalize();
+  const trueUp = new THREE.Vector3().crossVectors(dir, right).normalize();
+  const tan = Math.tan((viewer.fov / 2) * Math.PI / 180) / 1.1; // 10% padding
+  let distance = 10;
+  const { min, max } = region;
+  for (const x of [min.x, max.x]) for (const y of [min.y, max.y]) for (const z of [min.z, max.z]) {
+    const offset = new THREE.Vector3(x, y, z).sub(center);
+    const side = Math.max(Math.abs(offset.dot(right)), Math.abs(offset.dot(trueUp)));
+    distance = Math.max(distance, side / tan + offset.dot(dir));
+  }
+  viewer.camera.position.copy(center).addScaledVector(dir, distance);
+  viewer.camera.lookAt(center);
+  if (viewer.controls) viewer.controls.target.copy(center);
+}
+
 async function draw(item, asset, skinUrl, model, prepare) {
   const s = await getStage();
   const { viewer, THREE, ncm } = s;
@@ -96,15 +128,9 @@ async function draw(item, asset, skinUrl, model, prepare) {
   const image = await ncm.loadImage(asset.texture);
   const built = ncm.attachToPlayer(ncm.buildCosmetic(THREE, asset.model, image), viewer.playerObject.skin);
   try {
-    const frame = FRAMES[item.slot] || FRAMES.hats;
     built.update(0.35, 0);
     if (viewer.playerObject.cape) viewer.playerObject.cape.visible = false;
-    const distance = frame.height / (2 * Math.tan((viewer.fov / 2) * Math.PI / 180));
-    const [tx, ty, tz] = frame.target;
-    const flat = Math.cos(frame.pitch) * distance;
-    viewer.camera.position.set(tx + Math.sin(frame.yaw) * flat, ty + Math.sin(frame.pitch) * distance, tz + Math.cos(frame.yaw) * flat);
-    viewer.camera.lookAt(tx, ty, tz);
-    if (viewer.controls) { viewer.controls.target.set(tx, ty, tz); }
+    frameShot(viewer, THREE, built);
     viewer.render();
     return viewer.canvas.toDataURL('image/png');
   } finally {
