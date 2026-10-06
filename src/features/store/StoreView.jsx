@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
-import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
-import { Check, ChevronLeft, ChevronRight, Loader2, Lock, Package, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
+import { PixelButton, PixelIconButton } from '../../components/ui/PixelControls.jsx';
+import { ShopSeg, ShopStrip, ShopTabs, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
+import { Check, ChevronLeft, ChevronRight, Clock, Crown, Eye, Feather, Flame, Footprints, Glasses, Infinity as InfinityIcon, LayoutGrid, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Sparkles, Star, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
-import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
+import '../../components/ui/shop.css';
 
 /** The hero spotlight rotates through at most this many featured capes. */
 export const MAX_FEATURED = 5;
@@ -44,11 +45,13 @@ const FILTERS = [
   { id: 'owned', label: 'In my locker' }
 ];
 const SORTS = [
-  { id: 'featured', label: 'Featured' },
-  { id: 'new', label: 'Newest' },
-  { id: 'popular', label: 'Most popular' },
-  { id: 'name', label: 'A – Z' }
+  { id: 'featured', label: 'Featured', icon: <Star size={13} /> },
+  { id: 'popular', label: 'Most used', icon: <Flame size={13} /> },
+  { id: 'new', label: 'Newest', icon: <Clock size={13} /> },
+  { id: 'name', label: 'A–Z', icon: <Type size={13} /> }
 ];
+const SECTION_ICONS = { capes: <Shirt />, hats: <Crown />, glasses: <Glasses />, back: <Feather />, shoes: <Footprints /> };
+const FILTER_ICONS = { all: <LayoutGrid />, animated: <Sparkles />, free: null, paid: null, new: null, owned: <User /> };
 
 /** 1234 -> "1.2k" so the owner count stays a short number next to the people icon. */
 const formatCount = (value) => {
@@ -57,29 +60,6 @@ const formatCount = (value) => {
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`;
   return String(n);
 };
-
-const CLOUDS = [
-  { size: 9, left: '6%', top: 34, delay: -12 },
-  { size: 13, left: '34%', top: 18, delay: -31 },
-  { size: 10, left: '61%', top: 52, delay: -47 },
-  { size: 12, left: '84%', top: 26, delay: -5 }
-];
-
-/** Pixel clouds drifting over a slanted ground stripe, behind the spotlight. */
-function SpotBackdrop() {
-  return (
-    <div className="store-spot-backdrop" aria-hidden="true">
-      {CLOUDS.map((cloud, index) => (
-        <span key={index} className="store-cloud" style={{ fontSize: cloud.size, left: cloud.left, top: cloud.top, animationDelay: `${cloud.delay}s` }} />
-      ))}
-      <svg className="store-spot-ground" viewBox="0 0 1200 112" preserveAspectRatio="none">
-        <polygon points="0,4 1200,74 1200,90 0,20" className="is-top" />
-        <polygon points="0,20 1200,90 1200,96 0,26" className="is-edge" />
-        <polygon points="0,26 1200,96 1200,112 0,112" className="is-base" />
-      </svg>
-    </div>
-  );
-}
 
 /** A premium (Microsoft) account connected to Native shops with that Native account. */
 const isPremiumLinked = (account) => account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected);
@@ -483,12 +463,18 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <Heading className="store-spot-name">{item.name}</Heading>
       <p className="store-spot-desc">{item.description}</p>
       {item.exclusive && <div className="store-exclusive-note"><PixelStar size={11} /><span>{ownedIds.has(item.id) ? 'You’re one of the few who have this. Thanks for testing Native!' : 'Not sold. You get it at Native events or with a redeem code.'}</span></div>}
+      <div className="shop-price">
+        <div>
+          <small><InfinityIcon />{item.exclusive ? 'Event' : 'Lifetime'}</small>
+          <strong>{priceOf(item)}</strong>
+        </div>
+        <span className="shop-creator"><Pencil />Creator: <b>{item.author || 'Native'}</b></span>
+      </div>
       <dl className="store-spot-facts">
-        <div><dt>Price</dt><dd>{priceOf(item)}</dd></div>
         <div><dt>Owned</dt><dd className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(item.owners)}</dd></div>
         <div><dt>Type</dt><dd>{isCosmetic(item) ? `${moves(item) ? 'Animated' : '3D'} ${SLOT_WORDS[item.slot] || 'cosmetic'}` : item.animated ? 'Animated' : 'Static'}</dd></div>
-        <div><dt>By</dt><dd>{item.author || 'Native'}</dd></div>
       </dl>
+      {Heading === 'h3' && <p className="shop-lines"><span><Eye />Visible in Minecraft to all Native users</span><span><User />Visible on your Native profile</span></p>}
       {visibleTags(item).length > 0 && (
         <div className="store-tags">
           {visibleTags(item).map((tag) => <span key={tag} className="store-tag">#{tag}</span>)}
@@ -503,9 +489,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   return (
     <div className="store-view">
-      <header className="store-header">
+      <header className="store-header shop-hero">
+        <SpotBackdrop />
         <div className="store-header-copy">
-          <h1 className="store-title page-title">Store</h1>
+          <h1 className="store-title page-title">Native Store</h1>
+          <p className="shop-hero-blurb">Animated cloaks, hats, glasses, wings and shoes you can only get from Native. Add one to your locker and wear it in the launcher and in game.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && everything.length > 0 && (
@@ -619,8 +607,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
           {sections.length > 1 && (
             <div className="store-sections">
-              <PixelTabs
+              <ShopTabs
                 label="Store sections"
+                size="lg"
+                fill
                 value={section}
                 onChange={(id) => {
                   const from = sections.findIndex((entry) => entry.id === section);
@@ -629,27 +619,27 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   setSection(id);
                   setViewId(null);
                 }}
-                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, icon: SECTION_ICONS[entry.id] }))}
               />
             </div>
           )}
 
           <div key={`shelf:${section}`} className={`store-shelf${sectionDir ? ` from-${sectionDir}` : ''}`}>
           <div className="store-toolbar">
-            <PixelTabs
-              size="sm"
-              className="store-chips"
-              label="Filter"
-              value={filter}
-              onChange={setFilter}
-              items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
-            />
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}…`} aria-label={`Search ${noun}`} />
             </label>
-            <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((s) => ({ value: s.id, label: s.label }))} />
+            <ShopSeg label="Sort" value={sort} onChange={setSort} items={SORTS} />
           </div>
+          <ShopTabs
+            size="sm"
+            className="store-chips"
+            label="Filter"
+            value={filter}
+            onChange={setFilter}
+            items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id], icon: FILTER_ICONS[f.id] }))}
+          />
 
           {items.length === 0 ? (
             <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : `No ${noun} match that.`}</span></div>
@@ -702,6 +692,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <span className="store-viewer-hint">Drag to turn</span>
             </div>
             <div className="store-viewer-info" key={`vinfo:${viewing.id}`}>
+              <ShopStrip color={SECTION_COLORS[sectionOf(viewing)]} />
               {renderDetails(viewing, { Heading: 'h3' })}
             </div>
             <PixelIconButton size="md" className="store-viewer-close" icon={<X size={16} strokeWidth={3} />} label="Close" onClick={() => setViewId(null)} />
