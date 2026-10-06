@@ -35,6 +35,14 @@
     ${endIf}
   ${endIf}
   SetAutoClose true
+  ; "Restart now" runs the installer with --updated --force-run (not silent). The stock script only reopens
+  ; the app after a *silent* forced run and our update mode skips the finish page, so reopen it here.
+  ${if} ${isUpdated}
+  ${andIf} ${isForceRun}
+  ${andIfNot} ${Silent}
+    HideWindow
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--updated"
+  ${endIf}
 !macroend
 
 !macro customPageAfterChangeDir
