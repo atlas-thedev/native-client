@@ -103,12 +103,9 @@
   100% { transform: scale(1) rotate(0); }
 }
 
-.lsw-word { display: block; overflow: visible; }
-.lsw-word-face { fill: currentColor; transition: fill 0.2s ease; }
-.lsw-word-shadow { fill: #1a1a1c; }
+.lsw-word { display: block; font: 800 17px/1 var(--font-sans); letter-spacing: -0.01em; color: currentColor; transition: color 0.2s ease; }
 .lsw-tab:not(.is-active):hover { color: #9a9aa0; }
 .lsw-tab.is-active { color: #fff; }
-.lsw-tab.is-active .lsw-word-shadow { fill: rgba(0, 0, 0, 0.42); }
 
 .lsw-icon { display: block; width: 26px; height: 26px; flex: 0 0 auto; image-rendering: pixelated; }
 .lsw-icon-face { border-radius: 3px; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 2px 2px 0 2px rgba(0, 0, 0, 0.25); }

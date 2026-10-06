@@ -1,5 +1,4 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import PixelText from './PixelText.jsx';
 import './PixelControls.css';
 
 /*
@@ -7,7 +6,8 @@ import './PixelControls.css';
  *   <PixelButton icon={<Plus />} label="Add to locker" onClick={...} />
  *   <PixelButton variant="ghost|gold|danger|locked" size="sm|md|lg" block busy />
  *   <PixelIconButton icon={<X />} label="Close" />
- *   <PixelTabs items={[{ id, label, icon, count }]} value onChange size="sm|md" />
+ *   <PixelTabs items={[{ id, label, icon, count, color }]} value onChange size="sm|md" />
+ *   (`color`: the slab takes that tab's colour when it is picked)
  */
 
 const BURST = 12;
@@ -39,7 +39,6 @@ function usePoof() {
   return [node, poof];
 }
 
-const SCALE = { sm: 2, md: 2, lg: 2 };
 
 /** Chunky pixel slab button with a pixel-font label. */
 export function PixelButton({
@@ -56,7 +55,7 @@ export function PixelButton({
   onClick,
   title,
   type = 'button',
-  textScale,
+  textScale, // eslint-disable-line no-unused-vars -- kept for callers
   ...rest
 }) {
   const ref = useRef(null);
@@ -78,7 +77,6 @@ export function PixelButton({
     if (poof) burst(ref.current, event, 10);
     onClick?.(event);
   };
-  const scale = textScale || SCALE[size] || 2;
   return (
     <button
       ref={ref}
@@ -95,7 +93,7 @@ export function PixelButton({
     >
       <span className="pxb-face">
         {busy ? (busyIcon || icon) : icon}
-        {label ? <PixelText text={label} scale={scale} /> : null}
+        {label ? <span className="px-label">{label}</span> : null}
       </span>
       {bursts}
     </button>
@@ -141,9 +139,9 @@ export function PixelTabs({ items, value, onChange, size = 'md', fill = false, c
     const next = items[(at + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length];
     if (next) { choose(next.id, null); tabs.current.get(next.id)?.focus(); }
   };
-  const scale = 2;
+  const activeColor = items.find((item) => item.id === value)?.color;
   return (
-    <div ref={root} className={`pxt${size === 'sm' ? ' is-sm' : ''}${fill ? ' is-fill' : ''} ${className}`.trim()} role="tablist" aria-label={ariaLabel} onKeyDown={onKey}>
+    <div ref={root} className={`pxt${size === 'sm' ? ' is-sm' : ''}${fill ? ' is-fill' : ''}${activeColor ? ' is-colored' : ''} ${className}`.trim()} style={activeColor ? { '--pxt-slab': activeColor } : undefined} role="tablist" aria-label={ariaLabel} onKeyDown={onKey}>
       <span
         className={`pxt-slab${slab.shown ? '' : ' is-hidden'}${motion ? ` is-${motion}` : ''}`}
         style={{ '--pxt-x': `${slab.x}px`, '--pxt-w': `${slab.w}px` }}
@@ -167,7 +165,7 @@ export function PixelTabs({ items, value, onChange, size = 'md', fill = false, c
           >
             <span className="pxt-tab-inner">
               {item.icon ? <span className="pxt-icon">{item.icon}</span> : null}
-              <PixelText text={item.label} scale={item.scale || scale} />
+              <span className="px-label">{item.label}</span>
               {item.count != null && <span className="pxt-count">{item.count}</span>}
             </span>
           </button>

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
-import { PixelStar } from './PixelIcons.jsx';
-import ItemIcon from '../../components/ui/ItemIcon.jsx';
+import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { Check, ChevronLeft, ChevronRight, Loader2, Lock, Package, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
@@ -25,7 +24,8 @@ const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
 const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes' };
 const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes' };
-const sectionIcon = (id, size = 20) => <ItemIcon name={id} size={size} className="px-icon" />;
+// Each section has its own slab colour, like the Locker switch (same pixel style, different colours).
+export const SECTION_COLORS = { capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c' };
 
 /** Featured items of one store section, capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
@@ -506,7 +506,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <header className="store-header">
         <div className="store-header-copy">
           <h1 className="store-title page-title">Store</h1>
-          <p className="store-subtitle">Cloaks, hats, glasses, wings, backpacks and shoes made by Native. Add them to your locker and wear them everywhere — the launcher, the website and in game, on every version from 1.16 to the latest. Most are free — some are paid or included with Native+.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && everything.length > 0 && (
@@ -526,7 +525,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
       {catalog && !(catalog.items || []).length && (
         <div className="store-coming">
-          <span className="store-coming-icon"><ItemIcon name="capes" size={24} /></span>
+          <span className="store-coming-icon"><PixelCape size={22} /></span>
           <h2>New cloaks are on the way</h2>
           <p>The first Native cloaks are being made right now. They’ll show up here — and in your locker — the moment they drop.</p>
           <PixelButton variant="ghost" icon={<RefreshCw size={15} />} label="Check again" onClick={() => load(true)} />
@@ -630,7 +629,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   setSection(id);
                   setViewId(null);
                 }}
-                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, icon: sectionIcon(entry.id) }))}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
               />
             </div>
           )}

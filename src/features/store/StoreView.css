@@ -408,13 +408,7 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-viewer-info { animation: store-shelf-in-right 0.46s cubic-bezier(0.34, 1.45, 0.64, 1) both; }
 
 /* section icons: grey until picked, then they pop in colour */
-.store-sections .pxt-tab:not(.is-active) .pxt-icon { opacity: 1; filter: saturate(0.55) brightness(0.78); transition: filter 0.2s var(--ease), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.store-sections .pxt-tab:not(.is-active):hover .pxt-icon { filter: none; transform: translateY(-1px) rotate(-6deg); }
-.store-sections .pxt-tab.is-active .pxt-icon { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35)); animation: store-icon-hop 0.5s cubic-bezier(0.34, 1.6, 0.64, 1); }
-@keyframes store-icon-hop { 0% { transform: translateY(0) scale(0.8) rotate(-10deg); } 50% { transform: translateY(-4px) scale(1.15) rotate(4deg); } 100% { transform: none; } }
-.item-icon { image-rendering: pixelated; }
 
 @media (prefers-reduced-motion: reduce) {
-  .store-shelf, .store-pop, .store-viewer, .store-viewer-info, .store-spot-info, .store-card.is-owned .store-card-state, .store-sections .pxt-tab.is-active .pxt-icon, .store-card:hover .store-card-canvas { animation: none; }
   .store-card:hover, .store-spot-stage:hover { translate: none; }
 }
