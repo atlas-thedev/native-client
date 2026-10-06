@@ -109,7 +109,7 @@ function withoutSlot(profile, slot) {
 
 /** Directory entries for the mod: [{ i, m, x }]. */
 function directoryRefs(profile, findItem) {
-  return Object.values(wornItems(profile, findItem)).map((item) => ({ i: item.id, m: item.model, x: item.texture }));
+  return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({ i: item.id, s: slot, m: item.model, x: item.texture }));
 }
 
 /** Public description (CSL document, launcher, website). */
