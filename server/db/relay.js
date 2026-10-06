@@ -216,7 +216,7 @@ function getGroupMembers(db, groupId) {
       CASE gm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
       LOWER(u.username) ASC
   `).all(groupId).map((row) => {
-    const online = Boolean(row.lastSeen && row.lastSeen >= Date.now() - 120_000 && row.rawStatus !== 'offline');
+    const online = Boolean(row.lastSeen && row.lastSeen >= Date.now() - 45_000 && row.rawStatus !== 'offline');
     return {
       id: row.id,
       name: row.name,

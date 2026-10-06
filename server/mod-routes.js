@@ -15,12 +15,17 @@ const events = require('./social-events');
  *   GET  /v1/mod/friends       friends (with live presence) and pending requests
  *   GET  /v1/mod/stream        Server-Sent Events: presence / friends / account changes, live
  *   POST /v1/mod/presence      what the player is doing in game ("Playing Minecraft 1.21.1")
+ *   POST /v1/mod/presence-icon a server/world icon for Discord Rich Presence (PNG, hosted by hash)
+ *   GET  /v1/presence-icons/<sha256>.png
  *
  * The mod never sees the account's real session token: the launcher hands it a
  * ticket that only works on /v1/mod/* and expires on its own.
  */
 
 const profilesDir = path.join(media.DATA_DIR, 'profiles');
+const iconsDir = path.join(media.DATA_DIR, 'presence-icons');
+const ICON_MAX_BYTES = 256 * 1024;
+const ICON_LIMIT = 20_000;
 const EPOCH = Date.now();
 const TICKET_TTL_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 5000;
@@ -364,6 +369,52 @@ async function handleModRoutes(req, res, ctx) {
     return true;
   }
 
+  if (req.method === 'POST' && url.pathname === '/v1/mod/presence-icon') {
+    const user = userForTicket(bearer);
+    if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired.' }); return true; }
+    if (!hit('mod-presence-icon', user.id, 30, 10 * 60_000)) { tooMany(res, 600); return true; }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > ICON_MAX_BYTES) { send(res, 413, { ok: false, error: 'Icon too large.' }); return true; }
+      chunks.push(chunk);
+    }
+    const png = Buffer.concat(chunks);
+    if (!isSmallPng(png)) { send(res, 400, { ok: false, error: 'Icons must be PNG images up to 512x512.' }); return true; }
+    const hash = crypto.createHash('sha256').update(png).digest('hex');
+    try {
+      fs.mkdirSync(iconsDir, { recursive: true });
+      const file = path.join(iconsDir, `${hash}.png`);
+      if (!fs.existsSync(file)) {
+        fs.writeFileSync(file, png);
+        pruneIcons();
+      } else {
+        const now = new Date();
+        fs.utimesSync(file, now, now);
+      }
+    } catch {
+      send(res, 500, { ok: false, error: 'Could not store the icon.' });
+      return true;
+    }
+    send(res, 200, { ok: true, url: `${media.originOf(req)}/v1/presence-icons/${hash}.png` });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/v1/presence-icons/')) {
+    const match = url.pathname.match(/^\/v1\/presence-icons\/([a-f0-9]{64})\.png$/);
+    const file = match ? path.join(iconsDir, `${match[1]}.png`) : null;
+    if (!file || !fs.existsSync(file)) { send(res, 404, { ok: false, error: 'Not found.' }); return true; }
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end(fs.readFileSync(file));
+    return true;
+  }
+
   if (req.method === 'GET' && url.pathname === '/v1/mod/stream') {
     const user = userForTicket(bearer);
     if (!user) { send(res, 401, { ok: false, error: 'Game ticket is missing, invalid or expired.' }); return true; }
@@ -398,6 +449,29 @@ async function handleModRoutes(req, res, ctx) {
   return false;
 }
 
+/** A real PNG (signature + IHDR) no bigger than 512x512: server favicons are 64x64, world icons 64x64. */
+function isSmallPng(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 33) return false;
+  if (!buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return false;
+  if (buf.toString('latin1', 12, 16) !== 'IHDR') return false;
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  return width > 0 && height > 0 && width <= 512 && height <= 512;
+}
+
+/** Keeps the icon folder bounded: drops the least recently used icons past the limit. */
+function pruneIcons() {
+  let names;
+  try { names = fs.readdirSync(iconsDir).filter((name) => name.endsWith('.png')); } catch { return; }
+  if (names.length <= ICON_LIMIT) return;
+  const byAge = names.map((name) => {
+    try { return { name, at: fs.statSync(path.join(iconsDir, name)).mtimeMs }; } catch { return { name, at: 0 }; }
+  }).sort((a, b) => a.at - b.at);
+  for (const { name } of byAge.slice(0, names.length - ICON_LIMIT)) {
+    try { fs.unlinkSync(path.join(iconsDir, name)); } catch { /* gone */ }
+  }
+}
+
 function stopStreams() {
   for (const sub of subscribers) { try { sub.res.end(); } catch { /* closed */ } }
   subscribers.clear();
@@ -412,6 +486,7 @@ if (heartbeat.unref) heartbeat.unref();
 
 module.exports = {
   handleModRoutes,
+  isSmallPng,
   noteProfile,
   noteRename,
   signTicket,

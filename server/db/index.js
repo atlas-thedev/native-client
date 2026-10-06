@@ -137,6 +137,8 @@ module.exports = {
   // Social & Presence
   updatePresence: (userId, data) => socialMod.updatePresence(getDb(), userId, data),
   getPresence: (userId) => socialMod.getPresence(getDb(), userId),
+  expireStalePresence: (olderThan, keep) => socialMod.expireStalePresence(getDb(), olderThan, keep),
+  PRESENCE_TTL_MS: socialMod.PRESENCE_TTL_MS,
   getFriends: (userId) => socialMod.getFriends(getDb(), userId),
   getMutualFriends: (userId, otherId) => socialMod.getMutualFriends(getDb(), userId, otherId),
   getFriendIds: (userId) => socialMod.getFriendIds(getDb(), userId),

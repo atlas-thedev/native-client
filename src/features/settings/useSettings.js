@@ -27,7 +27,7 @@ export const DEFAULTS = {
   updates: {
     checkOnStartup: true,
     backgroundChecks: true,
-    autoDownload: false
+    autoDownload: true
   }
 };
 

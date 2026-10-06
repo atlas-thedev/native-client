@@ -179,6 +179,7 @@ const api = {
     check: () => ipcRenderer.invoke('updater:check'),
     download: () => ipcRenderer.invoke('updater:download'),
     cancel: () => ipcRenderer.invoke('updater:cancel'),
+    pause: () => ipcRenderer.invoke('updater:pause'),
     install: () => ipcRenderer.invoke('updater:install'),
     onStatus: (callback) => subscribe('updater:status', callback)
   },
@@ -289,12 +290,6 @@ const api = {
     billingSetup: (environment) => ipcRenderer.invoke('admin:billingSetup', environment),
     billingActivate: (environment) => ipcRenderer.invoke('admin:billingActivate', environment)
   },
-  discord: {
-    setTab: (tab) => ipcRenderer.send('discord:setTab', tab),
-    setGameActivity: (state) => ipcRenderer.invoke('discord:setGameActivity', state),
-    clearGameActivity: () => ipcRenderer.invoke('discord:clearGameActivity'),
-    getStatus: () => ipcRenderer.invoke('discord:getStatus')
-  }
 };
 
 contextBridge.exposeInMainWorld('native', api);

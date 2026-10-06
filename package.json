@@ -36,6 +36,7 @@
   "build": {
     "appId": "xyz.nativelaunch.desktop",
     "productName": "Native Client",
+    "beforePack": "scripts/installer-art.js",
     "publish": {
       "provider": "github",
       "owner": "atlas-thedev",
@@ -73,8 +74,18 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false,
+      "include": "buildResources/installer.nsh",
+      "installerIcon": "buildResources/icon.ico",
+      "uninstallerIcon": "buildResources/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "shortcutName": "Native Client",
+      "uninstallDisplayName": "Native Client",
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": true,
       "artifactName": "Native-Client-Setup-${version}-${arch}.${ext}"
     },
     "mac": {

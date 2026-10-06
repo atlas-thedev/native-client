@@ -25,7 +25,8 @@ export default function useUpdater() {
   const check = useCallback(() => window.native?.updater?.check(), []);
   const download = useCallback(() => window.native?.updater?.download(), []);
   const cancel = useCallback(() => window.native?.updater?.cancel(), []);
+  const pause = useCallback(() => (window.native?.updater?.pause ?? window.native?.updater?.cancel)?.(), []);
   const install = useCallback(() => window.native?.updater?.install(), []);
 
-  return { status, check, download, cancel, install };
+  return { status, check, download, cancel, pause, install };
 }

@@ -61,7 +61,7 @@ export default function SettingsModal({
   const setNotify = (patch) => setNotifyPrefs(writeNotifyPrefs(patch));
   const sendTestNotification = () => window.native?.showNotification?.('Native Relay', 'Notifications are working.');
   const [dataDir, setDataDir] = useState('');
-  const [updates, setUpdates] = useState({ checkOnStartup: true, backgroundChecks: true, autoDownload: false });
+  const [updates, setUpdates] = useState({ checkOnStartup: true, backgroundChecks: true, autoDownload: true });
 
   useEffect(() => {
     if (window.native?.settings?.dataDir) {
@@ -84,7 +84,7 @@ export default function SettingsModal({
           setUpdates({
             checkOnStartup: u.checkOnStartup !== false,
             backgroundChecks: u.backgroundChecks !== false,
-            autoDownload: u.autoDownload === true
+            autoDownload: u.autoDownload !== false
           });
         }
       } catch {

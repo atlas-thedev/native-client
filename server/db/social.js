@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 
 const MESSAGE_LIMIT = 2000;
+// No heartbeat for this long = offline (launcher heartbeats every 10s).
+const PRESENCE_TTL_MS = 45_000;
 
 function updatePresence(db, userId, { status = 'online', activity = 'In Launcher', serverAddress = null } = {}) {
   const now = Date.now();
@@ -15,6 +17,18 @@ function updatePresence(db, userId, { status = 'online', activity = 'In Launcher
   `);
   stmt.run(userId, String(status), activity ? String(activity) : null, serverAddress ? String(serverAddress) : null, now);
   return { ok: true, status: String(status), activity: activity || null, serverAddress: serverAddress || null, lastSeen: now };
+}
+
+/**
+ * Rows still marked online whose launcher stopped heartbeating (sleep, crash, lost network):
+ * they go offline, keeping their last heartbeat as "last seen".
+ */
+function expireStalePresence(db, olderThan, keep = () => false) {
+  const rows = db.prepare("SELECT user_id AS userId, last_seen AS lastSeen FROM presence WHERE status != 'offline' AND last_seen < ?").all(olderThan)
+    .filter((row) => !keep(row.userId));
+  if (!rows.length) return [];
+  const mark = db.prepare("UPDATE presence SET status = 'offline', activity = NULL, server_address = NULL WHERE user_id = ? AND last_seen = ?");
+  return rows.filter((row) => mark.run(row.userId, row.lastSeen).changes > 0);
 }
 
 function getPresence(db, userId) {
@@ -38,7 +52,7 @@ function isBlockedPair(db, a, b) {
 
 function getFriends(db, userId) {
   const now = Date.now();
-  const activeThreshold = now - 120_000; // presence goes stale after 120s
+  const activeThreshold = now - PRESENCE_TTL_MS; // the launcher heartbeats every 10s
 
   const stmt = db.prepare(`
     SELECT
@@ -556,6 +570,8 @@ module.exports = {
   MESSAGE_LIMIT,
   updatePresence,
   getPresence,
+  expireStalePresence,
+  PRESENCE_TTL_MS,
   getFriends,
   getFriendIds,
   areFriends,

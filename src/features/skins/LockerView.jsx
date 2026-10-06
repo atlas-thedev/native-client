@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Star, Store, Trash2, X } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
+import LockerSwitch from './LockerSwitch.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import useOfficialCapes from './useOfficialCapes.js';
@@ -9,8 +10,8 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './LockerView.css';
 import './LockerLocal.css';
 
-const CAPES_PER_PAGE = 5;
-const SKINS_PER_PAGE = 5;
+const SKINS_PER_PAGE = 9;
+const SECTION_KEY = 'native.locker.section';
 
 // Collapses "Founder's Cape", "founders", "FOUNDER" … to one comparable token so
 // a bundled preset can be recognized as the same cape the account already owns.
@@ -28,7 +29,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [paused, setPaused] = useState(false);
   const [showCape, setShowCape] = useState(true);
   const [showLayers, setShowLayers] = useState(true);
-  const [capePage, setCapePage] = useState(0);
   const [skinPage, setSkinPage] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [importData, setImportData] = useState(null);
@@ -38,8 +38,18 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [storeBusy, setStoreBusy] = useState(null);
   // Premium account: the Native cloak it wears in game (other Native players see it).
   const [premiumEquipped, setPremiumEquipped] = useState(null);
-  // Cosmetics tab: Native Store 'cloaks' or Minecraft 'capes'.
-  const [capeTab, setCapeTab] = useState('cloaks');
+  // The two big tabs: 'skins' or 'cosmetics' (cloaks + capes). `leaving` is the
+  // section animating out while the new one bounces in.
+  const [section, setSection] = useState(() => {
+    try { return localStorage.getItem(SECTION_KEY) === 'cosmetics' ? 'cosmetics' : 'skins'; } catch { return 'skins'; }
+  });
+  const [leaving, setLeaving] = useState(null);
+  const switchSection = (next) => {
+    if (next === section) return;
+    setLeaving(section);
+    setSection(next);
+    try { localStorage.setItem(SECTION_KEY, next); } catch {}
+  };
   const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [capeQuery, setCapeQuery] = useState('');
@@ -167,7 +177,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const currentModel = officialSkin ? (String(officialSkin.variant || '').toUpperCase() === 'SLIM' ? 'slim' : 'classic') : (wardrobe?.model || account?.model || 'classic');
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
-  const premiumCapeItem = showOfficialCards && premiumEquipped && capeTab === 'cloaks' ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
+  const premiumCapeItem = showOfficialCards && premiumEquipped ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
   const previewCapeUrl = showCape
     ? (showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || null))
     : null;
@@ -233,22 +243,44 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       active: cape.id === 'none' ? !wardrobe?.active?.hasCape : (!wardrobe?.active?.cape?.storeId && activeCapeName === cape.name)
     }));
   }, [showOfficialCards, official.capes, official.activeCapeId, wardrobe?.active?.hasCape, wardrobe?.active?.cape?.storeId, activeCapeName, t]);
-  const tabCards = capeTab === 'cloaks' ? cloakCards : capeCards;
 
   const matches = (name, query) => !query.trim() || String(name || '').toLowerCase().includes(query.trim().toLowerCase());
-  const shownCapes = useMemo(() => tabCards.filter((card) => matches(card.name, capeQuery)), [tabCards, capeQuery]);
+  const shownCloaks = useMemo(() => cloakCards.filter((card) => matches(card.name, capeQuery)), [cloakCards, capeQuery]);
+  const shownCapes = useMemo(() => capeCards.filter((card) => matches(card.name, capeQuery)), [capeCards, capeQuery]);
   const shownSkins = useMemo(() => skinItems.filter((item) => matches(item.name, skinQuery)), [skinItems, skinQuery]);
-  const capePages = Math.max(1, Math.ceil(shownCapes.length / CAPES_PER_PAGE));
   const skinPages = Math.max(1, Math.ceil(shownSkins.length / SKINS_PER_PAGE));
-  const visibleCapes = shownCapes.slice(capePage * CAPES_PER_PAGE, (capePage + 1) * CAPES_PER_PAGE);
   const visibleSkins = shownSkins.slice(skinPage * SKINS_PER_PAGE, (skinPage + 1) * SKINS_PER_PAGE);
-  useEffect(() => { setCapePage(0); }, [capeQuery, capeTab]);
   useEffect(() => { setSkinPage(0); }, [skinQuery]);
 
   useEffect(() => {
-    setCapePage((page) => Math.min(page, capePages - 1));
     setSkinPage((page) => Math.min(page, skinPages - 1));
-  }, [capePages, skinPages]);
+  }, [skinPages]);
+
+  // Cosmetics turn the player around to show the cape; Skins turn back. A little hop sells it.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    const player = viewer?.playerObject;
+    if (!player) return undefined;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
+    const from = player.rotation.y;
+    const target = section === 'cosmetics' ? Math.PI * 0.85 : 0;
+    if (reduce) { player.rotation.y = target; viewer.render?.(); return undefined; }
+    const baseY = player.position.y;
+    const start = performance.now();
+    const duration = 720;
+    let frame = 0;
+    const backOut = (t) => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      player.rotation.y = from + (target - from) * backOut(t);
+      player.position.y = baseY + Math.sin(Math.min(1, t * 1.6) * Math.PI) * 2.2;
+      if (viewer.renderPaused) viewer.render?.();
+      if (t < 1) frame = requestAnimationFrame(step);
+      else player.position.y = baseY;
+    };
+    frame = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(frame); player.position.y = baseY; };
+  }, [section]);
 
   const handleResetView = () => {
     const viewer = viewerRef.current;
@@ -258,7 +290,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     try {
       viewer.resetCameraPose?.();
       viewer.controls?.update?.();
-      viewer.playerObject?.rotation.set(0, 0, 0);
+      viewer.playerObject?.rotation.set(0, section === 'cosmetics' ? Math.PI * 0.85 : 0, 0);
       viewer.playerObject?.resetJoints?.();
       viewer.render?.();
     } catch (error) {
@@ -426,7 +458,64 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
   const pickSkin = (skin) => (officialMode ? applyPremiumSkin(skin) : applySkin(skin));
 
-  return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); processFile(event.dataTransfer?.files?.[0]); }}>
+  const capeCard = (card, index) => {
+    const locked = card.kind === 'locked';
+    const isCloak = card.kind === 'store' || card.kind === 'cloakNone';
+    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
+      {card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{ backgroundImage: `url(${card.textureUrl})` }}/> : <span className="locker-no-cape"><X size={20}/></span>}
+      <span>{card.name}</span>
+      {storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
+      {card.active && <Check size={13} className="locker-cape-check"/>}
+      {locked && <Lock size={11} className="locker-cape-lock"/>}
+    </button>;
+  };
+
+  const renderSkins = () => <section className="locker-row locker-skins-row">
+    <div className="locker-row-header">
+      <div><span className="locker-kicker">{t('locker.favorites')}</span><h2>{t('locker.latest')}</h2></div>
+      <div className="locker-cape-actions"><LockerSearch value={skinQuery} onChange={setSkinQuery} label="Search skins"/>{skinPages > 1 && <CarouselControls page={skinPage} pages={skinPages} setPage={setSkinPage}/>}</div>
+    </div>
+    <div className="locker-skin-grid">
+      <button type="button" className="locker-upload-card locker-pop" style={{ '--i': 0 }} onClick={() => fileInputRef.current?.click()}><span className="locker-upload-plus"><Plus size={18}/></span><strong>{t('locker.uploadSkin')}</strong><small>{t('locker.dragDrop')}</small></button>
+      {skeleton && [0, 1, 2, 3].map((n) => <div key={`skel-${n}`} className="locker-skel locker-skel-card" style={{ animationDelay: `${n * 120}ms` }}/>)}
+      {!skeleton && visibleSkins.map((skin, index) => <article key={skin.id} style={{ '--i': index + 1 }} className={`locker-skin-card locker-pop ${skin.active ? 'active' : ''} ${skinBusy === skin.id ? 'is-busy' : ''}`} onClick={() => pickSkin(skin)}>
+        <button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button>
+        <div className="locker-skin-preview"><SkinViewer3D account={{ ...account, skinUrl: skin.url, model: skin.model }} width={116} height={156} paused/></div>
+        <div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div>
+        <button type="button" className="locker-remove" onClick={(event) => removeItem(skin, event)}><Trash2 size={13}/></button>
+        {skinBusy === skin.id && <RefreshCw size={13} className="locker-skin-busy is-spinning"/>}
+      </article>)}
+      {!skeleton && !visibleSkins.length && <div className="locker-empty-skins locker-pop" style={{ '--i': 1 }}><Star size={18}/><span>{skinQuery.trim() ? `Nothing matches “${skinQuery.trim()}”.` : t('locker.emptyFavorites')}</span></div>}
+    </div>
+  </section>;
+
+  const renderCosmetics = () => <div className="locker-cosmetics">
+    <div className="locker-cosmetics-bar">
+      <LockerSearch value={capeQuery} onChange={setCapeQuery} label="Search cloaks and capes"/>
+      {!localOnly && <button type="button" className="locker-store-btn" onClick={() => onOpenStore?.()} title="Get cloaks in the Native Store"><Store size={13}/>Native Store</button>}
+    </div>
+    <section className="locker-row locker-capes-row">
+      <div className="locker-row-header"><div><span className="locker-kicker">Native Store</span><h2>Cloaks</h2></div></div>
+      {localOnly ? <p className="locker-cape-hint">Cloaks come from the Native Store. Sign in with Microsoft or a Native account to get them.</p> : <>
+        <div className="locker-cape-grid">{shownCloaks.map(capeCard)}</div>
+        {capeQuery.trim() && !shownCloaks.length && <p className="locker-cape-hint">No cloak matches “{capeQuery.trim()}”.</p>}
+        {!storeCapes.length && !capeQuery.trim() && <p className="locker-cape-hint">No cloaks yet. Get one in the Native Store; everyone playing with Native sees it in game.</p>}
+        {officialMode && wornStoreId && <p className="locker-cape-hint">Native players see your cloak instead of your Minecraft cape.</p>}
+      </>}
+    </section>
+    <section className="locker-row locker-capes-row">
+      <div className="locker-row-header"><div><span className="locker-kicker">{showOfficialCards ? 'Official Minecraft' : 'Minecraft'}</span><h2>{t('locker.capes') || 'Capes'}</h2></div></div>
+      {capesSkeleton && <div className="locker-cape-grid" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
+      {officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
+      {!capesSkeleton && <>
+        <div className="locker-cape-grid">{shownCapes.map(capeCard)}</div>
+        {capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No cape matches “{capeQuery.trim()}”.</p>}
+        {showOfficialCards && <p className="locker-cape-hint">These are your real Minecraft capes. Changing one changes it on your Minecraft profile, on every server.</p>}
+      </>}
+    </section>
+  </div>;
+
+  return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); switchSection('skins'); processFile(event.dataTransfer?.files?.[0]); }}>
     <header className="locker-header">
       <div>
         <h1 className="locker-title page-title">{t('locker.title') || 'LOCKER'}</h1>
@@ -464,22 +553,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><div><button type="button" onClick={handleExport} disabled={!(wardrobe?.active?.skinId || wardrobe?.activeSkin)} title="Download active texture"><Download size={16}/></button><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <section className="locker-row locker-skins-row"><div className="locker-row-header"><div><span className="locker-kicker">{t('locker.favorites')}</span><h2>{t('locker.latest')}</h2></div><div className="locker-cape-actions"><LockerSearch value={skinQuery} onChange={setSkinQuery} label="Search skins"/><CarouselControls page={skinPage} pages={skinPages} setPage={setSkinPage}/></div></div><div className="locker-skin-strip">
-          <button type="button" className="locker-upload-card" onClick={() => fileInputRef.current?.click()}><span className="locker-upload-plus"><Plus size={18}/></span><strong>{t('locker.uploadSkin')}</strong><small>{t('locker.dragDrop')}</small></button>
-          {skeleton && [0, 1, 2, 3].map((n) => <div key={`skel-${n}`} className="locker-skel locker-skel-card" style={{ animationDelay: `${n * 120}ms` }}/>)}
-          {!skeleton && visibleSkins.map((skin) => <article key={skin.id} className={`locker-skin-card ${skin.active ? 'active' : ''}`} onClick={() => pickSkin(skin)}><button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button><div className="locker-skin-preview"><SkinViewer3D account={{...account, skinUrl:skin.url, model:skin.model}} width={116} height={156} paused/></div><div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div><button type="button" className="locker-remove" onClick={(event) => removeItem(skin,event)}><Trash2 size={13}/></button></article>)}
-          {!skeleton && !visibleSkins.length && <div className="locker-empty-skins"><Star size={18}/><span>{t('locker.emptyFavorites')}</span></div>}
-        </div></section>
-        <section className="locker-row locker-capes-row"><div className="locker-row-header"><div><span className="locker-kicker">{capeTab === 'cloaks' ? 'NATIVE STORE' : (showOfficialCards ? 'OFFICIAL MINECRAFT' : 'MINECRAFT CAPES')}</span><div className="locker-tabs" role="tablist" aria-label="Cloaks and capes"><button type="button" role="tab" aria-selected={capeTab === 'cloaks'} className={capeTab === 'cloaks' ? 'active' : ''} onClick={() => setCapeTab('cloaks')}>Cloaks</button><button type="button" role="tab" aria-selected={capeTab === 'capes'} className={capeTab === 'capes' ? 'active' : ''} onClick={() => setCapeTab('capes')}>{t('locker.capes') || 'Capes'}</button></div></div><div className="locker-cape-actions">{capeTab === 'cloaks' && !localOnly && <button type="button" onClick={() => onOpenStore?.()} title="Get cloaks in the Native Store"><Store size={13}/>Store</button>}<LockerSearch value={capeQuery} onChange={setCapeQuery} label={capeTab === 'cloaks' ? 'Search cloaks' : 'Search capes'}/>{capePages > 1 && <CarouselControls page={capePage} pages={capePages} setPage={setCapePage}/>}</div></div>
-          {capeTab === 'capes' && capesSkeleton && <div className="locker-cape-strip" aria-label={t('locker.officialLoading')}>{[0, 1, 2, 3, 4].map((n) => <div key={`cskel-${n}`} className="locker-skel locker-skel-cape" style={{ animationDelay: `${n * 100}ms` }}/>)}</div>}
-          {capeTab === 'capes' && officialMode && !official.loading && official.error && <OfficialCapeError error={official.error} onRetry={official.reload} onReauth={official.reauth} busy={official.loading} t={t}/>}
-          {capeTab === 'cloaks' && localOnly ? <p className="locker-cape-hint">Cloaks come from the Native Store. Sign in with Microsoft or a Native account to get them.</p> : (!(capeTab === 'capes' && capesSkeleton) && <>
-          {capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">Nothing matches “{capeQuery.trim()}”.</p>}<div className="locker-cape-strip">{visibleCapes.map((card) => { const locked = card.kind === 'locked'; const isCloak = card.kind === 'store' || card.kind === 'cloakNone'; return <button key={card.key} type="button" className={`locker-cape-card ${card.active?'active':''} ${locked?'locked':''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{backgroundImage:`url(${card.textureUrl})`}}/> : <span className="locker-no-cape"><X size={20}/></span>}<span>{card.name}</span>{storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}{card.active && <Check size={13} className="locker-cape-check"/>}{locked && <Lock size={11} className="locker-cape-lock"/>}</button>;})}</div>
-          {capeTab === 'cloaks' && !storeCapes.length && <p className="locker-cape-hint">No cloaks yet. Get one in the Native Store; everyone playing with Native sees it in game.</p>}
-          </>)}
-          {capeTab === 'cloaks' && officialMode && wornStoreId && <p className="locker-cape-hint">Native players see your cloak instead of your Minecraft cape.</p>}
-          {capeTab === 'capes' && showOfficialCards && <p className="locker-cape-hint">These are your real Minecraft capes. Changing one changes it on your Minecraft profile, on every server.</p>}
-        </section>
+        <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>
+        <div className="locker-panels">
+          {leaving && leaving !== section && <div key={`out-${leaving}`} className={`locker-panel is-leaving to-${section === 'cosmetics' ? 'left' : 'right'}`} aria-hidden="true" onAnimationEnd={(event) => { if (event.target === event.currentTarget) setLeaving(null); }}>{leaving === 'skins' ? renderSkins() : renderCosmetics()}</div>}
+          <div key={`in-${section}`} className={`locker-panel ${leaving ? `is-entering from-${section === 'cosmetics' ? 'right' : 'left'}` : ''}`} role="tabpanel">{section === 'skins' ? renderSkins() : renderCosmetics()}</div>
+        </div>
       </main>
     </div>
     <input ref={fileInputRef} type="file" accept="image/png,.png" hidden onChange={(event) => { processFile(event.target.files?.[0]); event.target.value=''; }}/>

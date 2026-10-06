@@ -38,7 +38,8 @@ const DEFAULTS = {
   updates: {
     checkOnStartup: true,
     backgroundChecks: true,
-    autoDownload: false
+    autoDownload: true,
+    installOnQuit: true
   }
 };
 
@@ -78,6 +79,11 @@ function load() {
       cache.appearance = { ...(cache.appearance || {}), theme: 'black' };
       shouldSave = true;
     }
+    // 4.2: updates download in the background by default (the old default was off).
+    if (cache.updates && !cache.updates.backgroundDefaults) {
+      cache.updates = { ...cache.updates, autoDownload: true, installOnQuit: true, backgroundDefaults: true };
+      shouldSave = true;
+    }
     if (shouldSave && deps?.app) {
       try {
         fs.writeFileSync(filePath(), JSON.stringify(cache, null, 2));
@@ -90,10 +96,6 @@ function load() {
 function save(next) {
   cache = deepMerge(DEFAULTS, next);
   fs.writeFileSync(filePath(), JSON.stringify(cache, null, 2));
-  try {
-    const discordRpcMod = require('./discordRpc');
-    discordRpcMod.onSettingsChanged(cache);
-  } catch {}
   return cache;
 }
 
