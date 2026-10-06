@@ -112,7 +112,7 @@ function broadcast(entry) {
 }
 
 const animKey = (e) => (e && e.a ? `${e.a.h}:${e.a.f}:${e.a.p}` : '');
-const cosmeticKey = (e) => (e && e.k ? e.k.map((ref) => `${ref.i}:${ref.m}:${ref.x}`).join(',') : '');
+const cosmeticKey = (e) => (e && e.k ? e.k.map((ref) => `${ref.i}:${ref.m}:${ref.x}:${ref.h || ''}`).join(',') : '');
 
 /** Store and broadcast one directory entry (an entry with no skin, cloak or cosmetic removes the player). */
 function upsert(entry) {

@@ -25,10 +25,12 @@ const COS_TABS = [
   { id: 'glasses', label: 'Glasses', color: '#7fb2ff', slot: 'glasses', kicker: 'Native Store · 3D', title: 'Glasses', noun: 'glasses' },
   { id: 'back', label: 'Wings', color: '#9fe0ff', slot: 'back', kicker: 'Native Store · 3D', title: 'Wings & Backpacks', noun: 'wings or backpacks' },
   { id: 'shoes', label: 'Shoes', color: '#ffb45c', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
+  { id: 'hand', label: 'Hand', color: '#d7a6ff', slot: 'hand', kicker: 'Native Store · 3D', title: 'Hand Items', noun: 'hand items' },
+  { id: 'balloon', label: 'Balloons', color: '#ff9ec7', slot: 'balloon', kicker: 'Native Store · 3D', title: 'Balloons', noun: 'balloons' },
   { id: 'capes', label: 'Capes', color: '#8ee07a', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
 ];
 // Front-facing slots turn the player to face you; the rest show the back.
-const FRONT_TABS = new Set(['hats', 'glasses', 'shoes']);
+const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand', 'balloon']);
 const priceLabel = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
 
 // Collapses "Founder's Cape", "founders", "FOUNDER" … to one comparable token so
@@ -62,6 +64,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [capeReady, setCapeReady] = useState(0); // bumps when a cloak texture finishes loading
   // 3D cosmetics: what's worn per slot ({ hats: id, ... }) and each owned cosmetic's model/texture/thumb
   const [wearing, setWearing] = useState({});
+  const [sides, setSides] = useState({});
   const [cosAssets, setCosAssets] = useState({});
   const cosRequested = useRef(new Set());
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
@@ -185,6 +188,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       setStoreCapes((mine.owned || []).filter((entry) => byId.has(entry.id)).map((entry) => ({ item: byId.get(entry.id), acquiredAt: entry.acquiredAt })));
       setPremiumEquipped(premiumLinked ? (mine.equipped || null) : null);
       setWearing(mine.wearing || {});
+      setSides(mine.sides || {});
       const cosmetics = (mine.owned || []).map((entry) => byId.get(entry.id)).filter((item) => item && item.kind === 'cosmetic');
       for (const item of cosmetics) fetchCosmetic(item.id);
     } catch {}
@@ -275,8 +279,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
     if (tryOn?.kind === 'cosmetic') slots[tryOn.slot] = tryOn.id;
     if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
-    return Object.values(slots).map((id) => cosAssets[id]).filter(Boolean);
-  }, [wearing, cosAssets, showCosmetics, tryOn]);
+    return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...cosAssets[id], side: sides[slot] || null } : null)).filter(Boolean);
+  }, [wearing, cosAssets, showCosmetics, tryOn, sides]);
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
@@ -549,9 +553,29 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const res = await window.native?.store?.wear?.(account, off ? null : item.id, item.slot);
       if (!res?.ok) throw new Error(res?.error || 'Could not do that.');
       setWearing(res.wearing || {});
+      if (res.sides) setSides(res.sides);
       window.dispatchEvent(new Event('native:cosmetics-changed'));
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
     finally { setStoreBusy(null); }
+  };
+  // The side a hand item / balloon uses until the player picks one: the first sided part of its model.
+  const defaultSide = (slot) => {
+    try {
+      const model = cosAssets[wearing?.[slot]]?.model;
+      const json = typeof model === 'string' ? JSON.parse(model) : model;
+      return (json?.parts || []).find((part) => part.side)?.side || 'right';
+    } catch { return 'right'; }
+  };
+  // Hand items and balloons: pick the hand (and side) they sit on.
+  const pickSide = async (slot, side) => {
+    if (!account || storeBusy || localOnly) return;
+    setSides((prev) => ({ ...prev, [slot]: side }));
+    try {
+      const res = await window.native?.store?.wear?.(account, null, slot, side);
+      if (!res?.ok) throw new Error(res?.error || 'Could not do that.');
+      if (res.sides) setSides(res.sides);
+      window.dispatchEvent(new Event('native:cosmetics-changed'));
+    } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
   };
   // Take off whatever is in a slot.
   const clearSlot = async (slot) => {
@@ -561,6 +585,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const res = await window.native?.store?.wear?.(account, null, slot);
       if (!res?.ok) throw new Error(res?.error || 'Could not do that.');
       setWearing(res.wearing || {});
+      if (res.sides) setSides(res.sides);
       window.dispatchEvent(new Event('native:cosmetics-changed'));
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
     finally { setStoreBusy(null); }
@@ -716,7 +741,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const tab = COS_TABS.find((entry) => entry.id === cosTab) || COS_TABS[0];
     const header = <div className="locker-row-header">
       <div><span className="locker-kicker">{tab.id === 'capes' && showOfficialCards ? 'Official Minecraft' : tab.kicker}</span><h2>{tab.title}</h2></div>
-      <div className="locker-cape-actions"><LockerSearch value={capeQuery} onChange={setCapeQuery} label={`Search ${tab.noun}`}/></div>
+      <div className="locker-cape-actions">
+        {(tab.slot === 'hand' || tab.slot === 'balloon') && wearing?.[tab.slot] && !localOnly && <div className="locker-side-pick" role="group" aria-label="Which side">
+          {['left', 'right'].map((side) => <button key={side} type="button" className={(sides[tab.slot] || defaultSide(tab.slot)) === side ? 'on' : ''} onClick={() => pickSide(tab.slot, side)}>{side === 'left' ? 'Left' : 'Right'}</button>)}
+        </div>}
+        <LockerSearch value={capeQuery} onChange={setCapeQuery} label={`Search ${tab.noun}`}/>
+      </div>
     </div>;
     let body;
     if (tab.id === 'cloaks') {
