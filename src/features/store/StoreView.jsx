@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
-import { PixelButton, PixelIconButton } from '../../components/ui/PixelControls.jsx';
-import { ShopSeg, ShopStrip, ShopTabs, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
-import { Check, ChevronLeft, ChevronRight, Clock, Crown, Eye, Feather, Flame, Footprints, Glasses, Infinity as InfinityIcon, LayoutGrid, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Sparkles, Star, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
+import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
+import Dropdown from '../../components/ui/Dropdown.jsx';
+import { Check, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -45,13 +46,11 @@ const FILTERS = [
   { id: 'owned', label: 'In my locker' }
 ];
 const SORTS = [
-  { id: 'featured', label: 'Featured', icon: <Star size={13} /> },
-  { id: 'popular', label: 'Most used', icon: <Flame size={13} /> },
-  { id: 'new', label: 'Newest', icon: <Clock size={13} /> },
-  { id: 'name', label: 'A–Z', icon: <Type size={13} /> }
+  { id: 'featured', label: 'Featured' },
+  { id: 'popular', label: 'Most used' },
+  { id: 'new', label: 'Newest' },
+  { id: 'name', label: 'A–Z' }
 ];
-const SECTION_ICONS = { capes: <Shirt />, hats: <Crown />, glasses: <Glasses />, back: <Feather />, shoes: <Footprints /> };
-const FILTER_ICONS = { all: <LayoutGrid />, animated: <Sparkles />, free: null, paid: null, new: null, owned: <User /> };
 
 /** 1234 -> "1.2k" so the owner count stays a short number next to the people icon. */
 const formatCount = (value) => {
@@ -607,10 +606,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
           {sections.length > 1 && (
             <div className="store-sections">
-              <ShopTabs
+              <PixelTabs
                 label="Store sections"
-                size="lg"
-                fill
                 value={section}
                 onChange={(id) => {
                   const from = sections.findIndex((entry) => entry.id === section);
@@ -619,27 +616,27 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   setSection(id);
                   setViewId(null);
                 }}
-                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, icon: SECTION_ICONS[entry.id] }))}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
               />
             </div>
           )}
 
           <div key={`shelf:${section}`} className={`store-shelf${sectionDir ? ` from-${sectionDir}` : ''}`}>
           <div className="store-toolbar">
+            <PixelTabs
+              size="sm"
+              className="store-chips"
+              label="Filter"
+              value={filter}
+              onChange={setFilter}
+              items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
+            />
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}…`} aria-label={`Search ${noun}`} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
             </label>
-            <ShopSeg label="Sort" value={sort} onChange={setSort} items={SORTS} />
+            <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((x) => ({ value: x.id, label: x.label }))} />
           </div>
-          <ShopTabs
-            size="sm"
-            className="store-chips"
-            label="Filter"
-            value={filter}
-            onChange={setFilter}
-            items={FILTERS.filter((f) => f.id !== 'owned' || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id], icon: FILTER_ICONS[f.id] }))}
-          />
 
           {items.length === 0 ? (
             <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : `No ${noun} match that.`}</span></div>
