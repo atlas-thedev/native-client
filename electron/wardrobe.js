@@ -765,6 +765,7 @@ async function storeCapeName(id) {
 const stripCache = new Map(); // url -> data URL (store previews are shared by every account)
 
 /** A store item's whole animation strip as a data URL, for the in-launcher preview. */
+const stripJobs = new Map(); // url -> in-flight download, so the prefetch and the Locker never fetch the same strip twice
 async function fetchStoreStrip(itemId) {
   const catalog = await fetchStoreCatalog();
   const item = catalog.items.find((entry) => entry.id === itemId);
@@ -772,14 +773,19 @@ async function fetchStoreStrip(itemId) {
   const url = item.stripUrl || item.stillUrl;
   if (!url) throw new Error('That store item has no texture.');
   if (stripCache.has(url)) return stripCache.get(url);
-  // Saved to the shared texture cache, so wearing it later (or seeing it in game) needs no new download.
-  const bytes = await textureCache.fetchCached(url, { maxBytes: MAX_ANIM_BYTES, timeoutMs: 25_000 });
-  if (!bytes) throw new Error('Couldn’t download that cape.');
-  pngInfoBuffer(bytes, item.stripUrl ? 'animation' : 'cape', { animated: Boolean(item.stripUrl) });
-  const value = `data:image/png;base64,${bytes.toString('base64')}`;
-  if (stripCache.size > 40) stripCache.delete(stripCache.keys().next().value);
-  stripCache.set(url, value);
-  return value;
+  if (stripJobs.has(url)) return stripJobs.get(url);
+  const job = (async () => {
+    // Saved to the shared texture cache, so wearing it later (or seeing it in game) needs no new download.
+    const bytes = await textureCache.fetchCached(url, { maxBytes: MAX_ANIM_BYTES, timeoutMs: 25_000 });
+    if (!bytes) throw new Error('Couldn’t download that cape.');
+    pngInfoBuffer(bytes, item.stripUrl ? 'animation' : 'cape', { animated: Boolean(item.stripUrl) });
+    const value = `data:image/png;base64,${bytes.toString('base64')}`;
+    if (stripCache.size > 120) stripCache.delete(stripCache.keys().next().value);
+    stripCache.set(url, value);
+    return value;
+  })().finally(() => stripJobs.delete(url));
+  stripJobs.set(url, job);
+  return job;
 }
 
 const cosmeticCache = new Map(); // item id -> { key, value }
@@ -1152,8 +1158,10 @@ async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
         if (remote.capeStore && sameStrip.storeId !== remote.capeStore) { sameStrip.storeId = String(remote.capeStore).slice(0, 64); changed = true; }
       } else {
         try {
-          const strip = await download(remote.capeAnimation.url, MAX_ANIM_BYTES, 25_000);
-          const still = remoteCapeUrl ? await download(remoteCapeUrl, MAX_PNG_BYTES, 8000) : null;
+          const [strip, still] = await Promise.all([
+            download(remote.capeAnimation.url, MAX_ANIM_BYTES, 25_000),
+            remoteCapeUrl ? download(remoteCapeUrl, MAX_PNG_BYTES, 8000) : null
+          ]);
           if (strip && still) {
             validateAnimatedCape(strip, still, remoteSpec);
             const id = crypto.randomUUID();
