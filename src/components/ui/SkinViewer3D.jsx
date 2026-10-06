@@ -103,7 +103,9 @@ export default function SkinViewer3D({
   // older self-heal result is still being cleared by React.
   const effectiveAccount = selfHealed && !account?.skinUrl ? { ...account, ...selfHealed } : account;
   const skinUrl = effectiveAccount?.skinUrl || skinTextureUrl(effectiveAccount);
-  const capeUrl = capeTextureUrl(effectiveAccount);
+  // A back item (wings, jetpack, backpack) replaces the cape, like in game.
+  const backWorn = (cosmetics || []).some((c) => c && c.slot === 'back' && c.model && c.texture);
+  const capeUrl = backWorn ? null : capeTextureUrl(effectiveAccount);
   // Animated cape: `capeUrl` stays the first frame; the strip repaints it over time.
   const capeAnim = capeUrl && effectiveAccount?.capeAnim?.stripUrl ? effectiveAccount.capeAnim : null;
   const animKey = capeAnim ? `${capeAnim.frames}@${capeAnim.fps}#${capeAnim.stripUrl.length}:${capeAnim.stripUrl.slice(-40)}` : '';

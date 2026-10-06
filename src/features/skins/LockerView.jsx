@@ -248,6 +248,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const wornCosmetics = useMemo(() => {
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
     if (tryOn?.kind === 'cosmetic') slots[tryOn.slot] = tryOn.id;
+    if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
     return Object.values(slots).map((id) => cosAssets[id]).filter(Boolean);
   }, [wearing, cosAssets, showCosmetics, tryOn]);
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
@@ -669,6 +670,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           <div className="locker-cape-grid">{shownCloaks.map(capeCard)}</div>
           {capeQuery.trim() && !shownCloaks.length && <p className="locker-cape-hint">No cloak matches “{capeQuery.trim()}”.</p>}
           {officialMode && wornStoreId && <p className="locker-cape-hint">Native players see your cloak instead of your Minecraft cape.</p>}
+          {wearing?.back && <p className="locker-cape-hint">Your {ownedCosmetics.find((item) => item.id === wearing.back)?.name || 'back item'} takes the cloak’s place on your back. <button type="button" className="locker-inline-link" onClick={() => clearSlot('back')}>Take it off</button> to show your cloak.</p>}
         </>}
       </section>;
     } else if (tab.slot) {
