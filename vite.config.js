@@ -43,6 +43,9 @@ function contentSecurityPolicy() {
 export default defineConfig({
   plugins: [react(), contentSecurityPolicy()],
   base: './',
+  // skinview3d ships its own (older) three.js; the 3D cosmetics must share the player's copy or their
+  // meshes and textures don't render (they come out black)
+  resolve: { dedupe: ['three'] },
   server: {
     port: 5173,
     strictPort: true,

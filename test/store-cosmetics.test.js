@@ -1,0 +1,219 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const zlib = require('node:zlib');
+
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-cosmetics-'));
+process.env.NATIVE_SKIN_DATA = DATA_DIR;
+process.env.NATIVE_DATA_DIR = DATA_DIR;
+process.env.NATIVE_DB_PATH = path.join(DATA_DIR, 'native.db');
+delete process.env.NATIVE_SKIN_PUBLIC_URL;
+delete process.env.NATIVE_PUBLIC_URL;
+
+const db = require('../server/db');
+const { listen } = require('../server/server');
+const modRoutes = require('../server/mod-routes');
+const cosmetics = require('../server/cosmetics');
+
+function png(width, height, shade = 128) {
+  const crc = (buf) => { const out = Buffer.alloc(4); out.writeUInt32BE(zlib.crc32(buf) >>> 0); return out; };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    return Buffer.concat([length, body, crc(body)]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 0;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width, shade)]);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))), chunk('IEND', Buffer.alloc(0))]);
+}
+const b64 = (buffer) => buffer.toString('base64');
+const HASH = /^[a-f0-9]{64}$/;
+
+let server;
+let base;
+async function json(pathname, options = {}) {
+  const response = await fetch(`${base}${pathname}`, options);
+  return { status: response.status, body: await response.json().catch(() => null) };
+}
+const call = (method, pathname, body, token) => json(pathname, {
+  method,
+  headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  body: body === undefined ? undefined : JSON.stringify(body)
+});
+const account = (name) => {
+  const user = db.createUser({ email: `${name.toLowerCase()}@example.com`, username: name, password: 'correct horse battery' });
+  return { user, token: db.createSession(user.id).token };
+};
+const entryOf = async (name) => (await json('/v1/skins/directory')).body.entries.find((e) => e.n === name);
+
+test.before(async () => {
+  server = await listen(0, '127.0.0.1');
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+
+test.after(() => {
+  modRoutes.stopStreams();
+  server.closeAllConnections?.();
+  server.close();
+  try { db.closeDb(); } catch {}
+  fs.rmSync(DATA_DIR, { recursive: true, force: true });
+  setTimeout(() => process.exit(0), 50).unref();
+});
+
+test('model validation follows the mod limits', () => {
+  const ok = cosmetics.validateModel({ format: 1, texture: [64, 32], parts: [{ id: 'a', attach: 'head', cubes: [{ origin: [0, 0, 0], size: [1, 1, 1] }], anim: [{ type: 'spin' }] }] });
+  assert.deepEqual(ok, { parts: 1, cubes: 1, animated: true, texture: [64, 32] });
+  assert.equal(cosmetics.validateModel({ parts: [{ cubes: [{ size: [1, 2, 3] }] }] }).animated, false);
+  assert.throws(() => cosmetics.validateModel('nope'), /valid JSON/);
+  assert.throws(() => cosmetics.validateModel({ format: 2, parts: [] }), /format/);
+  assert.throws(() => cosmetics.validateModel({ parts: [] }), /no parts/);
+  assert.throws(() => cosmetics.validateModel({ parts: [{ attach: 'tail', cubes: [{ size: [1, 1, 1] }] }] }), /attach/);
+  assert.throws(() => cosmetics.validateModel({ parts: [{ cubes: [{ size: [1, 1] }] }] }), /size/);
+  assert.throws(() => cosmetics.validateModel({ parts: Array.from({ length: 97 }, () => ({ cubes: [{ size: [1, 1, 1] }] })) }), /parts/);
+  assert.throws(() => cosmetics.validateModel({ parts: [{ cubes: Array.from({ length: 513 }, () => ({ size: [1, 1, 1] })) }] }), /cubes/);
+  assert.throws(() => cosmetics.validateModel({ parts: [{ id: 'empty' }] }), /no cubes/);
+});
+
+test('every bundled cosmetic is in the catalogue with its model, texture and thumbnail', async () => {
+  const catalog = (await json('/v1/store/catalog')).body;
+  for (const slot of cosmetics.SLOTS) assert.ok(catalog.sections.some((s) => s.id === slot), `section ${slot}`);
+  const shipped = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'catalog.json'), 'utf8')).items.filter((i) => i.kind === 'cosmetic');
+  assert.ok(shipped.length >= 12);
+  for (const meta of shipped) {
+    const item = catalog.items.find((i) => i.id === meta.id);
+    assert.ok(item, `${meta.id} is listed`);
+    assert.equal(item.kind, 'cosmetic');
+    assert.equal(item.slot, meta.section);
+    assert.equal(item.animated, false, 'cosmetics are never animated capes');
+    const model = await fetch(item.modelUrl);
+    assert.equal(model.status, 200);
+    const info = cosmetics.validateModel(Buffer.from(await model.arrayBuffer()));
+    assert.equal(item.motion, info.animated);
+    assert.equal((await fetch(item.textureUrl)).status, 200);
+    assert.equal((await fetch(item.stillUrl)).status, 200);
+  }
+  // capes keep their shape
+  assert.ok(catalog.items.filter((i) => i.kind === 'cape').every((i) => !i.modelUrl));
+  // the custom animated hat
+  const cap = catalog.items.find((i) => i.id === 'propeller-cap');
+  assert.equal(cap.motion, true);
+  assert.equal(cap.featured, true);
+});
+
+test('wear one cosmetic per slot: profile, mod directory, CSL document and /me follow', async () => {
+  const { token } = account('HatFan');
+  assert.equal((await call('POST', '/v1/store/equip', { itemId: 'propeller-cap' })).status, 401);
+
+  let r = await call('POST', '/v1/store/equip', { itemId: 'propeller-cap' }, token);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.wearing, { hats: 'propeller-cap' });
+  assert.equal(r.body.equipped, null, 'a hat is not a cape');
+  r = await call('POST', '/v1/store/equip', { itemId: 'angel-wings' }, token);
+  r = await call('POST', '/v1/store/equip', { itemId: 'pixel-shades' }, token);
+  r = await call('POST', '/v1/store/equip', { itemId: 'street-sneakers' }, token);
+  assert.deepEqual(r.body.wearing, { hats: 'propeller-cap', back: 'angel-wings', glasses: 'pixel-shades', shoes: 'street-sneakers' });
+  // a second hat replaces the first; a cape sits next to the cosmetics
+  r = await call('POST', '/v1/store/equip', { itemId: 'royal-crown' }, token);
+  assert.equal(r.body.wearing.hats, 'royal-crown');
+  r = await call('POST', '/v1/store/equip', { itemId: 'aurora' }, token);
+  assert.equal(r.body.equipped, 'aurora');
+  assert.equal(Object.keys(r.body.wearing).length, 4);
+
+  const me = await json('/v1/store/me', { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(me.body.wearing.back, 'angel-wings');
+  assert.ok(me.body.owned.some((o) => o.id === 'royal-crown'));
+
+  const entry = await entryOf('HatFan');
+  assert.equal(entry.k.length, 4);
+  for (const ref of entry.k) { assert.match(ref.m, HASH); assert.match(ref.x, HASH); }
+  assert.ok(entry.k.some((ref) => ref.i === 'royal-crown'));
+  assert.ok(entry.a, 'the animated cape still animates');
+
+  const doc = (await json('/csl/HatFan.json')).body;
+  assert.equal(doc.cosmetics.length, 4);
+  const crown = doc.cosmetics.find((c) => c.slot === 'hats');
+  assert.equal(crown.id, 'royal-crown');
+  assert.equal((await fetch(crown.modelUrl)).status, 200);
+
+  // a wardrobe sync (launcher) never drops the cosmetics
+  const sync = await call('POST', '/v1/wardrobe', { model: 'default', skin: b64(png(64, 64, 200)) }, token);
+  assert.equal(sync.status, 200, JSON.stringify(sync.body));
+  assert.equal((await entryOf('HatFan')).k.length, 4);
+
+  // take one slot off, then the cape; the rest stays
+  r = await call('POST', '/v1/store/equip', { slot: 'glasses', itemId: null }, token);
+  assert.equal(r.body.wearing.glasses, undefined);
+  assert.equal(r.body.wearing.hats, 'royal-crown');
+  r = await call('POST', '/v1/store/equip', { itemId: null }, token);
+  assert.equal(r.body.equipped, null);
+  assert.equal(Object.keys(r.body.wearing).length, 3);
+  assert.equal((await call('POST', '/v1/store/equip', { slot: 'tail', itemId: null }, token)).status, 400);
+
+  // unclaiming a worn cosmetic takes it off
+  r = await call('POST', '/v1/store/unclaim', { itemId: 'angel-wings' }, token);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.wearing.back, undefined);
+  assert.equal((await entryOf('HatFan')).k.length, 2);
+});
+
+test('a thumbnail is never a wearable cape', async () => {
+  const { token } = account('CapeSneak');
+  const item = (await json('/v1/store/catalog')).body.items.find((i) => i.id === 'top-hat');
+  const thumb = Buffer.from(await (await fetch(item.stillUrl)).arrayBuffer());
+  const r = await call('POST', '/v1/wardrobe', { model: 'default', skin: b64(png(64, 64, 10)), cape: b64(thumb) }, token);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.capes, []);
+});
+
+test('cosmetics-only players are in the mod directory; taking everything off removes them', async () => {
+  const { token } = account('ShoeOnly');
+  await call('POST', '/v1/store/equip', { itemId: 'rocket-boots' }, token);
+  const entry = await entryOf('ShoeOnly');
+  assert.ok(entry, 'listed with only shoes');
+  assert.equal(entry.s, null);
+  assert.equal(entry.c, null);
+  assert.equal(entry.k[0].i, 'rocket-boots');
+  await call('POST', '/v1/store/equip', { slot: 'shoes', itemId: null }, token);
+  assert.equal(await entryOf('ShoeOnly'), undefined);
+});
+
+test('admin: create, edit, equip, revoke and delete a custom cosmetic', async () => {
+  const admin = account('CosAdmin');
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.user.id);
+  const fan = account('CosFan');
+  const model = { format: 1, texture: [32, 32], parts: [{ id: 'box', attach: 'head', cubes: [{ origin: [-2, -10, -2], size: [4, 2, 4], uv: [0, 0] }], anim: [{ type: 'bob', speed: 1, amplitude: 1 }] }] };
+  let r = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', slot: 'hats', name: 'Test Box', model, texture: b64(png(32, 32)), thumb: b64(png(64, 64)) }, fan.token);
+  assert.equal(r.status, 403);
+  r = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', slot: 'tail', name: 'Bad Slot', model, texture: b64(png(32, 32)) }, admin.token);
+  assert.equal(r.status, 400);
+  r = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', slot: 'hats', name: 'Bad Model', model: { parts: [] }, texture: b64(png(32, 32)) }, admin.token);
+  assert.equal(r.status, 400);
+  r = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', slot: 'hats', name: 'Test Box', model, texture: b64(png(32, 32)), thumb: b64(png(64, 64)), exclusive: true }, admin.token);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.item.slot, 'hats');
+  assert.equal(r.body.item.motion, true);
+  const id = r.body.item.id;
+
+  // exclusive: only an admin hands it out
+  assert.equal((await call('POST', '/v1/store/equip', { itemId: id }, fan.token)).status, 403);
+  r = await call('POST', `/v1/admin/store/users/${fan.user.id}/capes`, { action: 'equip', itemId: id }, admin.token);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.wearing.hats, id);
+  assert.equal((await entryOf('CosFan')).k[0].i, id);
+
+  // a new model reaches the game
+  const before = (await entryOf('CosFan')).k[0].m;
+  r = await call('PATCH', `/v1/admin/store/items/${id}`, { model: { ...model, parts: [{ ...model.parts[0], anim: [] }] } }, admin.token);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.item.motion, false);
+  assert.notEqual((await entryOf('CosFan')).k[0].m, before);
+
+  r = await call('POST', `/v1/admin/store/items/${id}/revoke`, { username: 'CosFan' }, admin.token);
+  assert.equal(r.status, 200);
+  assert.equal(await entryOf('CosFan'), undefined);
+  assert.equal((await call('DELETE', `/v1/admin/store/items/${id}`, undefined, admin.token)).status, 200);
+});

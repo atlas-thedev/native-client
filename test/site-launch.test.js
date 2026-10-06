@@ -43,7 +43,7 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   r = await call('GET', '/v1/admin/site', undefined, admin);
   assert.equal(r.status, 200);
   const catalog = (await json('/v1/store/catalog')).body.items;
-  const ids = catalog.filter((i) => !i.exclusive).slice(0, 3).map((i) => i.id);
+  const ids = catalog.filter((i) => !i.exclusive && i.kind === 'cape').slice(0, 3).map((i) => i.id);
   r = await call('POST', '/v1/admin/site', { launch: { founderCapes: ids } }, admin);
   assert.deepEqual(r.body.config.launch.founderCapes, ids);
   assert.equal((await call('GET', '/v1/admin/site', undefined, user)).status, 403);

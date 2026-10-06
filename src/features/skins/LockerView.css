@@ -751,3 +751,10 @@
 @media (max-width: 1180px) {
   .locker-skin-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* 3D cosmetics (hats, glasses, back items, shoes) */
+.locker-cosmetic-thumb { display: block; width: 64px; height: 64px; object-fit: contain; transition: transform 0.2s var(--ease); }
+.locker-cosmetic-card:hover .locker-cosmetic-thumb { transform: scale(1.08); }
+.locker-cosmetic-thumb.is-loading { border-radius: 10px; background: var(--lk-tile); animation: locker-cos-pulse 1.4s ease-in-out infinite; }
+@keyframes locker-cos-pulse { 50% { opacity: 0.45; } }
+.locker-inline-link { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

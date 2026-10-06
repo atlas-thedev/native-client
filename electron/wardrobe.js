@@ -768,6 +768,56 @@ async function fetchStoreStrip(itemId) {
   return value;
 }
 
+const cosmeticCache = new Map(); // item id -> { key, value }
+
+/**
+ * A store cosmetic's 3D parts for the launcher preview: { model (NCM JSON), texture, thumb } (data URLs).
+ * Saved to the shared texture cache by hash, so the game (which uses the same hashes) needs no new download.
+ */
+async function fetchStoreCosmetic(itemId) {
+  const catalog = await fetchStoreCatalog();
+  const item = catalog.items.find((entry) => entry.id === itemId);
+  if (!item || item.kind !== 'cosmetic' || !item.modelUrl || !item.textureUrl) throw new Error('That cosmetic does not exist.');
+  const key = `${item.modelUrl}|${item.textureUrl}|${item.stillUrl}`;
+  const hit = cosmeticCache.get(itemId);
+  if (hit && hit.key === key) return hit.value;
+  const [model, texture, thumb] = await Promise.all([
+    textureCache.fetchCached(item.modelUrl, { maxBytes: 256 * 1024, timeoutMs: 20_000 }),
+    textureCache.fetchCached(item.textureUrl, { maxBytes: 1024 * 1024, timeoutMs: 20_000 }),
+    item.stillUrl ? textureCache.fetchCached(item.stillUrl, { maxBytes: 5 * 1024 * 1024, timeoutMs: 20_000 }).catch(() => null) : null
+  ]);
+  if (!model || !texture) throw new Error('Couldn’t download that cosmetic.');
+  const value = {
+    id: item.id,
+    slot: item.slot,
+    model: JSON.parse(model.toString('utf8')),
+    texture: `data:image/png;base64,${texture.toString('base64')}`,
+    thumb: thumb ? `data:image/png;base64,${thumb.toString('base64')}` : null
+  };
+  if (cosmeticCache.size > 40) cosmeticCache.delete(cosmeticCache.keys().next().value);
+  cosmeticCache.set(itemId, { key, value });
+  return value;
+}
+
+/**
+ * Wear a 3D cosmetic (hat, glasses, back item, shoes) on the signed-in Native account, or with itemId null take
+ * `slot` off. Cosmetics live on the server only (no local mirror): returns { wearing, owned }.
+ */
+async function wearStoreCosmetic(account, itemId, slot) {
+  const native = resolveBillingAccount(account);
+  requireStoreAccount(native);
+  const response = await fetch(`${apiRoot()}/v1/store/equip`, {
+    method: 'POST',
+    headers: storeHeaders(native),
+    body: JSON.stringify(itemId ? { itemId } : { slot, itemId: null }),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t do that (HTTP ${response.status}).`);
+  return { wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : null };
+}
+
 /** Wear a Native Store cloak on a premium account (or take it off). Its Mojang skin stays. */
 async function equipPremiumStoreItem(account, itemId) {
   const native = resolveBillingAccount(account);
@@ -833,7 +883,7 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, owned: Array.isArray(body.owned) ? body.owned : [] };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, owned: Array.isArray(body.owned) ? body.owned : [] };
 }
 
 /** A premium account connected to Native (or its linked identity) uses the Native session stored in main. */
@@ -893,7 +943,7 @@ async function claimStoreItem(account, itemId, { remove = false } = {}) {
     saveMetadata(account, metadata);
     state = (await pullRemoteWardrobe(account, { authoritative: true })) || publicState(account);
   }
-  return { owned: body.owned || [], equipped: body.equipped || null, state };
+  return { owned: body.owned || [], equipped: body.equipped || null, wearing: body.wearing || null, state };
 }
 
 async function pullRemoteWardrobe(account, { authoritative = false } = {}) {
@@ -1784,6 +1834,12 @@ function init(dependencies, ipcMain) {
   });
   ipc.handle('store:strip', async (_event, itemId) => {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:cosmetic', async (_event, itemId) => {
+    try { return { ok: true, ...(await fetchStoreCosmetic(String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:wear', async (_event, { account, itemId, slot }) => {
+    try { return { ok: true, ...(await wearStoreCosmetic(account, itemId ? String(itemId) : null, String(slot || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:me', async (_event, account) => {
     try { return { ok: true, ...(await fetchStoreMe(resolveBillingAccount(account))) }; } catch (error) { return { ok: false, error: error.message }; }
