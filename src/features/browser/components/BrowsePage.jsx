@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { CONTENT_TYPES, SOURCES, isVanilla } from '../api/modrinthApi.js';
+import { PROVIDER_ICONS } from '../../../lib/cfApi.js';
 import useBrowseSearch from '../hooks/useBrowseSearch.js';
 import useInstaller from '../hooks/useInstaller.js';
 import BrowseHeader from './BrowseHeader.jsx';
@@ -285,6 +286,7 @@ export default function BrowsePage({
                       className={`browse-source-btn ${source === entry.id ? 'is-active' : ''}`}
                       onClick={() => setSource(entry.id)}
                     >
+                      <img className="browse-source-icon" src={PROVIDER_ICONS[entry.id]} alt="" aria-hidden="true" />
                       {entry.label}
                     </button>
                   ))}

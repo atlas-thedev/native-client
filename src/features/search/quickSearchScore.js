@@ -191,3 +191,21 @@ export function modrinthHitToItem(hit) {
     command: { type: 'project', project: hit, contentType: type }
   };
 }
+
+/** Turns a mapped CurseForge project (see modrinthApi CF adapter) into a palette item. */
+export function curseforgeHitToItem(hit) {
+  if (!hit || typeof hit !== 'object') return null;
+  const id = String(hit.project_id || '');
+  if (!/^cf:\d{1,12}$/.test(id)) return null;
+  const type = ['mod', 'shader', 'resourcepack', 'datapack'].includes(hit.project_type) ? hit.project_type : 'mod';
+  const icon = typeof hit.icon_url === 'string' && /^https:\/\/media\.forgecdn\.net\//.test(hit.icon_url) ? hit.icon_url : null;
+  return {
+    id: `curseforge:${id.slice(3)}`,
+    group: 'curseforge',
+    title: String(hit.title || hit.slug || 'Untitled').slice(0, 80),
+    subtitle: String(hit.description || '').slice(0, 120),
+    icon,
+    meta: { type, downloads: Number(hit.downloads) || 0, author: String(hit.author || '').slice(0, 40) },
+    command: { type: 'project', project: hit, contentType: type }
+  };
+}
