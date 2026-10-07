@@ -27,14 +27,19 @@ const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' 
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
-const SECTION_LABELS = { capes: 'Cloaks', hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items', balloon: 'Balloons' };
+const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand', balloon: 'Balloons' };
+const SECTION_BLURBS = { capes: 'Animated and classic cloaks', hats: 'Crowns, caps, halos and helmets', glasses: 'Shades, visors and specs', back: 'Wings, jetpacks and packs', shoes: 'Sneakers and rocket boots', hand: 'Swords, lanterns and gadgets', balloon: 'Floating companions' };
+/** The order categories show in (the same as the website store). */
+const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
+/** In the All view each category shelf shows this many items before "See all". */
+const SHELF_SIZE = 8;
 const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item', balloon: 'balloon' };
 // Each section has its own slab colour, like the Locker switch (same pixel style, different colours).
-export const SECTION_COLORS = { capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c' };
+export const SECTION_COLORS = { all: '#e8e8ea', capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c', hand: '#d7a6ff', balloon: '#ff9ec7' };
 
-/** Featured items of one store section, capped at MAX_FEATURED. */
+/** Featured items of one store section (or every section for 'all'), capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
-  .filter((item) => item.featured && sectionOf(item) === section)
+  .filter((item) => item.featured && (section === 'all' || sectionOf(item) === section))
   .slice(0, MAX_FEATURED);
 
 /** Canvas keys are "<id>" or "<slot>:<id>" (hero / thumb / view). */
@@ -87,7 +92,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [error, setError] = useState('');
   const [offline, setOffline] = useState(false);
   const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [] });
-  const [section, setSection] = useState('capes');
+  const [section, setSection] = useState('all');
   const [sectionDir, setSectionDir] = useState(null); // 'right' | 'left': where the new shelf slides in from
   const [cosAssets, setCosAssets] = useState({}); // cosmetic id -> { model, texture, thumb }
   const [busy, setBusy] = useState(null);
@@ -218,7 +223,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (!catalog || !window.native?.store?.cosmetic) return undefined;
     let alive = true;
     const list = (catalog.items || []).filter(isCosmetic);
-    const ordered = [...list.filter((item) => sectionOf(item) === section), ...list.filter((item) => sectionOf(item) !== section)];
+    const ordered = section === 'all' ? list : [...list.filter((item) => sectionOf(item) === section), ...list.filter((item) => sectionOf(item) !== section)];
     (async () => {
       for (const item of ordered) {
         if (!alive) return;
@@ -235,10 +240,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const ownedIds = useMemo(() => new Set(me.owned.map((entry) => entry.id)), [me.owned]);
   const wishIds = useMemo(() => new Set((me.wishlist || []).map((entry) => entry.id)), [me.wishlist]);
   const items = useMemo(() => {
-    const list = (catalog?.items || []).filter((item) => sectionOf(item) === section);
+    const list = (catalog?.items || []).filter((item) => section === 'all' || sectionOf(item) === section);
     const q = query.trim().toLowerCase();
     const filtered = list.filter((item) => {
-      if (q && !`${item.name} ${item.description} ${(item.tags || []).join(' ')} ${item.author}`.toLowerCase().includes(q)) return false;
+      if (q && !`${item.name} ${item.description} ${(item.tags || []).join(' ')} ${item.author} ${SECTION_LABELS[sectionOf(item)] || ''}`.toLowerCase().includes(q)) return false;
       if (filter === 'animated') return moves(item);
       if (filter === 'free') return !item.paid && !item.exclusive;
       if (filter === 'paid') return item.paid;
@@ -256,9 +261,13 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     return sort === 'featured' ? filtered : [...filtered].sort(by);
   }, [catalog, query, filter, sort, ownedIds, wishIds, section]);
 
-  const newest = useMemo(() => (filter === 'all' && !query.trim() && sort === 'featured'
+  // when (almost) everything is new the badge and the "Just added" shelf are noise
+  const newMeans = useMemo(() => { const all = catalog?.items || []; return all.filter((item) => item.isNew).length <= all.length * 0.4; }, [catalog]);
+  /** The All view with no filter, search or sort shows one shelf per category instead of one long grid. */
+  const shelved = section === 'all' && filter === 'all' && !query.trim() && sort === 'featured';
+  const newest = useMemo(() => (newMeans && section !== 'all' && filter === 'all' && !query.trim() && sort === 'featured'
     ? (catalog?.items || []).filter((item) => sectionOf(item) === section && item.isNew && !item.exclusive).sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0)).slice(0, 4)
-    : []), [catalog, section, filter, query, sort]);
+    : []), [catalog, section, filter, query, sort, newMeans]);
 
   const featured = useMemo(() => featuredIn(catalog?.items || [], section), [catalog, section]);
   const heroList = featured.length ? featured : (items[0] ? [items[0]] : []);
@@ -407,30 +416,31 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     onNotify?.('Store', `${item.name} was removed from your locker.`);
   });
 
-  /** The signed-in player's skin wearing `item`, for the 3D viewers. */
+  /** The store cloak the player wears right now (shown with cosmetics so you see the whole outfit). */
+  const wornCape = useMemo(() => (me.equipped ? (catalog?.items || []).find((item) => item.id === me.equipped && !isCosmetic(item)) || null : null), [catalog, me.equipped]);
+  /** The signed-in player's skin wearing `item` with the rest of their outfit, for the 3D viewers. */
   const accountWearing = useCallback((item) => {
     if (!item) return null;
-    if (isCosmetic(item)) {
-      // the player's own skin (no cape, so wings and backpacks are easy to see)
-      return { ...account, skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null, model: wardrobe?.active?.model || wardrobe?.model || account?.model, capeUrl: null, hasCape: false, capeAnim: null };
-    }
-    const preview = previews[item.id];
+    const cape = isCosmetic(item) ? (sectionOf(item) === 'back' ? null : wornCape) : item; // wings and backpacks are easier to see without a cloak
+    const preview = cape ? previews[cape.id] : null;
     return {
       ...account,
       skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null,
       model: wardrobe?.active?.model || wardrobe?.model || account?.model,
-      capeUrl: item.stillUrl,
-      hasCape: true,
-      capeAnim: item.animated && preview ? { stripUrl: preview, frames: item.frames, fps: item.fps } : null
+      capeUrl: cape?.stillUrl || null,
+      hasCape: Boolean(cape),
+      capeAnim: cape?.animated && preview ? { stripUrl: preview, frames: cape.frames, fps: cape.fps } : null
     };
-  }, [previews, wardrobe, account]);
+  }, [previews, wardrobe, account, wornCape]);
   const heroAccount = useMemo(() => accountWearing(hero), [accountWearing, hero]);
   const viewAccount = useMemo(() => accountWearing(viewing), [accountWearing, viewing]);
-  /** The cosmetic being shown, plus what the player wears in the other slots. */
+  /** The cosmetic being shown, plus what the player wears in the other slots (cloaks show with the whole outfit too). */
   const cosmeticsFor = useCallback((item) => {
-    if (!isCosmetic(item)) return null;
-    const others = Object.entries(me.wearing || {}).filter(([slot]) => slot !== item.slot).map(([, id]) => cosAssets[id]).filter(Boolean);
-    return [cosAssets[item.id], ...others].filter(Boolean);
+    if (!item) return null;
+    const slot = isCosmetic(item) ? item.slot : null;
+    const others = Object.entries(me.wearing || {}).filter(([s]) => s !== slot).map(([, id]) => cosAssets[id]).filter(Boolean);
+    const list = [isCosmetic(item) ? cosAssets[item.id] : null, ...others].filter(Boolean);
+    return list.length ? list : null;
   }, [cosAssets, me.wearing]);
   const heroCosmetics = useMemo(() => cosmeticsFor(hero), [cosmeticsFor, hero]);
   const viewCosmetics = useMemo(() => cosmeticsFor(viewing), [cosmeticsFor, viewing]);
@@ -478,7 +488,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       : <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `wear:${item.id}`} busyIcon={spin} icon={<Shirt size={15} />} label={compact ? 'Wear' : 'Wear now'} onClick={stop(put)} />;
   };
 
-  const inSection = (catalog?.items || []).filter((item) => sectionOf(item) === section);
+  const inSection = (catalog?.items || []).filter((item) => section === 'all' || sectionOf(item) === section);
   const counts = {
     all: inSection.length,
     animated: inSection.filter(moves).length,
@@ -492,11 +502,26 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const ownedTotal = everything.filter((item) => ownedIds.has(item.id)).length;
   const sections = (() => {
     const known = (catalog?.sections || []).map((entry) => entry.id);
-    const ids = [...new Set(['capes', ...known, ...everything.map(sectionOf)])];
-    return ids.filter((id) => id === 'capes' || everything.some((item) => sectionOf(item) === id))
-      .map((id) => ({ id, label: id === 'capes' ? SECTION_LABELS.capes : (catalog?.sections || []).find((entry) => entry.id === id)?.name || SECTION_LABELS[id] || id, count: everything.filter((item) => sectionOf(item) === id).length }));
+    const rank = (id) => { const at = SECTION_ORDER.indexOf(id); return at < 0 ? SECTION_ORDER.length : at; };
+    const ids = [...new Set([...SECTION_ORDER, ...known, ...everything.map(sectionOf)])]
+      .filter((id) => everything.some((item) => sectionOf(item) === id))
+      .sort((a, b) => rank(a) - rank(b));
+    const list = ids.map((id) => ({ id, label: SECTION_LABELS[id] || (catalog?.sections || []).find((entry) => entry.id === id)?.name || id, count: everything.filter((item) => sectionOf(item) === id).length }));
+    return list.length > 1 ? [{ id: 'all', label: SECTION_LABELS.all, count: everything.length }, ...list] : list;
   })();
-  const noun = section === 'capes' ? 'cloaks' : (SECTION_LABELS[section] || 'items').toLowerCase();
+  // a category that vanished (e.g. after a refresh) falls back to All
+  const sectionKey = sections.map((entry) => entry.id).join();
+  useEffect(() => { if (catalog && sections.length && !sections.some((entry) => entry.id === section)) setSection(sections[0].id); }, [catalog, sectionKey, section]); // eslint-disable-line react-hooks/exhaustive-deps
+  const noun = section === 'all' ? 'the store' : section === 'capes' ? 'cloaks' : (SECTION_LABELS[section] || 'items').toLowerCase();
+  const pickSection = (id) => {
+    const from = sections.findIndex((entry) => entry.id === section);
+    const to = sections.findIndex((entry) => entry.id === id);
+    setSectionDir(to >= from ? 'right' : 'left');
+    setSection(id);
+    setViewId(null);
+  };
+  /** Category shelves for the All view, in store order. */
+  const shelves = shelved ? sections.filter((entry) => entry.id !== 'all').map((entry) => ({ ...entry, items: items.filter((item) => sectionOf(item) === entry.id) })).filter((entry) => entry.items.length) : [];
   const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
@@ -545,7 +570,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     return (
       <article
         key={`${prefix}${item.id}`}
-        style={{ '--i': Math.min(index, 14) }}
+        style={{ '--i': Math.min(index, 14), '--tint': SECTION_COLORS[sectionOf(item)] || '#e8e8ea' }}
         className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
         onClick={() => setViewId(item.id)}
         tabIndex={0}
@@ -557,9 +582,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {isCosmetic(item)
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
+          <span className="store-card-try" aria-hidden="true"><Rotate3d size={12} />Try on</span>
           <div className="store-card-badges">
             {item.exclusive && <span className="store-event-badge">Event</span>}
-            {!item.exclusive && item.isNew && <span className="store-new-badge">New</span>}
+            {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
+            {moves(item) && <span className="store-anim-badge">{isCosmetic(item) ? 'Moves' : 'Animated'}</span>}
           </div>
           {signedIn && (
             <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
@@ -571,6 +598,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             : <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>)}
         </div>
         <div className="store-card-meta">
+          <span className="store-card-kind"><i />{isCosmetic(item) ? (SECTION_LABELS[sectionOf(item)] || 'Cosmetic') : 'Cloak'}</span>
           <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
           <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
         </div>
@@ -585,7 +613,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         <SpotBackdrop />
         <div className="store-header-copy">
           <h1 className="store-title page-title">Native Store</h1>
-          <p className="shop-hero-blurb">Animated cloaks, hats, glasses, wings and shoes you can only get from Native. Add one to your locker and wear it in the launcher and in game.</p>
+          <p className="shop-hero-blurb">Cloaks and 3D cosmetics in one place. Try anything on your own skin, add it to your locker and wear it in the launcher and in game.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && everything.length > 0 && (
@@ -623,7 +651,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {hero && (
             <section
               className={`store-spot${featured.length ? ' is-featured' : ''}`}
-              aria-label={featured.length ? 'Featured cloaks' : `${hero.name} details`}
+              aria-label={featured.length ? 'Featured' : `${hero.name} details`}
               aria-roledescription={featured.length > 1 ? 'carousel' : undefined}
               onMouseEnter={() => setHeroPaused(true)}
               onMouseLeave={() => setHeroPaused(false)}
@@ -643,7 +671,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 <span className="store-spot-zoom"><Rotate3d size={13} />View in 3D</span>
               </button>
               {featured.length > 1 ? (
-                <div className="store-spot-picker" role="tablist" aria-label="Featured capes">
+                <div className="store-spot-picker" role="tablist" aria-label="Featured items">
                   {featured.map((item, index) => {
                     const active = index === heroIndex % featured.length;
                     return (
@@ -708,13 +736,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <PixelTabs
                 label="Store sections"
                 value={section}
-                onChange={(id) => {
-                  const from = sections.findIndex((entry) => entry.id === section);
-                  const to = sections.findIndex((entry) => entry.id === id);
-                  setSectionDir(to >= from ? 'right' : 'left');
-                  setSection(id);
-                  setViewId(null);
-                }}
+                onChange={pickSection}
                 items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
               />
             </div>
@@ -743,8 +765,19 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((x) => ({ value: x.id, label: x.label }))} />
           </div>
 
-          {items.length === 0 ? (
-            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has no store ${noun} yet.` : filter === 'wish' ? `Tap the heart on any item to save it here.` : `No ${noun} match that.`}</span></div>
+          {shelves.length > 0 ? (
+            shelves.map((shelf) => (
+              <section key={shelf.id} className="store-cat-shelf" aria-label={shelf.label} style={{ '--tint': SECTION_COLORS[shelf.id] || '#e8e8ea' }}>
+                <div className="store-cat-head">
+                  <span className="store-cat-mark" aria-hidden="true" />
+                  <div><strong>{shelf.label}</strong><span>{SECTION_BLURBS[shelf.id] || `${shelf.count} items`}</span></div>
+                  {shelf.items.length > 4 && <button type="button" className="store-cat-more" onClick={() => pickSection(shelf.id)}>See all {shelf.items.length}<ChevronRight size={13} /></button>}
+                </div>
+                <div className="store-grid">{shelf.items.slice(0, SHELF_SIZE).map((item, index) => renderCard(item, index, `shelf-${shelf.id}`))}</div>
+              </section>
+            ))
+          ) : items.length === 0 ? (
+            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has nothing from ${noun} yet.` : filter === 'wish' ? `Tap the heart on any item to save it here.` : `No ${noun} match that.`}</span></div>
           ) : (
             <div className="store-grid" key={`grid:${filter}:${sort}`}>
               {items.map((item, index) => renderCard(item, index))}
