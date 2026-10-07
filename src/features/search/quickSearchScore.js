@@ -197,7 +197,7 @@ export function curseforgeHitToItem(hit) {
   if (!hit || typeof hit !== 'object') return null;
   const id = String(hit.project_id || '');
   if (!/^cf:\d{1,12}$/.test(id)) return null;
-  const type = ['mod', 'shader', 'resourcepack', 'datapack'].includes(hit.project_type) ? hit.project_type : 'mod';
+  const type = ['mod', 'modpack', 'shader', 'resourcepack', 'datapack'].includes(hit.project_type) ? hit.project_type : 'mod';
   const icon = typeof hit.icon_url === 'string' && /^https:\/\/media\.forgecdn\.net\//.test(hit.icon_url) ? hit.icon_url : null;
   return {
     id: `curseforge:${id.slice(3)}`,

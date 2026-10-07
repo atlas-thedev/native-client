@@ -274,29 +274,34 @@ export default function BrowsePage({
                   </span>
                 )}
               </div>
-              {contentType?.id !== 'modpack' && (
-                <div className="browse-source-toggle" role="tablist" aria-label="Source">
-                  {SOURCES.map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={source === entry.id}
-                      aria-label={entry.label}
-                      className={`browse-source-btn ${source === entry.id ? 'is-active' : ''}`}
-                      onClick={() => setSource(entry.id)}
-                    >
-                      <img className="browse-source-icon" src={PROVIDER_ICONS[entry.id]} alt="" aria-hidden="true" />
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div
+                className="browse-source-toggle"
+                role="tablist"
+                aria-label="Source"
+                style={{ '--source-index': Math.max(0, SOURCES.findIndex((entry) => entry.id === source)) }}
+              >
+                <span className="browse-source-pill" aria-hidden="true" />
+                {SOURCES.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={source === entry.id}
+                    aria-label={entry.label}
+                    className={`browse-source-btn ${source === entry.id ? 'is-active' : ''}`}
+                    onClick={() => setSource(entry.id)}
+                  >
+                    <img className="browse-source-icon" src={PROVIDER_ICONS[entry.id]} alt="" aria-hidden="true" />
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
               <SortSelect sort={sort} onChange={setSort} />
             </div>
           </div>
 
-          {/* Results Grid (full width) */}
+          {/* Results Grid (full width) — re-keyed per source so switching animates */}
+          <div className="browse-source-swap" key={source}>
           <ResultsGrid
             results={results}
             loading={loading}
@@ -317,6 +322,7 @@ export default function BrowsePage({
             onClearFilters={() => setQuery('')}
             hasActiveFilters={Boolean(query)}
           />
+          </div>
         </main>
       )}
 

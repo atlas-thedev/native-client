@@ -334,7 +334,7 @@ async function cfGetVersions(projectId, { gameVersion, loader, signal } = {}) {
   try {
     const json = await cfFetch('/mods/' + cfNum(projectId) + '/files', params, { signal });
     return (json?.data || [])
-      .filter((file) => file.isAvailable !== false)
+      .filter((file) => file.isAvailable !== false && !file.isServerPack)
       .sort((a, b) => new Date(b.fileDate) - new Date(a.fileDate))
       .map(mapCfFile);
   } catch {
@@ -353,11 +353,11 @@ async function cfGetVersion(versionId, options) {
   }
 }
 
-/** Quick-search helper: CurseForge projects across installable classes (no modpacks). */
+/** Quick-search helper: CurseForge projects across installable classes. */
 export async function searchCurseForgeQuick({ query, limit = 5, signal }) {
   const trimmed = (query || '').trim();
   if (!trimmed) return [];
-  const allowed = new Set([CF_CLASS_IDS.mod, CF_CLASS_IDS.shader, CF_CLASS_IDS.resourcepack, CF_CLASS_IDS.datapack]);
+  const allowed = new Set([CF_CLASS_IDS.mod, CF_CLASS_IDS.modpack, CF_CLASS_IDS.shader, CF_CLASS_IDS.resourcepack, CF_CLASS_IDS.datapack]);
   const json = await cfFetch('/mods/search', {
     gameId: '432',
     searchFilter: trimmed,
