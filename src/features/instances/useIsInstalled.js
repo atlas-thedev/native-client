@@ -10,10 +10,14 @@ import { useEffect, useState } from 'react';
  * changes, so finishing an install flips the button from Install to Launch
  * without needing an app restart.
  */
+// Last answer per version+loader, so revisiting an instance shows the right button instantly.
+const known = new Map();
+
 export default function useIsInstalled(instance, settleKey) {
-  const [installed, setInstalled] = useState(true);
   const version = instance?.mc_version || instance?.version;
   const loader = instance?.mc_loader || instance?.loader || 'Vanilla';
+  const key = `${version}:${loader}`;
+  const [installed, setInstalled] = useState(() => known.get(key) ?? true);
 
   useEffect(() => {
     if (!version) {
@@ -22,7 +26,7 @@ export default function useIsInstalled(instance, settleKey) {
     }
     // Do not flash an Install action while the main process checks the disk.
     // A negative result will replace this optimistic state immediately.
-    setInstalled(true);
+    setInstalled(known.get(key) ?? true);
     const api = window.native?.instance;
     if (!api) {
       // Browser previews cannot inspect the desktop installation.
@@ -33,6 +37,7 @@ export default function useIsInstalled(instance, settleKey) {
     api
       .isInstalled(version, loader)
       .then((result) => {
+        known.set(key, Boolean(result));
         if (!cancelled) setInstalled(Boolean(result));
       })
       .catch(() => {
@@ -43,7 +48,7 @@ export default function useIsInstalled(instance, settleKey) {
     return () => {
       cancelled = true;
     };
-  }, [version, loader, settleKey]);
+  }, [version, loader, settleKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return installed;
 }

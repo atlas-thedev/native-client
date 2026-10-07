@@ -10,6 +10,21 @@ import vanillaIcon from '../../assets/icons/vanilla.png';
 
 import './InstancesView.css';
 
+
+const DISK_CACHE_KEY = 'native.installedVersions.v1';
+let diskCache = null;
+function readDiskCache() {
+  if (diskCache) return diskCache;
+  try {
+    const list = JSON.parse(window.localStorage.getItem(DISK_CACHE_KEY) || 'null');
+    if (Array.isArray(list)) diskCache = new Set(list);
+  } catch { /* no cache yet */ }
+  return diskCache;
+}
+function writeDiskCache(keys) {
+  diskCache = new Set(keys);
+  try { window.localStorage.setItem(DISK_CACHE_KEY, JSON.stringify(keys)); } catch { /* storage off */ }
+}
 import useVersionBanners from '../../lib/useVersionBanners.js';
 const SORTS = [
   { id: 'recent', key: 'instances.sortRecent' },
@@ -105,14 +120,18 @@ export default function InstancesView({
   const [renaming, setRenaming] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [installedDiskKeys, setInstalledDiskKeys] = useState(new Set());
+  // Last known install list (kept across visits and restarts) so cards show Launch right away;
+  // null = not known yet, treated as installed until the disk check answers.
+  const [installedDiskKeys, setInstalledDiskKeys] = useState(readDiskCache);
 
   useEffect(() => {
     let cancelled = false;
     window.native?.instance?.installedVersions?.()
       .then((list) => {
         if (!cancelled && Array.isArray(list)) {
-          setInstalledDiskKeys(new Set(list.map((v) => `${v.version}:${v.loader || 'Vanilla'}`)));
+          const keys = list.map((v) => `${v.version}:${v.loader || 'Vanilla'}`);
+          writeDiskCache(keys);
+          setInstalledDiskKeys(new Set(keys));
         }
       })
       .catch(() => {});
@@ -368,7 +387,7 @@ export default function InstancesView({
               const isSelected = selectedId === instance.id;
               const menuOpen = menuFor === instance.id;
 
-              const isInstalledOnDisk = installedDiskKeys.has(`${versionOf(instance)}:${loaderOf(instance)}`);
+              const isInstalledOnDisk = installedDiskKeys ? installedDiskKeys.has(`${versionOf(instance)}:${loaderOf(instance)}`) : true;
 
               return (
                 <article

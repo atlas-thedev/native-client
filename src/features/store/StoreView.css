@@ -476,3 +476,15 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-owned.is-on .store-owned-state::before { background: #5ee69a; box-shadow: 0 0 0 3px rgba(94, 230, 154, 0.18); }
 .store-owned-link { display: inline-flex; flex: none; align-items: center; gap: 3px; border: 0; background: none; padding: 4px 0; color: var(--fg-secondary); font: 600 12.5px var(--font-sans); cursor: pointer; }
 .store-owned-link:hover { color: var(--fg-primary); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Narrow windows: the header stacks (copy, then actions that wrap) and the section tabs tighten up. */
+@media (max-width: 1180px) {
+  .store-view .store-header.shop-hero { flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+  .store-view .store-header-copy { flex: 1 1 100%; }
+  .store-view .shop-hero-blurb { max-width: 640px; }
+  .store-view .store-header-actions { flex: 1 1 100%; flex-wrap: wrap; }
+  .store-sections .pxt-tab { padding-left: 12px; padding-right: 12px; }
+}
+@media (max-width: 1040px) {
+  .store-view .store-collection { flex: 1 1 160px; }
+}

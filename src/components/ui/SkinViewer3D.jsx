@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PlayerAvatar from './PlayerAvatar.jsx';
 import { loadStripImage, startCapeAnimation } from '../../lib/animatedCape.js';
+import { createCamera } from '../../lib/viewerCamera.js';
 import { FALLBACK_SKIN, isLocalIdentity, isSlimArmTexture, loadSkinTexture, sanitizeSkinArms, SKIN_SERVICE, skinIdentifier } from '../../lib/skins.js';
 
 const SKIN_PATH = '/skin/';
@@ -73,7 +74,8 @@ export default function SkinViewer3D({
   className = '',
   onViewer = null,
   cosmetics = null,
-  zoom = 0.82
+  zoom = 0.82,
+  shot = null
 }) {
   const canvasRef = useRef(null);
   const viewerRef = useRef(null);
@@ -129,6 +131,11 @@ export default function SkinViewer3D({
   cosmeticSource.current = cosmetics;
 
   const cosmeticsMove = () => cosmeticsRef.current.some((b) => b.model.flat.some((part) => part.anim.length));
+
+  const shotRef = useRef(shot);
+  shotRef.current = shot;
+  const camRef = useRef(null);
+  useEffect(() => () => { camRef.current?.dispose(); camRef.current = null; }, []);
 
   const onViewerRef = useRef(onViewer);
   onViewerRef.current = onViewer;
@@ -193,6 +200,8 @@ export default function SkinViewer3D({
         };
 
         viewerRef.current = viewer;
+        // a camera shot ([height, zoom]) for pieces outside the default frame, e.g. balloons above the head
+        if (shotRef.current) { camRef.current = createCamera(viewer); camRef.current.fly(shotRef.current, { duration: 0 }); }
         onViewerRef.current?.(viewer);
         setReady(true);
       })
