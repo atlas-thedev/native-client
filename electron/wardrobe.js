@@ -802,8 +802,8 @@ async function fetchStoreCosmetic(itemId) {
   const hit = cosmeticCache.get(itemId);
   if (hit && hit.key === key) return hit.value;
   const [model, texture, thumb] = await Promise.all([
-    textureCache.fetchCached(item.modelUrl, { maxBytes: 256 * 1024, timeoutMs: 20_000 }),
-    textureCache.fetchCached(item.textureUrl, { maxBytes: 1024 * 1024, timeoutMs: 20_000 }),
+    textureCache.fetchCached(item.modelUrl, { maxBytes: 1024 * 1024, timeoutMs: 20_000 }), // same caps as the API and the mod
+    textureCache.fetchCached(item.textureUrl, { maxBytes: 2 * 1024 * 1024, timeoutMs: 20_000 }),
     item.stillUrl ? textureCache.fetchCached(item.stillUrl, { maxBytes: 5 * 1024 * 1024, timeoutMs: 20_000 }).catch(() => null) : null
   ]);
   if (!model || !texture) throw new Error('Couldn’t download that cosmetic.');
