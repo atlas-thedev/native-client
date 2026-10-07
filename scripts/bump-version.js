@@ -6,15 +6,17 @@
 //   node scripts/bump-version.js          # 0.1.0 -> 0.1.1
 //   node scripts/bump-version.js minor    # 0.1.0 -> 0.2.0
 //   node scripts/bump-version.js major    # 0.1.0 -> 1.0.0
+//   node scripts/bump-version.js beta     # 4.2.11 -> 4.2.12-beta.1 (beta testers only)
 //
 // Set NO_BUMP=1 to skip, e.g. when rebuilding a version that failed to upload.
 
 const fs = require('fs');
 const path = require('path');
+const { nextVersion } = require('./next-version');
 
 const release = process.argv[2] || 'patch';
-if (!['major', 'minor', 'patch'].includes(release)) {
-  console.error(`error: expected major|minor|patch, got "${release}"`);
+if (!['major', 'minor', 'patch', 'beta'].includes(release)) {
+  console.error(`error: expected major|minor|patch|beta, got "${release}"`);
   process.exit(1);
 }
 
@@ -26,19 +28,16 @@ if (process.env.NO_BUMP) {
   process.exit(0);
 }
 
-const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version);
-if (!match) {
-  console.error(`error: package.json version "${pkg.version}" is not x.y.z`);
+let next;
+try {
+  next = nextVersion(pkg.version, release);
+} catch (error) {
+  console.error(`error: ${error.message}`);
   process.exit(1);
 }
 
-let [major, minor, patch] = match.slice(1).map(Number);
-if (release === 'major') [major, minor, patch] = [major + 1, 0, 0];
-else if (release === 'minor') [major, minor, patch] = [major, minor + 1, 0];
-else patch += 1;
-
 const previous = pkg.version;
-pkg.version = `${major}.${minor}.${patch}`;
+pkg.version = next;
 fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
 
 console.log(`bumped version ${previous} -> ${pkg.version}`);

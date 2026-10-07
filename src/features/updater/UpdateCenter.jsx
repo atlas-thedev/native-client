@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { AlertCircle, Check, ChevronDown, Download, Pause, Play, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, Pause, Play, RefreshCw, RotateCcw, X, FlaskConical } from 'lucide-react';
 import { marked } from 'marked';
 import './UpdateCenter.css';
 
@@ -60,6 +60,16 @@ export function UpdateCard({ status, onCheck, onDownload, onPause, onInstall, on
   const current = status.currentVersion ?? window.native?.version ?? '—';
   const flash = useFlash(type); // replays the badge animation each time the state changes
 
+  // Ask the Native server once whether this account is a beta tester.
+  useEffect(() => { window.native?.updater?.channel?.().catch?.(() => {}); }, []);
+  const [channelBusy, setChannelBusy] = useState(false);
+  const toggleBeta = async () => {
+    if (channelBusy) return;
+    setChannelBusy(true);
+    try { await window.native?.updater?.setBetaOptOut?.(!status.betaOptOut); } finally { setChannelBusy(false); }
+  };
+  const onBeta = status.channel === 'beta';
+
   return (
     <div className={`uc-card is-${type} ${className}`}>
       <div className="uc-card-row">
@@ -103,13 +113,41 @@ export function UpdateCard({ status, onCheck, onDownload, onPause, onInstall, on
 
       {status.version && ACTIVE.includes(type) && (
         <div className="uc-versions">
-          <span>v{current}</span>
+          <span>v{current}{/-/.test(String(current)) && <em className="uc-beta-pill">Beta</em>}</span>
           <span className="uc-versions-line"><i /></span>
-          <span className="is-new">v{status.version}</span>
+          <span className="is-new">v{status.version}{status.prerelease && <em className="uc-beta-pill">Beta</em>}</span>
           {onDetails && <button type="button" className="uc-link" onClick={onDetails}>What’s new</button>}
         </div>
       )}
       {type === 'error' && status.message && <p className="uc-error">{status.message}{status.retryAt ? ' It will try again by itself.' : ''}</p>}
+
+      {status.betaTester && (
+        <div className={`uc-channel${onBeta ? ' is-beta' : ''}`}>
+          <span className="uc-channel-icon" aria-hidden="true"><FlaskConical size={15} /></span>
+          <span className="uc-channel-text">
+            <strong>Beta updates {onBeta && <em className="uc-beta-pill">On</em>}</strong>
+            <small>
+              {onBeta
+                ? 'You’re a Native beta tester: you get new builds before everyone else. They can have bugs, so please report them.'
+                : 'You’re a beta tester, but you’re on stable builds. Turn this on to get early builds.'}
+            </small>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={onBeta}
+            aria-label="Beta updates"
+            className={`uc-switch${onBeta ? ' is-on' : ''}`}
+            disabled={channelBusy}
+            onClick={toggleBeta}
+          >
+            <i />
+          </button>
+        </div>
+      )}
+      {!status.betaTester && /-/.test(String(current)) && (
+        <p className="uc-channel-note">You’re on a beta build. You’ll move to the next stable release when it comes out.</p>
+      )}
     </div>
   );
 }

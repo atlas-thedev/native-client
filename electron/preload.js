@@ -186,6 +186,9 @@ const api = {
     cancel: () => ipcRenderer.invoke('updater:cancel'),
     pause: () => ipcRenderer.invoke('updater:pause'),
     install: () => ipcRenderer.invoke('updater:install'),
+    // { channel: 'beta'|'stable', betaTester, betaOptOut } — refreshed from the Native server
+    channel: () => ipcRenderer.invoke('updater:channel'),
+    setBetaOptOut: (optOut) => ipcRenderer.invoke('updater:setBetaOptOut', optOut === true),
     onStatus: (callback) => subscribe('updater:status', callback)
   },
   instance: {
@@ -288,6 +291,11 @@ const api = {
     billingCreateCode: (payload) => ipcRenderer.invoke('admin:billingCreateCode', payload),
     billingDeleteCode: (code) => ipcRenderer.invoke('admin:billingDeleteCode', code),
     plusGifts: () => ipcRenderer.invoke('admin:plusGifts'),
+    betaTesters: (q) => ipcRenderer.invoke('admin:betaTesters', q),
+    betaAddTester: (username, note) => ipcRenderer.invoke('admin:betaAddTester', username, note),
+    betaSetTester: (userId, enabled) => ipcRenderer.invoke('admin:betaSetTester', userId, enabled),
+    betaRemoveTester: (userId) => ipcRenderer.invoke('admin:betaRemoveTester', userId),
+    betaUpdates: (patch) => ipcRenderer.invoke('admin:betaUpdates', patch),
     givePlus: (payload) => ipcRenderer.invoke('admin:givePlus', payload),
     removePlus: (userId) => ipcRenderer.invoke('admin:removePlus', userId),
     billingSettings: () => ipcRenderer.invoke('admin:billingSettings'),
