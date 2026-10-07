@@ -28,7 +28,6 @@ export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
 const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand', balloon: 'Balloons' };
-const SECTION_BLURBS = { capes: 'Animated and classic cloaks', hats: 'Crowns, caps, halos and helmets', glasses: 'Shades, visors and specs', back: 'Wings, jetpacks and packs', shoes: 'Sneakers and rocket boots', hand: 'Swords, lanterns and gadgets', balloon: 'Floating companions' };
 /** The order categories show in (the same as the website store). */
 const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
 /** In the All view each category shelf shows this many items before "See all". */
@@ -262,6 +261,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [catalog, query, filter, sort, ownedIds, wishIds, section]);
 
   // when (almost) everything is new the badge and the "Just added" shelf are noise
+  const movesMean = useMemo(() => { const all = catalog?.items || []; return all.filter(moves).length <= all.length * 0.4; }, [catalog]);
   const newMeans = useMemo(() => { const all = catalog?.items || []; return all.filter((item) => item.isNew).length <= all.length * 0.4; }, [catalog]);
   /** The All view with no filter, search or sort shows one shelf per category instead of one long grid. */
   const shelved = section === 'all' && filter === 'all' && !query.trim() && sort === 'featured';
@@ -570,7 +570,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     return (
       <article
         key={`${prefix}${item.id}`}
-        style={{ '--i': Math.min(index, 14), '--tint': SECTION_COLORS[sectionOf(item)] || '#e8e8ea' }}
+        style={{ '--i': Math.min(index, 14) }}
         className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
         onClick={() => setViewId(item.id)}
         tabIndex={0}
@@ -582,11 +582,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {isCosmetic(item)
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
-          <span className="store-card-try" aria-hidden="true"><Rotate3d size={12} />Try on</span>
+          <span className="store-card-try" aria-hidden="true">View in 3D</span>
           <div className="store-card-badges">
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
-            {moves(item) && <span className="store-anim-badge">{isCosmetic(item) ? 'Moves' : 'Animated'}</span>}
+            {moves(item) && movesMean && <span className="store-anim-badge">Animated</span>}
           </div>
           {signedIn && (
             <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
@@ -598,7 +598,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             : <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>)}
         </div>
         <div className="store-card-meta">
-          <span className="store-card-kind"><i />{isCosmetic(item) ? (SECTION_LABELS[sectionOf(item)] || 'Cosmetic') : 'Cloak'}</span>
           <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
           <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
         </div>
@@ -767,11 +766,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
           {shelves.length > 0 ? (
             shelves.map((shelf) => (
-              <section key={shelf.id} className="store-cat-shelf" aria-label={shelf.label} style={{ '--tint': SECTION_COLORS[shelf.id] || '#e8e8ea' }}>
+              <section key={shelf.id} className="store-cat-shelf" aria-label={shelf.label}>
                 <div className="store-cat-head">
-                  <span className="store-cat-mark" aria-hidden="true" />
-                  <div><strong>{shelf.label}</strong><span>{SECTION_BLURBS[shelf.id] || `${shelf.count} items`}</span></div>
-                  {shelf.items.length > 4 && <button type="button" className="store-cat-more" onClick={() => pickSection(shelf.id)}>See all {shelf.items.length}<ChevronRight size={13} /></button>}
+                  <strong>{shelf.label}</strong>
+                  {shelf.items.length > 4 && <button type="button" className="store-cat-more" onClick={() => pickSection(shelf.id)}>View all<ChevronRight size={13} /></button>}
                 </div>
                 <div className="store-grid">{shelf.items.slice(0, SHELF_SIZE).map((item, index) => renderCard(item, index, `shelf-${shelf.id}`))}</div>
               </section>
