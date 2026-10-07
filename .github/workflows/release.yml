@@ -31,6 +31,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +47,11 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Releasing ${TAG}"
+          # Versions like 4.2.12-beta.1 are beta builds: published as GitHub pre-releases,
+          # which only beta testers' launchers pick up (stable users never see them).
+          if [[ "${VERSION}" == *-* ]]; then PRE=true; else PRE=false; fi
+          echo "prerelease=${PRE}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG} (prerelease=${PRE})"
 
       # One draft release up front so the three platform jobs all upload into the same
       # release instead of each racing to create its own.
@@ -57,7 +62,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists, reusing it."
           else
-            gh release create "$TAG" --draft --title "Native Client $TAG" --generate-notes --target "$GITHUB_SHA"
+            if [[ "${{ steps.v.outputs.prerelease }}" == "true" ]]; then
+              gh release create "$TAG" --draft --prerelease --title "Native Client $TAG (Beta)" --generate-notes --target "$GITHUB_SHA"
+            else
+              gh release create "$TAG" --draft --title "Native Client $TAG" --generate-notes --target "$GITHUB_SHA"
+            fi
           fi
 
   build:
@@ -107,10 +116,12 @@ jobs:
         shell: bash
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
+          PRE="${{ needs.prepare.outputs.prerelease }}"
+          if [[ "$PRE" == "true" ]]; then FEEDS="beta.yml beta-mac.yml beta-linux.yml"; else FEEDS="latest.yml latest-mac.yml latest-linux.yml beta.yml"; fi
           NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
           echo "$NAMES"
           missing=0
-          for f in latest.yml latest-mac.yml latest-linux.yml; do
+          for f in $FEEDS; do
             if ! grep -qx "$f" <<<"$NAMES"; then echo "::error::Missing $f"; missing=1; fi
           done
           grep -qE '\.exe$' <<<"$NAMES"      || { echo "::error::No Windows installer (.exe)"; missing=1; }
@@ -120,5 +131,10 @@ jobs:
             echo "::error::Release $TAG left as a draft because some platform builds are missing."
             exit 1
           fi
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
-          echo "Published $TAG"
+          if [[ "$PRE" == "true" ]]; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+            echo "Published beta $TAG (pre-release, beta testers only)"
+          else
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+            echo "Published $TAG"
+          fi

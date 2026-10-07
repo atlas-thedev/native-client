@@ -6,7 +6,7 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, Copy, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -22,19 +22,21 @@ export const featuredCapes = (items = []) => items
   .filter((item) => item.featured && (item.section === 'capes' || !item.section))
   .slice(0, MAX_FEATURED);
 
+/** What an item costs right now: the offer price while a sale runs, otherwise the list price. */
+const nowPrice = (item) => { const sale = Number(item?.salePrice); return Number.isFinite(sale) && sale > 0 && item?.salePrice != null ? sale : Number(item?.price) || 0; };
 /** 3D cosmetics (hats, glasses, back items, shoes) live in their own store sections. */
 const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' ? 'default' : 'auto-detect');
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
-const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand', balloon: 'Balloons' };
+const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand' };
 /** The order categories show in (the same as the website store). */
-const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
+const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand'];
 /** In the All view each category shelf shows this many items before "See all". */
 const SHELF_SIZE = 8;
-const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item', balloon: 'balloon' };
+const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item' };
 // Each section has its own slab colour, like the Locker switch (same pixel style, different colours).
-export const SECTION_COLORS = { all: '#e8e8ea', capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c', hand: '#d7a6ff', balloon: '#ff9ec7' };
+export const SECTION_COLORS = { all: '#e8e8ea', capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c', hand: '#d7a6ff' };
 
 /** Featured items of one store section (or every section for 'all'), capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
@@ -453,12 +455,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         return <PixelButton variant="gold" size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label={compact ? 'Plus' : 'Add with Native+'} title="Included with Native+" onClick={stop(() => claim(item))} />;
       }
       if (!billing.enabled) {
-        return <PixelButton variant="locked" size={size} block={block} label={`$${Number(item.price).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
+        return <PixelButton variant="locked" size={size} block={block} label={`$${nowPrice(item).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
       }
       if (pending?.itemId === item.id) {
         return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : 'Finish paying in your browser…'} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
-      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${Number(item.price).toFixed(2)}`} onClick={stop(() => buy(item))} />;
+      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
     if (!owned) {
       return <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label={compact ? 'Add' : 'Add to locker'} title="Add to your locker" onClick={stop(() => claim(item))} />;
@@ -502,7 +504,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   };
   /** Category shelves for the All view, in store order. */
   const shelves = shelved ? sections.filter((entry) => entry.id !== 'all').map((entry) => ({ ...entry, items: items.filter((item) => sectionOf(item) === entry.id) })).filter((entry) => entry.items.length) : [];
-  const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
+  const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${nowPrice(item).toFixed(2)}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
   /** "You own this": a quiet row under the price with when it was added, whether it's on, and a way to the locker. */
@@ -556,7 +558,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         {actionFor(item)}
         {signedIn && <PixelButton variant="ghost" size="lg" icon={<Heart size={15} fill={wishIds.has(item.id) ? 'currentColor' : 'none'} />} label={wishIds.has(item.id) ? 'Wishlisted' : 'Wishlist'} title="Save for later" onClick={() => toggleWish(item)} />}
         <PixelIconButton size="lg" icon={<Copy size={15} />} label="Copy link" title="Copy a shareable link" onClick={() => copyLink(item)} />
-        {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <PixelButton variant="danger" size="lg" disabled={busy !== null} busy={busy === `unclaim:${item.id}`} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<Trash2 size={15} />} label="Remove" title="Remove from your locker" onClick={() => unclaim(item)} />}
+        {signedIn && ownedIds.has(item.id) && !item.exclusive && !['purchase', 'code', 'founder'].includes(me.owned.find((entry) => entry.id === item.id)?.source) && <PixelButton variant="danger" size="lg" disabled={busy !== null} busy={busy === `unclaim:${item.id}`} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<Trash2 size={15} />} label="Remove" title="Remove from your locker" onClick={() => unclaim(item)} />}
       </div>
     </>
   );
@@ -584,6 +586,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
             {moves(item) && movesMean && <span className="store-anim-badge">Animated</span>}
+            {item.dyeable && <span className="store-dye-badge" title="Pick its colour in your locker"><Palette size={11} />Dyeable</span>}
           </div>
           {signedIn && (
             <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
@@ -679,10 +682,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {sections.length > 1 && (
             <div className="store-sections">
               <PixelTabs
+                size="sm"
+                fill
                 label="Store sections"
                 value={section}
                 onChange={pickSection}
-                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count }))}
               />
             </div>
           )}

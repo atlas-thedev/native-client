@@ -140,12 +140,23 @@ function availability(kind, mc) {
 
 const cache = new Map();
 
+const inflight = new Map();
 async function cached(key, load) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL) return hit.value;
-  const value = await load();
-  cache.set(key, { at: Date.now(), value });
-  return value;
+  // concurrent callers share one request
+  if (inflight.has(key)) return inflight.get(key);
+  const promise = (async () => {
+    try {
+      const value = await load();
+      cache.set(key, { at: Date.now(), value });
+      return value;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, promise);
+  return promise;
 }
 
 async function fetchList(url) {
@@ -167,16 +178,36 @@ function friendlyNetworkError(kind, error) {
 }
 
 async function fabricLikeVersions(kind, mc) {
+  // The per-game endpoint (/versions/loader/<mc>) repeats every loader build
+  // together with intermediary data (≈0.6–0.7 MB). Loader builds are game
+  // independent, so fetch the small global list (≈40 KB, cached once for every
+  // game version) plus the tiny game list that says whether <mc> is supported.
+  try {
+    const [loaders, games] = await Promise.all([
+      cached(`${kind}:loaders`, () => fetchJson(`${META[kind]}/versions/loader`, { retries: 2, timeoutMs: 10000 })),
+      cached(`${kind}:games`, () => fetchJson(`${META[kind]}/versions/game`, { retries: 2, timeoutMs: 10000 }))
+    ]);
+    if (Array.isArray(loaders) && Array.isArray(games)) {
+      if (!games.some((entry) => entry?.version === mc)) return [];
+      return toLoaderEntries(loaders);
+    }
+  } catch {
+    /* fall back to the per-game endpoint below */
+  }
   const list = await fetchList(`${META[kind]}/versions/loader/${encodeURIComponent(mc)}`);
-  const versions = (Array.isArray(list) ? list : [])
-    .map((entry) => entry?.loader?.version)
-    .filter(Boolean)
-    .map((version, index) => {
-      const raw = list[index]?.loader;
+  return toLoaderEntries((Array.isArray(list) ? list : []).map((entry) => entry?.loader).filter(Boolean));
+}
+
+function toLoaderEntries(raw) {
+  const versions = raw
+    .filter((entry) => entry?.version)
+    .map((entry) => ({
+      version: entry.version,
       // Fabric's meta flags only the newest build as `stable`; older releases
       // are just as stable, so the flag only decides which one is recommended.
-      return { version, stable: raw?.stable === true || !isPrerelease(version), flagged: raw?.stable === true };
-    });
+      stable: entry.stable === true || !isPrerelease(entry.version),
+      flagged: entry.stable === true
+    }));
   // Quilt's meta lists builds in no particular order.
   versions.sort((a, b) => compareLoaderVersions(b.version, a.version));
   return versions;

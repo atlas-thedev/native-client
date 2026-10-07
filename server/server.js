@@ -90,22 +90,36 @@ const newCode = () => (TEST_MODE ? '123456' : crypto.randomInt(100000, 1000000).
  * are reserved for their owners, so email sign-ups can't take them. Fails
  * closed: if Mojang can't be reached the caller refuses the name.
  */
+const MOJANG_MIRROR_URL = process.env.NATIVE_MOJANG_MIRROR_URL === undefined ? 'https://api.minetools.eu/uuid/' : process.env.NATIVE_MOJANG_MIRROR_URL;
+/** true/false from Mojang, or null when Mojang can't answer. */
+async function mojangNameTaken(key) {
+  const response = await fetch(`${MOJANG_NAME_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(6_000), headers: { Accept: 'application/json' } });
+  if (response.status === 200) return true;
+  if (response.status === 204 || response.status === 404) return false;
+  return null;
+}
+/** The same answer through a public mirror (minetools): { id } when taken, { id: null, status: 'ERR' } when not. */
+async function mirrorNameTaken(key) {
+  if (!MOJANG_MIRROR_URL) return null;
+  const response = await fetch(`${MOJANG_MIRROR_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(6_000), headers: { Accept: 'application/json' } });
+  if (!response.ok) return null;
+  const body = await response.json().catch(() => null);
+  if (!body || typeof body !== 'object') return null;
+  if (typeof body.id === 'string' && /^[a-f0-9]{32}$/i.test(body.id.replace(/-/g, ''))) return true;
+  if (body.id === null && body.status === 'ERR') return false;
+  return null;
+}
+
 async function isPremiumName(name) {
   const key = String(name || '').toLowerCase();
   if (db.getUserByMinecraftName(key)) return true;
   if (TEST_MODE) return /^premium_/i.test(key);
   const cached = premiumNameCache.get(key);
   if (cached && Date.now() - cached.at < 10 * 60_000) return cached.premium;
-  let response;
-  try {
-    response = await fetch(`${MOJANG_NAME_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(8_000), headers: { Accept: 'application/json' } });
-  } catch {
-    throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
-  }
-  let premium;
-  if (response.status === 200) premium = true;
-  else if (response.status === 204 || response.status === 404) premium = false;
-  else throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
+  let premium = await mojangNameTaken(key).catch(() => null);
+  // Mojang blocks some hosting IPs: ask a public mirror of the same lookup before giving up
+  if (premium === null) premium = await mirrorNameTaken(key).catch(() => null);
+  if (premium === null) throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
   premiumNameCache.set(key, { premium, at: Date.now() });
   return premium;
 }
@@ -174,7 +188,7 @@ function atomicWrite(filePath, data) {
   fs.renameSync(temporary, filePath);
 }
 
-const capeAllowed = (hash, profile = null) => storeRoutes.capeAllowed(hash, profile);
+const capeAllowed = (hash, profile = null, user = null) => storeRoutes.capeAllowed(hash, profile, user);
 const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape, profile) ? profile.cape : null);
 
 function textureHash(buffer) {
@@ -224,7 +238,7 @@ function saveProfile(profile, req, owner) {
         capeStore: profile.capeStore || null,
         wearing: storeRoutes.wearingOf(profile),
         sides: (profile && profile.cosmeticSides) || {},
-        cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`),
+        cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`, storeRoutes.dyedTexture),
         updatedAt: profile.updatedAt
       };
       events.publish(db.getFriendIds(user.id), 'skin:updated', payload);
@@ -385,7 +399,7 @@ function customSkinProfile(profile, origin) {
   }
   if (profile.capeStore) document.capeStore = profile.capeStore;
   // 3D cosmetics (hats, glasses, back items, shoes): NCM model + texture per slot
-  const worn = cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`);
+  const worn = cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`, storeRoutes.dyedTexture);
   if (worn.length) document.cosmetics = worn;
   return document;
 }
@@ -611,8 +625,8 @@ async function handler(req, res) {
       if (body.cape !== undefined) {
         const capeBuffer = body.cape ? pngBuffer(body.cape) : null;
         const capeHash = capeBuffer ? crypto.createHash('sha256').update(capeBuffer).digest('hex') : null;
-        if (capeAllowed(capeHash, existing)) cape = capeHash ? textureHash(capeBuffer) : null;
-        else { capeRefused = true; cape = capeAllowed(cape, existing) ? cape : null; }
+        if (capeAllowed(capeHash, existing, sessionUser)) cape = capeHash ? textureHash(capeBuffer) : null;
+        else { capeRefused = true; cape = capeAllowed(cape, existing, sessionUser) ? cape : null; }
       }
       let capeAnim = existing?.capeAnim ?? null;
       let capeStore = existing?.capeStore ?? null;
@@ -643,6 +657,11 @@ async function handler(req, res) {
           return send(res, 400, { ok: false, error: error.message || 'Invalid animated cloak.' });
         }
       }
+      if (cape && !capeStore && !capeAnim) {
+        // a static store cape sent as a PNG: remember it as worn through the store
+        const item = storeRoutes.staticStoreCape(cape, sessionUser);
+        if (item) capeStore = item.id;
+      }
       if (!cape) { capeAnim = null; capeStore = null; }
       const cleanSkinName = (value) => String(value ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) || null;
       const skinName = !skin ? null
@@ -660,6 +679,7 @@ async function handler(req, res) {
         // 3D cosmetics are only changed through the store (POST /v1/store/equip), never by a wardrobe sync
         ...(existing?.cosmetics && Object.keys(existing.cosmetics).length ? { cosmetics: existing.cosmetics } : {}),
         ...(existing?.cosmeticSides && Object.keys(existing.cosmeticSides).length ? { cosmeticSides: existing.cosmeticSides } : {}),
+        ...(existing?.cosmeticDyes && Object.keys(existing.cosmeticDyes).length ? { cosmeticDyes: existing.cosmeticDyes } : {}),
         updatedAt: new Date().toISOString()
       };
       saveProfile(profile, req, sessionUser);
@@ -1040,12 +1060,13 @@ async function handler(req, res) {
       try { fs.rmSync(profilePath(result.from.premium), { force: true }); } catch {}
       const wornFrom = (nativeProfile && nativeProfile.cosmetics) ? nativeProfile : (premiumProfile && premiumProfile.cosmetics) ? premiumProfile : null;
       const wornCosmetics = wornFrom ? wornFrom.cosmetics : null;
-      // the hand / balloon sides travel with the cosmetics they belong to
+      // the hand sides and the dye colours travel with the cosmetics they belong to
       const wornSides = wornFrom && wornFrom.cosmeticSides && Object.keys(wornFrom.cosmeticSides).length ? wornFrom.cosmeticSides : null;
       saveProfile({
         ...(base.cape ? base : (premiumProfile || base)),
         ...(wornCosmetics ? { cosmetics: wornCosmetics } : {}),
         cosmeticSides: wornSides || undefined,
+        cosmeticDyes: (wornFrom && wornFrom.cosmeticDyes) || undefined,
         username: merged.username,
         skin: null,
         skinName: undefined,
@@ -1510,6 +1531,7 @@ function applyTimeouts(server) {
 }
 
 function createServer() {
+  storeRoutes.setTextureReader((hash) => (/^[a-f0-9]{64}$/.test(String(hash)) ? fs.readFileSync(path.join(texturesDir, hash)) : null));
   try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }

@@ -1,7 +1,7 @@
 import { WornShot } from '../../lib/wornShot.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import LockerSwitch from './LockerSwitch.jsx';
@@ -16,6 +16,8 @@ import './LockerView.css';
 import './LockerLocal.css';
 
 const SKINS_PER_PAGE = 9;
+// Quick picks for dyeable cosmetics (same list as the server and the website).
+const DYE_SWATCHES = ['#f2f2f2', '#9a9aa2', '#2b2b30', '#e5484d', '#ff8a3d', '#ffd23f', '#7ed957', '#2fbf71', '#3ec7e0', '#3d7bff', '#8a5cff', '#ff6fb5', '#8b5a2b', '#d4af37'];
 const SECTION_KEY = 'native.locker.section';
 const COS_TAB_KEY = 'native.locker.cosTab';
 // Cosmetics sub-tabs. `slot` = a 3D cosmetic slot; cloaks come from the Store, capes from Minecraft.
@@ -26,12 +28,11 @@ const COS_TABS = [
   { id: 'back', label: 'Wings', color: '#9fe0ff', slot: 'back', kicker: 'Native Store · 3D', title: 'Wings & Backpacks', noun: 'wings or backpacks' },
   { id: 'shoes', label: 'Shoes', color: '#ffb45c', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
   { id: 'hand', label: 'Hand', color: '#d7a6ff', slot: 'hand', kicker: 'Native Store · 3D', title: 'Hand Items', noun: 'hand items' },
-  { id: 'balloon', label: 'Balloons', color: '#ff9ec7', slot: 'balloon', kicker: 'Native Store · 3D', title: 'Balloons', noun: 'balloons' },
   { id: 'capes', label: 'Capes', color: '#8ee07a', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
 ];
 // Front-facing slots turn the player to face you; the rest show the back.
-const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand', 'balloon']);
-const priceLabel = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
+const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand']);
+const priceLabel = (item) => { const sale = Number(item.salePrice); const now = item.salePrice != null && Number.isFinite(sale) && sale > 0 ? sale : Number(item.price) || 0; return item.exclusive ? 'Event' : item.paid ? `$${now.toFixed(2)}` : 'Free'; };
 
 // Collapses "Founder's Cape", "founders", "FOUNDER" … to one comparable token so
 // a bundled preset can be recognized as the same cape the account already owns.
@@ -65,6 +66,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // 3D cosmetics: what's worn per slot ({ hats: id, ... }) and each owned cosmetic's model/texture/thumb
   const [wearing, setWearing] = useState({});
   const [sides, setSides] = useState({});
+  const [dyes, setDyes] = useState({}); // itemId -> '#rrggbb' the player picked
+  const [dyeTex, setDyeTex] = useState({}); // `${itemId}|${hex}` -> dyed texture (data URL)
+  const [dyeDraft, setDyeDraft] = useState(null); // { id, color } while dragging the colour picker
+  const dyeRequested = useRef(new Set());
+  const dyeTimer = useRef(null);
   const [cosAssets, setCosAssets] = useState({});
   const cosRequested = useRef(new Set());
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
@@ -193,6 +199,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       setPremiumEquipped(premiumLinked ? (mine.equipped || null) : null);
       setWearing(mine.wearing || {});
       setSides(mine.sides || {});
+      setDyes(mine.dyes || {});
       const cosmetics = (mine.owned || []).map((entry) => byId.get(entry.id)).filter((item) => item && item.kind === 'cosmetic');
       for (const item of cosmetics) fetchCosmetic(item.id);
     } catch {}
@@ -278,13 +285,35 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     ? storeAnimOf(tryCloak)
     : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (earlyCapeItem ? storeAnimOf(earlyCapeItem) : (wardrobe?.active?.capeAnim || null))) : null;
   const [showCosmetics, setShowCosmetics] = useState(true);
+  // Dyeable cosmetics: the colour shown for an item (being picked, saved, or its own) and its dyed texture.
+  const catalogById = useMemo(() => new Map(catalogItems.map((item) => [item.id, item])), [catalogItems]);
+  const dyeOf = (id) => (dyeDraft?.id === id ? dyeDraft.color : dyes[id]) || null;
+  const loadDye = (id, color) => {
+    const key = `${id}|${color}`;
+    if (dyeRequested.current.has(key)) return;
+    dyeRequested.current.add(key);
+    window.native?.store?.dyeTexture?.(id, color).then((res) => {
+      if (res?.ok) setDyeTex((current) => ({ ...current, [key]: res.texture }));
+      else dyeRequested.current.delete(key);
+    }).catch(() => { dyeRequested.current.delete(key); });
+  };
+  const dyedAsset = (id) => {
+    const asset = cosAssets[id];
+    const item = catalogById.get(id);
+    const color = dyeOf(id);
+    if (!asset || !color || !item?.dyeable || color === item.dyeDefault) return asset;
+    return dyeTex[`${id}|${color}`] ? { ...asset, texture: dyeTex[`${id}|${color}`] } : asset;
+  };
+  useEffect(() => {
+    for (const id of new Set([...Object.values(wearing || {}), ...Object.keys(dyes)])) { const color = dyeOf(id); if (color && catalogById.get(id)?.dyeable && color !== catalogById.get(id)?.dyeDefault) loadDye(id, color); }
+  }, [wearing, dyes, dyeDraft, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   // What the player wears, with the item being tried on swapped into its slot.
   const wornCosmetics = useMemo(() => {
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
     if (tryOn?.kind === 'cosmetic') slots[tryOn.slot] = tryOn.id;
     if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
-    return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...cosAssets[id], side: sides[slot] || null } : null)).filter(Boolean);
-  }, [wearing, cosAssets, showCosmetics, tryOn, sides]);
+    return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
+  }, [wearing, cosAssets, showCosmetics, tryOn, sides, dyes, dyeDraft, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
@@ -562,7 +591,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
     finally { setStoreBusy(null); }
   };
-  // The side a hand item / balloon uses until the player picks one: the first sided part of its model.
+  // The side a hand item uses until the player picks one: the first sided part of its model.
   const defaultSide = (slot) => {
     try {
       const model = cosAssets[wearing?.[slot]]?.model;
@@ -570,7 +599,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       return (json?.parts || []).find((part) => part.side)?.side || 'right';
     } catch { return 'right'; }
   };
-  // Hand items and balloons: pick the hand (and side) they sit on.
+  // Hand items: pick the hand (and side) they sit on.
   const pickSide = async (slot, side) => {
     if (!account || storeBusy || localOnly) return;
     setSides((prev) => ({ ...prev, [slot]: side }));
@@ -580,6 +609,26 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (res.sides) setSides(res.sides);
       window.dispatchEvent(new Event('native:cosmetics-changed'));
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
+  };
+  // Dye a worn cosmetic: the preview changes at once, the colour is saved for the launcher, the website and in game.
+  const saveDye = async (item, color) => {
+    if (!account || localOnly) return;
+    const before = dyes;
+    const next = { ...dyes };
+    if (!color || color === item.dyeDefault) delete next[item.id]; else next[item.id] = color;
+    setDyes(next);
+    setDyeDraft(null);
+    try {
+      const res = await window.native?.store?.dye?.(account, item.id, color);
+      if (!res?.ok) throw new Error(res?.error || 'Could not dye that.');
+      setDyes(res.dyes || {});
+      window.dispatchEvent(new Event('native:cosmetics-changed'));
+    } catch (error) { setDyes(before); onNotify?.(t('locker.title'), error?.message || 'Could not dye that.'); }
+  };
+  const draftDye = (item, color) => {
+    setDyeDraft({ id: item.id, color });
+    clearTimeout(dyeTimer.current);
+    dyeTimer.current = setTimeout(() => { if (color !== item.dyeDefault) loadDye(item.id, color); }, 90);
   };
   // Take off whatever is in a slot.
   const clearSlot = async (slot) => {
@@ -637,7 +686,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const shotSkin = skinTextureUrl({ ...account, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || account?.skinUrl || null });
   const shotModel = currentModel === 'slim' ? 'slim' : currentModel === 'classic' ? 'default' : 'auto-detect';
   const cosmeticShot = (item) => (cosAssets[item.id]
-    ? <WornShot item={item} asset={cosAssets[item.id]} skinUrl={shotSkin} model={shotModel} prepare={prepareSkinSource} fallback={cosAssets[item.id].thumb} className="locker-cosmetic-thumb" />
+    ? <WornShot item={item} asset={dyedAsset(item.id)} skinUrl={shotSkin} model={shotModel} prepare={prepareSkinSource} fallback={cosAssets[item.id].thumb} className="locker-cosmetic-thumb" />
     : <span className="locker-cosmetic-thumb is-loading"/>);
   // A Store item you don't own: click to try it on the model.
   const storeCard = (item, index) => {
@@ -746,12 +795,30 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const header = <div className="locker-row-header">
       <div><span className="locker-kicker">{tab.id === 'capes' && showOfficialCards ? 'Official Minecraft' : tab.kicker}</span><h2>{tab.title}</h2></div>
       <div className="locker-cape-actions">
-        {(tab.slot === 'hand' || tab.slot === 'balloon') && wearing?.[tab.slot] && !localOnly && <div className="locker-side-pick" role="group" aria-label="Which side">
+        {tab.slot === 'hand' && wearing?.[tab.slot] && !localOnly && <div className="locker-side-pick" role="group" aria-label="Which side">
           {['left', 'right'].map((side) => <button key={side} type="button" className={(sides[tab.slot] || defaultSide(tab.slot)) === side ? 'on' : ''} onClick={() => pickSide(tab.slot, side)}>{side === 'left' ? 'Left' : 'Right'}</button>)}
         </div>}
         <LockerSearch value={capeQuery} onChange={setCapeQuery} label={`Search ${tab.noun}`}/>
       </div>
     </div>;
+    const dyeItem = tab.slot && !localOnly && wearing?.[tab.slot] ? catalogById.get(wearing[tab.slot]) : null;
+    const dyePanel = dyeItem?.dyeable ? (() => {
+      const current = dyeOf(dyeItem.id) || dyeItem.dyeDefault || '#ffffff';
+      const own = dyeItem.dyeDefault || null;
+      const picks = [...(own ? [own] : []), ...DYE_SWATCHES.filter((hex) => hex !== own)];
+      return <div className="locker-dye locker-pop" role="group" aria-label={`Dye ${dyeItem.name}`}>
+        <span className="locker-dye-label"><Palette size={14}/>Dye <b>{dyeItem.name}</b></span>
+        <div className="locker-dye-swatches">
+          {picks.map((hex) => <button key={hex} type="button" className={`locker-dye-swatch${current === hex ? ' is-on' : ''}${hex === own ? ' is-own' : ''}`} style={{ '--dye': hex }} title={hex === own ? `Original (${hex})` : hex} aria-label={hex === own ? 'Original colour' : `Colour ${hex}`} aria-pressed={current === hex} onClick={() => saveDye(dyeItem, hex)}/>)}
+          <label className={`locker-dye-custom${!picks.includes(current) ? ' is-on' : ''}`} style={{ '--dye': current }} title="Any colour">
+            <Plus size={12} strokeWidth={3}/>
+            <input type="color" value={current} aria-label="Pick any colour" onInput={(event) => draftDye(dyeItem, event.target.value.toLowerCase())} onChange={(event) => saveDye(dyeItem, event.target.value.toLowerCase())}/>
+          </label>
+        </div>
+        <span className="locker-dye-hex">{current}</span>
+        {dyes[dyeItem.id] && <button type="button" className="locker-dye-reset" onClick={() => saveDye(dyeItem, null)} title="Back to its own colour"><RotateCcw size={12}/>Reset</button>}
+      </div>;
+    })() : null;
     let body;
     if (tab.id === 'cloaks') {
       body = <section className="locker-row locker-capes-row">
@@ -767,6 +834,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const owned = ownedCosmetics.filter((item) => item.slot === tab.slot && matches(item.name, capeQuery));
       body = <section className="locker-row locker-capes-row">
         {header}
+        {dyePanel}
         {localOnly ? <p className="locker-cape-hint">Hats, glasses, wings and shoes come from the Native Store. Sign in with Microsoft or a Native account to wear them.</p> : <>
           <div className="locker-cape-grid">{nothingCard(tab.slot)}{owned.map((item, index) => cosmeticCard(item, index + 1))}</div>
           {!owned.length && !capeQuery.trim() && <p className="locker-cape-hint">No {tab.noun} yet. {canShop ? 'Pick one below to try it on, then add it.' : <><button type="button" className="locker-inline-link" onClick={() => onOpenStore?.()}>Find some in the Native Store</button> — they show in game on every version from 1.16 up.</>}</p>}

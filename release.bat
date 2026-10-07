@@ -71,31 +71,37 @@ for /f %%V in ('node scripts\next-version.js none') do set "CUR=%%V"
 for /f %%V in ('node scripts\next-version.js patch') do set "V_PATCH=%%V"
 for /f %%V in ('node scripts\next-version.js minor') do set "V_MINOR=%%V"
 for /f %%V in ('node scripts\next-version.js major') do set "V_MAJOR=%%V"
+for /f %%V in ('node scripts\next-version.js beta') do set "V_BETA=%%V"
 echo   Current version: !CUR!
 echo   [1] patch  -^> !V_PATCH!   (bug fixes)         [default]
 echo   [2] minor  -^> !V_MINOR!   (new features)
 echo   [3] major  -^> !V_MAJOR!   (big changes)
 echo   [4] none   -^> !CUR!   (re-release current version)
+echo   [5] beta   -^> !V_BETA!   (BETA: only beta testers get it)
 set "CHOICE="
-set /p "CHOICE=Select 1-4 (Enter = 1): "
+set /p "CHOICE=Select 1-5 (Enter = 1): "
 if "!CHOICE!"=="" set "CHOICE=1"
 set "BUMP=patch"
 if "!CHOICE!"=="2" set "BUMP=minor"
 if "!CHOICE!"=="3" set "BUMP=major"
 if "!CHOICE!"=="4" set "BUMP=none"
+if "!CHOICE!"=="5" set "BUMP=beta"
 
 :CHECK_BUMP
 if /i "!BUMP!"=="patch" goto :BUMP_OK
 if /i "!BUMP!"=="minor" goto :BUMP_OK
 if /i "!BUMP!"=="major" goto :BUMP_OK
 if /i "!BUMP!"=="none" goto :BUMP_OK
-echo [ERROR] Unknown bump "!BUMP!". Use patch, minor, major or none.
+if /i "!BUMP!"=="beta" goto :BUMP_OK
+echo [ERROR] Unknown bump "!BUMP!". Use patch, minor, major, none or beta.
 goto :FAIL
 
 :BUMP_OK
 for /f %%V in ('node scripts\next-version.js none') do set "CUR=%%V"
 for /f %%V in ('node scripts\next-version.js !BUMP!') do set "NEWVER=%%V"
 set "TAG=v!NEWVER!"
+set "CHANNEL=Stable (everyone)"
+echo !NEWVER! | findstr /c:"-beta." >nul && set "CHANNEL=BETA (beta testers only, GitHub pre-release)"
 
 git rev-parse -q --verify "refs/tags/!TAG!" >nul 2>&1
 if not errorlevel 1 (
@@ -112,6 +118,7 @@ echo.
 echo [4/6] Ready to release
 echo   Version : !CUR!  -^>  !NEWVER!
 echo   Tag     : !TAG!
+echo   Channel : !CHANNEL!
 echo   Platforms: Windows, macOS, Linux
 echo.
 echo Uncommitted changes that will be included:

@@ -87,6 +87,12 @@ function init() {
   handle('admin:billingSaveSettings', (payload = {}) => adminFetch('/billing/settings', { method: 'POST', body: payload }));
   handle('admin:billingSetup', (environment) => adminFetch('/billing/setup', { method: 'POST', body: { environment } }));
   handle('admin:billingActivate', (environment) => adminFetch('/billing/activate', { method: 'POST', body: { environment } }));
+  // beta updates channel
+  handle('admin:betaTesters', (q = '') => adminFetch(`/beta/testers?q=${encodeURIComponent(String(q || ''))}`));
+  handle('admin:betaAddTester', (username, note = '') => adminFetch('/beta/testers', { method: 'POST', body: { username: String(username || ''), note: String(note || '') } }));
+  handle('admin:betaSetTester', (userId, enabled) => adminFetch(`/beta/testers/${encodeURIComponent(String(userId || ''))}`, { method: 'PATCH', body: { enabled: enabled === true ? true : enabled === false ? false : null } }));
+  handle('admin:betaRemoveTester', (userId) => adminFetch(`/beta/testers/${encodeURIComponent(String(userId || ''))}`, { method: 'DELETE' }));
+  handle('admin:betaUpdates', (patch = {}) => adminFetch('/beta/updates', { method: 'POST', body: { ...(patch.enabled !== undefined ? { enabled: Boolean(patch.enabled) } : {}), ...(patch.includeAccepted !== undefined ? { includeAccepted: Boolean(patch.includeAccepted) } : {}) } }));
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

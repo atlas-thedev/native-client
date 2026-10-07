@@ -198,9 +198,19 @@ function setHooks(next) { hooks = { ...hooks, ...next }; }
 function takeOffIfWearing(user, itemIds) {
   if (!hooks.readProfile || !hooks.saveProfile || !user) return;
   const profile = hooks.readProfile(user.username);
-  if (profile && profile.capeStore && itemIds.includes(profile.capeStore)) {
-    hooks.saveProfile({ ...profile, cape: null, capeAnim: null, capeStore: null, updatedAt: new Date().toISOString() }, null, user);
+  if (!profile) return;
+  let next = profile;
+  if (next.capeStore && itemIds.includes(next.capeStore)) next = { ...next, cape: null, capeAnim: null, capeStore: null };
+  // 3D cosmetics (hats, wings, ...) come off too when the item is taken back
+  const worn = next.cosmetics && typeof next.cosmetics === 'object' ? next.cosmetics : null;
+  if (worn && Object.values(worn).some((id) => itemIds.includes(id))) {
+    const cosmetics = {};
+    for (const [slot, id] of Object.entries(worn)) if (!itemIds.includes(id)) cosmetics[slot] = id;
+    const sides = { ...(next.cosmeticSides || {}) };
+    for (const slot of Object.keys(sides)) if (!cosmetics[slot]) delete sides[slot];
+    next = { ...next, cosmetics, cosmeticSides: sides };
   }
+  if (next !== profile) hooks.saveProfile({ ...next, updatedAt: new Date().toISOString() }, null, user);
 }
 
 function setPlusBadge(userId, on) {

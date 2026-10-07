@@ -41,19 +41,114 @@ autoUpdater.allowDowngrade = false;
 autoUpdater.disableDifferentialDownload = false;
 autoUpdater.fullChangelog = true;
 
-/** Numeric semver compare ("3.10.0" > "3.9.110"); pre-release tags sort first. */
+/**
+ * Semver compare ("3.10.0" > "3.9.110"); a pre-release sorts before its
+ * release and pre-releases compare by identifier ("4.3.0-beta.2" > "4.3.0-beta.1").
+ */
 function compareVersions(a, b) {
-  const parse = (v) => String(v || '0').replace(/^v/i, '').split('-')[0].split('.').map((n) => Number.parseInt(n, 10) || 0);
-  const x = parse(a);
-  const y = parse(b);
+  const split = (v) => {
+    const raw = String(v || '0').replace(/^v/i, '');
+    const dash = raw.indexOf('-');
+    return [raw.slice(0, dash < 0 ? undefined : dash), dash < 0 ? '' : raw.slice(dash + 1)];
+  };
+  const [coreA, preA] = split(a);
+  const [coreB, preB] = split(b);
+  const x = coreA.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const y = coreB.split('.').map((n) => Number.parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
     const diff = (x[i] || 0) - (y[i] || 0);
     if (diff) return Math.sign(diff);
   }
-  const preA = String(a || '').includes('-');
-  const preB = String(b || '').includes('-');
-  return preA === preB ? 0 : (preA ? -1 : 1);
+  if (!preA || !preB) return preA === preB ? 0 : (preA ? -1 : 1);
+  const pa = preA.split('.');
+  const pb = preB.split('.');
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    if (pa[i] === undefined) return -1;
+    if (pb[i] === undefined) return 1;
+    const na = /^\d+$/.test(pa[i]) ? Number(pa[i]) : null;
+    const nb = /^\d+$/.test(pb[i]) ? Number(pb[i]) : null;
+    if (na !== null && nb !== null) { if (na !== nb) return Math.sign(na - nb); continue; }
+    if (na !== null) return -1;
+    if (nb !== null) return 1;
+    if (pa[i] !== pb[i]) return pa[i] < pb[i] ? -1 : 1;
+  }
+  return 0;
 }
+
+/* ── update channel ─────────────────────────────────────────────────────
+ * Beta testers (picked by admins on the Native server, or accepted Super
+ * Beta Testers) get pre-releases (vX.Y.Z-beta.N). Everyone else, signed-out
+ * launchers included, stays on stable. Testers can opt out in Settings.
+ * The server decision is cached on disk so an offline start keeps it.
+ */
+const CHANNEL_TTL_MS = 30 * 60_000;
+let channelState = { tester: false, optOut: false, checkedAt: 0, account: null };
+let channelPromise = null;
+
+function channelFile() { return path.join(appRef.getPath('userData'), 'update-channel.json'); }
+async function loadChannelState() {
+  try {
+    const saved = JSON.parse(await fsp.readFile(channelFile(), 'utf8'));
+    channelState = { ...channelState, tester: saved.tester === true, optOut: saved.optOut === true, checkedAt: 0, account: saved.account || null };
+  } catch { /* first run */ }
+}
+function saveChannelState() {
+  const { tester, optOut, account } = channelState;
+  fsp.writeFile(channelFile(), JSON.stringify({ tester, optOut, account, savedAt: Date.now() })).catch(() => {});
+}
+const effectiveChannel = () => (channelState.tester && !channelState.optOut ? 'beta' : 'stable');
+function channelMeta() {
+  return { channel: effectiveChannel(), betaTester: channelState.tester, betaOptOut: channelState.optOut };
+}
+
+/** Asks the Native server whether the signed-in account is a beta tester. */
+async function refreshChannel({ force = false } = {}) {
+  if (!force && Date.now() - channelState.checkedAt < CHANNEL_TTL_MS) return effectiveChannel();
+  if (channelPromise) return channelPromise;
+  channelPromise = (async () => {
+    let social;
+    try { social = require('./social'); } catch { return effectiveChannel(); }
+    const account = social.getActiveNativeAccount?.();
+    const token = account?.token || account?.sessionToken;
+    const accountId = account?.id || null;
+    if (!token) {
+      // signed out: no beta builds
+      if (channelState.tester) { channelState = { ...channelState, tester: false, account: null }; saveChannelState(); }
+      channelState.checkedAt = Date.now();
+      return effectiveChannel();
+    }
+    const query = new URLSearchParams({ version: appRef.getVersion(), platform: process.platform }).toString();
+    for (const root of social.API_ROOTS || []) {
+      try {
+        const response = await fetch(`${root}/v1/beta/channel?${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (!response.ok) continue;
+        const body = await response.json();
+        const tester = body?.tester === true;
+        const changed = tester !== channelState.tester || accountId !== channelState.account;
+        channelState = { ...channelState, tester, account: accountId, checkedAt: Date.now() };
+        if (changed) saveChannelState();
+        return effectiveChannel();
+      } catch { /* try the next root */ }
+    }
+    // offline: keep the saved decision only for the same account
+    if (accountId !== channelState.account) channelState = { ...channelState, tester: false };
+    return effectiveChannel();
+  })().finally(() => { channelPromise = null; });
+  return channelPromise;
+}
+
+function applyChannel() {
+  const beta = effectiveChannel() === 'beta';
+  // Setting `channel` flips allowDowngrade on, so set it first and reset after.
+  autoUpdater.channel = beta ? 'beta' : 'latest';
+  autoUpdater.allowPrerelease = beta;
+  autoUpdater.allowDowngrade = false;
+}
+
+const isPrereleaseVersion = (v) => /-/.test(String(v || ''));
 
 let appRef = null;
 let mainWindow = null;
@@ -82,8 +177,23 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
   currentStatus = statusWithMeta('idle');
 
   try { autoUpdater.setFeedURL(FEED); } catch (err) { log.warn('Could not set update feed:', err); }
+  loadChannelState().then(() => { currentStatus = { ...currentStatus, ...channelMeta() }; });
 
-  ipcMain.handle('updater:status', () => currentStatus);
+  ipcMain.handle('updater:status', () => ({ ...currentStatus, ...channelMeta() }));
+  ipcMain.handle('updater:channel', async () => {
+    await refreshChannel({ force: true }).catch(() => {});
+    setStatus({ ...currentStatus, ...channelMeta(), updatedAt: Date.now() });
+    return channelMeta();
+  });
+  // Testers can leave (and rejoin) the beta channel from Settings.
+  ipcMain.handle('updater:setBetaOptOut', async (_event, optOut) => {
+    const before = effectiveChannel();
+    channelState = { ...channelState, optOut: optOut === true };
+    saveChannelState();
+    setStatus({ ...currentStatus, ...channelMeta(), updatedAt: Date.now() });
+    if (before !== effectiveChannel()) rechannel();
+    return channelMeta();
+  });
   ipcMain.handle('updater:check', () => checkForUpdates({ silent: false }));
   ipcMain.handle('updater:download', () => downloadUpdate({ background: false }));
   ipcMain.handle('updater:cancel', () => pauseDownload());
@@ -190,6 +300,19 @@ function updatePreferences() {
   };
 }
 
+/** The channel changed: forget an offer from the old channel and look again. */
+function rechannel() {
+  if (!appRef?.isPackaged || downloadPromise) return;
+  const offered = currentStatus.version;
+  const wrongChannel = effectiveChannel() === 'stable' && isPrereleaseVersion(offered);
+  if (currentStatus.type !== 'downloaded' || wrongChannel) {
+    if (wrongChannel) { readyInstaller = null; latestInfo = null; }
+    setStatus(statusWithMeta('idle'));
+  }
+  const t = setTimeout(() => checkForUpdates({ silent: true }), 500);
+  t.unref?.();
+}
+
 async function checkForUpdates({ silent = false } = {}) {
   if (!appRef?.isPackaged) {
     const result = { ok: false, disabled: true, error: 'Update checks require a packaged build.' };
@@ -204,7 +327,11 @@ async function checkForUpdates({ silent = false } = {}) {
   const previousStatus = currentStatus;
   checkPromise = (async () => {
     try {
+      const before = effectiveChannel();
+      await refreshChannel().catch(() => {});
+      if (before !== effectiveChannel()) setStatus({ ...currentStatus, ...channelMeta(), updatedAt: Date.now() });
       autoUpdater.setFeedURL(FEED);
+      applyChannel();
       const result = await autoUpdater.checkForUpdates();
       const currentVer = result?.currentVersion?.version ?? appRef.getVersion();
       const latestVer = result?.updateInfo?.version ?? currentVer;
@@ -267,7 +394,7 @@ async function cleanupInstalled() {
   const names = await fsp.readdir(dir).catch(() => []);
   const current = appRef.getVersion();
   await Promise.all(names.map((n) => {
-    const v = (n.match(/(\d+\.\d+\.\d+)/) || [])[1];
+    const v = (n.match(/(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?)/) || [])[1];
     if (!v) return null;
     const order = compareVersions(v, current);
     // keep the installer of the version that's installed now: the next update is built from it
@@ -477,6 +604,7 @@ function updateMeta(info) {
   if (!info) return {};
   return {
     version: info.version,
+    prerelease: isPrereleaseVersion(info.version),
     releaseName: info.releaseName ?? null,
     releaseNotes: info.releaseNotes ?? null,
     releaseDate: info.releaseDate ?? null,
@@ -492,7 +620,7 @@ function getUpdateSize(info) {
 }
 
 function statusWithMeta(type, extra = {}) {
-  return { type, currentVersion: appRef?.getVersion?.() ?? null, ...extra, updatedAt: Date.now() };
+  return { type, currentVersion: appRef?.getVersion?.() ?? null, ...channelMeta(), ...extra, updatedAt: Date.now() };
 }
 
 /** Progress updates are throttled to ~6/s so a fast download doesn't flood the renderer. */

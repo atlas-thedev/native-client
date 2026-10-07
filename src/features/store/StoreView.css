@@ -317,10 +317,12 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
    Pixel controls in the Store (see components/ui/PixelControls)
    ============================================================ */
 .store-header-actions { gap: 10px; }
-.store-sections { flex: none; margin: 4px 0 6px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
-.store-sections::-webkit-scrollbar { display: none; }
-.store-sections .pxt { width: max-content; min-width: 100%; }
-.store-sections .pxt-tab { flex: 1 0 auto; }
+/* section tabs: the Locker's cosmetic tabs (small sliding slab, squash & stretch, pixel poof) */
+.store-sections { flex: none; margin: 4px 0 6px; padding-top: 4px; }
+.store-sections .pxt { width: 100%; box-sizing: border-box; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.store-sections .pxt::-webkit-scrollbar { display: none; }
+.store-sections .pxt-tab { padding: 0 10px; }
+.store-sections .pxt.is-fill > .pxt-tab { flex: 1 0 auto; white-space: nowrap; }
 .store-toolbar { gap: 12px; padding: 10px 0; }
 .store-toolbar .store-chips { flex: 0 1 auto; flex-wrap: wrap; }
 .store-search {
@@ -426,6 +428,7 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-wish:hover { color: #fff; background: rgba(0, 0, 0, 0.85); }
 .store-wish.is-on { color: #ff6b8b; border-color: rgba(255, 107, 139, 0.5); }
 :root .store-wish.is-on svg, :root .store-wish.is-on svg * { color: #ff6b8b !important; stroke: #ff6b8b !important; }
+.store-dye-badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; color: #fff; font: 700 11px/1 var(--font-sans, inherit); background: linear-gradient(90deg, #e5484d, #ffd23f, #2fbf71, #3d7bff, #8a5cff); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
 .store-new-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #5ee69a; color: #062611; font: 700 11px/1 var(--font-sans, inherit); }
 .store-card-canvas.is-pending { opacity: 0.35; animation: store-thumb-pulse 1.4s ease-in-out infinite; }
 .store-new-shelf { margin: 4px 0 18px; }
@@ -481,7 +484,6 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
   .store-view .store-header-copy { flex: 1 1 100%; }
   .store-view .shop-hero-blurb { max-width: 640px; }
   .store-view .store-header-actions { flex: 1 1 100%; flex-wrap: wrap; }
-  .store-sections .pxt-tab { padding-left: 12px; padding-right: 12px; }
 }
 @media (max-width: 1040px) {
   .store-view .store-collection { flex: 1 1 160px; }

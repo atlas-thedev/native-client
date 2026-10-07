@@ -871,6 +871,34 @@ async function wearStoreCosmetic(account, itemId, slot, side = null) {
   return { wearing: body.wearing || {}, sides: body.sides || null, owned: Array.isArray(body.owned) ? body.owned : null };
 }
 
+/** Recolours a dyeable cosmetic of the account's locker (color null = the item's own colour). */
+async function dyeStoreCosmetic(account, itemId, color) {
+  const native = resolveBillingAccount(account);
+  requireStoreAccount(native);
+  const response = await fetch(`${apiRoot()}/v1/store/dye`, {
+    method: 'POST',
+    headers: storeHeaders(native),
+    body: JSON.stringify({ itemId, color: color || null }),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t dye that (HTTP ${response.status}).`);
+  return { dyes: body.dyes && typeof body.dyes === 'object' ? body.dyes : {} };
+}
+
+/** A dyeable cosmetic's texture in one colour, as a data URL (cached on disk like every texture). */
+async function fetchDyedTexture(itemId, color) {
+  const hex = String(color || '').replace(/^#/, '').toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(hex)) throw new Error('Pick a colour like #ff8800.');
+  const catalog = await fetchStoreCatalog();
+  const item = catalog.items.find((entry) => entry.id === itemId);
+  if (!item || !item.dyeable || !item.dyeUrl) throw new Error('That cosmetic can’t be dyed.');
+  const png = await textureCache.fetchCached(`${item.dyeUrl}${hex}`, { maxBytes: 2 * 1024 * 1024, timeoutMs: 20_000 });
+  if (!png) throw new Error('Couldn’t load that colour.');
+  return { texture: `data:image/png;base64,${png.toString('base64')}` };
+}
+
 /** Wear a Native Store cloak on a premium account (or take it off). Its Mojang skin stays. */
 async function equipPremiumStoreItem(account, itemId) {
   const native = resolveBillingAccount(account);
@@ -936,7 +964,7 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || body.equipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], dyes: body.dyes && typeof body.dyes === 'object' ? body.dyes : {}, wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
 }
 async function toggleStoreWish(account, itemId, on) {
   requireStoreAccount(account);
@@ -1936,6 +1964,12 @@ function init(dependencies, ipcMain) {
   });
   ipc.handle('store:prefs', async (_event, { account, prefs }) => {
     try { return { ok: true, ...(await setStorePrefs(resolveBillingAccount(account), prefs)) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:dye', async (_event, { account, itemId, color }) => {
+    try { return { ok: true, ...(await dyeStoreCosmetic(account, String(itemId || ''), color ? String(color) : null)) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('store:dyeTexture', async (_event, { itemId, color }) => {
+    try { return { ok: true, ...(await fetchDyedTexture(String(itemId || ''), String(color || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:wear', async (_event, { account, itemId, slot, side }) => {
     try { return { ok: true, ...(await wearStoreCosmetic(account, itemId ? String(itemId) : null, String(slot || ''), side === 'left' || side === 'right' ? side : null)) }; } catch (error) { return { ok: false, error: error.message }; }

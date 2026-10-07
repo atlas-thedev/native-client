@@ -90,7 +90,12 @@ export default function ClustersView({
   const [selectedLoaders, setSelectedLoaders] = useState({});
   const [openDropdownLine, setOpenDropdownLine] = useState(null);
   const [dropUp, setDropUp] = useState(false);
-  const [includeSnapshots, setIncludeSnapshots] = useState(false);
+  const [includeSnapshots, setIncludeSnapshots] = useState(() => {
+    try { return localStorage.getItem("native.versions.snapshots") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("native.versions.snapshots", includeSnapshots ? "1" : "0"); } catch { /* ignore */ }
+  }, [includeSnapshots]);
   const [creatingLineId, setCreatingLineId] = useState(null);
   const [instancePicker, setInstancePicker] = useState({
     open: false,
@@ -164,6 +169,8 @@ export default function ClustersView({
     versions.forEach((version) => {
       const release = isReleaseId(version.id);
       if (!release && !includeSnapshots) return;
+      // Snapshot line: real Mojang snapshots / pre-releases only (not 2010 alphas and betas)
+      if (!release && version.type && version.type !== "snapshot") return;
 
       const key = release ? versionLine(version.id) : SNAPSHOT_LINE;
       if (!key) return;
@@ -187,10 +194,17 @@ export default function ClustersView({
       bucket.versions.sort((x, y) => compareVersions(y.id, x.id));
     });
 
-    // 3. Sort: newest release line first (26.3, 26.2, 26.1, 1.21 ...), snapshots last.
+    // Snapshots: newest first, capped so the patch menu stays usable.
+    const snapBucket = list.find((bucket) => bucket.id === SNAPSHOT_LINE);
+    if (snapBucket) {
+      snapBucket.versions.sort((x, y) => String(y.releaseTime || "").localeCompare(String(x.releaseTime || "")));
+      snapBucket.versions = snapBucket.versions.slice(0, 40);
+    }
+
+    // 3. Sort: snapshots first when switched on, then newest release line (26.3, 26.2, 26.1, 1.21 ...).
     list.sort((a, b) => {
-      if (a.id === SNAPSHOT_LINE) return 1;
-      if (b.id === SNAPSHOT_LINE) return -1;
+      if (a.id === SNAPSHOT_LINE) return -1;
+      if (b.id === SNAPSHOT_LINE) return 1;
       const cmp = compareVersions(b.id, a.id);
       if (cmp !== 0) return cmp;
       return String(b.newest || "").localeCompare(String(a.newest || ""));
@@ -239,6 +253,8 @@ export default function ClustersView({
     if (selectedLoaders[lineId]) return selectedLoaders[lineId];
     if (["1.7", "1.8", "1.9", "1.10", "1.11", "1.12"].includes(lineId)) return "Forge";
     if (lineId === "1.13") return "Vanilla";
+    // Most snapshots have no mod loader builds; Vanilla always launches.
+    if (lineId === SNAPSHOT_LINE) return "Vanilla";
     return "Fabric";
   };
 
@@ -450,6 +466,7 @@ export default function ClustersView({
             onClick={() => setIncludeSnapshots((v) => !v)}
             aria-pressed={includeSnapshots}
           >
+            <span className="clusters-chip-dot" aria-hidden="true" />
             {t("versions.snapshots")}
           </button>
 
