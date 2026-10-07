@@ -8,10 +8,35 @@ const ORDER = ['vanilla', 'fabric', 'quilt', 'forge', 'neoforge', 'legacyfabric'
 const PAGE = 12;
 
 /** Version lists for every loader that can run this Minecraft version. */
+const LIST_CACHE_KEY = 'native.loaderLists.v1';
+function readListCache() {
+  try { return JSON.parse(localStorage.getItem(LIST_CACHE_KEY) || '{}') || {}; } catch { return {}; }
+}
+function writeListCache(kind, mcVersion, data) {
+  try {
+    const all = readListCache();
+    all[`${kind}:${mcVersion}`] = { at: Date.now(), data };
+    const keys = Object.keys(all).sort((a, b) => all[b].at - all[a].at).slice(0, 40);
+    localStorage.setItem(LIST_CACHE_KEY, JSON.stringify(Object.fromEntries(keys.map((k) => [k, all[k]]))));
+  } catch { /* storage full */ }
+}
+
 function useLoaderLists(mcVersion, kinds) {
-  const [lists, setLists] = useState({});
+  // Show the last known list instantly, then refresh it in the background.
+  const [lists, setLists] = useState(() => {
+    const cachedLists = readListCache();
+    const seed = {};
+    for (const kind of kinds) {
+      const hit = cachedLists[`${kind}:${mcVersion}`];
+      if (hit?.data) seed[kind] = { status: 'ok', data: hit.data, cached: true };
+    }
+    return seed;
+  });
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   const load = useCallback(async (kind) => {
     const api = window.native?.loaders;
@@ -19,9 +44,12 @@ function useLoaderLists(mcVersion, kinds) {
     setLists((prev) => ({ ...prev, [kind]: { status: 'loading', data: prev[kind]?.data || null } }));
     try {
       const data = await api.versions(LOADER_NAMES[kind], mcVersion);
+      if (data?.versions?.length) writeListCache(kind, mcVersion, data);
       if (alive.current) setLists((prev) => ({ ...prev, [kind]: { status: 'ok', data } }));
     } catch (error) {
-      if (alive.current) setLists((prev) => ({ ...prev, [kind]: { status: 'error', error: error?.message || 'Could not load versions' } }));
+      if (alive.current) setLists((prev) => (prev[kind]?.data
+        ? { ...prev, [kind]: { status: 'ok', data: prev[kind].data } }
+        : { ...prev, [kind]: { status: 'error', error: error?.message || 'Could not load versions' } }));
     }
   }, [mcVersion]);
 
