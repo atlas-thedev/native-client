@@ -1038,10 +1038,14 @@ async function handler(req, res) {
       const base = nativeProfile || premiumProfile || { username: merged.username, model: 'default', skin: null, cape: null };
       try { fs.rmSync(profilePath(result.from.native), { force: true }); } catch {}
       try { fs.rmSync(profilePath(result.from.premium), { force: true }); } catch {}
-      const wornCosmetics = (nativeProfile && nativeProfile.cosmetics) || (premiumProfile && premiumProfile.cosmetics) || null;
+      const wornFrom = (nativeProfile && nativeProfile.cosmetics) ? nativeProfile : (premiumProfile && premiumProfile.cosmetics) ? premiumProfile : null;
+      const wornCosmetics = wornFrom ? wornFrom.cosmetics : null;
+      // the hand / balloon sides travel with the cosmetics they belong to
+      const wornSides = wornFrom && wornFrom.cosmeticSides && Object.keys(wornFrom.cosmeticSides).length ? wornFrom.cosmeticSides : null;
       saveProfile({
         ...(base.cape ? base : (premiumProfile || base)),
         ...(wornCosmetics ? { cosmetics: wornCosmetics } : {}),
+        cosmeticSides: wornSides || undefined,
         username: merged.username,
         skin: null,
         skinName: undefined,

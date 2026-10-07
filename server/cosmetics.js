@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Native 3D cosmetics: hats, glasses, back items (wings, backpacks, jetpacks) and shoes.
+ * Native 3D cosmetics: hats, glasses, back items (wings, backpacks, jetpacks), shoes, hand items and balloons.
  *
  * A cosmetic is a store item with `kind: 'cosmetic'` and a slot (its section). It ships as an NCM v1
  * model (JSON, box-UV cubes like Minecraft's own models, see native-mod CosmeticModel) plus a PNG
@@ -8,9 +8,13 @@
  *
  *   profile.cosmetics = { hats: 'propeller-cap', back: 'angel-wings' }
  *
- * The mod gets `k: [{ i, m, x }]` (item id, model hash, texture hash) in each skin directory entry.
+ * The mod gets `k: [{ i, s, m, x, h? }]` (item id, slot, model hash, texture hash, and for hand items and
+ * balloons the side: 'l' | 'r') in each skin directory entry. The chosen sides live in
+ * `profile.cosmeticSides = { hand: 'left' }`.
  */
 
+/** Armor slots a part can hide behind / push away from; names normalised like the mod (case, `_` and `-` ignored). */
+const ARMOR_SLOTS = { lefthand: 1, offhand: 1, righthand: 1, mainhand: 1, head: 1, helmet: 1, chest: 1, legs: 1, feet: 1, boots: 1, none: 1 };
 const SLOTS = ['hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
 const SIDED = ['hand', 'balloon'];
 const SLOT_NAMES = { hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items', balloon: 'Balloons' };
@@ -49,6 +53,8 @@ function validateModel(input) {
       if (!part || typeof part !== 'object') continue;
       if (++parts > LIMIT_PARTS) throw new Error(`Too many parts (${LIMIT_PARTS} max).`);
       if (part.attach !== undefined && !ATTACH[String(part.attach).toLowerCase().replace(/_/g, '')]) throw new Error(`Unknown attach point "${part.attach}".`);
+      if (part.armor && typeof part.armor === 'object' && part.armor.slot !== undefined && !ARMOR_SLOTS[String(part.armor.slot).toLowerCase().replace(/[_-]/g, '')]) throw new Error(`Unknown armor slot "${part.armor.slot}" (use head, chest, legs, feet, lefthand or righthand).`);
+      if (part.side !== undefined && part.side !== 'left' && part.side !== 'right') throw new Error(`Part side must be "left" or "right", not "${part.side}".`);
       for (const cube of Array.isArray(part.cubes) ? part.cubes : []) {
         if (!cube || typeof cube !== 'object') continue;
         if (++cubes > LIMIT_CUBES) throw new Error(`Too many cubes (${LIMIT_CUBES} max).`);
@@ -116,7 +122,7 @@ function withSide(profile, slot, side) {
   return { ...profile, cosmeticSides: { ...(profile.cosmeticSides || {}), [slot]: side } };
 }
 
-/** Directory entries for the mod: [{ i, m, x }]. */
+/** Directory entries for the mod: [{ i, s, m, x, h? }]. */
 function directoryRefs(profile, findItem) {
   const sides = (profile && profile.cosmeticSides) || {};
   return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({

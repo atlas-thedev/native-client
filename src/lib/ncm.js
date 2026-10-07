@@ -9,6 +9,9 @@
  */
 
 const ATTACH = { head: 'head', body: 'body', back: 'body', torso: 'body', rightarm: 'rightArm', leftarm: 'leftArm', rightleg: 'rightLeg', rightfoot: 'rightLeg', leftleg: 'leftLeg', leftfoot: 'leftLeg' };
+const ARMOR = { lefthand: 'lefthand', offhand: 'lefthand', righthand: 'righthand', mainhand: 'righthand', head: 'head', helmet: 'head', chest: 'chest', legs: 'legs', feet: 'feet', boots: 'feet' };
+/** Armor slot names, normalised like the mod (case, `_` and `-` ignored); unknown names are 'none'. */
+const armorSlot = (v) => ARMOR[String(v || 'none').toLowerCase().replace(/[_-]/g, '')] || 'none';
 const LIMIT_PARTS = 512;
 const LIMIT_CUBES = 2048;
 
@@ -40,7 +43,7 @@ export function parseCosmetic(json) {
         rotation: vec(o.rotation, 3, [0, 0, 0]).map((v) => (clamp(v, 360) * Math.PI) / 180),
         side: o.side === 'left' ? 1 : o.side === 'right' ? 2 : 0,
         layer: o.layer === 'glow' || o.layer === 'emissive' || o.glow === true ? 'glow' : o.layer === 'translucent' ? 'translucent' : 'cutout',
-        armor: o.armor && typeof o.armor === 'object' ? { slot: String(o.armor.slot || 'none'), hide: o.armor.mode !== 'push', offset: vec(o.armor.offset, 3, [0, 0, 0]).map((v) => clamp(v, 8)) } : null,
+        armor: o.armor && typeof o.armor === 'object' ? { slot: armorSlot(o.armor.slot), hide: o.armor.mode !== 'push', offset: vec(o.armor.offset, 3, [0, 0, 0]).map((v) => clamp(v, 8)) } : null,
         anim: (Array.isArray(o.anim) ? o.anim : []).slice(0, 8).map(parseAnim).filter(Boolean),
         cubes: [],
         children: []
