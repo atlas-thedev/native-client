@@ -462,3 +462,17 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 }
 .store-card:hover .store-card-try, .store-card:focus-visible .store-card-try { opacity: 1; }
 .store-card:hover .store-card-state { opacity: 0; }
+
+/* owned: a quiet row under the price instead of a badge above the name */
+.store-owned { display: flex; align-items: center; gap: 12px; margin-top: 4px; padding: 12px 0; border-top: 2px solid rgba(255, 255, 255, 0.08); color: var(--fg-muted); }
+.store-owned > svg { flex: none; }
+.store-owned-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.store-owned-copy strong { font: 700 14px/1.1 var(--font-sans); color: var(--fg-primary); }
+.store-owned-copy span { display: flex; align-items: center; gap: 6px; font: 12px var(--font-sans); color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.store-owned-copy i { font-style: normal; opacity: 0.5; }
+.store-owned-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--fg-secondary); }
+.store-owned-state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.28); }
+.store-owned.is-on .store-owned-state { color: #5ee69a; }
+.store-owned.is-on .store-owned-state::before { background: #5ee69a; box-shadow: 0 0 0 3px rgba(94, 230, 154, 0.18); }
+.store-owned-link { display: inline-flex; flex: none; align-items: center; gap: 3px; border: 0; background: none; padding: 4px 0; color: var(--fg-secondary); font: 600 12.5px var(--font-sans); cursor: pointer; }
+.store-owned-link:hover { color: var(--fg-primary); text-decoration: underline; text-underline-offset: 3px; }
