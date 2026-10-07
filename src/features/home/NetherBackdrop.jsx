@@ -23,13 +23,32 @@ export default function NetherBackdrop() {
     v.muted = true; // autoplay needs it set as a property too
     const play = () => { if (!document.hidden) v.play().catch(() => {}); };
     const onVis = () => (document.hidden ? v.pause() : play());
+    const onPause = () => { if (!document.hidden) setTimeout(play, 400); };
+    // some Windows builds stop at the end instead of looping: start over by hand
+    const onEnded = () => { v.currentTime = 0; play(); };
+    // watchdog: if the picture stops moving while visible, nudge it, then reload the source
+    let last = -1, stuck = 0;
+    const watch = setInterval(() => {
+      if (document.hidden) return;
+      if (v.currentTime !== last) { last = v.currentTime; stuck = 0; return; }
+      stuck += 1;
+      if (stuck === 1) play();
+      else if (stuck === 3) { v.load(); play(); }
+      else if (stuck > 3 && stuck % 5 === 0) { v.currentTime = 0; play(); }
+    }, 1500);
     play();
     v.addEventListener('canplay', play);
-    v.addEventListener('pause', () => { if (!document.hidden) setTimeout(play, 400); });
+    v.addEventListener('loadeddata', play);
+    v.addEventListener('pause', onPause);
+    v.addEventListener('ended', onEnded);
     window.addEventListener('focus', play);
     document.addEventListener('visibilitychange', onVis);
     return () => {
+      clearInterval(watch);
       v.removeEventListener('canplay', play);
+      v.removeEventListener('loadeddata', play);
+      v.removeEventListener('pause', onPause);
+      v.removeEventListener('ended', onEnded);
       window.removeEventListener('focus', play);
       document.removeEventListener('visibilitychange', onVis);
     };

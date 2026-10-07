@@ -11,6 +11,7 @@ import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
+import { SHOTS } from '../../lib/viewerCamera.js';
 import '../../components/ui/shop.css';
 
 /** The hero spotlight rotates through at most this many featured capes. */
@@ -46,7 +47,6 @@ const itemIdOfKey = (key) => (key.includes(':') ? key.slice(key.indexOf(':') + 1
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'animated', label: 'Animated' },
-  { id: 'free', label: 'Free' },
   { id: 'paid', label: 'Paid' },
   { id: 'new', label: 'New' },
   { id: 'owned', label: 'In my locker' },
@@ -735,7 +735,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           <div className="store-viewer" role="dialog" aria-modal="true" aria-label={`${viewing.name} in 3D`}>
             <div className="store-viewer-stage">
               <SpotBackdrop />
-              {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} cosmetics={viewCosmetics} zoom={isCosmetic(viewing) ? 0.74 : 0.82} width={320} height={400} animation="walk" autoRotate />}
+              {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} cosmetics={viewCosmetics} zoom={isCosmetic(viewing) ? 0.74 : 0.82} shot={viewing.slot === 'balloon' ? SHOTS.balloon : null} width={320} height={400} animation="walk" autoRotate />}
               <div className="store-viewer-art" aria-hidden="true">{isCosmetic(viewing) ? cosmeticArt(viewing, 'store-viewer-art-img') : <canvas ref={bindCanvas(`view:${viewing.id}`)} width={80} height={128} />}</div>
               <span className="store-viewer-hint">Drag to turn</span>
             </div>

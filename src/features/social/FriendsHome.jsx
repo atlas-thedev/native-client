@@ -296,20 +296,6 @@ export default function FriendsHome({
           </div>
         ) : (
           <div className="native-friends-list-panel">
-            {/* Search filter bar */}
-            <div className="native-friends-search-box">
-              <Search size={15} className="text-muted" />
-              <input
-                type="text"
-                placeholder="Search friends"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button type="button" onClick={() => setSearchQuery('')}><X size={14} /></button>
-              )}
-            </div>
-
             <span className="native-list-section-title">
               {activeTab === 'online' ? `ONLINE — ${filteredFriends.length}` : `ALL FRIENDS — ${filteredFriends.length}`}
             </span>

@@ -14,6 +14,9 @@ export const SHOTS = {
   glasses: [9, 1.2],
   back: [3, 0.66],
   shoes: [-11, 1.05],
+  hand: [-4, 0.8],
+  // balloons float well above the head: frame the whole player and the balloon
+  balloon: [13, 0.42],
   cloak: [1, 0.66]
 };
 
