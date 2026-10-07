@@ -283,7 +283,6 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-viewer-info .store-spot-name { font-size: 26px; padding-right: 36px; }
 .store-viewer-info .store-spot-facts { grid-template-columns: repeat(2, minmax(0, auto)); gap: 10px 28px; }
 .store-viewer-close { position: absolute; top: 14px; right: 14px; z-index: 2; }
-.store-viewer-nav { position: absolute; right: 14px; bottom: 14px; z-index: 2; display: flex; gap: 6px; }
 @media (max-width: 1100px) {
   .store-spot.is-featured { grid-template-columns: minmax(0, 1fr) 240px; }
   .store-spot.is-featured .store-spot-picker { grid-column: 1 / -1; justify-self: stretch; flex-direction: row; width: auto; overflow-x: auto; }
@@ -337,7 +336,6 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-detail-actions { flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .store-plus-actions { gap: 10px; align-items: center; }
 .store-viewer-close { position: absolute !important; top: 14px; right: 14px; z-index: 2; }
-.store-viewer-nav { gap: 8px; }
 .store-modal > .pxb { margin-top: 2px; }
 .store-coming .pxb { margin-top: 4px; }
 
@@ -488,3 +486,27 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 @media (max-width: 1040px) {
   .store-view .store-collection { flex: 1 1 160px; }
 }
+
+/* viewer prev/next: one slim glass bar at the bottom of the 3D stage */
+.store-viewer-nav {
+  position: absolute !important; left: 50%; bottom: 14px; z-index: 2; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 999px;
+  background: rgba(10, 10, 12, 0.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+.store-viewer-arrow {
+  display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.78); cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.store-viewer-arrow:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.store-viewer-arrow:active { transform: scale(0.88); }
+.store-viewer-arrow:first-child:hover { transform: translateX(-1px); }
+.store-viewer-arrow:last-child:hover { transform: translateX(1px); }
+.store-viewer-arrow:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.6); outline-offset: 1px; }
+.store-viewer-count {
+  min-width: 46px; padding: 0 4px; text-align: center; font-family: var(--font-mono); font-size: 11px;
+  color: var(--fg-muted); font-variant-numeric: tabular-nums; user-select: none;
+}
+.store-viewer-count strong { color: #fff; font-weight: 600; }
