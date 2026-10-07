@@ -438,7 +438,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const cosmeticsFor = useCallback((item) => {
     if (!item) return null;
     const slot = isCosmetic(item) ? item.slot : null;
-    const others = Object.entries(me.wearing || {}).filter(([s]) => s !== slot).map(([, id]) => cosAssets[id]).filter(Boolean);
+    // wings / backpacks replace the cloak, so leave them off while a cloak is the thing being previewed
+    const others = Object.entries(me.wearing || {}).filter(([s]) => s !== slot && (slot || s !== 'back')).map(([, id]) => cosAssets[id]).filter(Boolean);
     const list = [isCosmetic(item) ? cosAssets[item.id] : null, ...others].filter(Boolean);
     return list.length ? list : null;
   }, [cosAssets, me.wearing]);
