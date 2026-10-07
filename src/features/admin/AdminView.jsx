@@ -22,6 +22,7 @@ import Dropdown from '../../components/ui/Dropdown.jsx';
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import AdminStore, { CapeThumb } from './AdminStore.jsx';
 import AdminUserPanel from './AdminUserPanel.jsx';
+import AdminBeta from './AdminBeta.jsx';
 import AdminSales from './AdminSales.jsx';
 import { InitialAvatar, Presence, adminError, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
@@ -203,7 +204,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['overview', 'Overview', null],
     ['users', 'Users', pagination.total ? formatNumber(pagination.total) : null],
     ['store', 'Capes', storeItems ? formatNumber(storeItems.length) : null],
-    ['sales', 'Sales', null]
+    ['sales', 'Sales', null],
+    ['beta', 'Beta', null]
   ];
 
   return (
@@ -232,7 +234,9 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
 
       {error && <div className="admin-error" role="alert"><span>{error}</span><button type="button" onClick={refresh}>Try again</button></div>}
 
-      {section === 'sales' ? (
+      {section === 'beta' ? (
+        <AdminBeta onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+      ) : section === 'sales' ? (
         <AdminSales items={storeItems} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'store' ? (
         <AdminStore onNotify={onNotify} onError={setError} />

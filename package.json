@@ -37,6 +37,7 @@
     "appId": "xyz.nativelaunch.desktop",
     "productName": "Native Client",
     "beforePack": "scripts/installer-art.js",
+    "generateUpdatesFilesForAllChannels": true,
     "publish": {
       "provider": "github",
       "owner": "atlas-thedev",
