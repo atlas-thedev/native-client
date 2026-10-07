@@ -9,6 +9,7 @@ import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
 import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
+import NetherBackdrop from './NetherBackdrop.jsx';
 import './HomeView.css';
 import './HomeSelection.css';
 
@@ -59,7 +60,6 @@ export default function HomeView({
     return null;
   }, [selectedCluster, instances, isStarterMode, selectedStarterId]);
 
-  const backgroundArt = getClusterArt(cluster);
   const isInstalled = useIsInstalled(isStarterMode ? null : cluster, launcherState?.status);
 
   const activeIndex = useMemo(() => {
@@ -167,13 +167,8 @@ export default function HomeView({
   return (
     <div className="home-view">
       {/* Wallpaper */}
-      <div className="home-bg-layer">
-        <img
-          key={backgroundArt}
-          src={backgroundArt}
-          alt={cluster?.name || 'Minecraft'}
-          className="home-bg-img"
-        />
+      <div className="home-bg-layer is-nether">
+        <NetherBackdrop />
         <div className="home-bg-overlay" />
         <div className="home-bg-fade" />
       </div>

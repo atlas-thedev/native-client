@@ -788,7 +788,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           label="Cosmetic types"
           value={tab.id}
           onChange={switchCosTab}
-          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, color: entry.color, count: count || null }; })}
+          items={COS_TABS.map((entry) => { const count = localOnly ? null : cosTabCount(entry); return { id: entry.id, label: entry.label, title: entry.title, count: count || null }; })}
         />
       </div>
       <div key={`cos:${tab.id}`} className={`locker-subpanel${cosDir ? ` from-${cosDir}` : ''}`}>

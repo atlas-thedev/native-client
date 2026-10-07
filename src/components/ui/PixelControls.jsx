@@ -117,6 +117,14 @@ export function PixelTabs({ items, value, onChange, size = 'md', fill = false, c
     const el = tabs.current.get(value);
     if (!el || !root.current) { setSlab((s) => ({ ...s, shown: false })); return; }
     setSlab({ x: el.offsetLeft, w: el.offsetWidth, shown: true });
+    // a strip that scrolls sideways keeps the picked tab in view
+    const box = root.current;
+    if (box.scrollWidth > box.clientWidth + 1) {
+      const left = el.offsetLeft - 8;
+      const right = el.offsetLeft + el.offsetWidth + 8 - box.clientWidth;
+      if (box.scrollLeft > left) box.scrollTo({ left, behavior: 'smooth' });
+      else if (box.scrollLeft < right) box.scrollTo({ left: right, behavior: 'smooth' });
+    }
   }, [value]);
   useLayoutEffect(() => { measure(); }, [measure, items.length, items.map((item) => `${item.id}:${item.label}:${item.count}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
