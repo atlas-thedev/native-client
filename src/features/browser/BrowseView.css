@@ -2887,6 +2887,9 @@ button.browse-sidebar-chip:hover {
 }
 
 .browse-source-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   background: transparent;
   color: var(--fg-muted);
@@ -2905,4 +2908,12 @@ button.browse-sidebar-chip:hover {
 .browse-source-btn.is-active {
   background: #fff;
   color: #000;
+}
+
+.browse-source-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  object-fit: contain;
+  flex: none;
 }

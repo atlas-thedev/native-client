@@ -504,3 +504,11 @@
 
 .qs-scopes { flex: none; }
 .qs-panel { overflow: clip; }
+
+.qs-provider-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  object-fit: contain;
+  flex: none;
+}

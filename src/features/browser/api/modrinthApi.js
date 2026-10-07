@@ -352,3 +352,22 @@ async function cfGetVersion(versionId, options) {
     return null;
   }
 }
+
+/** Quick-search helper: CurseForge projects across installable classes (no modpacks). */
+export async function searchCurseForgeQuick({ query, limit = 5, signal }) {
+  const trimmed = (query || '').trim();
+  if (!trimmed) return [];
+  const allowed = new Set([CF_CLASS_IDS.mod, CF_CLASS_IDS.shader, CF_CLASS_IDS.resourcepack, CF_CLASS_IDS.datapack]);
+  const json = await cfFetch('/mods/search', {
+    gameId: '432',
+    searchFilter: trimmed,
+    sortField: '2',
+    sortOrder: 'desc',
+    pageSize: String(Math.min(50, limit * 3))
+  }, { signal });
+  return (json?.data || [])
+    .filter((mod) => allowed.has(mod.classId))
+    .slice(0, limit)
+    .map(mapCfProject)
+    .filter(Boolean);
+}
