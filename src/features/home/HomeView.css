@@ -742,3 +742,6 @@
 /* The Nether is already dark: a lighter scrim keeps the lava and portal glowing. */
 .home-bg-layer.is-nether .home-bg-overlay { opacity: calc(var(--home-scrim, 1) * 0.55); }
 .home-bg-layer.is-nether .home-bg-fade { height: 30%; }
+/* the animated layer sits on the still poster and fades in once decoded */
+.home-bg-img.home-bg-nether.is-anim { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; animation: none; }
+.home-bg-img.home-bg-nether.is-anim.is-ready { opacity: 1; }

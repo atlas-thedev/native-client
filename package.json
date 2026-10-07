@@ -46,9 +46,6 @@
       "output": "release",
       "buildResources": "buildResources"
     },
-    "asarUnpack": [
-      "dist/assets/*.webm"
-    ],
     "files": [
       "dist/**",
       "electron/**",

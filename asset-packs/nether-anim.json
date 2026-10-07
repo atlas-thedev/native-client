@@ -1,0 +1,17 @@
+{
+  "target": "src/assets/backgrounds/nether-anim.webp",
+  "sha256": "21083306cde6daa54b8bab92d44b1cef1c1d3e78b625aafd209d61f2f3394c24",
+  "parts": [
+    "nether-anim.b64.00",
+    "nether-anim.b64.01",
+    "nether-anim.b64.02",
+    "nether-anim.b64.03",
+    "nether-anim.b64.04",
+    "nether-anim.b64.05",
+    "nether-anim.b64.06",
+    "nether-anim.b64.07",
+    "nether-anim.b64.08",
+    "nether-anim.b64.09",
+    "nether-anim.b64.10"
+  ]
+}
