@@ -174,7 +174,7 @@ function atomicWrite(filePath, data) {
   fs.renameSync(temporary, filePath);
 }
 
-const capeAllowed = (hash, profile = null) => storeRoutes.capeAllowed(hash, profile);
+const capeAllowed = (hash, profile = null, user = null) => storeRoutes.capeAllowed(hash, profile, user);
 const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape, profile) ? profile.cape : null);
 
 function textureHash(buffer) {
@@ -500,7 +500,7 @@ async function handler(req, res) {
     }
 
     try {
-      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems });
+      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems, findBundle: storeRoutes.findBundle, quoteBundle: storeRoutes.quoteBundle });
       if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
     } catch (billingError) {
       console.error('[Native Billing]', billingError);
@@ -611,8 +611,8 @@ async function handler(req, res) {
       if (body.cape !== undefined) {
         const capeBuffer = body.cape ? pngBuffer(body.cape) : null;
         const capeHash = capeBuffer ? crypto.createHash('sha256').update(capeBuffer).digest('hex') : null;
-        if (capeAllowed(capeHash, existing)) cape = capeHash ? textureHash(capeBuffer) : null;
-        else { capeRefused = true; cape = capeAllowed(cape, existing) ? cape : null; }
+        if (capeAllowed(capeHash, existing, sessionUser)) cape = capeHash ? textureHash(capeBuffer) : null;
+        else { capeRefused = true; cape = capeAllowed(cape, existing, sessionUser) ? cape : null; }
       }
       let capeAnim = existing?.capeAnim ?? null;
       let capeStore = existing?.capeStore ?? null;
@@ -642,6 +642,11 @@ async function handler(req, res) {
         } catch (error) {
           return send(res, 400, { ok: false, error: error.message || 'Invalid animated cloak.' });
         }
+      }
+      if (cape && !capeStore && !capeAnim) {
+        // a static store cape sent as a PNG: remember it as worn through the store
+        const item = storeRoutes.staticStoreCape(cape, sessionUser);
+        if (item) capeStore = item.id;
       }
       if (!cape) { capeAnim = null; capeStore = null; }
       const cleanSkinName = (value) => String(value ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) || null;

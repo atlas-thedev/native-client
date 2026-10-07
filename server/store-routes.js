@@ -5,12 +5,14 @@
  * Public
  *   GET  /v1/store/catalog         visible items (newest/featured first) with texture URLs + owner counts
  *   GET  /v1/store/items/:id       one item (hidden items too, so retired capes still have a page)
+ *   GET  /v1/store/bundles[/:id]   bundles (sets of items sold together at a discount, see bundles.js)
  *   GET  /v1/store/users?q=        find players by name (no q = top collectors)
  *   GET  /v1/store/users/:name     a player's public profile: worn items, locker, wishlist
  * Signed in (Bearer or X-Native-Token)
  *   GET  /v1/store/me              { equipped, wearing: { slot: itemId }, owned: [{ id, acquiredAt }] }
  *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
  *   POST /v1/store/unclaim         { itemId }  remove it from your locker (takes it off if worn)
+ *   POST /v1/store/bundles/:id/claim  add a free bundle (or, with Native+, any bundle) to your locker
  *   POST /v1/store/equip           { itemId }  wear an item from your locker (null = take the cape off).
  *                                   Free items are added to the locker automatically. A cosmetic
  *                                   (hat, glasses, back item, shoes) goes into its slot;
@@ -20,6 +22,8 @@
  *   POST /v1/store/prefs           { hideLocker?, hideWishlist? }  what other players see on your profile
  *   GET  /v1/store/stream          SSE: wardrobe:changed for the signed-in account
  * Admin (session with is_admin)
+ *   GET/POST          /v1/admin/store/bundles       list / create { name, description, itemIds, discount, price, featured, hidden }
+ *   PATCH/DELETE      /v1/admin/store/bundles/:id   edit / remove a bundle (owners keep what they bought)
  *   GET    /v1/admin/store/items           every item, hidden ones included
  *   POST   /v1/admin/store/items           create (animated strip + still, or a static PNG)
  *   PATCH  /v1/admin/store/items/:id       edit metadata and/or replace textures
@@ -50,13 +54,14 @@ const events = require('./social-events');
 const billing = require('./billing');
 const cosmetics = require('./cosmetics');
 const pricing = require('./pricing');
+const bundles = require('./bundles');
 const site = () => require('./site-routes');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const NEW_FOR_MS = 21 * 24 * 60 * 60 * 1000;
 
-let catalog = null; // { rev, sections, items, deleted }
+let catalog = null; // { rev, sections, items, deleted, bundles }
 let storeTexture = null;
 let tableReady = false;
 
@@ -71,7 +76,7 @@ function atomicWrite(file, data) {
 
 function persist() {
   catalog.rev += 1;
-  atomicWrite(catalogFile(), JSON.stringify({ version: 2, rev: catalog.rev, sections: catalog.sections, deleted: catalog.deleted, items: catalog.items }, null, 2));
+  atomicWrite(catalogFile(), JSON.stringify({ version: 2, rev: catalog.rev, sections: catalog.sections, deleted: catalog.deleted, items: catalog.items, bundles: catalog.bundles || [] }, null, 2));
 }
 
 function ensureCatalog(textureFn) {
@@ -82,7 +87,7 @@ function ensureCatalog(textureFn) {
   const bundled = capes.loadCatalog(storeTexture);
   const now = Date.now();
   if (saved && Array.isArray(saved.items)) {
-    catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items };
+    catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items, bundles: Array.isArray(saved.bundles) ? saved.bundles : [] };
     let added = false;
     // sections added in later deploys (hats, glasses, ...) appear after the saved ones
     for (const section of bundled.sections) {
@@ -109,6 +114,7 @@ function ensureCatalog(textureFn) {
       rev: 1,
       sections: bundled.sections,
       deleted: [],
+      bundles: [],
       items: bundled.items.map((item, index) => ({ ...item, hidden: false, order: index, createdAt: now - index * 1000, updatedAt: now }))
     };
     try { persist(); } catch (error) { console.warn('[Native Store] Could not save the catalogue:', error.message); }
@@ -232,6 +238,17 @@ function searchUsers(query) {
 const current = () => catalog || (storeTexture ? ensureCatalog() : { items: [] });
 const findItem = (id) => current().items.find((item) => item.id === id) || null;
 const allItems = () => current().items.slice();
+const allBundles = () => (current().bundles || []).slice();
+const findBundle = (id) => (current().bundles || []).find((bundle) => bundle.id === id) || null;
+const priceNow = (item) => { try { return site().priceOf(item); } catch { return Math.max(0, Number(item?.price) || 0); } };
+/** Prices a bundle for everyone (no userId) or for one player (their own pieces left out). */
+function quoteBundle(bundle, userId = null) {
+  return bundles.quote(bundle, {
+    findItem,
+    priceOf: priceNow,
+    ownedSource: userId ? (itemId) => billing.ownedSource(userId, itemId) : null
+  });
+}
 
 /** Native+ members get every paid cape in their locker automatically (source 'plus'). */
 function grantPlusCapes(userId) {
@@ -259,12 +276,35 @@ const PRESET_CAPE_HASHES = new Set([
 ]);
 /**
  * Players can't upload capes: only the classic presets and Native Store capes are worn/served.
- * Exclusive capes (e.g. Beta Tester) only count for a profile that wears them through the store
- * (`capeStore`), which only an owner can do; their PNG alone never unlocks them.
+ * Free store capes are open to everyone. Paid and exclusive capes only count for their owners:
+ *  - with `user` (a wardrobe upload) the account must own the item;
+ *  - without it (serving a saved profile) the profile must wear it through the store (`capeStore`,
+ *    only ever set for owners and cleared when the item is taken back), or its account owns it.
+ * The PNG alone never unlocks a paid cape.
  */
-const capeAllowed = (hash, profile = null) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash, profile);
-const isStoreStill = (hash, profile = null) => Boolean(hash) && current().items.some((item) =>
-  !cosmetics.isCosmetic(item) && item.still === hash && (!item.exclusive || (profile && profile.capeStore === item.id)));
+const capeAllowed = (hash, profile = null, user = null) => !hash || PRESET_CAPE_HASHES.has(hash) || isStoreStill(hash, profile, user);
+const storeCapesFor = (hash) => (hash ? current().items.filter((item) => !cosmetics.isCosmetic(item) && item.still === hash) : []);
+const isFreeCape = (item) => !item.exclusive && !billing.isPaid(item);
+function accountOf(profile) {
+  try { return profile && profile.username ? db.getUserByUsername(profile.username) : null; } catch { return null; }
+}
+function isStoreStill(hash, profile = null, user = null) {
+  const items = storeCapesFor(hash);
+  if (!items.length) return false;
+  if (items.some(isFreeCape)) return true;
+  if (profile && items.some((item) => profile.capeStore === item.id)) return true;
+  const account = user || accountOf(profile);
+  if (!account) return false;
+  try { return items.some((item) => owns(account.id, item.id)); } catch { return false; }
+}
+/** The static store cape this PNG belongs to, when `user` may wear it (sets `capeStore` on wardrobe uploads). */
+function staticStoreCape(hash, user) {
+  for (const item of storeCapesFor(hash)) {
+    if (item.animated) continue;
+    if (isFreeCape(item) || (user && owns(user.id, item.id))) return item;
+  }
+  return null;
+}
 const findByStrip = (hash) => current().items.find((item) => item.animated && item.strip === hash) || null;
 
 /**
@@ -451,6 +491,23 @@ function refreshWearers(ctx, itemId, userIds) {
 }
 const ownerIds = (itemId) => { try { return sql().prepare('SELECT user_id FROM store_owned WHERE item_id = ?').all(itemId).map((row) => row.user_id); } catch { return []; } };
 
+const NEW_BUNDLE = (bundle) => Date.now() - (Number(bundle.createdAt) || 0) < NEW_FOR_MS;
+const publicBundle = (bundle, q, mine = null) => bundles.publicBundle(bundle, q, { isNew: NEW_BUNDLE(bundle), mine });
+/** Bundles the store lists (visible, with at least two items on sale), featured first. */
+function publicBundles(cat) {
+  return bundles.sorted(cat.bundles || []).map((bundle) => [bundle, quoteBundle(bundle)])
+    .filter(([bundle, q]) => bundles.listable(bundle, q)).map(([bundle, q]) => publicBundle(bundle, q));
+}
+/** { bundleId: { owned, total, complete, due, dueFull, toBuy } } for a signed-in player. */
+function myBundles(userId) {
+  const out = {};
+  for (const bundle of current().bundles || []) {
+    const q = quoteBundle(bundle, userId);
+    if (bundles.listable(bundle, q)) out[bundle.id] = bundles.mineOf(q);
+  }
+  return out;
+}
+
 /** Puts `item` on a profile (cape or cosmetic). */
 function putOn(profile, item) {
   if (cosmetics.isCosmetic(item)) return cosmetics.withItem(profile, item);
@@ -486,8 +543,21 @@ async function handleStoreRoutes(req, res, ctx) {
       rev: cat.rev,
       textureBase,
       sections: cat.sections,
-      items: sorted(cat.items.filter((item) => !item.hidden)).map((item) => publicItem(item, textureBase, counts))
+      items: sorted(cat.items.filter((item) => !item.hidden)).map((item) => publicItem(item, textureBase, counts)),
+      bundles: publicBundles(cat)
     }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
+  const bundleMatch = url.pathname.match(/^\/v1\/store\/bundles\/([^/]+)$/);
+  if (req.method === 'GET' && (url.pathname === '/v1/store/bundles' || bundleMatch)) {
+    if (!hit('store-catalog', ip, 120, 60_000)) { tooMany(res, 60); return true; }
+    if (!bundleMatch) { send(res, 200, { ok: true, bundles: publicBundles(cat) }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' }); return true; }
+    const bundle = findBundle(decodeURIComponent(bundleMatch[1]));
+    const q = bundle ? quoteBundle(bundle) : null;
+    if (!bundle || q.items.length < bundles.MIN_ITEMS) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
+    const counts = ownerCounts();
+    send(res, 200, { ok: true, textureBase, bundle: publicBundle(bundle, q), items: q.items.map((item) => publicItem(item, textureBase, counts)) }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' });
     return true;
   }
 
@@ -546,7 +616,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    send(res, 200, { ok: true, equipped, premiumEquipped: equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), bundles: myBundles(user.id), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
     return true;
   }
 
@@ -614,6 +684,26 @@ async function handleStoreRoutes(req, res, ctx) {
     return true;
   }
 
+  const claimBundle = url.pathname.match(/^\/v1\/store\/bundles\/([^/]+)\/claim$/);
+  if (req.method === 'POST' && claimBundle) {
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to add bundles to your locker.' }); return true; }
+    if (!hit('store-claim', user.id, 60, 10 * 60_000)) { tooMany(res, 600); return true; }
+    const bundle = findBundle(decodeURIComponent(claimBundle[1]));
+    const q = bundle ? quoteBundle(bundle, user.id) : null;
+    if (!bundle || bundle.hidden || q.items.length < bundles.MIN_ITEMS) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
+    if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
+    const plus = billing.hasPlus(user.id);
+    if (q.dueCents > 0 && !plus) { send(res, 402, { ok: false, needsPurchase: true, error: `${bundle.name} costs $${(q.dueCents / 100).toFixed(2)}. Buy it or join Native+.` }); return true; }
+    let added = 0;
+    for (const item of q.missing) {
+      if (billing.isPaid(item)) { if (plus) { billing.grantItem(user.id, item.id, 'plus'); added += 1; } } else { grant(user.id, item.id, 'free'); added += 1; }
+    }
+    const now = ctx.readProfile(user.username);
+    events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: now?.capeStore || null, wearing: wearingOf(now), owned: true });
+    send(res, 200, { ok: true, added, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), bundles: myBundles(user.id) }, noStore);
+    return true;
+  }
+
   if (req.method === 'POST' && url.pathname === '/v1/store/equip') {
     if (!user) { send(res, 401, { ok: false, error: 'Sign in to equip store items.' }); return true; }
     if (!hit('store-equip', user.id, 40, 10 * 60_000)) { tooMany(res, 600); return true; }
@@ -670,6 +760,44 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   if (!user.is_admin) { send(res, 403, { ok: false, error: 'Administrator access required.' }); return true; }
   const noStore = { 'Cache-Control': 'no-store' };
   const list = () => sorted(cat.items).map((item) => ({ ...publicItem(item, textureBase, ownerCounts()), order: Number(item.order) || 0 }));
+
+  const bundleList = () => bundles.sorted(cat.bundles || []).map((bundle) => {
+    const q = quoteBundle(bundle);
+    return { ...publicBundle(bundle, q), itemIds: bundle.itemIds.slice(), live: bundles.listable(bundle, q), sales: bundleSales(bundle.id) };
+  });
+  if (url.pathname === '/v1/admin/store/bundles') {
+    if (req.method === 'GET') { send(res, 200, { ok: true, bundles: bundleList(), maxItems: bundles.MAX_ITEMS }, noStore); return true; }
+    if (req.method === 'POST') {
+      const body = await ctx.readJson(req);
+      let bundle;
+      try { bundle = bundles.cleanBundle(body, null, { findItem, bundles: cat.bundles || [] }); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+      bundle.order = (cat.bundles || []).length;
+      cat.bundles = [...(cat.bundles || []), bundle];
+      persist();
+      send(res, 200, { ok: true, bundle: publicBundle(bundle, quoteBundle(bundle)), bundles: bundleList() }, noStore);
+      return true;
+    }
+  }
+  const adminBundle = url.pathname.match(/^\/v1\/admin\/store\/bundles\/([^/]+)$/);
+  if (adminBundle) {
+    const bundle = findBundle(decodeURIComponent(adminBundle[1]));
+    if (!bundle) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
+    if (req.method === 'PATCH') {
+      const body = await ctx.readJson(req);
+      let next;
+      try { next = bundles.cleanBundle(body, bundle, { findItem, bundles: cat.bundles }); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+      cat.bundles = cat.bundles.map((entry) => (entry === bundle ? next : entry));
+      persist();
+      send(res, 200, { ok: true, bundle: publicBundle(next, quoteBundle(next)), bundles: bundleList() }, noStore);
+      return true;
+    }
+    if (req.method === 'DELETE') {
+      cat.bundles = cat.bundles.filter((entry) => entry !== bundle);
+      persist();
+      send(res, 200, { ok: true, bundles: bundleList() }, noStore);
+      return true;
+    }
+  }
 
   if (req.method === 'GET' && url.pathname === '/v1/admin/store/items') {
     send(res, 200, { ok: true, items: list(), sections: cat.sections, maxFeatured: MAX_FEATURED }, noStore);
@@ -856,6 +984,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       const wearers = cosmetics.isCosmetic(item) ? ownerIds(item.id) : [];
       cat.items = cat.items.filter((entry) => entry !== item);
       if (!cat.deleted.includes(item.id)) cat.deleted.push(item.id);
+      cat.bundles = (cat.bundles || []).map((bundle) => (bundle.itemIds.includes(item.id) ? { ...bundle, itemIds: bundle.itemIds.filter((id) => id !== item.id), updatedAt: Date.now() } : bundle));
       try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
       persist();
       refreshWearers(ctx, item.id, wearers);
@@ -871,4 +1000,9 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, owns, grant, resetCatalog };
+/** How many times a bundle was bought (paid, not refunded). */
+function bundleSales(bundleId) {
+  try { return sql().prepare("SELECT COUNT(*) AS n FROM billing_purchases WHERE bundle_id = ? AND status = 'paid'").get(String(bundleId))?.n || 0; } catch { return 0; }
+}
+
+module.exports = { findBundle, allBundles, quoteBundle, wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, staticStoreCape, owns, grant, resetCatalog };
