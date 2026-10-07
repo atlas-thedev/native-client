@@ -90,22 +90,36 @@ const newCode = () => (TEST_MODE ? '123456' : crypto.randomInt(100000, 1000000).
  * are reserved for their owners, so email sign-ups can't take them. Fails
  * closed: if Mojang can't be reached the caller refuses the name.
  */
+const MOJANG_MIRROR_URL = process.env.NATIVE_MOJANG_MIRROR_URL === undefined ? 'https://api.minetools.eu/uuid/' : process.env.NATIVE_MOJANG_MIRROR_URL;
+/** true/false from Mojang, or null when Mojang can't answer. */
+async function mojangNameTaken(key) {
+  const response = await fetch(`${MOJANG_NAME_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(6_000), headers: { Accept: 'application/json' } });
+  if (response.status === 200) return true;
+  if (response.status === 204 || response.status === 404) return false;
+  return null;
+}
+/** The same answer through a public mirror (minetools): { id } when taken, { id: null, status: 'ERR' } when not. */
+async function mirrorNameTaken(key) {
+  if (!MOJANG_MIRROR_URL) return null;
+  const response = await fetch(`${MOJANG_MIRROR_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(6_000), headers: { Accept: 'application/json' } });
+  if (!response.ok) return null;
+  const body = await response.json().catch(() => null);
+  if (!body || typeof body !== 'object') return null;
+  if (typeof body.id === 'string' && /^[a-f0-9]{32}$/i.test(body.id.replace(/-/g, ''))) return true;
+  if (body.id === null && body.status === 'ERR') return false;
+  return null;
+}
+
 async function isPremiumName(name) {
   const key = String(name || '').toLowerCase();
   if (db.getUserByMinecraftName(key)) return true;
   if (TEST_MODE) return /^premium_/i.test(key);
   const cached = premiumNameCache.get(key);
   if (cached && Date.now() - cached.at < 10 * 60_000) return cached.premium;
-  let response;
-  try {
-    response = await fetch(`${MOJANG_NAME_URL}${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(8_000), headers: { Accept: 'application/json' } });
-  } catch {
-    throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
-  }
-  let premium;
-  if (response.status === 200) premium = true;
-  else if (response.status === 204 || response.status === 404) premium = false;
-  else throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
+  let premium = await mojangNameTaken(key).catch(() => null);
+  // Mojang blocks some hosting IPs: ask a public mirror of the same lookup before giving up
+  if (premium === null) premium = await mirrorNameTaken(key).catch(() => null);
+  if (premium === null) throw Object.assign(new Error('We couldn’t check that name with Minecraft right now. Try again in a moment.'), { status: 503 });
   premiumNameCache.set(key, { premium, at: Date.now() });
   return premium;
 }

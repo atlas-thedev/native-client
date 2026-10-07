@@ -16,7 +16,7 @@ const calls = { reads: 0, uploads: 0, friends: [], groups: [] };
 globalThis.window = { native: {
   instance: { screenshotData: async () => { calls.reads += 1; return 'data:image/png;base64,AAAA'; } },
   relay: { sendGroupMessage: async (id, payload) => { calls.groups.push({ id, payload }); return { ok: true }; } }
-} };
+}, addEventListener() {}, removeEventListener() {} };
 const { shareScreenshot } = require(${JSON.stringify(path.join(ROOT, 'src/features/cluster/ScreenshotManager.jsx'))});
 const social = {
   uploadMedia: async (data, name) => { calls.uploads += 1; calls.upload = { data, name }; return { ok: true, url: 'https://cdn.test/shot.png' }; },

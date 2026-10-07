@@ -55,7 +55,7 @@ process.stdout.write(html);
     platform: 'node',
     format: 'cjs',
     jsx: 'automatic',
-    loader: { '.css': 'empty', '.png': 'dataurl', '.jpg': 'dataurl', '.ttf': 'dataurl' },
+    loader: { '.css': 'empty', '.png': 'dataurl', '.jpg': 'dataurl', '.ttf': 'dataurl', '.svg': 'dataurl' },
     outfile: bundle,
     logLevel: 'error',
     nodePaths: [path.join(ROOT, 'node_modules')]
