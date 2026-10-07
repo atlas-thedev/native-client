@@ -238,7 +238,7 @@ function saveProfile(profile, req, owner) {
         capeStore: profile.capeStore || null,
         wearing: storeRoutes.wearingOf(profile),
         sides: (profile && profile.cosmeticSides) || {},
-        cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`),
+        cosmetics: cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`, storeRoutes.dyedTexture),
         updatedAt: profile.updatedAt
       };
       events.publish(db.getFriendIds(user.id), 'skin:updated', payload);
@@ -399,7 +399,7 @@ function customSkinProfile(profile, origin) {
   }
   if (profile.capeStore) document.capeStore = profile.capeStore;
   // 3D cosmetics (hats, glasses, back items, shoes): NCM model + texture per slot
-  const worn = cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`);
+  const worn = cosmetics.documentRefs(profile, storeRoutes.findItem, `${origin}/csl/textures/`, storeRoutes.dyedTexture);
   if (worn.length) document.cosmetics = worn;
   return document;
 }
@@ -514,7 +514,7 @@ async function handler(req, res) {
     }
 
     try {
-      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems, findBundle: storeRoutes.findBundle, quoteBundle: storeRoutes.quoteBundle });
+      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems });
       if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
     } catch (billingError) {
       console.error('[Native Billing]', billingError);
@@ -679,6 +679,7 @@ async function handler(req, res) {
         // 3D cosmetics are only changed through the store (POST /v1/store/equip), never by a wardrobe sync
         ...(existing?.cosmetics && Object.keys(existing.cosmetics).length ? { cosmetics: existing.cosmetics } : {}),
         ...(existing?.cosmeticSides && Object.keys(existing.cosmeticSides).length ? { cosmeticSides: existing.cosmeticSides } : {}),
+        ...(existing?.cosmeticDyes && Object.keys(existing.cosmeticDyes).length ? { cosmeticDyes: existing.cosmeticDyes } : {}),
         updatedAt: new Date().toISOString()
       };
       saveProfile(profile, req, sessionUser);
@@ -1059,12 +1060,13 @@ async function handler(req, res) {
       try { fs.rmSync(profilePath(result.from.premium), { force: true }); } catch {}
       const wornFrom = (nativeProfile && nativeProfile.cosmetics) ? nativeProfile : (premiumProfile && premiumProfile.cosmetics) ? premiumProfile : null;
       const wornCosmetics = wornFrom ? wornFrom.cosmetics : null;
-      // the hand / balloon sides travel with the cosmetics they belong to
+      // the hand sides and the dye colours travel with the cosmetics they belong to
       const wornSides = wornFrom && wornFrom.cosmeticSides && Object.keys(wornFrom.cosmeticSides).length ? wornFrom.cosmeticSides : null;
       saveProfile({
         ...(base.cape ? base : (premiumProfile || base)),
         ...(wornCosmetics ? { cosmetics: wornCosmetics } : {}),
         cosmeticSides: wornSides || undefined,
+        cosmeticDyes: (wornFrom && wornFrom.cosmeticDyes) || undefined,
         username: merged.username,
         skin: null,
         skinName: undefined,
@@ -1529,6 +1531,7 @@ function applyTimeouts(server) {
 }
 
 function createServer() {
+  storeRoutes.setTextureReader((hash) => (/^[a-f0-9]{64}$/.test(String(hash)) ? fs.readFileSync(path.join(texturesDir, hash)) : null));
   try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }

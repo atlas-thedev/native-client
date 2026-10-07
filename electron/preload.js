@@ -82,8 +82,10 @@ const api = {
     // options.target 'premium': wear it on the connected premium (Microsoft) account in game.
     equip: (account, itemId, options = {}) => ipcRenderer.invoke('store:equip', { account, itemId, target: options?.target === 'premium' ? 'premium' : null }),
     me: (account) => ipcRenderer.invoke('store:me', account),
+    // dyeable cosmetics: dye(account, itemId, '#rrggbb' | null); dyeTexture(itemId, '#rrggbb') -> { texture } for previews
+    dye: (account, itemId, color) => ipcRenderer.invoke('store:dye', { account, itemId, color }),
+    dyeTexture: (itemId, color) => ipcRenderer.invoke('store:dyeTexture', { itemId, color }),
     claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
-    claimBundle: (account, bundleId) => ipcRenderer.invoke('store:claimBundle', { account, bundleId }),
     unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId }),
     redeem: (account, code) => ipcRenderer.invoke('store:redeem', { account, code }),
     wish: (account, itemId, on) => ipcRenderer.invoke('store:wish', { account, itemId, on }),
@@ -280,10 +282,6 @@ const api = {
     storeCreate: (item) => ipcRenderer.invoke('admin:storeCreate', item),
     storeUpdate: (id, patch) => ipcRenderer.invoke('admin:storeUpdate', id, patch),
     storeDelete: (id) => ipcRenderer.invoke('admin:storeDelete', id),
-    storeBundles: () => ipcRenderer.invoke('admin:storeBundles'),
-    storeBundleCreate: (bundle) => ipcRenderer.invoke('admin:storeBundleCreate', bundle),
-    storeBundleUpdate: (id, patch) => ipcRenderer.invoke('admin:storeBundleUpdate', id, patch),
-    storeBundleDelete: (id) => ipcRenderer.invoke('admin:storeBundleDelete', id),
     storeOwners: (id) => ipcRenderer.invoke('admin:storeOwners', id),
     storeGrant: (id, username) => ipcRenderer.invoke('admin:storeGrant', id, username),
     storeRevoke: (id, username) => ipcRenderer.invoke('admin:storeRevoke', id, username),

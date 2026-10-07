@@ -2,8 +2,7 @@
  * Native billing: Paddle Billing checkout, webhooks, Native+ and redeem codes.
  *
  *   GET  /v1/billing/config                 public: is billing on, Paddle client token, prices
- *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'bundle', bundleId } | { kind: 'bundle', itemIds } | { kind: 'plus', plan: 'monthly'|'yearly' } -> { url }
- *                                           (a store bundle is sold at its bundle price, split over the pieces still to buy)
+ *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'bundle', itemIds } | { kind: 'plus', plan: 'monthly'|'yearly' } -> { url }
  *                                           (a bundle is several paid items in one Paddle transaction; item_id holds them comma-separated)
  *   GET  /v1/billing/me                     Native+ status and purchases of the signed-in account
  *   POST /v1/billing/portal                 Paddle customer portal link (receipts, cancel Native+)
@@ -138,9 +137,6 @@ function sql() {
     for (const table of ['billing_purchases', 'billing_subscriptions']) {
       try { handle.exec(`ALTER TABLE ${table} ADD COLUMN environment TEXT`); } catch { /* already there */ }
     }
-    for (const table of ['billing_purchases', 'billing_checkouts']) {
-      try { handle.exec(`ALTER TABLE ${table} ADD COLUMN bundle_id TEXT`); } catch { /* already there */ }
-    }
     // Customers saved before environments existed belong to the env-var environment.
     handle.prepare('INSERT OR IGNORE INTO billing_customer_ids (user_id, environment, customer_id, created_at) SELECT user_id, ?, customer_id, created_at FROM billing_customers').run(envDefault());
     ready = handle;
@@ -196,7 +192,7 @@ function grantItem(userId, itemId, source) {
 }
 
 /* hooks set by the server (profile storage lives there) */
-let hooks = { readProfile: null, saveProfile: null, findItem: null, allItems: null, findBundle: null, quoteBundle: null };
+let hooks = { readProfile: null, saveProfile: null, findItem: null, allItems: null };
 function setHooks(next) { hooks = { ...hooks, ...next }; }
 
 function takeOffIfWearing(user, itemIds) {
@@ -358,14 +354,13 @@ function onTransactionCompleted(data, name) {
     : kind === 'bundle' ? bundleIds(custom.itemIds || checkout.item_id).join(',') || null
     : null;
   const plan = kind === 'plus' ? (planOf(data.items?.[0]?.price?.id) || custom.plan || checkout.plan || null) : null;
-  const bundleId = kind === 'bundle' ? (String(custom.bundleId || checkout.bundle_id || '') || null) : null;
   const totals = data.details?.totals || {};
   const now = Date.now();
   sql().prepare(`INSERT OR IGNORE INTO billing_purchases
-    (transaction_id, user_id, kind, item_id, plan, amount_cents, currency, status, subscription_id, customer_id, created_at, updated_at, environment, bundle_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, ?, ?, ?)`).run(
+    (transaction_id, user_id, kind, item_id, plan, amount_cents, currency, status, subscription_id, customer_id, created_at, updated_at, environment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, ?, ?)`).run(
     data.id, String(user.id), kind, itemId, plan, Number(totals.grand_total || totals.total || 0), String(data.currency_code || totals.currency_code || 'USD'),
-    data.subscription_id || null, data.customer_id || null, toMs(data.billed_at) || now, now, name, bundleId);
+    data.subscription_id || null, data.customer_id || null, toMs(data.billed_at) || now, now, name);
   if (data.customer_id) {
     sql().prepare('INSERT OR IGNORE INTO billing_customer_ids (user_id, environment, customer_id, created_at) VALUES (?, ?, ?, ?)').run(String(user.id), name, data.customer_id, now);
   }
@@ -375,14 +370,6 @@ function onTransactionCompleted(data, name) {
   }
   if (kind === 'bundle' && itemId) {
     for (const id of bundleIds(itemId)) grantItem(user.id, id, 'purchase');
-    // a store bundle's free pieces come with it
-    const bundle = bundleId && hooks.findBundle ? hooks.findBundle(bundleId) : null;
-    if (bundle && hooks.findItem) {
-      for (const id of bundle.itemIds || []) {
-        const item = hooks.findItem(id);
-        if (item && !item.exclusive && !isPaid(item) && !ownedSource(user.id, id)) grantItem(user.id, id, 'free');
-      }
-    }
     // remember which line item is which piece, so a partial refund only takes back what was refunded
     const prices = new Map((data.items || []).map((line) => [line.price?.id, line.price?.custom_data?.itemId]));
     const insert = sql().prepare('INSERT OR IGNORE INTO billing_bundle_lines (transaction_id, line_id, item_id) VALUES (?, ?, ?)');
@@ -395,10 +382,10 @@ function onTransactionCompleted(data, name) {
   return { ok: true };
 }
 
-/** Item ids of a bundle (array or comma-separated), unique, at most 12. */
+/** Item ids of a bundle (array or comma-separated), unique, at most 10. */
 function bundleIds(value) {
   const list = Array.isArray(value) ? value : String(value || '').split(',');
-  return [...new Set(list.map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 12);
+  return [...new Set(list.map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 10);
 }
 
 function onSubscription(data, name) {
@@ -498,8 +485,7 @@ async function readRaw(req, limit = 1024 * 1024) {
 
 function purchasesOf(userId) {
   return sql().prepare('SELECT * FROM billing_purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT 100').all(String(userId)).map((row) => ({
-    transactionId: row.transaction_id, kind: row.kind, itemId: row.item_id, plan: row.plan, bundleId: row.bundle_id || null,
-    bundleName: row.bundle_id && hooks.findBundle ? (hooks.findBundle(row.bundle_id)?.name || null) : null,
+    transactionId: row.transaction_id, kind: row.kind, itemId: row.item_id, plan: row.plan,
     amount: row.amount_cents / 100, currency: row.currency, status: row.status, createdAt: row.created_at
   }));
 }
@@ -604,24 +590,7 @@ async function handleBillingRoutes(req, res, ctx) {
         custom_data: { itemId: item.id }
       }
     });
-    if (kind === 'bundle' && body.bundleId) {
-      const bundle = hooks.findBundle ? hooks.findBundle(String(body.bundleId)) : null;
-      const q = bundle && hooks.quoteBundle ? hooks.quoteBundle(bundle, user.id) : null;
-      if (!bundle || bundle.hidden || !q || q.items.length < 2) { send(res, 404, { ok: false, error: 'That bundle isn’t for sale.' }); return true; }
-      if (!q.lines.length) { send(res, 400, { ok: false, error: q.missing.length ? 'Everything you’re missing in this bundle is free. Add it to your locker instead.' : 'You already own everything in this bundle.' }); return true; }
-      items = q.lines.map(({ item, cents }) => ({
-        quantity: 1,
-        price: {
-          name: `${item.name} (${bundle.name})`,
-          description: `${item.name}, part of the ${bundle.name} bundle for Native`,
-          product_id: c.capeProduct,
-          unit_price: { amount: String(cents), currency_code: 'USD' },
-          quantity: { minimum: 1, maximum: 1 },
-          custom_data: { itemId: item.id, bundleId: bundle.id }
-        }
-      }));
-      custom = { userId: String(user.id), kind: 'bundle', bundleId: bundle.id, itemIds: q.lines.map(({ item }) => item.id).join(',') };
-    } else if (kind === 'bundle') {
+    if (kind === 'bundle') {
       const ids = bundleIds(body.itemIds);
       const list = [];
       for (const id of ids) {
@@ -663,8 +632,8 @@ async function handleBillingRoutes(req, res, ctx) {
     try {
       const customerId = await customerFor(user);
       const txn = await paddle('POST', '/transactions', { items, customer_id: customerId, custom_data: custom, collection_mode: 'automatic' });
-      sql().prepare('INSERT OR REPLACE INTO billing_checkouts (transaction_id, user_id, kind, item_id, plan, created_at, bundle_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(txn.id, String(user.id), custom.kind, custom.itemId || custom.itemIds || null, custom.plan || null, Date.now(), custom.bundleId || null);
+      sql().prepare('INSERT OR REPLACE INTO billing_checkouts (transaction_id, user_id, kind, item_id, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(txn.id, String(user.id), custom.kind, custom.itemId || custom.itemIds || null, custom.plan || null, Date.now());
       send(res, 200, { ok: true, transactionId: txn.id, url: txn.checkout?.url || null }, noStore);
     } catch (error) {
       console.error('[Native Billing] checkout failed:', error.message);
@@ -806,7 +775,7 @@ async function handleAdmin(req, res, ctx, url, user) {
     const gifted = one(`SELECT COUNT(*) AS n FROM plus_grants WHERE (expires_at IS NULL OR expires_at > ?) AND user_id NOT IN (SELECT user_id FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') AND ${inEnv})`, Date.now()).n || 0;
     const recent = sql().prepare('SELECT * FROM billing_purchases ORDER BY created_at DESC LIMIT 25').all().map((row) => ({
       transactionId: row.transaction_id, userId: row.user_id, username: nameOf(row.user_id), kind: row.kind, itemId: row.item_id,
-      itemName: row.kind === 'bundle' && row.bundle_id && hooks.findBundle?.(row.bundle_id) ? `${hooks.findBundle(row.bundle_id).name} bundle` : row.kind === 'bundle' ? bundleIds(row.item_id).map((id) => ctx.findItem(id)?.name || id).join(', ') : row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
+      itemName: row.kind === 'bundle' ? bundleIds(row.item_id).map((id) => ctx.findItem(id)?.name || id).join(', ') : row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
       amount: row.amount_cents / 100, currency: row.currency, status: row.status, createdAt: row.created_at,
       environment: row.environment || envDefault()
     }));

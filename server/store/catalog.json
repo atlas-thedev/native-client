@@ -6,8 +6,7 @@
     {"id": "glasses", "name": "Glasses", "blurb": "Shades, specs and visors for your face."},
     {"id": "back", "name": "Wings & Backpacks", "blurb": "Wings, jetpacks and backpacks that ride on your back."},
     {"id": "shoes", "name": "Shoes", "blurb": "Kicks and boots for your feet."},
-    {"id": "hand", "name": "Hand Items", "blurb": "Things to hold in your hand in game."},
-    {"id": "balloon", "name": "Balloons", "blurb": "Balloons that float along beside you."}
+    {"id": "hand", "name": "Hand Items", "blurb": "Things to hold in your hand in game."}
   ],
   "items": [
     {"id": "you-got-this", "section": "capes", "name": "You Got This", "description": "A tiny cat cheering you on, frame by frame.", "tags": ["animated", "cute"], "frames": 26, "fps": 12, "author": "Native", "featured": true},

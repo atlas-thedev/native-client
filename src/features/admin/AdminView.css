@@ -455,17 +455,3 @@
 .admin-beta-modes button.is-on { background: #fff; color: #0b0b0f; }
 .admin-beta-modes button:disabled { cursor: default; }
 .admin-beta-del { padding: 6px 8px; }
-
-/* store bundles */
-.admin-bundle-thumb { width: 36px; height: 36px; object-fit: contain; border-radius: 6px; background: var(--in-raise); }
-.admin-bundle-stack { display: flex; align-items: center; gap: 4px; min-width: 76px; }
-.admin-bundle-picker { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.admin-bundle-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.admin-bundle-picker-head strong { font-size: 12px; color: var(--fg-secondary); }
-.admin-bundle-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 300px; overflow: auto; padding-right: 4px; }
-.admin-bundle-choice { display: flex; align-items: center; gap: 8px; padding: 6px 8px; text-align: left; cursor: pointer; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); background: var(--in-raise); color: var(--fg-secondary); }
-.admin-bundle-choice span { display: flex; flex-direction: column; min-width: 0; }
-.admin-bundle-choice b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-primary); }
-.admin-bundle-choice small { font-size: 10.5px; color: var(--fg-muted); }
-.admin-bundle-choice.is-on { border-color: rgba(126, 224, 168, 0.6); background: rgba(126, 224, 168, 0.1); }
-.admin-bundle-choice:disabled { opacity: 0.45; cursor: not-allowed; }
