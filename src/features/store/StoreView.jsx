@@ -581,7 +581,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {isCosmetic(item)
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
-          <span className="store-card-try" aria-hidden="true">View in 3D</span>
           <div className="store-card-badges">
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}

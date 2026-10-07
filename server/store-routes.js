@@ -389,7 +389,7 @@ function publicItem(item, textureBase, counts) {
       motion: Boolean(item.motion),
       modelUrl: `${textureBase}${item.model}`,
       textureUrl: `${textureBase}${item.texture}`,
-      ...(item.dyeable && item.dyeBase ? { dyeable: true, dyeDefault: item.dyeDefault || null, dyeUrl: `${textureBase.replace(/\/csl\/textures\/$/, '')}/v1/store/items/${encodeURIComponent(item.id)}/dye/` } : {})
+      ...(item.dyeable && item.dyeBase ? { dyeable: true, dyeDefault: item.dyeDefault || null, dyeColors: dyeColorsOf(item), dyeUrl: `${textureBase.replace(/\/csl\/textures\/$/, '')}/v1/store/items/${encodeURIComponent(item.id)}/dye/` } : {})
     } : { kind: 'cape' }),
     owners: counts ? (counts.get(item.id) || 0) : undefined,
     createdAt: Number(item.createdAt) || 0
@@ -466,11 +466,15 @@ let readTexture = () => null;
 /** server.js tells the store how to read a stored texture back (by hash). */
 function setTextureReader(fn) { if (typeof fn === 'function') readTexture = fn; }
 const dyeCache = new Map(); // `${base}|${mask}|${hex}` -> texture hash
+/** The colours an admin offers for `item` (its default is always allowed too). */
+const dyeColorsOf = (item) => (Array.isArray(item && item.dyeColors) ? item.dyeColors.filter((hex) => dye.cleanHex(hex)) : []);
+/** Whether players may wear `item` dyed `hex`. */
+const dyeAllowed = (item, hex) => Boolean(hex) && (hex === item.dyeDefault || dyeColorsOf(item).includes(hex));
 /** The hash of `item`'s texture dyed `hex` (baked once, then served like any other texture). */
 function dyedTexture(item, hex) {
   const color = dye.cleanHex(hex);
   if (!item || !item.dyeable || !item.dyeBase || !color) return item ? item.texture : null;
-  if (color === item.dyeDefault) return item.texture;
+  if (color === item.dyeDefault || !dyeAllowed(item, color)) return item.texture;
   const key = `${item.dyeBase}|${item.dyeMask || ''}|${color}`;
   const hit = dyeCache.get(key);
   if (hit) return hit;
@@ -483,14 +487,14 @@ function dyedTexture(item, hex) {
 }
 
 /**
- * Admin dye settings of a cosmetic: { dyeable, dyeMask (PNG base64, '' = none), dyeDefault ('#rrggbb') }.
+ * Admin dye settings of a cosmetic: { dyeable, dyeMask (PNG base64, '' = none), dyeDefault ('#rrggbb'), dyeColors (up to 5 '#rrggbb') }.
  * The uploaded (or current) texture becomes the undyed base and `texture` is re-baked in the default colour.
  */
 function applyDye(next, body, previous = null) {
   const wanted = body.dyeable !== undefined ? Boolean(body.dyeable) : Boolean(previous && previous.dyeable);
   if (!wanted) {
     if (previous && previous.dyeable && !body.texture) next.texture = previous.texture;
-    delete next.dyeable; delete next.dyeBase; delete next.dyeMask; delete next.dyeDefault;
+    delete next.dyeable; delete next.dyeBase; delete next.dyeMask; delete next.dyeDefault; delete next.dyeColors;
     return next;
   }
   const uploaded = Boolean(body.texture) && next.texture;
@@ -509,7 +513,8 @@ function applyDye(next, body, previous = null) {
   const baseBuffer = readTexture(base);
   if (!baseBuffer) throw new Error('The cosmetic texture is missing.');
   next.texture = color ? storeTexture(dye.bake(baseBuffer, mask ? readTexture(mask) : null, color)) : base;
-  Object.assign(next, { dyeable: true, dyeBase: base, dyeMask: mask, dyeDefault: color });
+  const colors = body.dyeColors !== undefined ? dye.cleanColors(body.dyeColors, color) : dye.cleanColors(previous && previous.dyeable ? previous.dyeColors : [], color);
+  Object.assign(next, { dyeable: true, dyeBase: base, dyeMask: mask, dyeDefault: color, dyeColors: colors });
   return next;
 }
 
@@ -583,6 +588,7 @@ async function handleStoreRoutes(req, res, ctx) {
     if (!hit('store-dye-preview', ip, 600, 60_000)) { tooMany(res, 60); return true; }
     const item = findItem(decodeURIComponent(dyeMatch[1]));
     if (!item || !item.dyeable || !item.dyeBase) { send(res, 404, { ok: false, error: 'That item can’t be dyed.' }); return true; }
+    if (!dyeAllowed(item, `#${dyeMatch[2].toLowerCase()}`)) { send(res, 404, { ok: false, error: 'That colour isn’t available for this item.' }); return true; }
     let png = null;
     try { png = readTexture(dyedTexture(item, `#${dyeMatch[2].toLowerCase()}`)); } catch (error) { console.warn('[Native Store] dye failed:', error.message); }
     if (!png) { send(res, 500, { ok: false, error: 'Couldn’t dye that texture.' }); return true; }
@@ -723,6 +729,7 @@ async function handleStoreRoutes(req, res, ctx) {
     if (!owns(user.id, item.id)) { send(res, 403, { ok: false, error: `Add ${item.name} to your locker first.` }); return true; }
     const color = body.color == null || body.color === '' ? null : dye.cleanHex(body.color);
     if (body.color != null && body.color !== '' && !color) { send(res, 400, { ok: false, error: 'Pick a colour like #ff8800.' }); return true; }
+    if (color && !dyeAllowed(item, color)) { send(res, 400, { ok: false, error: `That colour isn’t available for ${item.name}.` }); return true; }
     const existing = ctx.readProfile(user.username) || { username: user.username, model: user.model === 'slim' ? 'slim' : 'default', skin: null, cape: null, authHash: null };
     const dyes = { ...(existing.cosmeticDyes || {}) };
     if (!color || color === item.dyeDefault) delete dyes[item.id]; else dyes[item.id] = color;
@@ -957,7 +964,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
         if (body.model || body.texture || body.thumb || body.still) {
           try { Object.assign(next, cosmeticFrom(body, item)); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
         }
-        if (body.texture || body.dyeable !== undefined || body.dyeMask !== undefined || body.dyeDefault !== undefined) {
+        if (body.texture || body.dyeable !== undefined || body.dyeMask !== undefined || body.dyeDefault !== undefined || body.dyeColors !== undefined) {
           try { applyDye(next, body, item); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
         }
       } else if (body.strip || body.still) {

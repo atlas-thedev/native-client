@@ -17,7 +17,6 @@ import './LockerLocal.css';
 
 const SKINS_PER_PAGE = 9;
 // Quick picks for dyeable cosmetics (same list as the server and the website).
-const DYE_SWATCHES = ['#f2f2f2', '#9a9aa2', '#2b2b30', '#e5484d', '#ff8a3d', '#ffd23f', '#7ed957', '#2fbf71', '#3ec7e0', '#3d7bff', '#8a5cff', '#ff6fb5', '#8b5a2b', '#d4af37'];
 const SECTION_KEY = 'native.locker.section';
 const COS_TAB_KEY = 'native.locker.cosTab';
 // Cosmetics sub-tabs. `slot` = a 3D cosmetic slot; cloaks come from the Store, capes from Minecraft.
@@ -68,9 +67,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [sides, setSides] = useState({});
   const [dyes, setDyes] = useState({}); // itemId -> '#rrggbb' the player picked
   const [dyeTex, setDyeTex] = useState({}); // `${itemId}|${hex}` -> dyed texture (data URL)
-  const [dyeDraft, setDyeDraft] = useState(null); // { id, color } while dragging the colour picker
   const dyeRequested = useRef(new Set());
-  const dyeTimer = useRef(null);
   const [cosAssets, setCosAssets] = useState({});
   const cosRequested = useRef(new Set());
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
@@ -287,7 +284,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [showCosmetics, setShowCosmetics] = useState(true);
   // Dyeable cosmetics: the colour shown for an item (being picked, saved, or its own) and its dyed texture.
   const catalogById = useMemo(() => new Map(catalogItems.map((item) => [item.id, item])), [catalogItems]);
-  const dyeOf = (id) => (dyeDraft?.id === id ? dyeDraft.color : dyes[id]) || null;
+  const dyeOf = (id) => dyes[id] || null;
   const loadDye = (id, color) => {
     const key = `${id}|${color}`;
     if (dyeRequested.current.has(key)) return;
@@ -306,14 +303,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
   useEffect(() => {
     for (const id of new Set([...Object.values(wearing || {}), ...Object.keys(dyes)])) { const color = dyeOf(id); if (color && catalogById.get(id)?.dyeable && color !== catalogById.get(id)?.dyeDefault) loadDye(id, color); }
-  }, [wearing, dyes, dyeDraft, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wearing, dyes, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   // What the player wears, with the item being tried on swapped into its slot.
   const wornCosmetics = useMemo(() => {
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
     if (tryOn?.kind === 'cosmetic') slots[tryOn.slot] = tryOn.id;
     if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
     return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
-  }, [wearing, cosAssets, showCosmetics, tryOn, sides, dyes, dyeDraft, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wearing, cosAssets, showCosmetics, tryOn, sides, dyes, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
@@ -617,7 +614,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const next = { ...dyes };
     if (!color || color === item.dyeDefault) delete next[item.id]; else next[item.id] = color;
     setDyes(next);
-    setDyeDraft(null);
     try {
       const res = await window.native?.store?.dye?.(account, item.id, color);
       if (!res?.ok) throw new Error(res?.error || 'Could not dye that.');
@@ -625,11 +621,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       window.dispatchEvent(new Event('native:cosmetics-changed'));
     } catch (error) { setDyes(before); onNotify?.(t('locker.title'), error?.message || 'Could not dye that.'); }
   };
-  const draftDye = (item, color) => {
-    setDyeDraft({ id: item.id, color });
-    clearTimeout(dyeTimer.current);
-    dyeTimer.current = setTimeout(() => { if (color !== item.dyeDefault) loadDye(item.id, color); }, 90);
-  };
+
   // Take off whatever is in a slot.
   const clearSlot = async (slot) => {
     if (!account || storeBusy || localOnly || !wearing?.[slot]) return;
@@ -805,15 +797,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const dyePanel = dyeItem?.dyeable ? (() => {
       const current = dyeOf(dyeItem.id) || dyeItem.dyeDefault || '#ffffff';
       const own = dyeItem.dyeDefault || null;
-      const picks = [...(own ? [own] : []), ...DYE_SWATCHES.filter((hex) => hex !== own)];
+      const picks = [...(own ? [own] : []), ...(dyeItem.dyeColors || []).filter((hex) => hex !== own)];
+      if (picks.length < 2) return null;
       return <div className="locker-dye locker-pop" role="group" aria-label={`Dye ${dyeItem.name}`}>
         <span className="locker-dye-label"><Palette size={14}/>Dye <b>{dyeItem.name}</b></span>
         <div className="locker-dye-swatches">
           {picks.map((hex) => <button key={hex} type="button" className={`locker-dye-swatch${current === hex ? ' is-on' : ''}${hex === own ? ' is-own' : ''}`} style={{ '--dye': hex }} title={hex === own ? `Original (${hex})` : hex} aria-label={hex === own ? 'Original colour' : `Colour ${hex}`} aria-pressed={current === hex} onClick={() => saveDye(dyeItem, hex)}/>)}
-          <label className={`locker-dye-custom${!picks.includes(current) ? ' is-on' : ''}`} style={{ '--dye': current }} title="Any colour">
-            <Plus size={12} strokeWidth={3}/>
-            <input type="color" value={current} aria-label="Pick any colour" onInput={(event) => draftDye(dyeItem, event.target.value.toLowerCase())} onChange={(event) => saveDye(dyeItem, event.target.value.toLowerCase())}/>
-          </label>
         </div>
         <span className="locker-dye-hex">{current}</span>
         {dyes[dyeItem.id] && <button type="button" className="locker-dye-reset" onClick={() => saveDye(dyeItem, null)} title="Back to its own colour"><RotateCcw size={12}/>Reset</button>}
