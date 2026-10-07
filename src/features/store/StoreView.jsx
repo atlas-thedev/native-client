@@ -525,6 +525,23 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
+  /** "You own this": a quiet row under the price with when it was added, whether it's on, and a way to the locker. */
+  const renderOwned = (item) => {
+    const entry = me.owned.find((owned) => owned.id === item.id);
+    const on = isCosmetic(item) ? (me.wearing || {})[item.slot] === item.id : me.equipped === item.id;
+    const since = entry?.acquiredAt ? new Date(entry.acquiredAt).toLocaleDateString([], { dateStyle: 'medium' }) : null;
+    const how = entry?.source === 'purchase' ? 'Bought' : entry?.source === 'code' ? 'Redeemed' : entry?.source === 'plus' ? 'With Native+' : 'Added';
+    return (
+      <div className={`store-owned${on ? ' is-on' : ''}`}>
+        <Package size={16} aria-hidden="true" />
+        <div className="store-owned-copy">
+          <strong>In your locker</strong>
+          <span>{since ? `${how} ${since}` : how}<i aria-hidden="true">·</i><b className="store-owned-state">{on ? 'Wearing now' : 'Not worn'}</b></span>
+        </div>
+        {onOpenLocker && <button type="button" className="store-owned-link" onClick={onOpenLocker}>Open locker<ChevronRight size={13} /></button>}
+      </div>
+    );
+  };
   const visibleTags = (item) => (item.tags || []).filter((tag) => tag !== 'animated' && tag !== 'exclusive');
   /** Badges, name, description, facts, tags and actions: shared by the hero and the 3D popup. */
   const renderDetails = (item, { kicker = null, Heading = 'h2' } = {}) => (
@@ -533,7 +550,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         {kicker}
         {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
         {item.exclusive && <span className="store-event-badge">Event</span>}
-        {ownedIds.has(item.id) && <span className="store-badge owned"><Check size={10} strokeWidth={3} />In your locker</span>}
       </div>
       <Heading className="store-spot-name">{item.name}</Heading>
       <p className="store-spot-desc">{item.description}</p>
@@ -545,6 +561,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         </div>
         <span className="shop-creator"><Pencil />Creator: <b>{item.author || 'Native'}</b></span>
       </div>
+      {ownedIds.has(item.id) && renderOwned(item)}
       <dl className="store-spot-facts">
         <div><dt>Owned</dt><dd className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={13} />{formatCount(item.owners)}</dd></div>
         <div><dt>Type</dt><dd>{isCosmetic(item) ? `${moves(item) ? 'Animated' : '3D'} ${SLOT_WORDS[item.slot] || 'cosmetic'}` : item.animated ? 'Animated' : 'Static'}</dd></div>
