@@ -110,7 +110,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
       filters,
       query: debouncedQuery,
       sort,
-      source: activeType?.id === 'modpack' ? 'modrinth' : source,
+      source,
       offset: (pageToLoad - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
       signal: controller.signal
