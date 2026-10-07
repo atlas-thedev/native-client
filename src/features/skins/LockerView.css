@@ -822,3 +822,5 @@
 @media (prefers-reduced-motion: reduce) {
 }
 .locker-subpanel > .locker-cape-hint { margin: 0; padding: 4px 14px; }
+.locker-cape-hint.is-warn { color: #ffcf8a; }
+.locker-cape-hint-link { padding: 0; border: 0; background: none; color: #fff; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
