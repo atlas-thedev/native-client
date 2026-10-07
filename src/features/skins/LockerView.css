@@ -762,7 +762,11 @@
 /* ── Cosmetics: sub-tabs, try-on, Store shelf ───────────── */
 .locker-cos-tabs { padding-top: 4px; }
 .locker-cos-tabs .pxt { width: 100%; box-sizing: border-box; }
-.locker-cos-tabs .pxt-tab { padding: 0 8px; }
+.locker-cos-tabs .pxt-tab { padding: 0 10px; }
+/* tabs keep their full label + count (never squeezed until the count is cut off); the strip scrolls instead */
+.locker-cos-tabs .pxt { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.locker-cos-tabs .pxt::-webkit-scrollbar { display: none; }
+.locker-cos-tabs .pxt.is-fill > .pxt-tab { flex: 1 0 auto; white-space: nowrap; }
 
 .locker-subpanel { display: flex; flex-direction: column; gap: 12px; min-width: 0; transform-origin: 50% 0; }
 .locker-subpanel.from-right { animation: locker-in-right 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both; }

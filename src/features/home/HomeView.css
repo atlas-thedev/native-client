@@ -732,3 +732,13 @@
 @media (max-width: 900px) {
   .home-side { display: none; }
 }
+
+/* Animated Nether backdrop: pixel art, keep it crisp; focal point (portal, ghast) sits right of the hero text. */
+.home-bg-nether {
+  image-rendering: pixelated;
+  object-position: 62% 50%;
+  pointer-events: none;
+}
+/* The Nether is already dark: a lighter scrim keeps the lava and portal glowing. */
+.home-bg-layer.is-nether .home-bg-overlay { opacity: calc(var(--home-scrim, 1) * 0.55); }
+.home-bg-layer.is-nether .home-bg-fade { height: 30%; }

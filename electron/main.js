@@ -65,25 +65,17 @@ function createWindow() {
     }
   });
 
-  win.once('ready-to-show', () => {
+  // Native always opens maximized (filling the screen, taskbar still visible).
+  const reveal = () => {
+    if (!win || win.isDestroyed() || win.isVisible()) return;
+    win.maximize();
     win.show();
     win.focus();
-  });
-
-  win.webContents.on('did-finish-load', () => {
-    if (win && !win.isVisible()) {
-      win.show();
-      win.focus();
-    }
-  });
-
+  };
+  win.once('ready-to-show', reveal);
+  win.webContents.on('did-finish-load', reveal);
   // Failsafe in case ready-to-show is dropped or delayed
-  setTimeout(() => {
-    if (win && !win.isVisible()) {
-      win.show();
-      win.focus();
-    }
-  }, 1000);
+  setTimeout(reveal, 1000);
 
   win.on('maximize', () => win.webContents.send('window:maximized', true));
   win.on('unmaximize', () => win.webContents.send('window:maximized', false));

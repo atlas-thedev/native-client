@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { restoreAssetPacks } from './scripts/restore-asset-packs.mjs';
+
+restoreAssetPacks();
 
 /**
  * Production Content-Security-Policy. Scripts may only come from the app
