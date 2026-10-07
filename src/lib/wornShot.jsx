@@ -11,7 +11,7 @@ import alexSkin from '../assets/alex.png';
  */
 
 const SIZE = 288;
-const VERSION = 'v4';
+const VERSION = 'v5';
 const memory = new Map(); // key -> data URL
 const waiting = new Map(); // key -> Promise
 let chain = Promise.resolve();
@@ -80,6 +80,22 @@ async function getStage() {
  * Fits the camera to the piece and the body part(s) it is attached to (a hat shows the whole head, wings the torso and
  * head, shoes both legs), looking from the side the piece is on, with a little padding.
  */
+/**
+ * Drops the few far-flung vertices of a piece (sparks, trailing particles) so they don't shrink the shot:
+ * anything well outside the 4th-96th percentile box of the piece is left out of the framing.
+ */
+function trimStrays(pts, THREE) {
+  if (pts.length < 160) return;
+  const q = (arr, f) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(f * (arr.length - 1))))];
+  const axes = ['x', 'y', 'z'].map((k) => pts.map((p) => p[k]).sort((a, b) => a - b));
+  const lo = new THREE.Vector3(q(axes[0], 0.04), q(axes[1], 0.04), q(axes[2], 0.04));
+  const hi = new THREE.Vector3(q(axes[0], 0.96), q(axes[1], 0.96), q(axes[2], 0.96));
+  const pad = hi.clone().sub(lo).multiplyScalar(0.12).addScalar(1);
+  const box = new THREE.Box3(lo.sub(pad), hi.add(pad));
+  const kept = pts.filter((p) => box.containsPoint(p));
+  if (kept.length > pts.length * 0.8) { pts.length = 0; pts.push(...kept); }
+}
+
 function frameShot(viewer, THREE, built) {
   const skin = viewer.playerObject.skin;
   viewer.playerObject.updateMatrixWorld(true);
@@ -96,6 +112,7 @@ function frameShot(viewer, THREE, built) {
       for (let i = 0; i < pos.count; i += 1) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
     });
   }
+  trimStrays(pts, THREE);
   const attached = new Set(built.roots.filter((r) => r.object.visible !== false).map((r) => r.attach));
   const context = piece.clone().expandByScalar(5);
   const floating = attached.has('body') && built.roots.some((r) => r.side); // balloons: show the whole player
@@ -115,7 +132,9 @@ function frameShot(viewer, THREE, built) {
   }
   if (!pts.length) return;
   const all = new THREE.Box3().setFromPoints(pts);
-  const behind = piece.getCenter(new THREE.Vector3()).z < -1.5;
+  // hats, hoods and masks are shown from the front (their trails may hang behind); back items from behind
+  const headOnly = [...attached].every((name) => name === 'head');
+  const behind = !headOnly && piece.getCenter(new THREE.Vector3()).z < -1.5;
   const yaw = behind ? Math.PI - 0.5 : 0.5;
   const pitch = 0.14;
   const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));

@@ -1,3 +1,5 @@
+import useUpdater from '../updater/useUpdater.js';
+import { UpdateCard } from '../updater/UpdateCenter.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
@@ -688,31 +690,7 @@ export default function SettingsView({
                   <div className="settings-section-line" />
                 </div>
                 <div className="settings-cards-stack">
-                  <div className="native-setting-card is-wide">
-                    <div className="setting-card-left">
-                      <div className="setting-card-icon-wrap">
-                        <RefreshCw size={18} />
-                      </div>
-                      <div className="setting-card-text">
-                        <span className="setting-card-name">
-                          Native Client Build v{buildVersion}
-                        </span>
-                        <span className="setting-card-desc">
-                          Production release channel. Click to check for launcher updates.
-                        </span>
-                      </div>
-                    </div>
-                    <div className="setting-card-control">
-                      <button
-                        type="button"
-                        className="native-btn-primary"
-                        onClick={onOpenUpdater}
-                      >
-                        <RefreshCw size={14} />
-                        <span>{t('settings.checkUpdates')}</span>
-                      </button>
-                    </div>
-                  </div>
+                  <LiveUpdateCard onOpenUpdater={onOpenUpdater} />
 
                   <div className="native-setting-card">
                     <div className="setting-card-left">
@@ -1007,5 +985,21 @@ export default function SettingsView({
         </div>
       </main>
     </div>
+  );
+}
+
+/** The launcher's own update, live: checking, downloading with progress, ready to restart. */
+function LiveUpdateCard({ onOpenUpdater }) {
+  const updater = useUpdater();
+  return (
+    <UpdateCard
+      className="settings-update-card"
+      status={updater.status}
+      onCheck={updater.check}
+      onDownload={updater.download}
+      onPause={updater.pause}
+      onInstall={updater.install}
+      onDetails={onOpenUpdater}
+    />
   );
 }

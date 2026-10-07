@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { AlertCircle, ArrowRight, CheckCircle2, Download, Pause, Play, RefreshCw, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, Pause, Play, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { marked } from 'marked';
 import './UpdateCenter.css';
-import { useI18n } from '../../i18n/I18nProvider.jsx';
 
 /**
- * Update center. Updates download on their own in the background (in parts that
- * survive pauses, lost connections and restarts) and install when Native closes,
- * so this is mostly a window onto what's already happening.
+ * Updates. They download by themselves in the background (in parts that survive pauses, lost
+ * connections and restarts) and install when Native closes. `UpdateCard` is the live status
+ * (also used on the Settings page); `UpdateCenter` is the window with the release notes.
  */
+
+const ACTIVE = ['available', 'preparing', 'downloading', 'paused', 'downloaded', 'installing'];
+
 export default function UpdateCenter({ open, onClose, status, onCheck, onDownload, onPause, onInstall }) {
-  const { t } = useI18n();
   const checkedForOpen = useRef(false);
 
   useEffect(() => {
@@ -29,143 +30,137 @@ export default function UpdateCenter({ open, onClose, status, onCheck, onDownloa
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  const notesHtml = useMemo(() => renderReleaseNotes(status.releaseNotes), [status.releaseNotes]);
   if (!open) return null;
+  const hasNotes = ACTIVE.includes(status.type) || (status.type === 'error' && status.operation === 'download');
 
-  const type = status.type;
-  const percent = Math.round(status.percent ?? status.saved?.percent ?? 0);
-  const currentVersion = status.currentVersion ?? window.native?.version ?? '—';
-  const showNotes = ['available', 'downloading', 'paused', 'downloaded'].includes(type) || (type === 'error' && status.operation === 'download');
+  return (
+    <div className="uc-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="update-center" role="dialog" aria-modal="true" aria-label="Updates">
+        <header className="uc-top">
+          <span className="uc-top-title">Updates</span>
+          <span className="uc-chip">v{status.currentVersion ?? window.native?.version ?? '—'}</span>
+          <button type="button" className="uc-close" onClick={onClose} aria-label="Close" title="Close"><X size={16} /></button>
+        </header>
+        <div className="uc-scroll">
+          <UpdateCard status={status} onCheck={onCheck} onDownload={onDownload} onPause={onPause} onInstall={onInstall} onLater={onClose} />
+          {hasNotes && <ReleaseNotes notes={status.releaseNotes} open />}
+        </div>
+        <footer className="uc-foot">New versions download quietly and install when you close Native.</footer>
+      </section>
+    </div>
+  );
+}
 
+/** The live update status: an animated badge, what is happening, progress and the one action that matters. */
+export function UpdateCard({ status, onCheck, onDownload, onPause, onInstall, onLater, onDetails, className = '' }) {
+  const type = status?.type || 'idle';
+  const percent = clampPercent(status.percent ?? status.saved?.percent ?? 0);
+  const busy = type === 'downloading' || type === 'preparing' || (type === 'error' && status.saved);
+  const showBar = ['preparing', 'downloading', 'paused'].includes(type) || (type === 'error' && status.saved);
+  const current = status.currentVersion ?? window.native?.version ?? '—';
+  const flash = useFlash(type); // replays the badge animation each time the state changes
+
+  return (
+    <div className={`uc-card is-${type} ${className}`}>
+      <div className="uc-card-row">
+        <Badge type={type} percent={percent} key={flash} />
+        <div className="uc-card-text">
+          <strong className="uc-card-title">{title(status, percent)}</strong>
+          <span className="uc-card-sub">{sub(status, current)}</span>
+        </div>
+        <div className="uc-card-actions">
+          {type === 'available' && <Btn primary icon={<Download size={15} />} onClick={onDownload}>{status.saved ? `Continue · ${status.saved.percent}%` : 'Download'}</Btn>}
+          {(type === 'downloading' || type === 'preparing') && <Btn icon={<Pause size={15} />} onClick={onPause}>Pause</Btn>}
+          {type === 'paused' && <Btn primary icon={<Play size={15} />} onClick={onDownload}>Resume</Btn>}
+          {type === 'downloaded' && (
+            <>
+              {onLater && <Btn onClick={onLater}>Later</Btn>}
+              <Btn primary icon={<RotateCcw size={15} />} onClick={onInstall}>Restart now</Btn>
+            </>
+          )}
+          {type === 'error' && <Btn primary icon={<RefreshCw size={15} />} onClick={status.operation === 'download' ? onDownload : onCheck}>{status.operation === 'download' && status.saved ? 'Continue' : 'Try again'}</Btn>}
+          {['idle', 'checking', 'not-available', 'disabled'].includes(type) && (
+            <Btn icon={<RefreshCw size={15} className={type === 'checking' ? 'uc-spin' : ''} />} onClick={onCheck} disabled={type === 'checking' || type === 'disabled'}>
+              {type === 'checking' ? 'Checking…' : 'Check now'}
+            </Btn>
+          )}
+          {type === 'installing' && <Btn primary disabled>Restarting…</Btn>}
+        </div>
+      </div>
+
+      {showBar && (
+        <div className="uc-progress-wrap">
+          <div className={`uc-bar${type === 'paused' || type === 'error' ? ' is-paused' : ''}${busy && !percent ? ' is-indeterminate' : ''}`} role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100">
+            <i style={{ width: `${Math.max(percent, busy ? 2 : 0)}%` }} />
+          </div>
+          <div className="uc-meta">
+            <span>{status.total ? `${formatBytes(status.transferred)} of ${formatBytes(status.total)}` : status.saved ? `${status.saved.doneParts} of ${status.saved.parts} parts saved` : status.optimized ? 'Only what changed' : 'Starting…'}</span>
+            {type === 'downloading' && status.bytesPerSecond > 0 && <span>{formatBytes(status.bytesPerSecond)}/s · {eta(status.total, status.transferred, status.bytesPerSecond)}</span>}
+            {type === 'downloading' && status.throttled && <span>Slowed while Minecraft runs</span>}
+          </div>
+        </div>
+      )}
+
+      {status.version && ACTIVE.includes(type) && (
+        <div className="uc-versions">
+          <span>v{current}</span>
+          <span className="uc-versions-line"><i /></span>
+          <span className="is-new">v{status.version}</span>
+          {onDetails && <button type="button" className="uc-link" onClick={onDetails}>What’s new</button>}
+        </div>
+      )}
+      {type === 'error' && status.message && <p className="uc-error">{status.message}{status.retryAt ? ' It will try again by itself.' : ''}</p>}
+    </div>
+  );
+}
+
+function Badge({ type, percent }) {
+  const R = 19, C = 2 * Math.PI * R;
+  const ring = ['downloading', 'paused', 'preparing'].includes(type) || type === 'error';
+  return (
+    <span className={`uc-badge is-${type}`} aria-hidden="true">
+      {(type === 'checking' || type === 'installing' || type === 'preparing') && <span className="uc-badge-spinner" />}
+      {ring && (
+        <svg className="uc-badge-ring" viewBox="0 0 44 44">
+          <circle cx="22" cy="22" r={R} className="uc-ring-track" />
+          <circle cx="22" cy="22" r={R} className="uc-ring-fill" strokeDasharray={C} strokeDashoffset={C * (1 - percent / 100)} />
+        </svg>
+      )}
+      {type === 'downloaded' && <span className="uc-badge-halo" />}
+      <span className="uc-badge-icon">
+        {type === 'not-available' || type === 'downloaded' ? <Check size={20} strokeWidth={2.6} />
+          : type === 'error' ? <AlertCircle size={19} />
+          : type === 'paused' ? <Pause size={16} />
+          : type === 'downloading' ? <span className="uc-badge-pct">{percent}<small>%</small></span>
+          : type === 'available' ? <Download size={18} className="uc-bob" />
+          : <RefreshCw size={18} className={type === 'checking' || type === 'installing' ? 'uc-spin' : ''} />}
+      </span>
+    </span>
+  );
+}
+
+function Btn({ primary, icon, children, ...rest }) {
+  return <button type="button" className={`uc-btn${primary ? ' is-primary' : ''}`} {...rest}>{icon}{children}</button>;
+}
+
+export function ReleaseNotes({ notes, open: openInitially = false }) {
+  const [open, setOpen] = useState(openInitially);
+  const html = useMemo(() => renderReleaseNotes(notes), [notes]);
   const openExternalLink = (event) => {
     const anchor = event.target.closest('a');
     if (!anchor?.href) return;
     event.preventDefault();
     window.native?.openExternal(anchor.href);
   };
-
   return (
-    <div className="uc-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="update-center" role="dialog" aria-modal="true" aria-labelledby="uc-title">
-        <header className="uc-head">
-          <span className={`uc-head-icon is-${type}`} aria-hidden="true">{headIcon(type)}</span>
-          <div className="uc-head-text">
-            <h2 className="uc-title" id="uc-title">{headline(status, percent, t)}</h2>
-            <p className="uc-subtitle">{subline(status)}</p>
-          </div>
-          <button type="button" className="uc-close" onClick={onClose} aria-label={t('update.close')} title={t('update.close')}>
-            <X size={16} />
-          </button>
-        </header>
-
-        <div className="uc-body">
-          {status.version && ['available', 'downloading', 'paused', 'downloaded', 'error', 'installing'].includes(type) && (
-            <div className="uc-version-card">
-              <div className="uc-version-column">
-                <span>Installed</span>
-                <strong>v{currentVersion}</strong>
-              </div>
-              <span className="uc-version-sep" aria-hidden="true"><ArrowRight size={16} /></span>
-              <div className="uc-version-column is-new">
-                <span>{type === 'downloaded' ? 'Ready' : 'New'}</span>
-                <strong>v{status.version}</strong>
-              </div>
-            </div>
-          )}
-
-          {['downloading', 'paused'].includes(type) || (type === 'error' && status.saved) ? (
-            <div className="uc-download">
-              <div className="uc-download-top">
-                <span>{downloadLabel(status)}</span>
-                <strong>{percent}%</strong>
-              </div>
-              <PartsBar status={status} percent={percent} />
-              <div className="uc-download-meta">
-                <span>{status.total ? `${formatBytes(status.transferred)} / ${formatBytes(status.total)}` : status.saved ? `${status.saved.doneParts} of ${status.saved.parts} parts saved` : formatBytes(status.fullSize)}</span>
-                {type === 'downloading' && <span>{formatSpeed(status.bytesPerSecond)}</span>}
-                {type === 'downloading' && <span>{getEta(status.total, status.transferred, status.bytesPerSecond, t)}</span>}
-              </div>
-            </div>
-          ) : null}
-
-          {['idle', 'checking', 'not-available', 'disabled', 'installing'].includes(type) && (
-            <div className={`uc-status-card is-${type}`}>
-              <div className="uc-status-visual" aria-hidden="true">
-                <span className="uc-status-orbit" />
-                <span className="uc-status-dot" />
-              </div>
-              <div className="uc-status-copy">
-                <strong>{statusLabel(type)}</strong>
-                <span>{statusDetail(status, currentVersion)}</span>
-              </div>
-            </div>
-          )}
-
-          {type === 'error' && <p className="uc-error">{status.message || t('update.couldNotComplete')}{status.retryAt ? ' It will try again by itself.' : ''}</p>}
-
-          {showNotes && (
-            <section className="uc-notes">
-              <h3 className="uc-notes-title">{t('update.whatsNew')}</h3>
-              {notesHtml
-                ? <div className="uc-notes-content" onClick={openExternalLink} dangerouslySetInnerHTML={{ __html: notesHtml }} />
-                : <p className="uc-notes-empty">{t('update.defaultNotes')}</p>}
-            </section>
-          )}
-        </div>
-
-        <footer className="uc-footer">
-          <span className="uc-footer-version">{footerNote(status)}</span>
-          <div className="uc-actions">
-            {type === 'available' && (
-              <button type="button" className="uc-btn uc-btn--primary" onClick={onDownload}>
-                <Download size={15} /> {status.saved ? `Continue (${status.saved.percent}%)` : t('update.download')}
-              </button>
-            )}
-            {type === 'downloading' && (
-              <button type="button" className="uc-btn" onClick={onPause}><Pause size={15} /> Pause</button>
-            )}
-            {type === 'paused' && (
-              <button type="button" className="uc-btn uc-btn--primary" onClick={onDownload}><Play size={15} /> Resume</button>
-            )}
-            {type === 'downloaded' && (
-              <>
-                <button type="button" className="uc-btn" onClick={onClose}>When I close Native</button>
-                <button type="button" className="uc-btn uc-btn--primary" onClick={onInstall}>Restart now</button>
-              </>
-            )}
-            {type === 'error' && (
-              <button type="button" className="uc-btn uc-btn--primary" onClick={status.operation === 'download' ? onDownload : onCheck}>
-                <RefreshCw size={15} /> {status.operation === 'download' && status.saved ? 'Continue now' : t('common.retry')}
-              </button>
-            )}
-            {type === 'installing' && <button type="button" className="uc-btn uc-btn--primary" disabled>{t('update.applying')}</button>}
-            {['idle', 'checking', 'not-available', 'disabled'].includes(type) && (
-              <button type="button" className="uc-btn uc-btn--primary" onClick={onCheck} disabled={type === 'checking' || type === 'disabled'}>
-                {type === 'checking' ? t('update.checking') : t('update.check')}
-              </button>
-            )}
-          </div>
-        </footer>
-      </section>
-    </div>
-  );
-}
-
-/** One segment per downloaded part; falls back to a plain bar when parts aren't known. */
-function PartsBar({ status, percent }) {
-  const map = status.map;
-  if (Array.isArray(map) && map.length > 1 && map.length <= 96) {
-    const active = status.type === 'downloading';
-    return (
-      <div className="uc-parts" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100">
-        {map.map((done, i) => <span key={i} className={`uc-part${done ? ' is-done' : ''}${active && !done ? ' is-pending' : ''}`} />)}
-      </div>
-    );
-  }
-  return (
-    <div className="uc-progress" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100">
-      <div className={`uc-progress-fill${status.type === 'paused' ? ' is-paused' : ''}`} style={{ width: `${percent}%` }} />
-    </div>
+    <section className={`uc-notes${open ? ' is-open' : ''}`}>
+      <button type="button" className="uc-notes-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span>What’s new</span><ChevronDown size={15} />
+      </button>
+      {open && (html
+        ? <div className="uc-notes-content" onClick={openExternalLink} dangerouslySetInnerHTML={{ __html: html }} />
+        : <p className="uc-notes-content is-empty">Fixes and improvements.</p>)}
+    </section>
   );
 }
 
@@ -174,94 +169,53 @@ export function UpdateToast({ status, onInstall, onOpen, onDismiss }) {
   if (status?.type !== 'downloaded') return null;
   return (
     <div className="uc-toast" role="status">
-      <span className="uc-toast-icon" aria-hidden="true"><Download size={16} /></span>
+      <span className="uc-badge is-downloaded is-small" aria-hidden="true"><span className="uc-badge-halo" /><span className="uc-badge-icon"><Check size={16} strokeWidth={2.6} /></span></span>
       <button type="button" className="uc-toast-text" onClick={onOpen}>
-        <strong>Update {status.version} downloaded</strong>
+        <strong>Native {status.version} is ready</strong>
         <span>Installs when you close Native.</span>
       </button>
-      <button type="button" className="uc-btn uc-btn--primary uc-toast-btn" onClick={onInstall}>Restart</button>
+      <button type="button" className="uc-btn is-primary" onClick={onInstall}>Restart</button>
       <button type="button" className="uc-toast-close" onClick={onDismiss} aria-label="Dismiss"><X size={14} /></button>
     </div>
   );
 }
 
-function downloadLabel(status) {
-  if (status.type === 'paused') return 'Paused';
-  if (status.type === 'error') return 'Interrupted';
-  if (status.throttled) return 'Limited while Minecraft is running';
-  if (status.resumed) return 'Resumed';
-  if (status.parts) return `${status.doneParts ?? 0} of ${status.parts} parts`;
-  return status.optimized ? 'Downloading only what changed' : 'Downloading';
+function useFlash(type) {
+  const [n, setN] = useState(0);
+  const last = useRef(type);
+  useEffect(() => { if (last.current !== type) { last.current = type; setN((v) => v + 1); } }, [type]);
+  return n;
 }
 
-function footerNote(status) {
+function title(status, percent) {
   switch (status.type) {
-    case 'downloading': return '';
-    case 'paused': return 'Paused.';
-    case 'downloaded': return 'Checksum verified.';
-    case 'available': return status.saved ? `${status.saved.percent}% already downloaded.` : '';
-    default: return `Version ${status.currentVersion ?? window.native?.version ?? '—'}`;
-  }
-}
-
-function headIcon(type) {
-  if (type === 'not-available') return <CheckCircle2 size={20} />;
-  if (type === 'error') return <AlertCircle size={20} />;
-  if (type === 'downloaded') return <CheckCircle2 size={20} />;
-  if (type === 'paused') return <Pause size={20} />;
-  if (type === 'available' || type === 'downloading') return <Download size={20} />;
-  return <RefreshCw size={20} className={['checking', 'installing'].includes(type) ? 'uc-spin' : ''} />;
-}
-
-function headline(status, percent, t) {
-  switch (status.type) {
-    case 'disabled': return t('update.desktopTitle');
-    case 'checking': return t('update.checkingTitle');
-    case 'not-available': return t('update.upToDate');
-    case 'available': return `Version ${status.version} available`;
-    case 'preparing': return 'Starting download';
-    case 'downloading': return `Downloading update · ${percent}%`;
-    case 'paused': return 'Update paused';
-    case 'downloaded': return `Version ${status.version} downloaded`;
-    case 'installing': return t('update.restarting');
-    case 'error': return status.operation === 'download' ? 'Download interrupted' : t('update.interrupted');
-    default: return t('update.title');
-  }
-}
-
-function subline(status) {
-  switch (status.type) {
-    case 'checking': return 'Looking for the newest stable release…';
-    case 'not-available': return `Native Client ${status.currentVersion ?? ''} is the newest version.`;
-    case 'available': return 'Downloads in the background while you use Native.';
-    case 'preparing':
-    case 'downloading': return 'Saved in parts. If you close Native or lose connection, it continues later.';
-    case 'paused': return 'Continues from the parts already downloaded.';
-    case 'downloaded': return 'Installs when you close Native, or restart now.';
-    case 'installing': return 'Native Client reopens when it is done.';
-    case 'error': return status.operation === 'download' ? 'The parts downloaded so far are kept.' : 'Check your connection and try again.';
-    case 'disabled': return status.message || 'Update checks are available in packaged builds.';
-    default: return 'Checks for updates on start and every few hours.';
-  }
-}
-
-function statusLabel(type) {
-  switch (type) {
-    case 'checking': return 'Contacting the update service';
-    case 'not-available': return 'Your launcher is current';
-    case 'installing': return 'Applying the update';
-    case 'disabled': return 'Desktop updater unavailable';
+    case 'disabled': return 'Updates run in the desktop app';
+    case 'checking': return 'Checking for updates…';
+    case 'not-available': return 'You’re up to date';
+    case 'available': return `Native ${status.version} is out`;
+    case 'preparing': return 'Starting download…';
+    case 'downloading': return `Downloading ${status.version ?? 'update'} · ${percent}%`;
+    case 'paused': return 'Download paused';
+    case 'downloaded': return `Native ${status.version} is ready`;
+    case 'installing': return 'Installing the update…';
+    case 'error': return status.operation === 'download' ? 'Download interrupted' : 'Couldn’t check for updates';
     default: return 'Automatic updates are on';
   }
 }
 
-function statusDetail(status, currentVersion) {
+function sub(status, current) {
   switch (status.type) {
-    case 'checking': return 'Comparing your build with the latest stable release.';
-    case 'not-available': return `Version ${currentVersion}. New versions download in the background and install when you close Native.`;
-    case 'installing': return 'Native restarts automatically when it is ready.';
+    case 'checking': return 'Looking for the newest release.';
+    case 'not-available': return `Version ${current} is the newest.`;
+    case 'available': return 'Downloads in the background while you play.';
+    case 'preparing':
+    case 'downloading': return status.optimized ? 'Only downloading what changed.' : 'Keeps going if you close Native.';
+    case 'paused': return 'Picks up where it left off.';
+    case 'downloaded': return 'Installs when you close Native, or restart now.';
+    case 'installing': return 'Native reopens when it’s done.';
+    case 'error': return status.operation === 'download' ? 'What’s downloaded so far is kept.' : 'Check your connection and try again.';
     case 'disabled': return status.message || 'Update checks are available in packaged builds.';
-    default: return 'New versions download in the background and install when you close Native.';
+    default: return `Version ${current}. Checks on start and every few hours.`;
   }
 }
 
@@ -275,6 +229,8 @@ function renderReleaseNotes(notes) {
   return DOMPurify.sanitize(marked.parse(raw, { gfm: true, breaks: true }));
 }
 
+const clampPercent = (value) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+
 function formatBytes(value) {
   const bytes = Number(value) || 0;
   if (bytes <= 0) return '0 MB';
@@ -283,11 +239,8 @@ function formatBytes(value) {
   return `${(bytes / (1024 ** unit)).toFixed(unit >= 2 ? 1 : 0)} ${units[unit]}`;
 }
 
-function formatSpeed(value) { return value > 0 ? `${formatBytes(value)}/s` : '—'; }
-
-function getEta(total, transferred, speed, t) {
-  if (!total || !speed) return t('update.estimating');
+function eta(total, transferred, speed) {
+  if (!total || !speed) return 'estimating…';
   const seconds = Math.max(0, Math.ceil((total - transferred) / speed));
-  if (seconds < 60) return t('update.secondsRemaining', { count: seconds });
-  return t('update.minutesRemaining', { count: Math.ceil(seconds / 60) });
+  return seconds < 60 ? `${seconds}s left` : `${Math.ceil(seconds / 60)} min left`;
 }
