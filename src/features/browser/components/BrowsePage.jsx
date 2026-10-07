@@ -100,6 +100,7 @@ export default function BrowsePage({
     setSort,
     source,
     setSource,
+    resultsSource,
     loadMore,
     hasMore
   } = search;
@@ -266,7 +267,7 @@ export default function BrowsePage({
 
             <div className="browse-toolbar-right">
               <div className="browse-results-count">
-                {loading && results.length === 0 ? (
+                {(loading && results.length === 0) || resultsSource !== source ? (
                   'Searching\u2026'
                 ) : (
                   <span>
@@ -300,9 +301,11 @@ export default function BrowsePage({
             </div>
           </div>
 
-          {/* Results Grid (full width) — re-keyed per source so switching animates */}
-          <div className="browse-source-swap" key={source}>
+          {/* Results Grid (full width) */}
+          <div className="browse-source-swap">
           <ResultsGrid
+            source={source}
+            resultsSource={resultsSource}
             results={results}
             loading={loading}
             loadingMore={loadingMore}

@@ -4,6 +4,7 @@ import {
   PAGE_SIZE,
   contentTypeById,
   loaderOf,
+  prefetchSearch,
   searchProjects,
   versionOf
 } from '../api/modrinthApi.js';
@@ -37,6 +38,8 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
   const [filters, setFiltersState] = useState(() => instanceFilters(target));
 
   const [results, setResults] = useState(initialResults);
+  /* Which source the visible results came from (lags `source` while switching). */
+  const [resultsSource, setResultsSource] = useState('modrinth');
   const [totalHits, setTotalHits] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -105,19 +108,24 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
     else setLoading(true);
     setError(null);
 
-    searchProjects({
+    const request = {
       contentType: activeType,
       filters,
       query: debouncedQuery,
       sort,
       source,
       offset: (pageToLoad - 1) * PAGE_SIZE,
-      limit: PAGE_SIZE,
-      signal: controller.signal
-    })
+      limit: PAGE_SIZE
+    };
+    searchProjects({ ...request, signal: controller.signal })
       .then(({ hits, totalHits: total }) => {
         if (generation !== generationRef.current) return;
         setTotalHits(total);
+        setResultsSource(source);
+        if (!append) {
+          // warm the other source so the Modrinth / CurseForge switch is instant
+          prefetchSearch({ ...request, source: source === 'curseforge' ? 'modrinth' : 'curseforge' });
+        }
         loadedPagesRef.current = pageToLoad;
         if (append) {
           setResults((current) => {
@@ -133,6 +141,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
         if (!append) {
           setResults([]);
           setTotalHits(0);
+          setResultsSource(source);
         }
         setError(errorMessage || 'Could not load results.');
       })
@@ -201,6 +210,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
     setSort,
     source,
     setSource,
+    resultsSource,
     filters,
     setFilters,
     setCategories,
