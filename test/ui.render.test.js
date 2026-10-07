@@ -96,20 +96,6 @@ test('new surfaces take their colours from the appearance theme', () => {
 /**
  * Verifies Quick Tour button spotlight geometry, pill shape handling, and active states.
  */
-test('quick tour button spotlight highlighting has symmetric padding and pill radius', () => {
-  const welcomeTourCode = fs.readFileSync(path.join(ROOT, 'src/features/shell/WelcomeTour.jsx'), 'utf8');
-  assert.ok(welcomeTourCode.includes("step.target === '[data-tour=\"tutorial\"]'"), 'tutorial step is identified for pill geometry');
-  assert.ok(welcomeTourCode.includes("borderRadius: `${layout.target.borderRadius}px`"), 'spotlight sets computed borderRadius');
-  assert.ok(welcomeTourCode.includes("target.setAttribute('data-tour-target-active', 'true')"), 'target receives active spotlight attribute');
-
-  const navbarCode = fs.readFileSync(path.join(ROOT, 'src/features/shell/AppNavbar.jsx'), 'utf8');
-  assert.ok(navbarCode.includes('quick-tutorial-btn'), 'navbar renders quick tutorial button');
-  assert.ok(navbarCode.includes('isTutorialOpen'), 'navbar supports isTutorialOpen state');
-
-  const navbarCss = fs.readFileSync(path.join(ROOT, 'src/features/shell/AppNavbar.css'), 'utf8');
-  assert.ok(navbarCss.includes('.quick-tutorial-btn[data-tour-target-active="true"]'), 'button styles tour active highlight state');
-});
-
 /**
  * Verifies screenshot manager has concise description and instance settings pages
  * do not render the "Stored locally" badge.

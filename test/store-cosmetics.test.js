@@ -48,6 +48,8 @@ const account = (name) => {
   const user = db.createUser({ email: `${name.toLowerCase()}@example.com`, username: name, password: 'correct horse battery' });
   return { user, token: db.createSession(user.id).token };
 };
+// nothing in the store is free: tests that wear items own them first
+const own = (user, ...ids) => { for (const id of ids) db.getDb().prepare('INSERT OR IGNORE INTO store_owned (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)').run(user.id, id, Date.now(), 'plus'); };
 const entryOf = async (name) => (await json('/v1/skins/directory')).body.entries.find((e) => e.n === name);
 
 test.before(async () => {
@@ -73,8 +75,8 @@ test('model validation follows the mod limits', () => {
   assert.throws(() => cosmetics.validateModel({ parts: [] }), /no parts/);
   assert.throws(() => cosmetics.validateModel({ parts: [{ attach: 'tail', cubes: [{ size: [1, 1, 1] }] }] }), /attach/);
   assert.throws(() => cosmetics.validateModel({ parts: [{ cubes: [{ size: [1, 1] }] }] }), /size/);
-  assert.throws(() => cosmetics.validateModel({ parts: Array.from({ length: 97 }, () => ({ cubes: [{ size: [1, 1, 1] }] })) }), /parts/);
-  assert.throws(() => cosmetics.validateModel({ parts: [{ cubes: Array.from({ length: 513 }, () => ({ size: [1, 1, 1] })) }] }), /cubes/);
+  // no part/cube count limits any more (only the 1 MB model size): big models are fine
+  assert.equal(cosmetics.validateModel({ parts: Array.from({ length: 97 }, () => ({ cubes: [{ size: [1, 1, 1] }] })) }).parts, 97);
   assert.throws(() => cosmetics.validateModel({ parts: [{ id: 'empty' }] }), /no cubes/);
 });
 
@@ -136,7 +138,8 @@ test('built-in cosmetics from older deploys are removed from a saved catalogue',
 });
 
 test('wear one cosmetic per slot: profile, mod directory, CSL document and /me follow', async () => {
-  const { token } = account('HatFan');
+  const { user, token } = account('HatFan');
+  own(user, 'propeller-cap', 'angel-wings', 'pixel-shades', 'street-sneakers', 'royal-crown', 'aurora');
   assert.equal((await call('POST', '/v1/store/equip', { itemId: 'propeller-cap' })).status, 401);
 
   let r = await call('POST', '/v1/store/equip', { itemId: 'propeller-cap' }, token);
@@ -201,7 +204,8 @@ test('a thumbnail is never a wearable cape', async () => {
 });
 
 test('cosmetics-only players are in the mod directory; taking everything off removes them', async () => {
-  const { token } = account('ShoeOnly');
+  const { user, token } = account('ShoeOnly');
+  own(user, 'rocket-boots');
   await call('POST', '/v1/store/equip', { itemId: 'rocket-boots' }, token);
   const entry = await entryOf('ShoeOnly');
   assert.ok(entry, 'listed with only shoes');
