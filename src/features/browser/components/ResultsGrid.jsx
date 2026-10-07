@@ -3,7 +3,36 @@ import { ArrowUp, Loader2, PackageSearch, RotateCcw } from 'lucide-react';
 import ProjectCard from './ProjectCard.jsx';
 import useInfiniteScroll from '../hooks/useInfiniteScroll.js';
 
+const BREAK_MS = 340;
+
+function SkeletonCard({ index }) {
+  return (
+    <div className="browse-card-skeleton" style={{ '--sk-i': index }}>
+      <div className="sk-head">
+        <div className="sk-block sk-icon" />
+        <div className="sk-head-text">
+          <div className="sk-block sk-title" />
+          <div className="sk-block sk-author" />
+        </div>
+      </div>
+      <div className="sk-block sk-line" />
+      <div className="sk-block sk-line short" />
+      <div className="sk-chips">
+        <div className="sk-block sk-chip" />
+        <div className="sk-block sk-chip" />
+        <div className="sk-block sk-chip wide" />
+      </div>
+      <div className="sk-footer">
+        <div className="sk-block sk-stats" />
+        <div className="sk-block sk-btn" />
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsGrid({
+  source = 'modrinth',
+  resultsSource = 'modrinth',
   results = [],
   loading = false,
   loadingMore = false,
@@ -26,6 +55,29 @@ export default function ResultsGrid({
   const containerRef = useRef(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
+  /* Source switch: the old cards break apart, skeletons hold the space until
+     the other source answers, then the new cards pop in. */
+  const [breakingCards, setBreakingCards] = useState(null);
+  const breaking = Boolean(breakingCards);
+  const lastSourceRef = useRef(source);
+  const shownRef = useRef(results);
+  if (!breakingCards && resultsSource === lastSourceRef.current) shownRef.current = results;
+  useEffect(() => {
+    if (lastSourceRef.current === source) return undefined;
+    lastSourceRef.current = source;
+    containerRef.current?.scrollTo({ top: 0 });
+    // snapshot what was on screen: cached results for the new source may land instantly
+    const snapshot = (shownRef.current || []).slice(0, 18);
+    if (!snapshot.length) return undefined;
+    setBreakingCards(snapshot);
+    const timer = setTimeout(() => setBreakingCards(null), BREAK_MS);
+    return () => clearTimeout(timer);
+  }, [source]);
+  const visibleResults = breakingCards || results;
+  const stale = resultsSource !== source;
+  const showCards = breaking || (results.length > 0 && !stale);
+  const showSkeleton = !breaking && ((loading && results.length === 0) || stale);
+
   const sentinelRef = useInfiniteScroll({
     onLoadMore,
     disabled: loading || loadingMore || !hasMore
@@ -47,7 +99,7 @@ export default function ResultsGrid({
       onScroll={handleScroll}
     >
       {/* Error state */}
-      {error && !loading && (
+      {error && !loading && !stale && (
         <div className="browse-error-state" role="alert">
           <p className="browse-error-message">{error}</p>
           {onRetry && (
@@ -60,24 +112,16 @@ export default function ResultsGrid({
       )}
 
       {/* Initial Loading Skeletons */}
-      {loading && results.length === 0 && (
-        <div className="browse-cards-grid" aria-label="Loading results">
+      {showSkeleton && (
+        <div className="browse-cards-grid is-skeleton" aria-label="Loading results" aria-busy="true">
           {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} className="browse-card-skeleton">
-              <div className="skeleton-banner" />
-              <div className="skeleton-body">
-                <div className="skeleton-title" />
-                <div className="skeleton-line" />
-                <div className="skeleton-line short" />
-                <div className="skeleton-footer" />
-              </div>
-            </div>
+            <SkeletonCard key={i} index={i} />
           ))}
         </div>
       )}
 
       {/* Zero results empty state */}
-      {!loading && !error && results.length === 0 && (
+      {!loading && !error && !stale && !breaking && results.length === 0 && (
         <div className="browse-empty-state">
           <div className="browse-empty-icon-wrap">
             <PackageSearch size={36} />
@@ -100,9 +144,14 @@ export default function ResultsGrid({
       )}
 
       {/* Results Card Grid */}
-      {results.length > 0 && (
-        <div className="browse-cards-grid" role="feed" aria-busy={loadingMore}>
-          {results.map((project) => {
+      {showCards && (
+        <div
+          key={breaking ? 'breaking' : `cards:${resultsSource}`}
+          className={`browse-cards-grid ${breaking ? 'is-breaking' : 'is-entering'}`}
+          role="feed"
+          aria-busy={loadingMore}
+        >
+          {visibleResults.map((project, index) => {
             const id = project.project_id || project.id;
             const isInstalled = installedKeys ? installedKeys.has(id) : false;
             const isBusy = busyIds ? busyIds.has(id) : false;
@@ -111,8 +160,8 @@ export default function ResultsGrid({
               packProgress?.instanceId === id || isBusy ? packProgress : null;
 
             return (
+              <div className="browse-card-cell" key={id} style={{ '--card-i': Math.min(index, 14) }}>
               <ProjectCard
-                key={id}
                 project={project}
                 contentType={contentType}
                 isVanillaInstance={isVanillaInstance}
@@ -124,13 +173,14 @@ export default function ResultsGrid({
                 onInstall={onInstall}
                 onRemove={onRemove}
               />
+              </div>
             );
           })}
         </div>
       )}
 
       {/* Infinite Scroll Sentinel */}
-      {hasMore && !loading && (
+      {hasMore && !loading && showCards && !breaking && (
         <div
           ref={sentinelRef}
           className="browse-sentinel"

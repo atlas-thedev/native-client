@@ -106,7 +106,50 @@ export function buildFacets(contentType, filters = {}) {
  * Runs a `/search` request. Throws on HTTP errors so callers can render
  * an error state; aborts propagate as AbortError.
  */
-export async function searchProjects({ contentType, filters, query, sort, offset = 0, limit = PAGE_SIZE, signal, source }) {
+/* Short-lived search cache: switching Modrinth <-> CurseForge (or back to a
+   previous query) is instant, and the other source is prefetched in the
+   background. Shared requests are never aborted; callers race their signal. */
+const SEARCH_TTL = 3 * 60 * 1000;
+const searchCache = new Map();
+
+function searchKey({ contentType, filters = {}, query, sort, offset = 0, limit = PAGE_SIZE, source }) {
+  const type = typeof contentType === 'string' ? contentType : contentType?.id;
+  return JSON.stringify([
+    source || 'modrinth', type || 'mod', (query || '').trim().toLowerCase(), sort || 'relevance', offset, limit,
+    filters.gameVersion || '', filters.loader || '', filters.environment || '', [...(filters.categories || [])].sort()
+  ]);
+}
+
+function withAbort(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
+      (error) => { signal.removeEventListener('abort', onAbort); reject(error); }
+    );
+  });
+}
+
+export function searchProjects(params) {
+  const key = searchKey(params);
+  const cached = searchCache.get(key);
+  if (cached && Date.now() - cached.at < SEARCH_TTL) return withAbort(cached.promise, params.signal);
+  const promise = runSearchRequest({ ...params, signal: undefined });
+  searchCache.set(key, { at: Date.now(), promise });
+  promise.catch(() => { if (searchCache.get(key)?.promise === promise) searchCache.delete(key); });
+  if (searchCache.size > 80) searchCache.delete(searchCache.keys().next().value);
+  return withAbort(promise, params.signal);
+}
+
+/** Warms the cache (e.g. the other source's first page). Never throws. */
+export function prefetchSearch(params) {
+  searchProjects({ ...params, signal: undefined }).catch(() => {});
+}
+
+async function runSearchRequest({ contentType, filters, query, sort, offset = 0, limit = PAGE_SIZE, signal, source }) {
   if (source === 'curseforge') return cfSearch({ contentType, filters, query, sort, offset, limit, signal });
   const params = {
     limit: String(limit),
