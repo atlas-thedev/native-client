@@ -2875,3 +2875,34 @@ button.browse-sidebar-chip:hover {
   animation: none !important;
   transition: none !important;
 }
+
+/* Modrinth / CurseForge source switch */
+.browse-source-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.browse-source-btn {
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.browse-source-btn:hover {
+  color: var(--fg-primary);
+}
+
+.browse-source-btn.is-active {
+  background: #fff;
+  color: #000;
+}

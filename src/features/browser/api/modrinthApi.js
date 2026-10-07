@@ -1,4 +1,7 @@
+import { cfHeaders } from '../../../lib/cfApi.js';
+
 const MODRINTH_API = 'https://api.modrinth.com/v2';
+const CF_API = 'https://api.curseforge.com/v1';
 
 export const PAGE_SIZE = 20;
 
@@ -103,7 +106,8 @@ export function buildFacets(contentType, filters = {}) {
  * Runs a `/search` request. Throws on HTTP errors so callers can render
  * an error state; aborts propagate as AbortError.
  */
-export async function searchProjects({ contentType, filters, query, sort, offset = 0, limit = PAGE_SIZE, signal }) {
+export async function searchProjects({ contentType, filters, query, sort, offset = 0, limit = PAGE_SIZE, signal, source }) {
+  if (source === 'curseforge') return cfSearch({ contentType, filters, query, sort, offset, limit, signal });
   const params = {
     limit: String(limit),
     offset: String(offset),
@@ -123,6 +127,7 @@ export async function searchProjects({ contentType, filters, query, sort, offset
 }
 
 export function getProject(projectId, options) {
+  if (isCfId(projectId)) return cfGetProject(projectId, options);
   return fetchJson(endpoint('/project/' + projectId), options);
 }
 
@@ -130,6 +135,7 @@ export function getProject(projectId, options) {
  * Lists project versions, optionally constrained to a game version / loader.
  */
 export async function getVersions(projectId, { gameVersion, loader, signal } = {}) {
+  if (isCfId(projectId)) return cfGetVersions(projectId, { gameVersion, loader, signal });
   const params = {};
   if (gameVersion) params.game_versions = JSON.stringify([gameVersion]);
   if (loader) params.loaders = JSON.stringify([loader]);
@@ -138,10 +144,211 @@ export async function getVersions(projectId, { gameVersion, loader, signal } = {
 }
 
 export function getVersion(versionId, options) {
+  if (isCfId(versionId)) return cfGetVersion(versionId, options);
   return fetchJson(endpoint('/version/' + versionId), options);
 }
 
 export async function getCategoryTags(options) {
   const tags = await fetchJson(endpoint('/tag/category'), options);
   return Array.isArray(tags) ? tags : [];
+}
+
+/* ================================================================ CurseForge
+   Adapter that maps CurseForge API responses onto the Modrinth shapes the
+   Discover UI already understands. Ids are prefixed with `cf:` so every
+   lookup can dispatch to the right provider. */
+
+export const SOURCES = [
+  { id: 'modrinth', label: 'Modrinth' },
+  { id: 'curseforge', label: 'CurseForge' }
+];
+
+const CF_CLASS_IDS = { mod: 6, modpack: 4471, resourcepack: 12, shader: 6552, datapack: 6945 };
+const CF_LOADER_TYPES = { forge: 1, fabric: 4, quilt: 5, neoforge: 6 };
+const CF_SORT_FIELDS = { relevance: 2, downloads: 6, follows: 12, newest: 11, updated: 3 };
+const CF_LOADER_NAMES = new Set(['forge', 'fabric', 'quilt', 'neoforge']);
+const CF_RELEASE_TYPES = { 1: 'release', 2: 'beta', 3: 'alpha' };
+
+export function isCfId(id) {
+  return typeof id === 'string' && id.startsWith('cf:');
+}
+
+function cfNum(id) {
+  return String(id).replace(/^cf:/, '');
+}
+
+async function cfFetch(path, params, options = {}) {
+  const search = params ? new URLSearchParams(params).toString() : '';
+  const response = await fetch(CF_API + path + (search ? '?' + search : ''), {
+    headers: cfHeaders,
+    signal: options.signal
+  });
+  if (!response.ok) throw new Error('CurseForge request failed');
+  return response.json();
+}
+
+function cfSplitVersions(list) {
+  const gameVersions = [];
+  const loaders = [];
+  for (const raw of list || []) {
+    const value = String(raw || '');
+    const lower = value.toLowerCase();
+    if (CF_LOADER_NAMES.has(lower)) {
+      if (!loaders.includes(lower)) loaders.push(lower);
+    } else if (/^\d+\.\d+(\.\d+)?$/.test(value) && !gameVersions.includes(value)) {
+      gameVersions.push(value);
+    }
+  }
+  return { gameVersions, loaders };
+}
+
+function cfProjectType(classId) {
+  const entry = Object.entries(CF_CLASS_IDS).find(([, value]) => value === classId);
+  return entry ? entry[0] : 'mod';
+}
+
+function mapCfProject(mod) {
+  if (!mod) return null;
+  const gameVersions = [];
+  const loaders = [];
+  for (const file of mod.latestFilesIndexes || []) {
+    if (file.gameVersion && !gameVersions.includes(file.gameVersion)) gameVersions.push(file.gameVersion);
+    const loaderName = Object.keys(CF_LOADER_TYPES).find((key) => CF_LOADER_TYPES[key] === file.modLoader);
+    if (loaderName && !loaders.includes(loaderName)) loaders.push(loaderName);
+  }
+  const categories = (mod.categories || []).map((entry) => entry.slug || entry.name).filter(Boolean);
+  const gallery = (mod.screenshots || []).map((shot) => ({
+    url: shot.url,
+    raw_url: shot.url,
+    title: shot.title || '',
+    description: shot.description || ''
+  }));
+  const id = 'cf:' + mod.id;
+  return {
+    project_id: id,
+    id,
+    cf_id: mod.id,
+    source: 'cf',
+    slug: mod.slug,
+    title: mod.name,
+    description: mod.summary || '',
+    icon_url: mod.logo?.thumbnailUrl || mod.logo?.url || '',
+    author: mod.authors?.[0]?.name || '',
+    downloads: Number(mod.downloadCount) || 0,
+    follows: Number(mod.thumbsUpCount) || 0,
+    categories,
+    display_categories: categories,
+    project_type: cfProjectType(mod.classId),
+    featured_gallery: gallery[0]?.url || null,
+    gallery,
+    web_url: mod.links?.websiteUrl || '',
+    source_url: mod.links?.sourceUrl || null,
+    issues_url: mod.links?.issuesUrl || null,
+    wiki_url: mod.links?.wikiUrl || null,
+    date_created: mod.dateCreated,
+    date_modified: mod.dateModified,
+    published: mod.dateCreated,
+    updated: mod.dateModified,
+    versions: gameVersions,
+    game_versions: gameVersions,
+    loaders
+  };
+}
+
+function cfFileUrl(file) {
+  if (file.downloadUrl) return file.downloadUrl;
+  const id = Number(file.id);
+  return `https://mediafilez.forgecdn.net/files/${Math.floor(id / 1000)}/${id % 1000}/${encodeURIComponent(file.fileName)}`;
+}
+
+function mapCfFile(file) {
+  if (!file) return null;
+  const { gameVersions, loaders } = cfSplitVersions(file.gameVersions);
+  return {
+    id: `cf:${file.modId}:${file.id}`,
+    project_id: 'cf:' + file.modId,
+    name: file.displayName || file.fileName,
+    version_number: file.displayName || file.fileName,
+    version_type: CF_RELEASE_TYPES[file.releaseType] || 'release',
+    date_published: file.fileDate,
+    downloads: Number(file.downloadCount) || 0,
+    game_versions: gameVersions,
+    loaders,
+    files: [{ url: cfFileUrl(file), filename: file.fileName, primary: true, size: file.fileLength || 0 }],
+    dependencies: (file.dependencies || [])
+      .filter((dep) => dep.relationType === 3 || dep.relationType === 2)
+      .map((dep) => ({
+        project_id: 'cf:' + dep.modId,
+        version_id: null,
+        dependency_type: dep.relationType === 3 ? 'required' : 'optional'
+      }))
+  };
+}
+
+async function cfSearch({ contentType, filters = {}, query, sort, offset = 0, limit = PAGE_SIZE, signal }) {
+  const type = typeof contentType === 'string' ? contentTypeById(contentType) : contentType;
+  const typeId = type?.id || 'mod';
+  const pageSize = Math.min(50, limit);
+  if (offset + pageSize > 10000) return { hits: [], totalHits: 10000 };
+  const params = {
+    gameId: '432',
+    classId: String(CF_CLASS_IDS[typeId] || 6),
+    sortField: String(CF_SORT_FIELDS[sort] || 2),
+    sortOrder: 'desc',
+    index: String(offset),
+    pageSize: String(pageSize)
+  };
+  const trimmed = (query || '').trim();
+  if (trimmed) params.searchFilter = trimmed;
+  if (filters.gameVersion) params.gameVersion = filters.gameVersion;
+  if ((typeId === 'mod' || typeId === 'modpack') && filters.loader && CF_LOADER_TYPES[filters.loader]) {
+    params.modLoaderType = String(CF_LOADER_TYPES[filters.loader]);
+  }
+  const json = await cfFetch('/mods/search', params, { signal });
+  const hits = (json?.data || []).map(mapCfProject).filter(Boolean);
+  return {
+    hits,
+    totalHits: Math.min(10000, Number(json?.pagination?.totalCount) || 0)
+  };
+}
+
+async function cfGetProject(projectId, options) {
+  const id = cfNum(projectId);
+  try {
+    const [mod, description] = await Promise.all([
+      cfFetch('/mods/' + id, null, options),
+      cfFetch('/mods/' + id + '/description', null, options).catch(() => null)
+    ]);
+    const record = mapCfProject(mod?.data);
+    if (record && typeof description?.data === 'string') record.body = description.data;
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+async function cfGetVersions(projectId, { gameVersion, loader, signal } = {}) {
+  const params = { pageSize: '50' };
+  if (gameVersion) params.gameVersion = gameVersion;
+  if (loader && CF_LOADER_TYPES[loader]) params.modLoaderType = String(CF_LOADER_TYPES[loader]);
+  try {
+    const json = await cfFetch('/mods/' + cfNum(projectId) + '/files', params, { signal });
+    return (json?.data || [])
+      .filter((file) => file.isAvailable !== false)
+      .sort((a, b) => new Date(b.fileDate) - new Date(a.fileDate))
+      .map(mapCfFile);
+  } catch {
+    return [];
+  }
+}
+
+async function cfGetVersion(versionId, options) {
+  const [, modId, fileId] = String(versionId).split(':');
+  if (!modId || !fileId) return null;
+  try {
+    const json = await cfFetch(`/mods/${modId}/files/${fileId}`, null, options);
+    return mapCfFile(json?.data);
+  } catch {
+    return null;
+  }
 }

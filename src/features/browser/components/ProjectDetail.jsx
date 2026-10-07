@@ -153,7 +153,9 @@ export default function ProjectDetail({
     record.issues_url && { id: 'issues', label: 'Issues', icon: 'bug', url: record.issues_url },
     record.wiki_url && { id: 'wiki', label: 'Wiki', icon: 'file', url: record.wiki_url },
     record.discord_url && { id: 'discord', label: 'Discord', icon: 'users', url: record.discord_url },
-    { id: 'modrinth', label: 'Modrinth', icon: 'external-link', url: modrinthUrl }
+    String(projectId || '').startsWith('cf:')
+      ? { id: 'curseforge', label: 'CurseForge', icon: 'external-link', url: record.web_url || `https://www.curseforge.com/minecraft/search?search=${encodeURIComponent(record.title || '')}` }
+      : { id: 'modrinth', label: 'Modrinth', icon: 'external-link', url: modrinthUrl }
   ].filter(Boolean);
 
   const primaryAction = () => {
