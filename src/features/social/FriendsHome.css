@@ -169,7 +169,9 @@
   border-radius: 9px;
   padding: 8px 12px;
   gap: 10px;
-  max-width: 620px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 .native-add-input-wrap:focus-within {
@@ -479,3 +481,12 @@
 .native-friend-card:hover { background: rgba(255,255,255,.025); border-color: var(--hairline, rgba(255,255,255,.06)); }
 .native-friend-tab { border-radius: 999px; padding: 6px 13px; font-weight: 500; }
 .native-friend-tab.is-active { background: rgba(255,255,255,.09); }
+
+/* The active Add Friend pill is white: its icon must be black (a global rule paints svgs white). */
+:root .native-friend-tab-btn.is-active svg,
+:root .native-friend-tab-btn.is-active svg * {
+  color: #000 !important;
+  stroke: #000 !important;
+}
+.native-add-friend-panel,
+.native-add-friend-form { width: 100%; }
