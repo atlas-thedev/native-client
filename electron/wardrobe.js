@@ -936,7 +936,7 @@ async function fetchStoreMe(account) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
+  return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || body.equipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], bundles: body.bundles && typeof body.bundles === 'object' ? body.bundles : {}, wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
 }
 async function toggleStoreWish(account, itemId, on) {
   requireStoreAccount(account);
@@ -991,6 +991,21 @@ function openBillingPage(url) {
   if (!allowed) return false;
   shell.openExternal(parsed.toString());
   return true;
+}
+
+/** Adds every piece of a free bundle (or, with Native+, any bundle) to the account's locker. */
+async function claimStoreBundle(account, bundleId) {
+  requireStoreAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/store/bundles/${encodeURIComponent(bundleId)}/claim`, {
+    method: 'POST',
+    headers: storeHeaders(account),
+    body: JSON.stringify({}),
+    signal: AbortSignal.timeout(15_000)
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw Object.assign(new Error(body.error || `The store couldn’t do that (HTTP ${response.status}).`), { needsPurchase: Boolean(body.needsPurchase) });
+  return { added: Number(body.added) || 0, owned: Array.isArray(body.owned) ? body.owned : [], bundles: body.bundles || {} };
 }
 
 /** Adds a store item to (or, with remove, takes it out of) the account's locker. */
@@ -1946,6 +1961,9 @@ function init(dependencies, ipcMain) {
   ipc.handle('store:claim', async (_event, { account, itemId }) => {
     try { return { ok: true, ...(await claimStoreItem(resolveBillingAccount(account), String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
   });
+  ipc.handle('store:claimBundle', async (_event, { account, bundleId }) => {
+    try { return { ok: true, ...(await claimStoreBundle(resolveBillingAccount(account), String(bundleId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
   ipc.handle('store:unclaim', async (_event, { account, itemId }) => {
     try { return { ok: true, ...(await claimStoreItem(resolveBillingAccount(account), String(itemId || ''), { remove: true })) }; } catch (error) { return { ok: false, error: error.message }; }
   });
@@ -1959,9 +1977,9 @@ function init(dependencies, ipcMain) {
   ipc.handle('billing:me', async (_event, account) => {
     try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipc.handle('billing:checkout', async (_event, { account, kind, itemId, plan }) => {
+  ipc.handle('billing:checkout', async (_event, { account, kind, itemId, itemIds, bundleId, plan }) => {
     try {
-      const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, plan } });
+      const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, itemIds, bundleId, plan } });
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open the checkout page.');
       return { ok: true, transactionId: payload.transactionId };
     } catch (error) { return { ok: false, error: error.message }; }

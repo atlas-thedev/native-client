@@ -753,7 +753,11 @@
 }
 
 /* 3D cosmetics (hats, glasses, back items, shoes) */
-.locker-cosmetic-thumb { display: block; width: 64px; height: 64px; object-fit: contain; transition: transform 0.2s var(--ease); }
+.locker-cosmetic-thumb { display: block; width: 100%; max-width: 150px; height: auto; aspect-ratio: 1 / 1; object-fit: contain; transition: transform 0.2s var(--ease); }
+/* cosmetic cards: the worn shot fills the card instead of a small icon in the middle */
+.locker-cape-grid .locker-cosmetic-card { justify-content: flex-start; gap: 6px; padding: 8px 8px 12px; }
+.locker-cape-grid .locker-cosmetic-card > span:not(.locker-cosmetic-thumb) { text-align: center; line-height: 1.25; }
+.locker-cosmetic-thumb.is-loading { width: 100%; max-width: 150px; }
 .locker-cosmetic-card:hover .locker-cosmetic-thumb { transform: scale(1.08); }
 .locker-cosmetic-thumb.is-loading { border-radius: 10px; background: var(--lk-tile); animation: locker-cos-pulse 1.4s ease-in-out infinite; }
 @keyframes locker-cos-pulse { 50% { opacity: 0.45; } }

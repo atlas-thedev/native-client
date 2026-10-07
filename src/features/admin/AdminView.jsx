@@ -24,6 +24,7 @@ import AdminStore, { CapeThumb } from './AdminStore.jsx';
 import AdminUserPanel from './AdminUserPanel.jsx';
 import AdminBeta from './AdminBeta.jsx';
 import AdminSales from './AdminSales.jsx';
+import AdminBundles from './AdminBundles.jsx';
 import { InitialAvatar, Presence, adminError, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
 import './AdminView.css';
@@ -204,6 +205,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['overview', 'Overview', null],
     ['users', 'Users', pagination.total ? formatNumber(pagination.total) : null],
     ['store', 'Capes', storeItems ? formatNumber(storeItems.length) : null],
+    ['bundles', 'Bundles', null],
     ['sales', 'Sales', null],
     ['beta', 'Beta', null]
   ];
@@ -236,6 +238,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
 
       {section === 'beta' ? (
         <AdminBeta onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+      ) : section === 'bundles' ? (
+        <AdminBundles items={storeItems} onNotify={onNotify} />
       ) : section === 'sales' ? (
         <AdminSales items={storeItems} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'store' ? (

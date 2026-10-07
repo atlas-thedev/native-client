@@ -31,7 +31,7 @@ const COS_TABS = [
 ];
 // Front-facing slots turn the player to face you; the rest show the back.
 const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand', 'balloon']);
-const priceLabel = (item) => (item.exclusive ? 'Event' : item.paid ? `$${Number(item.price).toFixed(2)}` : 'Free');
+const priceLabel = (item) => { const sale = Number(item.salePrice); const now = item.salePrice != null && Number.isFinite(sale) && sale > 0 ? sale : Number(item.price) || 0; return item.exclusive ? 'Event' : item.paid ? `$${now.toFixed(2)}` : 'Free'; };
 
 // Collapses "Founder's Cape", "founders", "FOUNDER" … to one comparable token so
 // a bundled preset can be recognized as the same cape the account already owns.
