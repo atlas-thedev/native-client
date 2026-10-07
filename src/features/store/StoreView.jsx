@@ -6,7 +6,7 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, Copy, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -29,14 +29,14 @@ const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' 
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
 const sectionOf = (item) => item?.section || 'capes';
 const moves = (item) => Boolean(item?.animated || item?.motion);
-const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand', balloon: 'Balloons' };
+const SECTION_LABELS = { all: 'All', capes: 'Cloaks', hats: 'Headwear', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'In hand' };
 /** The order categories show in (the same as the website store). */
-const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
+const SECTION_ORDER = ['capes', 'hats', 'glasses', 'back', 'shoes', 'hand'];
 /** In the All view each category shelf shows this many items before "See all". */
 const SHELF_SIZE = 8;
-const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item', balloon: 'balloon' };
+const SLOT_WORDS = { hats: 'hat', glasses: 'glasses', back: 'back item', shoes: 'shoes', hand: 'hand item' };
 // Each section has its own slab colour, like the Locker switch (same pixel style, different colours).
-export const SECTION_COLORS = { all: '#e8e8ea', capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c', hand: '#d7a6ff', balloon: '#ff9ec7', bundles: '#7ee0a8' };
+export const SECTION_COLORS = { all: '#e8e8ea', capes: '#b48cff', hats: '#ff8a7a', glasses: '#7fb2ff', back: '#9fe0ff', shoes: '#ffb45c', hand: '#d7a6ff' };
 
 /** Featured items of one store section (or every section for 'all'), capped at MAX_FEATURED. */
 export const featuredIn = (items = [], section = 'capes') => items
@@ -91,7 +91,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [offline, setOffline] = useState(false);
-  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [], bundles: {} });
+  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [] });
   const [section, setSection] = useState('all');
   const [sectionDir, setSectionDir] = useState(null); // 'right' | 'left': where the new shelf slides in from
   const [cosAssets, setCosAssets] = useState({}); // cosmetic id -> { model, texture, thumb }
@@ -139,7 +139,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     }
     if (isStoreAccount(account)) {
       const mine = await window.native?.store?.me?.(account).catch(() => null);
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [] });
     }
   }, [account]);
 
@@ -157,13 +157,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         window.native?.billing?.me?.(account).catch(() => null)
       ]);
       if (stopped) return;
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [] });
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
-      const done = pending.kind === 'plus' ? bill?.plus?.active
-        : pending.kind === 'bundle' ? Boolean(mine?.bundles?.[pending.bundleId]?.complete) || (pending.itemIds || []).every((id) => (mine?.owned || []).some((entry) => entry.id === id))
-        : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
+      const done = pending.kind === 'plus' ? bill?.plus?.active : (mine?.owned || []).some((entry) => entry.id === pending.itemId);
       if (done) {
-        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cloak and cosmetic is yours to wear.' : pending.kind === 'bundle' ? `The ${pending.name} bundle is yours. Everything in it is in your locker now.` : `${pending.name} is yours. It’s in your locker now.`);
+        onNotify?.('Store', pending.kind === 'plus' ? 'Welcome to Native+! Every paid cloak and cosmetic is yours to wear.' : `${pending.name} is yours. It’s in your locker now.`);
         window.dispatchEvent(new Event('native:store-changed'));
         load(true);
         setPending(null);
@@ -368,19 +366,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     setPending({ kind: 'cape', itemId: item.id, name: item.name });
   });
 
-  const buyBundle = (bundle) => run(`buy:bundle:${bundle.id}`, async () => {
-    const res = await window.native.billing.checkout(account, { kind: 'bundle', bundleId: bundle.id });
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
-    setPending({ kind: 'bundle', bundleId: bundle.id, itemIds: bundle.itemIds, name: bundle.name });
-  });
-
-  const claimBundle = (bundle) => run(`claim:bundle:${bundle.id}`, async () => {
-    const res = await window.native.store.claimBundle(account, bundle.id);
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t add that bundle.');
-    setMe((current) => ({ ...current, owned: res.owned || current.owned, bundles: res.bundles || current.bundles }));
-    onNotify?.('Store', `Everything in ${bundle.name} was added to your locker.`);
-  });
-
   const joinPlus = (plan) => run(`plus:${plan}`, async () => {
     const res = await window.native.billing.checkout(account, { kind: 'plus', plan });
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
@@ -504,8 +489,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       .filter((id) => everything.some((item) => sectionOf(item) === id))
       .sort((a, b) => rank(a) - rank(b));
     const list = ids.map((id) => ({ id, label: SECTION_LABELS[id] || (catalog?.sections || []).find((entry) => entry.id === id)?.name || id, count: everything.filter((item) => sectionOf(item) === id).length }));
-    const withBundles = (catalog?.bundles || []).length ? [...list, { id: 'bundles', label: 'Bundles', count: (catalog?.bundles || []).length }] : list;
-    return withBundles.length > 1 ? [{ id: 'all', label: SECTION_LABELS.all, count: everything.length }, ...withBundles] : withBundles;
+    return list.length > 1 ? [{ id: 'all', label: SECTION_LABELS.all, count: everything.length }, ...list] : list;
   })();
   // a category that vanished (e.g. after a refresh) falls back to All
   const sectionKey = sections.map((entry) => entry.id).join();
@@ -602,6 +586,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
             {moves(item) && movesMean && <span className="store-anim-badge">Animated</span>}
+            {item.dyeable && <span className="store-dye-badge" title="Pick its colour in your locker"><Palette size={11} />Dyeable</span>}
           </div>
           {signedIn && (
             <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
@@ -617,74 +602,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
         </div>
         <div className="store-card-action">{actionFor(item, true)}</div>
-      </article>
-    );
-  };
-
-  /* ── bundles ─────────────────────────────────────────────────────── */
-  const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog]);
-  const bundleList = useMemo(() => (catalog?.bundles || []).filter((bundle) => (bundle.itemIds || []).filter((id) => itemById.has(id)).length >= 2), [catalog, itemById]);
-  const bundleItems = (bundle) => (bundle.itemIds || []).map((id) => itemById.get(id)).filter(Boolean);
-  const money = (value) => `$${Number(value || 0).toFixed(2)}`;
-  /** The signed-in player's view of a bundle: what's left to buy and for how much. */
-  const bundleState = (bundle) => {
-    const mine = me.bundles?.[bundle.id];
-    if (mine) return mine;
-    const pieces = bundleItems(bundle);
-    const owned = pieces.filter((item) => ownedIds.has(item.id)).length;
-    return { owned, total: pieces.length, complete: owned === pieces.length, due: owned ? null : bundle.price, toBuy: null };
-  };
-  const bundleAction = (bundle) => {
-    const spin = <Loader2 size={15} className="is-spinning" />;
-    const state = bundleState(bundle);
-    const locked = busy !== null;
-    if (!signedIn) return <PixelButton variant="ghost" size="md" block icon={<Lock size={15} />} label="Sign in" onClick={() => onOpenAccountSwitcher?.()} />;
-    if (state.complete) return <PixelButton variant="ghost" size="md" block icon={<Check size={15} strokeWidth={3} />} label="All yours" title="Everything in this bundle is in your locker" onClick={onOpenLocker} />;
-    const due = state.due == null ? bundle.price : state.due;
-    if (!(due > 0)) return <PixelButton size="md" block poof disabled={locked} busy={busy === `claim:bundle:${bundle.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label="Add all to locker" onClick={() => claimBundle(bundle)} />;
-    if (plus?.active) return <PixelButton variant="gold" size="md" block poof disabled={locked} busy={busy === `claim:bundle:${bundle.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label="Add with Native+" title="Included with Native+" onClick={() => claimBundle(bundle)} />;
-    if (!billing.enabled) return <PixelButton variant="locked" size="md" block label={`${money(due)} · soon`} title="Payments are switched on soon." />;
-    if (pending?.kind === 'bundle' && pending.bundleId === bundle.id) return <PixelButton variant="ghost" size="md" block icon={spin} label="Finish paying in your browser…" title="Click to stop waiting." onClick={() => setPending(null)} />;
-    return <PixelButton size="md" block disabled={locked} busy={busy === `buy:bundle:${bundle.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`${state.owned ? 'Complete the set' : 'Buy bundle'} · ${money(due)}`} onClick={() => buyBundle(bundle)} />;
-  };
-  const renderBundle = (bundle, index) => {
-    const pieces = bundleItems(bundle);
-    const state = signedIn ? bundleState(bundle) : null;
-    const tiles = pieces.slice(0, 4);
-    return (
-      <article key={`bundle:${bundle.id}`} className={`store-bundle store-pop${state?.complete ? ' is-owned' : ''}`} style={{ '--i': Math.min(index, 14) }} aria-label={`${bundle.name} bundle`}>
-        <div className={`store-bundle-art tiles-${tiles.length}`}>
-          {tiles.map((item) => (
-            <button type="button" key={item.id} className="store-bundle-tile" title={`${item.name}: view in 3D`} onClick={() => setViewId(item.id)}>
-              {isCosmetic(item)
-                ? cosmeticArt(item, 'store-bundle-thumb')
-                : <canvas ref={bindCanvas(`bundle-${bundle.id}:${item.id}`)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
-            </button>
-          ))}
-          <div className="store-card-badges">
-            <span className="store-bundle-badge"><Package size={10} />Bundle</span>
-            {bundle.savePercent > 0 && <span className="store-new-badge">Save {bundle.savePercent}%</span>}
-          </div>
-        </div>
-        <div className="store-bundle-body">
-          <div className="store-bundle-title">
-            <strong>{bundle.name}</strong>
-            <span className="store-bundle-price">
-              {bundle.paid && bundle.fullPrice > bundle.price && <s>{money(bundle.fullPrice)}</s>}
-              <b>{bundle.paid ? money(bundle.price) : 'Free'}</b>
-            </span>
-          </div>
-          {bundle.description && <p className="store-bundle-desc">{bundle.description}</p>}
-          <div className="store-bundle-items">
-            {pieces.map((item) => (
-              <button type="button" key={item.id} className={`store-bundle-chip${ownedIds.has(item.id) ? ' is-owned' : ''}`} onClick={() => setViewId(item.id)} title={ownedIds.has(item.id) ? `${item.name} · in your locker` : item.name}>
-                {ownedIds.has(item.id) && <Check size={10} strokeWidth={3} />}{item.name}
-              </button>
-            ))}
-          </div>
-          {state && !state.complete && state.owned > 0 && <small className="store-bundle-note">You have {state.owned} of {state.total}. Pay only for the rest.</small>}
-          <div className="store-bundle-action">{bundleAction(bundle)}</div>
-        </div>
       </article>
     );
   };
@@ -765,10 +682,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           {sections.length > 1 && (
             <div className="store-sections">
               <PixelTabs
+                size="sm"
+                fill
                 label="Store sections"
                 value={section}
                 onChange={pickSection}
-                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count, color: SECTION_COLORS[entry.id] }))}
+                items={sections.map((entry) => ({ id: entry.id, label: entry.label, count: entry.count }))}
               />
             </div>
           )}
@@ -781,35 +700,22 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             </section>
           )}
           <div className="store-toolbar">
-            {section !== 'bundles' && <PixelTabs
+            <PixelTabs
               size="sm"
               className="store-chips"
               label="Filter"
               value={filter}
               onChange={setFilter}
               items={FILTERS.filter((f) => (f.id !== 'owned' && f.id !== 'wish') || signedIn).map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
-            />}
+            />
             <label className="store-search">
               <Search size={14} aria-hidden="true" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
             </label>
-            {section !== 'bundles' && <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((x) => ({ value: x.id, label: x.label }))} />}
+            <Dropdown className="store-sort" value={sort} onChange={setSort} options={SORTS.map((x) => ({ value: x.id, label: x.label }))} />
           </div>
 
-          {shelved && bundleList.length > 0 && (
-            <section className="store-cat-shelf store-bundle-shelf" aria-label="Bundles">
-              <div className="store-cat-head">
-                <strong>Bundles</strong>
-                {bundleList.length > 3 && <button type="button" className="store-cat-more" onClick={() => pickSection('bundles')}>View all<ChevronRight size={13} /></button>}
-              </div>
-              <div className="store-bundle-grid">{bundleList.slice(0, 3).map(renderBundle)}</div>
-            </section>
-          )}
-          {section === 'bundles' ? (
-            bundleList.length
-              ? <div className="store-bundle-grid">{bundleList.filter((bundle) => !query.trim() || `${bundle.name} ${bundle.description}`.toLowerCase().includes(query.trim().toLowerCase())).map(renderBundle)}</div>
-              : <div className="store-empty"><Package size={18} /><span>No bundles right now.</span></div>
-          ) : shelves.length > 0 ? (
+          {shelves.length > 0 ? (
             shelves.map((shelf) => (
               <section key={shelf.id} className="store-cat-shelf" aria-label={shelf.label}>
                 <div className="store-cat-head">

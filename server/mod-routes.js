@@ -60,7 +60,7 @@ function entryFor(profile) {
     const store = require('./store-routes');
     allowed = store.animationFor(profile);
     capeOk = store.capeAllowed(profile.cape, profile);
-    k = require('./cosmetics').directoryRefs(profile, store.findItem).filter((ref) => HASH.test(ref.m) && HASH.test(ref.x));
+    k = require('./cosmetics').directoryRefs(profile, store.findItem, store.dyedTexture).filter((ref) => HASH.test(ref.m) && HASH.test(ref.x));
   } catch {}
   const cape = HASH.test(profile.cape || '') && capeOk ? profile.cape : null;
   const anim = allowed && cape

@@ -5,14 +5,14 @@
  * Public
  *   GET  /v1/store/catalog         visible items (newest/featured first) with texture URLs + owner counts
  *   GET  /v1/store/items/:id       one item (hidden items too, so retired capes still have a page)
- *   GET  /v1/store/bundles[/:id]   bundles (sets of items sold together at a discount, see bundles.js)
  *   GET  /v1/store/users?q=        find players by name (no q = top collectors)
  *   GET  /v1/store/users/:name     a player's public profile: worn items, locker, wishlist
  * Signed in (Bearer or X-Native-Token)
  *   GET  /v1/store/me              { equipped, wearing: { slot: itemId }, owned: [{ id, acquiredAt }] }
  *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
  *   POST /v1/store/unclaim         { itemId }  remove it from your locker (takes it off if worn)
- *   POST /v1/store/bundles/:id/claim  add a free bundle (or, with Native+, any bundle) to your locker
+ *   POST /v1/store/dye             { itemId, color: '#rrggbb' | null }  recolour a dyeable item you own
+ *   GET  /v1/store/items/:id/dye/:rrggbb  that item's texture in a colour (PNG, for previews)
  *   POST /v1/store/equip           { itemId }  wear an item from your locker (null = take the cape off).
  *                                   Free items are added to the locker automatically. A cosmetic
  *                                   (hat, glasses, back item, shoes) goes into its slot;
@@ -22,8 +22,6 @@
  *   POST /v1/store/prefs           { hideLocker?, hideWishlist? }  what other players see on your profile
  *   GET  /v1/store/stream          SSE: wardrobe:changed for the signed-in account
  * Admin (session with is_admin)
- *   GET/POST          /v1/admin/store/bundles       list / create { name, description, itemIds, discount, price, featured, hidden }
- *   PATCH/DELETE      /v1/admin/store/bundles/:id   edit / remove a bundle (owners keep what they bought)
  *   GET    /v1/admin/store/items           every item, hidden ones included
  *   POST   /v1/admin/store/items           create (animated strip + still, or a static PNG)
  *   PATCH  /v1/admin/store/items/:id       edit metadata and/or replace textures
@@ -53,15 +51,17 @@ const capes = require('./capes');
 const events = require('./social-events');
 const billing = require('./billing');
 const cosmetics = require('./cosmetics');
+const dye = require('./dye');
 const pricing = require('./pricing');
-const bundles = require('./bundles');
 const site = () => require('./site-routes');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const NEW_FOR_MS = 21 * 24 * 60 * 60 * 1000;
 
-let catalog = null; // { rev, sections, items, deleted, bundles }
+let catalog = null; // { rev, sections, items, deleted }
+/** Store sections that were taken out (their items are removed on load). */
+const RETIRED_SECTIONS = ['balloon'];
 let storeTexture = null;
 let tableReady = false;
 
@@ -76,7 +76,7 @@ function atomicWrite(file, data) {
 
 function persist() {
   catalog.rev += 1;
-  atomicWrite(catalogFile(), JSON.stringify({ version: 2, rev: catalog.rev, sections: catalog.sections, deleted: catalog.deleted, items: catalog.items, bundles: catalog.bundles || [] }, null, 2));
+  atomicWrite(catalogFile(), JSON.stringify({ version: 2, rev: catalog.rev, sections: catalog.sections, deleted: catalog.deleted, items: catalog.items }, null, 2));
 }
 
 function ensureCatalog(textureFn) {
@@ -87,20 +87,23 @@ function ensureCatalog(textureFn) {
   const bundled = capes.loadCatalog(storeTexture);
   const now = Date.now();
   if (saved && Array.isArray(saved.items)) {
-    catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items, bundles: Array.isArray(saved.bundles) ? saved.bundles : [] };
+    catalog = { rev: Number(saved.rev) || 1, sections: saved.sections || bundled.sections, deleted: Array.isArray(saved.deleted) ? saved.deleted : [], items: saved.items };
     let added = false;
     // sections added in later deploys (hats, glasses, ...) appear after the saved ones
     for (const section of bundled.sections) {
       if (!catalog.sections.some((x) => x.id === section.id)) { catalog.sections = [...catalog.sections, section]; added = true; }
     }
-    // the 3D cosmetics that used to ship with the server are gone: drop them (and their locker rows)
-    const retired = catalog.items.filter((item) => item.bundled && cosmetics.isCosmetic(item));
+    // retired sections (balloons) go away with their items
+    const retiredSections = catalog.sections.filter((section) => RETIRED_SECTIONS.includes(section.id));
+    if (retiredSections.length || saved.bundles) { catalog.sections = catalog.sections.filter((section) => !RETIRED_SECTIONS.includes(section.id)); added = true; }
+    // the 3D cosmetics that used to ship with the server are gone, and so are items of retired slots: drop them (and their locker rows)
+    const retired = catalog.items.filter((item) => (item.bundled && cosmetics.isCosmetic(item)) || (item.kind === 'cosmetic' && !cosmetics.isSlot(item.slot)) || RETIRED_SECTIONS.includes(item.section));
     if (retired.length) {
       catalog.items = catalog.items.filter((item) => !retired.includes(item));
       for (const item of retired) {
         try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
       }
-      console.log(`[Native Store] Removed ${retired.length} built-in cosmetics: ${retired.map((item) => item.id).join(', ')}`);
+      console.log(`[Native Store] Removed ${retired.length} retired cosmetics: ${retired.map((item) => item.id).join(', ')}`);
       added = true;
     }
     bundled.items.forEach((item, index) => {
@@ -114,7 +117,6 @@ function ensureCatalog(textureFn) {
       rev: 1,
       sections: bundled.sections,
       deleted: [],
-      bundles: [],
       items: bundled.items.map((item, index) => ({ ...item, hidden: false, order: index, createdAt: now - index * 1000, updatedAt: now }))
     };
     try { persist(); } catch (error) { console.warn('[Native Store] Could not save the catalogue:', error.message); }
@@ -238,17 +240,6 @@ function searchUsers(query) {
 const current = () => catalog || (storeTexture ? ensureCatalog() : { items: [] });
 const findItem = (id) => current().items.find((item) => item.id === id) || null;
 const allItems = () => current().items.slice();
-const allBundles = () => (current().bundles || []).slice();
-const findBundle = (id) => (current().bundles || []).find((bundle) => bundle.id === id) || null;
-const priceNow = (item) => { try { return site().priceOf(item); } catch { return Math.max(0, Number(item?.price) || 0); } };
-/** Prices a bundle for everyone (no userId) or for one player (their own pieces left out). */
-function quoteBundle(bundle, userId = null) {
-  return bundles.quote(bundle, {
-    findItem,
-    priceOf: priceNow,
-    ownedSource: userId ? (itemId) => billing.ownedSource(userId, itemId) : null
-  });
-}
 
 /** Native+ members get every paid cape in their locker automatically (source 'plus'). */
 function grantPlusCapes(userId) {
@@ -397,7 +388,8 @@ function publicItem(item, textureBase, counts) {
       slot: item.slot,
       motion: Boolean(item.motion),
       modelUrl: `${textureBase}${item.model}`,
-      textureUrl: `${textureBase}${item.texture}`
+      textureUrl: `${textureBase}${item.texture}`,
+      ...(item.dyeable && item.dyeBase ? { dyeable: true, dyeDefault: item.dyeDefault || null, dyeUrl: `${textureBase.replace(/\/csl\/textures\/$/, '')}/v1/store/items/${encodeURIComponent(item.id)}/dye/` } : {})
     } : { kind: 'cape' }),
     owners: counts ? (counts.get(item.id) || 0) : undefined,
     createdAt: Number(item.createdAt) || 0
@@ -468,6 +460,59 @@ function cosmeticFrom(body, previous = null) {
   return { ...out, animated: false, frames: 1, fps: 0, strip: null, bundled: false };
 }
 
+/* ── dyes ──────────────────────────────────────────────────────────── */
+
+let readTexture = () => null;
+/** server.js tells the store how to read a stored texture back (by hash). */
+function setTextureReader(fn) { if (typeof fn === 'function') readTexture = fn; }
+const dyeCache = new Map(); // `${base}|${mask}|${hex}` -> texture hash
+/** The hash of `item`'s texture dyed `hex` (baked once, then served like any other texture). */
+function dyedTexture(item, hex) {
+  const color = dye.cleanHex(hex);
+  if (!item || !item.dyeable || !item.dyeBase || !color) return item ? item.texture : null;
+  if (color === item.dyeDefault) return item.texture;
+  const key = `${item.dyeBase}|${item.dyeMask || ''}|${color}`;
+  const hit = dyeCache.get(key);
+  if (hit) return hit;
+  const base = readTexture(item.dyeBase);
+  if (!base || !storeTexture) return item.texture;
+  const hash = storeTexture(dye.bake(base, item.dyeMask ? readTexture(item.dyeMask) : null, color));
+  dyeCache.set(key, hash);
+  if (dyeCache.size > 4000) dyeCache.delete(dyeCache.keys().next().value);
+  return hash;
+}
+
+/**
+ * Admin dye settings of a cosmetic: { dyeable, dyeMask (PNG base64, '' = none), dyeDefault ('#rrggbb') }.
+ * The uploaded (or current) texture becomes the undyed base and `texture` is re-baked in the default colour.
+ */
+function applyDye(next, body, previous = null) {
+  const wanted = body.dyeable !== undefined ? Boolean(body.dyeable) : Boolean(previous && previous.dyeable);
+  if (!wanted) {
+    if (previous && previous.dyeable && !body.texture) next.texture = previous.texture;
+    delete next.dyeable; delete next.dyeBase; delete next.dyeMask; delete next.dyeDefault;
+    return next;
+  }
+  const uploaded = Boolean(body.texture) && next.texture;
+  const base = uploaded ? next.texture : (previous && (previous.dyeBase || previous.texture)) || next.texture;
+  let mask = previous && previous.dyeable ? previous.dyeMask || null : null;
+  if (body.dyeMask === '' || body.dyeMask === null) mask = null;
+  else if (body.dyeMask) {
+    const png = capes.pngFromBase64(body.dyeMask, cosmetics.MAX_TEXTURE_BYTES);
+    if (!png) throw new Error('The dye mask must be a PNG.');
+    dye.checkMask(png);
+    mask = storeTexture(png);
+  }
+  const fallback = previous && previous.dyeable ? previous.dyeDefault || null : null;
+  const color = body.dyeDefault !== undefined ? dye.cleanHex(body.dyeDefault) : fallback;
+  if (body.dyeDefault !== undefined && body.dyeDefault !== '' && body.dyeDefault !== null && !color) throw new Error('The default colour must look like #ff8800.');
+  const baseBuffer = readTexture(base);
+  if (!baseBuffer) throw new Error('The cosmetic texture is missing.');
+  next.texture = color ? storeTexture(dye.bake(baseBuffer, mask ? readTexture(mask) : null, color)) : base;
+  Object.assign(next, { dyeable: true, dyeBase: base, dyeMask: mask, dyeDefault: color });
+  return next;
+}
+
 /** What a profile wears in the cosmetic slots: { hats: 'propeller-cap', ... }. */
 const wearingOf = (profile) => cosmetics.wearing(profile, findItem);
 
@@ -491,22 +536,6 @@ function refreshWearers(ctx, itemId, userIds) {
 }
 const ownerIds = (itemId) => { try { return sql().prepare('SELECT user_id FROM store_owned WHERE item_id = ?').all(itemId).map((row) => row.user_id); } catch { return []; } };
 
-const NEW_BUNDLE = (bundle) => Date.now() - (Number(bundle.createdAt) || 0) < NEW_FOR_MS;
-const publicBundle = (bundle, q, mine = null) => bundles.publicBundle(bundle, q, { isNew: NEW_BUNDLE(bundle), mine });
-/** Bundles the store lists (visible, with at least two items on sale), featured first. */
-function publicBundles(cat) {
-  return bundles.sorted(cat.bundles || []).map((bundle) => [bundle, quoteBundle(bundle)])
-    .filter(([bundle, q]) => bundles.listable(bundle, q)).map(([bundle, q]) => publicBundle(bundle, q));
-}
-/** { bundleId: { owned, total, complete, due, dueFull, toBuy } } for a signed-in player. */
-function myBundles(userId) {
-  const out = {};
-  for (const bundle of current().bundles || []) {
-    const q = quoteBundle(bundle, userId);
-    if (bundles.listable(bundle, q)) out[bundle.id] = bundles.mineOf(q);
-  }
-  return out;
-}
 
 /** Puts `item` on a profile (cape or cosmetic). */
 function putOn(profile, item) {
@@ -543,21 +572,21 @@ async function handleStoreRoutes(req, res, ctx) {
       rev: cat.rev,
       textureBase,
       sections: cat.sections,
-      items: sorted(cat.items.filter((item) => !item.hidden)).map((item) => publicItem(item, textureBase, counts)),
-      bundles: publicBundles(cat)
+      items: sorted(cat.items.filter((item) => !item.hidden)).map((item) => publicItem(item, textureBase, counts))
     }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' });
     return true;
   }
 
-  const bundleMatch = url.pathname.match(/^\/v1\/store\/bundles\/([^/]+)$/);
-  if (req.method === 'GET' && (url.pathname === '/v1/store/bundles' || bundleMatch)) {
-    if (!hit('store-catalog', ip, 120, 60_000)) { tooMany(res, 60); return true; }
-    if (!bundleMatch) { send(res, 200, { ok: true, bundles: publicBundles(cat) }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' }); return true; }
-    const bundle = findBundle(decodeURIComponent(bundleMatch[1]));
-    const q = bundle ? quoteBundle(bundle) : null;
-    if (!bundle || q.items.length < bundles.MIN_ITEMS) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
-    const counts = ownerCounts();
-    send(res, 200, { ok: true, textureBase, bundle: publicBundle(bundle, q), items: q.items.map((item) => publicItem(item, textureBase, counts)) }, { 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' });
+  // a dyeable item's texture in any colour (previews in the launcher and on the website)
+  const dyeMatch = url.pathname.match(/^\/v1\/store\/items\/([^/]+)\/dye\/#?([0-9a-fA-F]{6})(?:\.png)?$/);
+  if (req.method === 'GET' && dyeMatch) {
+    if (!hit('store-dye-preview', ip, 600, 60_000)) { tooMany(res, 60); return true; }
+    const item = findItem(decodeURIComponent(dyeMatch[1]));
+    if (!item || !item.dyeable || !item.dyeBase) { send(res, 404, { ok: false, error: 'That item can’t be dyed.' }); return true; }
+    let png = null;
+    try { png = readTexture(dyedTexture(item, `#${dyeMatch[2].toLowerCase()}`)); } catch (error) { console.warn('[Native Store] dye failed:', error.message); }
+    if (!png) { send(res, 500, { ok: false, error: 'Couldn’t dye that texture.' }); return true; }
+    send(res, 200, png, { 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
     return true;
   }
 
@@ -616,7 +645,7 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, premiumEquipped: equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), bundles: myBundles(user.id), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    send(res, 200, { ok: true, equipped, premiumEquipped: equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), dyes: (profile && profile.cosmeticDyes) || {}, wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
     return true;
   }
 
@@ -684,23 +713,22 @@ async function handleStoreRoutes(req, res, ctx) {
     return true;
   }
 
-  const claimBundle = url.pathname.match(/^\/v1\/store\/bundles\/([^/]+)\/claim$/);
-  if (req.method === 'POST' && claimBundle) {
-    if (!user) { send(res, 401, { ok: false, error: 'Sign in to add bundles to your locker.' }); return true; }
-    if (!hit('store-claim', user.id, 60, 10 * 60_000)) { tooMany(res, 600); return true; }
-    const bundle = findBundle(decodeURIComponent(claimBundle[1]));
-    const q = bundle ? quoteBundle(bundle, user.id) : null;
-    if (!bundle || bundle.hidden || q.items.length < bundles.MIN_ITEMS) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
-    if (lockedFor(user)) { send(res, 423, { ok: false, locked: true, error: LOCKED }); return true; }
-    const plus = billing.hasPlus(user.id);
-    if (q.dueCents > 0 && !plus) { send(res, 402, { ok: false, needsPurchase: true, error: `${bundle.name} costs $${(q.dueCents / 100).toFixed(2)}. Buy it or join Native+.` }); return true; }
-    let added = 0;
-    for (const item of q.missing) {
-      if (billing.isPaid(item)) { if (plus) { billing.grantItem(user.id, item.id, 'plus'); added += 1; } } else { grant(user.id, item.id, 'free'); added += 1; }
-    }
-    const now = ctx.readProfile(user.username);
-    events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: now?.capeStore || null, wearing: wearingOf(now), owned: true });
-    send(res, 200, { ok: true, added, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), bundles: myBundles(user.id) }, noStore);
+  // { itemId, color: '#rrggbb' | null }: dye an item of your locker (null = its own colour again)
+  if (req.method === 'POST' && url.pathname === '/v1/store/dye') {
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in to dye your cosmetics.' }); return true; }
+    if (!hit('store-dye', user.id, 120, 10 * 60_000)) { tooMany(res, 600); return true; }
+    const body = await ctx.readJson(req);
+    const item = findItem(String(body.itemId || ''));
+    if (!item || !item.dyeable || !item.dyeBase) { send(res, 404, { ok: false, error: 'That item can’t be dyed.' }); return true; }
+    if (!owns(user.id, item.id)) { send(res, 403, { ok: false, error: `Add ${item.name} to your locker first.` }); return true; }
+    const color = body.color == null || body.color === '' ? null : dye.cleanHex(body.color);
+    if (body.color != null && body.color !== '' && !color) { send(res, 400, { ok: false, error: 'Pick a colour like #ff8800.' }); return true; }
+    const existing = ctx.readProfile(user.username) || { username: user.username, model: user.model === 'slim' ? 'slim' : 'default', skin: null, cape: null, authHash: null };
+    const dyes = { ...(existing.cosmeticDyes || {}) };
+    if (!color || color === item.dyeDefault) delete dyes[item.id]; else dyes[item.id] = color;
+    try { if (color) dyedTexture(item, color); } catch (error) { send(res, 500, { ok: false, error: 'Couldn’t dye that texture.' }); return true; }
+    const saved = ctx.saveProfile({ ...existing, cosmeticDyes: dyes, updatedAt: new Date().toISOString() }, req, user);
+    send(res, 200, { ok: true, dyes: saved.cosmeticDyes || {}, wearing: wearingOf(saved), profile: ctx.profileDocument(saved, req) }, noStore);
     return true;
   }
 
@@ -761,43 +789,6 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
   const noStore = { 'Cache-Control': 'no-store' };
   const list = () => sorted(cat.items).map((item) => ({ ...publicItem(item, textureBase, ownerCounts()), order: Number(item.order) || 0 }));
 
-  const bundleList = () => bundles.sorted(cat.bundles || []).map((bundle) => {
-    const q = quoteBundle(bundle);
-    return { ...publicBundle(bundle, q), itemIds: bundle.itemIds.slice(), live: bundles.listable(bundle, q), sales: bundleSales(bundle.id) };
-  });
-  if (url.pathname === '/v1/admin/store/bundles') {
-    if (req.method === 'GET') { send(res, 200, { ok: true, bundles: bundleList(), maxItems: bundles.MAX_ITEMS }, noStore); return true; }
-    if (req.method === 'POST') {
-      const body = await ctx.readJson(req);
-      let bundle;
-      try { bundle = bundles.cleanBundle(body, null, { findItem, bundles: cat.bundles || [] }); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
-      bundle.order = (cat.bundles || []).length;
-      cat.bundles = [...(cat.bundles || []), bundle];
-      persist();
-      send(res, 200, { ok: true, bundle: publicBundle(bundle, quoteBundle(bundle)), bundles: bundleList() }, noStore);
-      return true;
-    }
-  }
-  const adminBundle = url.pathname.match(/^\/v1\/admin\/store\/bundles\/([^/]+)$/);
-  if (adminBundle) {
-    const bundle = findBundle(decodeURIComponent(adminBundle[1]));
-    if (!bundle) { send(res, 404, { ok: false, error: 'That bundle does not exist.' }); return true; }
-    if (req.method === 'PATCH') {
-      const body = await ctx.readJson(req);
-      let next;
-      try { next = bundles.cleanBundle(body, bundle, { findItem, bundles: cat.bundles }); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
-      cat.bundles = cat.bundles.map((entry) => (entry === bundle ? next : entry));
-      persist();
-      send(res, 200, { ok: true, bundle: publicBundle(next, quoteBundle(next)), bundles: bundleList() }, noStore);
-      return true;
-    }
-    if (req.method === 'DELETE') {
-      cat.bundles = cat.bundles.filter((entry) => entry !== bundle);
-      persist();
-      send(res, 200, { ok: true, bundles: bundleList() }, noStore);
-      return true;
-    }
-  }
 
   if (req.method === 'GET' && url.pathname === '/v1/admin/store/items') {
     send(res, 200, { ok: true, items: list(), sections: cat.sections, maxFeatured: MAX_FEATURED }, noStore);
@@ -818,7 +809,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     if (slot !== null && !cosmetics.isSlot(slot)) { send(res, 400, { ok: false, error: `Pick a slot: ${cosmetics.SLOTS.join(', ')}.` }); return true; }
     if (body.featured && featuredCount(cat.items, null, slot || 'capes') >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
     let textures;
-    try { textures = slot ? cosmeticFrom(body) : texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+    try { textures = slot ? applyDye(cosmeticFrom(body), body) : texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
     const now = Date.now();
     const item = {
       id,
@@ -966,6 +957,9 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
         if (body.model || body.texture || body.thumb || body.still) {
           try { Object.assign(next, cosmeticFrom(body, item)); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
         }
+        if (body.texture || body.dyeable !== undefined || body.dyeMask !== undefined || body.dyeDefault !== undefined) {
+          try { applyDye(next, body, item); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+        }
       } else if (body.strip || body.still) {
         try { Object.assign(next, texturesFrom({ ...body, animated: body.animated !== undefined ? body.animated : item.animated })); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
       } else if (item.animated && body.fps !== undefined) {
@@ -984,7 +978,6 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       const wearers = cosmetics.isCosmetic(item) ? ownerIds(item.id) : [];
       cat.items = cat.items.filter((entry) => entry !== item);
       if (!cat.deleted.includes(item.id)) cat.deleted.push(item.id);
-      cat.bundles = (cat.bundles || []).map((bundle) => (bundle.itemIds.includes(item.id) ? { ...bundle, itemIds: bundle.itemIds.filter((id) => id !== item.id), updatedAt: Date.now() } : bundle));
       try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
       persist();
       refreshWearers(ctx, item.id, wearers);
@@ -1000,9 +993,4 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-/** How many times a bundle was bought (paid, not refunded). */
-function bundleSales(bundleId) {
-  try { return sql().prepare("SELECT COUNT(*) AS n FROM billing_purchases WHERE bundle_id = ? AND status = 'paid'").get(String(bundleId))?.n || 0; } catch { return 0; }
-}
-
-module.exports = { findBundle, allBundles, quoteBundle, wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, staticStoreCape, owns, grant, resetCatalog };
+module.exports = { dyedTexture, setTextureReader, wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, staticStoreCape, owns, grant, resetCatalog };

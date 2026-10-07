@@ -5,11 +5,11 @@
  * Nothing in the store is free (exclusive event items are granted, never sold). Prices start at
  * $1.99 and go up with how much there is to look at: animation, size and detail.
  *   cloaks     static 1.99 · animated 2.49 · long smooth animations 2.99
- *   cosmetics  1.99 base, + moving parts, + big pieces (back, hand, balloon), + lots of detail
+ *   cosmetics  1.99 base, + moving parts, + big pieces (back, hand), + lots of detail
  */
 const MIN_PRICE = 1.99;
 const MAX_AUTO = 4.99;
-const BIG_SLOTS = new Set(['back', 'hand', 'balloon']);
+const BIG_SLOTS = new Set(['back', 'hand']);
 const ATTACH_SLOT = { head: 'hats', body: 'back', back: 'back', torso: 'back', rightarm: 'hand', leftarm: 'hand', rightleg: 'shoes', rightfoot: 'shoes', leftleg: 'shoes', leftfoot: 'shoes' };
 
 /** Snaps to the nearest x.49 / x.99 price point. */
@@ -43,7 +43,6 @@ function modelStats(modelText) {
 function guessSlot(modelText, name = '') {
   const stats = modelStats(modelText);
   const text = `${name} ${stats.names}`.toLowerCase();
-  if (/balloon/.test(text)) return 'balloon';
   if (/glass|shade|goggle|visor|monocle|spectacle/.test(text) && !/helmet/.test(text)) return 'glasses';
   if (/sword|blade|staff|wand|axe|bow|shield|hammer|scythe/.test(text) && !/back/.test(text)) {
     if ([...stats.attach.keys()].some((a) => a.includes('arm'))) return 'hand';

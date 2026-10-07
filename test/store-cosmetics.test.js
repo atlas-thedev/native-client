@@ -252,3 +252,53 @@ test('admin: create, edit, equip, revoke and delete a custom cosmetic', async ()
   assert.equal(await entryOf('CosFan'), undefined);
   assert.equal((await call('DELETE', `/v1/admin/store/items/${id}`, undefined, admin.token)).status, 200);
 });
+
+test('dyeable cosmetics: admin base + mask + default colour, players pick a colour, mod and CSL get the dyed texture', async () => {
+  const dye = require('../server/dye');
+  const admin = account('DyeAdmin');
+  db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.user.id);
+  // mask: left half dyeable
+  const mask = dye.encodePng({ width: 4, height: 4, data: Buffer.from(Array.from({ length: 64 }, (_, i) => (i % 4 === 3 ? ((i >> 2) % 4 < 2 ? 255 : 0) : 255))) });
+  const made = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', id: 'dye-hat', slot: 'hats', name: 'Dye Hat', price: 0, model: boxModel('head', false), texture: b64(png(4, 4, 200)), thumb: b64(png(8, 8)), dyeable: true, dyeMask: b64(mask), dyeDefault: '#FF0000' }, admin.token);
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  assert.equal(made.body.item.dyeable, true);
+  assert.equal(made.body.item.dyeDefault, '#ff0000');
+  assert.match(made.body.item.dyeUrl, /\/v1\/store\/items\/dye-hat\/dye\/$/);
+  const shown = dye.decodePng(Buffer.from(await (await fetch(made.body.item.textureUrl)).arrayBuffer()));
+  assert.deepEqual([...shown.data.subarray(0, 4)], [200, 0, 0, 255]); // dyed red where the mask is
+  assert.deepEqual([...shown.data.subarray(8, 12)], [200, 200, 200, 255]); // untouched outside it
+
+  const preview = await fetch(`${made.body.item.dyeUrl}00ff00`);
+  assert.equal(preview.status, 200);
+  assert.deepEqual([...dye.decodePng(Buffer.from(await preview.arrayBuffer())).data.subarray(0, 4)], [0, 200, 0, 255]);
+
+  const { user, token } = account('Dyer');
+  assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#0000ff' }, token)).status, 403); // not in the locker yet
+  own(user, 'dye-hat');
+  assert.equal((await call('POST', '/v1/store/equip', { itemId: 'dye-hat' }, token)).status, 200);
+  assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: 'nope' }, token)).status, 400);
+  const dyed = await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#0000FF' }, token);
+  assert.equal(dyed.status, 200, JSON.stringify(dyed.body));
+  assert.deepEqual(dyed.body.dyes, { 'dye-hat': '#0000ff' });
+  const ref = dyed.body.profile.cosmetics.find((c) => c.id === 'dye-hat');
+  assert.equal(ref.dye, '#0000ff');
+  assert.deepEqual([...dye.decodePng(Buffer.from(await (await fetch(ref.textureUrl)).arrayBuffer())).data.subarray(0, 4)], [0, 0, 200, 255]);
+  const entry = await entryOf('Dyer');
+  const k = entry.k.find((x) => x.i === 'dye-hat');
+  assert.ok(HASH.test(k.x));
+  assert.notEqual(k.x, made.body.item.textureUrl.split('/').pop());
+  assert.deepEqual((await call('GET', '/v1/store/me', undefined, token)).body.dyes, { 'dye-hat': '#0000ff' });
+  // back to the item's own colour
+  const reset = await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: null }, token);
+  assert.deepEqual(reset.body.dyes, {});
+  assert.equal((await entryOf('Dyer')).k.find((x) => x.i === 'dye-hat').x, made.body.item.textureUrl.split('/').pop());
+
+  // admin: a new default colour re-bakes the texture; switching dyes off keeps the look
+  const edited = await call('PATCH', '/v1/admin/store/items/dye-hat', { dyeDefault: '#00ff00' }, admin.token);
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.deepEqual([...dye.decodePng(Buffer.from(await (await fetch(edited.body.item.textureUrl)).arrayBuffer())).data.subarray(0, 4)], [0, 200, 0, 255]);
+  const off = await call('PATCH', '/v1/admin/store/items/dye-hat', { dyeable: false }, admin.token);
+  assert.equal(off.body.item.dyeable, undefined);
+  assert.equal(off.body.item.textureUrl, edited.body.item.textureUrl);
+  assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#0000ff' }, token)).status, 404);
+});

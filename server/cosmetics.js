@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Native 3D cosmetics: hats, glasses, back items (wings, backpacks, jetpacks), shoes, hand items and balloons.
+ * Native 3D cosmetics: hats, glasses, back items (wings, backpacks, jetpacks), shoes and hand items.
  *
  * A cosmetic is a store item with `kind: 'cosmetic'` and a slot (its section). It ships as an NCM v1
  * model (JSON, box-UV cubes like Minecraft's own models, see native-mod CosmeticModel) plus a PNG
@@ -8,16 +8,17 @@
  *
  *   profile.cosmetics = { hats: 'propeller-cap', back: 'angel-wings' }
  *
- * The mod gets `k: [{ i, s, m, x, h? }]` (item id, slot, model hash, texture hash, and for hand items and
- * balloons the side: 'l' | 'r') in each skin directory entry. The chosen sides live in
- * `profile.cosmeticSides = { hand: 'left' }`.
+ * The mod gets `k: [{ i, s, m, x, h? }]` (item id, slot, model hash, texture hash, and for hand items
+ * the side: 'l' | 'r') in each skin directory entry. The chosen sides live in
+ * `profile.cosmeticSides = { hand: 'left' }`. Dyeable items can be recoloured per item:
+ * `profile.cosmeticDyes = { 'witch-hat': '#8a5cff' }` (see dye.js); `x` is then the dyed texture.
  */
 
 /** Armor slots a part can hide behind / push away from; names normalised like the mod (case, `_` and `-` ignored). */
 const ARMOR_SLOTS = { lefthand: 1, offhand: 1, righthand: 1, mainhand: 1, head: 1, helmet: 1, chest: 1, legs: 1, feet: 1, boots: 1, none: 1 };
-const SLOTS = ['hats', 'glasses', 'back', 'shoes', 'hand', 'balloon'];
-const SIDED = ['hand', 'balloon'];
-const SLOT_NAMES = { hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items', balloon: 'Balloons' };
+const SLOTS = ['hats', 'glasses', 'back', 'shoes', 'hand'];
+const SIDED = ['hand'];
+const SLOT_NAMES = { hats: 'Hats', glasses: 'Glasses', back: 'Wings & Backpacks', shoes: 'Shoes', hand: 'Hand Items' };
 const MAX_MODEL_BYTES = 1024 * 1024; // the mod refuses bigger models
 const MAX_TEXTURE_BYTES = 2 * 1024 * 1024;
 const LIMIT_PARTS = 512;
@@ -116,34 +117,48 @@ function withoutSlot(profile, slot) {
 
 const isSide = (value) => value === 'left' || value === 'right';
 
-/** A profile that wears the slot's item on `side` (hand items and balloons; ignored for other slots). */
+/** A profile that wears the slot's item on `side` (hand items; ignored for other slots). */
 function withSide(profile, slot, side) {
   if (!SIDED.includes(slot) || !isSide(side)) return profile;
   return { ...profile, cosmeticSides: { ...(profile.cosmeticSides || {}), [slot]: side } };
 }
 
+/** The colour a profile dyed a dyeable item, or null (the item's own colour). */
+function dyeOf(profile, item) {
+  if (!item || !item.dyeable || !item.dyeBase) return null;
+  const hex = profile && profile.cosmeticDyes && profile.cosmeticDyes[item.id];
+  return typeof hex === 'string' && /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
+}
+/** The texture hash to show for `item` on `profile` (the dyed one when the player picked a colour). */
+function textureFor(profile, item, dyedTexture) {
+  const hex = dyeOf(profile, item);
+  if (!hex || !dyedTexture) return item.texture;
+  try { return dyedTexture(item, hex) || item.texture; } catch { return item.texture; }
+}
+
 /** Directory entries for the mod: [{ i, s, m, x, h? }]. */
-function directoryRefs(profile, findItem) {
+function directoryRefs(profile, findItem, dyedTexture = null) {
   const sides = (profile && profile.cosmeticSides) || {};
   return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({
-    i: item.id, s: slot, m: item.model, x: item.texture,
+    i: item.id, s: slot, m: item.model, x: textureFor(profile, item, dyedTexture),
     ...(SIDED.includes(slot) && isSide(sides[slot]) ? { h: sides[slot] === 'left' ? 'l' : 'r' } : {})
   }));
 }
 
 /** Public description (CSL document, launcher, website). */
-function documentRefs(profile, findItem, textureBase) {
+function documentRefs(profile, findItem, textureBase, dyedTexture = null) {
   return Object.entries(wornItems(profile, findItem)).map(([slot, item]) => ({
     slot,
     ...(SIDED.includes(slot) && isSide(((profile && profile.cosmeticSides) || {})[slot]) ? { side: profile.cosmeticSides[slot] } : {}),
     id: item.id,
     name: item.name,
     modelUrl: `${textureBase}${item.model}`,
-    textureUrl: `${textureBase}${item.texture}`
+    textureUrl: `${textureBase}${textureFor(profile, item, dyedTexture)}`,
+    ...(item.dyeable && item.dyeBase ? { dyeable: true, dye: dyeOf(profile, item) } : {})
   }));
 }
 
 module.exports = {
   SLOTS, SLOT_NAMES, MAX_MODEL_BYTES, MAX_TEXTURE_BYTES,
-  isSlot, isSide, withSide, SIDED, isCosmetic, validateModel, wornItems, wearing, withoutItem, withItem, withoutSlot, directoryRefs, documentRefs
+  isSlot, isSide, withSide, SIDED, dyeOf, textureFor, isCosmetic, validateModel, wornItems, wearing, withoutItem, withItem, withoutSlot, directoryRefs, documentRefs
 };
