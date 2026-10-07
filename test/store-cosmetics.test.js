@@ -259,10 +259,14 @@ test('dyeable cosmetics: admin base + mask + default colour, players pick a colo
   db.getDb().prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin.user.id);
   // mask: left half dyeable
   const mask = dye.encodePng({ width: 4, height: 4, data: Buffer.from(Array.from({ length: 64 }, (_, i) => (i % 4 === 3 ? ((i >> 2) % 4 < 2 ? 255 : 0) : 255))) });
-  const made = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', id: 'dye-hat', slot: 'hats', name: 'Dye Hat', price: 0, model: boxModel('head', false), texture: b64(png(4, 4, 200)), thumb: b64(png(8, 8)), dyeable: true, dyeMask: b64(mask), dyeDefault: '#FF0000' }, admin.token);
+  const made = await call('POST', '/v1/admin/store/items', { kind: 'cosmetic', id: 'dye-hat', slot: 'hats', name: 'Dye Hat', price: 0, model: boxModel('head', false), texture: b64(png(4, 4, 200)), thumb: b64(png(8, 8)), dyeable: true, dyeMask: b64(mask), dyeDefault: '#FF0000', dyeColors: ['#00ff00', '#0000FF', '#0000ff', '#ff0000'] }, admin.token);
   assert.equal(made.status, 200, JSON.stringify(made.body));
   assert.equal(made.body.item.dyeable, true);
   assert.equal(made.body.item.dyeDefault, '#ff0000');
+  assert.deepEqual(made.body.item.dyeColors, ['#00ff00', '#0000ff']); // cleaned, unique, default left out
+  const tooMany = await call('PATCH', '/v1/admin/store/items/dye-hat', { dyeColors: ['#000001', '#000002', '#000003', '#000004', '#000005', '#000006'] }, admin.token);
+  assert.equal(tooMany.status, 400);
+  assert.equal((await fetch(`${made.body.item.dyeUrl}123456`)).status, 404); // not one of the admin's colours
   assert.match(made.body.item.dyeUrl, /\/v1\/store\/items\/dye-hat\/dye\/$/);
   const shown = dye.decodePng(Buffer.from(await (await fetch(made.body.item.textureUrl)).arrayBuffer()));
   assert.deepEqual([...shown.data.subarray(0, 4)], [200, 0, 0, 255]); // dyed red where the mask is
@@ -277,6 +281,7 @@ test('dyeable cosmetics: admin base + mask + default colour, players pick a colo
   own(user, 'dye-hat');
   assert.equal((await call('POST', '/v1/store/equip', { itemId: 'dye-hat' }, token)).status, 200);
   assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: 'nope' }, token)).status, 400);
+  assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#123456' }, token)).status, 400);
   const dyed = await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#0000FF' }, token);
   assert.equal(dyed.status, 200, JSON.stringify(dyed.body));
   assert.deepEqual(dyed.body.dyes, { 'dye-hat': '#0000ff' });
