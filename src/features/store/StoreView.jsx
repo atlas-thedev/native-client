@@ -737,19 +737,27 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               <SpotBackdrop />
               {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} cosmetics={viewCosmetics} zoom={isCosmetic(viewing) ? 0.74 : 0.82} shot={viewing.slot === 'balloon' ? SHOTS.balloon : null} width={320} height={400} animation="walk" autoRotate />}
               <div className="store-viewer-art" aria-hidden="true">{isCosmetic(viewing) ? cosmeticArt(viewing, 'store-viewer-art-img') : <canvas ref={bindCanvas(`view:${viewing.id}`)} width={80} height={128} />}</div>
-              <span className="store-viewer-hint">Drag to turn</span>
+              {items.length > 1 ? (
+                <div className="store-viewer-nav">
+                  <button type="button" className="store-viewer-arrow" aria-label="Previous item" title="Previous (←)" onClick={() => stepView(-1)}>
+                    <ChevronLeft size={16} strokeWidth={2.6} />
+                  </button>
+                  <span className="store-viewer-count">
+                    <strong>{Math.max(1, items.findIndex((entry) => entry.id === viewing.id) + 1)}</strong> / {items.length}
+                  </span>
+                  <button type="button" className="store-viewer-arrow" aria-label="Next item" title="Next (→)" onClick={() => stepView(1)}>
+                    <ChevronRight size={16} strokeWidth={2.6} />
+                  </button>
+                </div>
+              ) : (
+                <span className="store-viewer-hint">Drag to turn</span>
+              )}
             </div>
             <div className="store-viewer-info" key={`vinfo:${viewing.id}`}>
               <ShopStrip color={SECTION_COLORS[sectionOf(viewing)]} />
               {renderDetails(viewing, { Heading: 'h3' })}
             </div>
             <PixelIconButton size="md" className="store-viewer-close" icon={<X size={16} strokeWidth={3} />} label="Close" onClick={() => setViewId(null)} />
-            {items.length > 1 && (
-              <div className="store-viewer-nav">
-                <PixelIconButton size="md" icon={<ChevronLeft size={17} strokeWidth={3} />} label="Previous item" title="Previous (←)" onClick={() => stepView(-1)} />
-                <PixelIconButton size="md" icon={<ChevronRight size={17} strokeWidth={3} />} label="Next item" title="Next (→)" onClick={() => stepView(1)} />
-              </div>
-            )}
           </div>
         </div>
       )}
