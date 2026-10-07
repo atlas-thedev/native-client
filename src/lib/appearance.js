@@ -131,7 +131,8 @@ function sanitize(raw) {
     radius: radiusIds.includes(source.radius) ? source.radius : DEFAULT_APPEARANCE.radius,
     scale: 100,
     wallpaperDim: 95,
-    animations: source.animations !== false,
+    // no Animations switch in Settings any more: an old saved "off" must not freeze the launcher
+    animations: true,
     glow: source.glow !== false
   };
 }
