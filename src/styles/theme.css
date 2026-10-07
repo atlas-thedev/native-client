@@ -63,6 +63,7 @@
   --brand-2:#27272a;
   --brand-disabled:#111113;
   --brand-subtle:rgba(255,255,255,.06);
+  --brand-soft:#ececec; /* readable light text on brand-tinted surfaces */
   --brand-subtle-hover:rgba(255,255,255,.12);
   --brand-border:rgba(255,255,255,.2);
   --brand-glow:rgba(255,255,255,.08);

@@ -2,7 +2,8 @@
  * Native billing: Paddle Billing checkout, webhooks, Native+ and redeem codes.
  *
  *   GET  /v1/billing/config                 public: is billing on, Paddle client token, prices
- *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'plus', plan: 'monthly'|'yearly' } -> { url }
+ *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'bundle', itemIds } | { kind: 'plus', plan: 'monthly'|'yearly' } -> { url }
+ *                                           (a bundle is several paid items in one Paddle transaction; item_id holds them comma-separated)
  *   GET  /v1/billing/me                     Native+ status and purchases of the signed-in account
  *   POST /v1/billing/portal                 Paddle customer portal link (receipts, cancel Native+)
  *   POST /v1/billing/paddle/webhook         Paddle notifications (signature checked)
@@ -90,6 +91,9 @@ function sql() {
       );
       CREATE TABLE IF NOT EXISTS billing_customers (
         user_id TEXT PRIMARY KEY, customer_id TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS billing_bundle_lines (
+        transaction_id TEXT NOT NULL, line_id TEXT NOT NULL, item_id TEXT NOT NULL, PRIMARY KEY (transaction_id, line_id)
       );
       CREATE TABLE IF NOT EXISTS billing_checkouts (
         transaction_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL,
@@ -336,7 +340,9 @@ function onTransactionCompleted(data, name) {
   const custom = data.custom_data || {};
   const checkout = sql().prepare('SELECT * FROM billing_checkouts WHERE transaction_id = ?').get(data.id) || {};
   const kind = data.subscription_id || custom.kind === 'plus' || checkout.kind === 'plus' ? 'plus' : (custom.kind || checkout.kind || 'cape');
-  const itemId = kind === 'cape' ? String(custom.itemId || checkout.item_id || '') : null;
+  const itemId = kind === 'cape' ? String(custom.itemId || checkout.item_id || '')
+    : kind === 'bundle' ? bundleIds(custom.itemIds || checkout.item_id).join(',') || null
+    : null;
   const plan = kind === 'plus' ? (planOf(data.items?.[0]?.price?.id) || custom.plan || checkout.plan || null) : null;
   const totals = data.details?.totals || {};
   const now = Date.now();
@@ -352,7 +358,24 @@ function onTransactionCompleted(data, name) {
     grantItem(user.id, itemId, 'purchase');
     notify(user);
   }
+  if (kind === 'bundle' && itemId) {
+    for (const id of bundleIds(itemId)) grantItem(user.id, id, 'purchase');
+    // remember which line item is which piece, so a partial refund only takes back what was refunded
+    const prices = new Map((data.items || []).map((line) => [line.price?.id, line.price?.custom_data?.itemId]));
+    const insert = sql().prepare('INSERT OR IGNORE INTO billing_bundle_lines (transaction_id, line_id, item_id) VALUES (?, ?, ?)');
+    for (const line of data.details?.line_items || []) {
+      const id = prices.get(line.price_id);
+      if (line.id && id) insert.run(data.id, line.id, String(id));
+    }
+    notify(user);
+  }
   return { ok: true };
+}
+
+/** Item ids of a bundle (array or comma-separated), unique, at most 10. */
+function bundleIds(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(list.map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 10);
 }
 
 function onSubscription(data, name) {
@@ -377,11 +400,23 @@ function onAdjustment(data) {
   if (!purchase) return { ignored: 'unknown transaction' };
   const status = data.action === 'refund' ? 'refunded' : 'chargeback';
   sql().prepare('UPDATE billing_purchases SET status = ?, updated_at = ? WHERE transaction_id = ?').run(status, Date.now(), purchase.transaction_id);
-  if (purchase.kind === 'cape' && purchase.item_id && ownedSource(purchase.user_id, purchase.item_id) === 'purchase') {
-    sql().prepare('DELETE FROM store_owned WHERE user_id = ? AND item_id = ?').run(purchase.user_id, purchase.item_id);
-    if (hasPlus(purchase.user_id)) grantItem(purchase.user_id, purchase.item_id, 'plus');
+  let ids = [];
+  if (purchase.kind === 'cape' && purchase.item_id) ids = [purchase.item_id];
+  if (purchase.kind === 'bundle' && purchase.item_id) {
+    // a partial refund lists the refunded line items; take back only those pieces
+    const lines = (data.items || []).map((entry) => entry.item_id).filter(Boolean);
+    const mapped = lines.map((line) => sql().prepare('SELECT item_id FROM billing_bundle_lines WHERE transaction_id = ? AND line_id = ?').get(purchase.transaction_id, line)?.item_id).filter(Boolean);
+    ids = data.type === 'partial' && mapped.length ? mapped : bundleIds(purchase.item_id);
+  }
+  ids = ids.filter((id) => ownedSource(purchase.user_id, id) === 'purchase');
+  if (ids.length) {
+    const plus = hasPlus(purchase.user_id);
+    for (const id of ids) {
+      sql().prepare('DELETE FROM store_owned WHERE user_id = ? AND item_id = ?').run(purchase.user_id, id);
+      if (plus) grantItem(purchase.user_id, id, 'plus');
+    }
     const user = db.getUserById(purchase.user_id);
-    if (!hasPlus(purchase.user_id)) takeOffIfWearing(user, [purchase.item_id]);
+    if (!plus) takeOffIfWearing(user, ids);
     notify(user);
   }
   return { ok: true };
@@ -531,10 +566,35 @@ async function handleBillingRoutes(req, res, ctx) {
     if (!hit('billing-checkout', user.id, 20, 10 * 60_000)) { tooMany(res, 600); return true; }
     if (site().storeLocked() && !user.is_admin) { send(res, 423, { ok: false, locked: true, error: 'The Native store opens at launch.' }); return true; }
     const body = await ctx.readJson(req);
-    const kind = body.kind === 'plus' ? 'plus' : 'cape';
+    const kind = body.kind === 'plus' ? 'plus' : body.kind === 'bundle' ? 'bundle' : 'cape';
     let items;
     let custom;
-    if (kind === 'cape') {
+    const lineFor = (item) => ({
+      quantity: 1,
+      price: {
+        name: item.name,
+        description: `${item.name} for Native`,
+        product_id: c.capeProduct,
+        unit_price: { amount: String(Math.round(site().priceOf(item) * 100)), currency_code: 'USD' },
+        quantity: { minimum: 1, maximum: 1 },
+        custom_data: { itemId: item.id }
+      }
+    });
+    if (kind === 'bundle') {
+      const ids = bundleIds(body.itemIds);
+      const list = [];
+      for (const id of ids) {
+        const item = ctx.findItem(id);
+        if (!item || item.hidden || item.exclusive || !isPaid(item)) continue; // free / event pieces aren't sold
+        const source = ownedSource(user.id, item.id);
+        if (source && source !== 'plus') continue; // already yours
+        list.push(item);
+      }
+      if (!list.length) { send(res, 400, { ok: false, error: 'Everything in this look is already yours or free.' }); return true; }
+      items = list.map(lineFor);
+      custom = { userId: String(user.id), kind: list.length === 1 ? 'cape' : 'bundle', itemId: list.length === 1 ? list[0].id : undefined, itemIds: list.map((item) => item.id).join(',') };
+      if (list.length === 1) delete custom.itemIds;
+    } else if (kind === 'cape') {
       const item = ctx.findItem(String(body.itemId || ''));
       if (!item || item.hidden) { send(res, 404, { ok: false, error: 'That cloak isn’t for sale.' }); return true; }
       if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} is an event cloak. It can’t be bought.` }); return true; }
@@ -563,7 +623,7 @@ async function handleBillingRoutes(req, res, ctx) {
       const customerId = await customerFor(user);
       const txn = await paddle('POST', '/transactions', { items, customer_id: customerId, custom_data: custom, collection_mode: 'automatic' });
       sql().prepare('INSERT OR REPLACE INTO billing_checkouts (transaction_id, user_id, kind, item_id, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(txn.id, String(user.id), kind, custom.itemId || null, custom.plan || null, Date.now());
+        .run(txn.id, String(user.id), custom.kind, custom.itemId || custom.itemIds || null, custom.plan || null, Date.now());
       send(res, 200, { ok: true, transactionId: txn.id, url: txn.checkout?.url || null }, noStore);
     } catch (error) {
       console.error('[Native Billing] checkout failed:', error.message);
@@ -705,7 +765,7 @@ async function handleAdmin(req, res, ctx, url, user) {
     const gifted = one(`SELECT COUNT(*) AS n FROM plus_grants WHERE (expires_at IS NULL OR expires_at > ?) AND user_id NOT IN (SELECT user_id FROM billing_subscriptions WHERE status IN ('active', 'trialing', 'past_due') AND ${inEnv})`, Date.now()).n || 0;
     const recent = sql().prepare('SELECT * FROM billing_purchases ORDER BY created_at DESC LIMIT 25').all().map((row) => ({
       transactionId: row.transaction_id, userId: row.user_id, username: nameOf(row.user_id), kind: row.kind, itemId: row.item_id,
-      itemName: row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
+      itemName: row.kind === 'bundle' ? bundleIds(row.item_id).map((id) => ctx.findItem(id)?.name || id).join(', ') : row.item_id && ctx.findItem(row.item_id) ? ctx.findItem(row.item_id).name : null, plan: row.plan,
       amount: row.amount_cents / 100, currency: row.currency, status: row.status, createdAt: row.created_at,
       environment: row.environment || envDefault()
     }));
