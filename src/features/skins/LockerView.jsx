@@ -74,7 +74,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     try { const saved = localStorage.getItem(COS_TAB_KEY); return COS_TABS.some((tab) => tab.id === saved) ? saved : 'cloaks'; } catch { return 'cloaks'; }
   });
   const [cosDir, setCosDir] = useState(null);
+  // bumped on every tab click, so clicking a tab always re-frames the camera (even the same tab after orbiting/zooming)
+  const [shotTick, setShotTick] = useState(0);
   const switchCosTab = (next) => {
+    setShotTick((n) => n + 1);
     if (next === cosTab) return;
     const from = COS_TABS.findIndex((tab) => tab.id === cosTab);
     const to = COS_TABS.findIndex((tab) => tab.id === next);
@@ -90,6 +93,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   });
   const [leaving, setLeaving] = useState(null);
   const switchSection = (next) => {
+    setShotTick((n) => n + 1);
     if (next === section) return;
     setLeaving(section);
     setSection(next);
@@ -388,7 +392,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     syncZoom();
     return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
   }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
   // Mouse wheel / trackpad zoom on the stage.
   useEffect(() => {
     const el = stageRef.current;
@@ -776,6 +780,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         {!capesSkeleton && <>
           <div className="locker-cape-grid">{shownCapes.map(capeCard)}</div>
           {capeQuery.trim() && !shownCapes.length && <p className="locker-cape-hint">No cape matches “{capeQuery.trim()}”.</p>}
+          {showOfficialCards && official.profile?.partial && (
+            <p className="locker-cape-hint is-warn">
+              Only the cape you’re wearing could be loaded (your Microsoft sign-in needs a refresh).{' '}
+              <button type="button" className="locker-cape-hint-link" onClick={official.reauth} disabled={official.loading}>Sign in again</button> to see every cape you own.
+            </p>
+          )}
           {showOfficialCards && <p className="locker-cape-hint">These are your real Minecraft capes. Changing one changes it on your Minecraft profile, on every server.</p>}
         </>}
       </section>;

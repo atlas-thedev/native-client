@@ -1461,6 +1461,16 @@ async function officialProfile(account, options = {}) {
   }
   try {
     const fresh = await fetchOfficialProfile(account, options);
+    if (fresh?.partial) {
+      // a public-profile fallback lists only the worn cape: keep the full list we saved before
+      const cached = readOfficialProfileCache(account);
+      if (cached && !cached.partial && (cached.capes || []).length > (fresh.capes || []).length) {
+        const worn = fresh.capes?.[0]?.url;
+        const capes = cached.capes.map((cape) => ({ ...cape, state: worn && cape.url === worn ? 'ACTIVE' : 'INACTIVE' }));
+        return { ...cached, capes, cached: true };
+      }
+      return fresh;
+    }
     if (fresh) writeOfficialProfileCache(account, fresh);
     return fresh;
   } catch (error) {
@@ -1526,16 +1536,26 @@ async function fetchOfficialProfile(account, { forceRefresh = false } = {}) {
           const parsed = JSON.parse(Buffer.from(texturesProp.value, 'base64').toString('utf8'));
           const capes = [];
           if (parsed?.textures?.CAPE?.url) {
+            const capeUrl = parsed.textures.CAPE.url.replace(/^http:\/\//, 'https://');
+            let known = getOfficialCapeByHash(capeUrl.split('/').pop());
+            if (!known) {
+              try {
+                const img = await fetch(capeUrl, { signal: AbortSignal.timeout(6000) });
+                if (img.ok) known = getOfficialCapeByHash(crypto.createHash('sha256').update(Buffer.from(await img.arrayBuffer())).digest('hex'));
+              } catch {}
+            }
             capes.push({
               id: 'official-session-cape',
               state: 'ACTIVE',
-              url: parsed.textures.CAPE.url.replace(/^http:\/\//, 'https://'),
-              alias: 'Minecraft cape'
+              url: capeUrl,
+              alias: known?.name || 'Minecraft cape'
             });
           }
           return {
             id: data.id,
             name: data.name,
+            // the public profile only shows the cape being worn, not every cape the account owns
+            partial: true,
             skins: parsed?.textures?.SKIN ? [{
               id: 'official-skin',
               state: 'ACTIVE',

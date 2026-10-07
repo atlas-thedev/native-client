@@ -33,6 +33,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [sort, setSort] = useState('relevance');
+  const [source, setSource] = useState('modrinth');
   const [filters, setFiltersState] = useState(() => instanceFilters(target));
 
   const [results, setResults] = useState(initialResults);
@@ -109,6 +110,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
       filters,
       query: debouncedQuery,
       sort,
+      source: activeType?.id === 'modpack' ? 'modrinth' : source,
       offset: (pageToLoad - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
       signal: controller.signal
@@ -132,14 +134,14 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
           setResults([]);
           setTotalHits(0);
         }
-        setError(errorMessage || 'Could not reach Modrinth.');
+        setError(errorMessage || 'Could not load results.');
       })
       .finally(() => {
         if (generation !== generationRef.current) return;
         if (append) setLoadingMore(false);
         else setLoading(false);
       });
-  }, [activeType, filters, debouncedQuery, sort, errorMessage]);
+  }, [activeType, filters, debouncedQuery, sort, source, errorMessage]);
 
   const runSearchRef = useRef(runSearch);
   runSearchRef.current = runSearch;
@@ -157,6 +159,7 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
     activeType,
     debouncedQuery,
     sort,
+    source,
     filters.gameVersion,
     filters.loader,
     filters.environment,
@@ -196,6 +199,8 @@ export default function useBrowseSearch({ contentType, target, initialResults = 
     debouncedQuery,
     sort,
     setSort,
+    source,
+    setSource,
     filters,
     setFilters,
     setCategories,

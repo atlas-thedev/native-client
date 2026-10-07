@@ -38,11 +38,14 @@ import { getVersionManifest } from '../../lib/mojang.js';
 import {
   highlight,
   mergeRemote,
+  curseforgeHitToItem,
   modrinthHitToItem,
   pushRecent,
   rankItems,
   readRecents
 } from './quickSearchScore.js';
+import { searchCurseForgeQuick } from '../browser/api/modrinthApi.js';
+import { PROVIDER_ICONS } from '../../lib/cfApi.js';
 import './QuickSearch.css';
 
 export const SCOPES = [
@@ -51,7 +54,7 @@ export const SCOPES = [
   { id: 'instances', label: 'Instances', groups: ['instances', 'versions'] },
   { id: 'friends', label: 'Friends', groups: ['friends'] },
   { id: 'guides', label: 'How to', groups: ['guides'] },
-  { id: 'modrinth', label: 'Mods', groups: ['modrinth'] }
+  { id: 'modrinth', label: 'Mods', groups: ['modrinth', 'curseforge'] }
 ];
 
 const GROUP_LABELS = {
@@ -64,7 +67,8 @@ const GROUP_LABELS = {
   guides: 'How to',
   settings: 'Settings',
   versions: 'Minecraft versions',
-  modrinth: 'On Modrinth'
+  modrinth: 'On Modrinth',
+  curseforge: 'On CurseForge'
 };
 
 const GROUP_ICONS = {
@@ -73,7 +77,8 @@ const GROUP_ICONS = {
   settings: Settings,
   guides: BookOpen,
   versions: Blocks,
-  modrinth: Package
+  modrinth: Package,
+  curseforge: Package
 };
 
 const SETTINGS_TABS = [
@@ -194,20 +199,25 @@ export default function QuickSearch({
     setRemote((prev) => ({ ...prev, query: debouncedQuery, loading: true, error: false }));
     const params = new URLSearchParams({
       query: debouncedQuery,
-      limit: scope === 'modrinth' ? '12' : '5',
+      limit: scope === 'modrinth' ? '8' : '4',
       index: 'relevance',
       facets: JSON.stringify([['project_type:mod', 'project_type:modpack', 'project_type:shader', 'project_type:resourcepack']])
     });
-    fetch(`https://api.modrinth.com/v2/search?${params}`, { signal: controller.signal })
+    const limit = scope === 'modrinth' ? 8 : 4;
+    const modrinthReq = fetch(`https://api.modrinth.com/v2/search?${params}`, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('search failed'))))
-      .then((json) => {
-        const items = (Array.isArray(json?.hits) ? json.hits : []).map(modrinthHitToItem).filter(Boolean);
-        setRemote({ query: debouncedQuery, items, loading: false, error: false });
-      })
-      .catch((error) => {
-        if (error?.name === 'AbortError') return;
-        setRemote({ query: debouncedQuery, items: [], loading: false, error: true });
-      });
+      .then((json) => (Array.isArray(json?.hits) ? json.hits : []).map(modrinthHitToItem).filter(Boolean));
+    const curseforgeReq = searchCurseForgeQuick({ query: debouncedQuery, limit, signal: controller.signal })
+      .then((hits) => hits.map(curseforgeHitToItem).filter(Boolean));
+    Promise.allSettled([modrinthReq, curseforgeReq]).then(([mr, cf]) => {
+      if (controller.signal.aborted) return;
+      const items = [
+        ...(mr.status === 'fulfilled' ? mr.value : []),
+        ...(cf.status === 'fulfilled' ? cf.value : [])
+      ];
+      const error = mr.status === 'rejected' && cf.status === 'rejected';
+      setRemote({ query: debouncedQuery, items, loading: false, error });
+    });
     return () => controller.abort();
   }, [open, debouncedQuery, scope]);
 
@@ -370,15 +380,25 @@ export default function QuickSearch({
 
   /* Keep the highlighted row in view. */
   useEffect(() => {
-    const row = listRef.current?.querySelector(`[data-index="${activeIndex}"]`);
-    row?.scrollIntoView?.({ block: 'nearest' });
+    // scroll only the results list: scrollIntoView would also scroll the (overflow: hidden) panel
+    // and push the search box out of sight
+    const list = listRef.current;
+    const row = list?.querySelector(`[data-index="${activeIndex}"]`);
+    if (!list || !row) return;
+    const box = list.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    const top = r.top - box.top + list.scrollTop;
+    const bottom = top + r.height;
+    if (activeIndex === 0) list.scrollTop = 0;
+    else if (top < list.scrollTop) list.scrollTop = top - 8;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight + 8;
   }, [activeIndex, results]);
 
   const run = useCallback((item, useSecondary = false) => {
     if (!item) return;
     const command = useSecondary && item.secondary && !item.secondary.disabled ? item.secondary.command : item.command;
     if (!command) return;
-    if (!String(item.id).startsWith('modrinth:') && !String(item.id).startsWith('version:')) {
+    if (!String(item.id).startsWith('modrinth:') && !String(item.id).startsWith('curseforge:') && !String(item.id).startsWith('version:')) {
       setRecents(pushRecent(item.id));
     }
     onClose?.();
@@ -457,7 +477,7 @@ export default function QuickSearch({
             aria-activedescendant={active ? `qs-opt-${activeIndex}` : undefined}
             aria-autocomplete="list"
           />
-          {remoteLoading && <Loader2 size={15} className="qs-spin" aria-label="Searching Modrinth" />}
+          {remoteLoading && <Loader2 size={15} className="qs-spin" aria-label="Searching Modrinth and CurseForge" />}
           {query ? (
             <button type="button" className="qs-clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }} aria-label="Clear search">
               <X size={13} />
@@ -494,7 +514,9 @@ export default function QuickSearch({
                 {header && (
                   <div className="qs-group" role="presentation">
                     {item.group === 'recent' && <Clock size={11} aria-hidden="true" />}
-                    {item.group === 'modrinth' && <span className="qs-modrinth-dot" aria-hidden="true" />}
+                    {(item.group === 'modrinth' || item.group === 'curseforge') && (
+                      <img className="qs-provider-icon" src={PROVIDER_ICONS[item.group]} alt="" aria-hidden="true" />
+                    )}
                     {header}
                   </div>
                 )}
@@ -545,7 +567,7 @@ export default function QuickSearch({
             <div className="qs-empty">
               <Search size={22} aria-hidden="true" />
               <strong>No matches for “{query.trim()}”</strong>
-              <span>Try another word, or search all of Modrinth.</span>
+              <span>Try another word, or search Modrinth and CurseForge in Discover.</span>
               <button type="button" className="qs-empty-btn" onClick={searchOnDiscover}>
                 <Compass size={13} aria-hidden="true" /> Search “{query.trim()}” in Discover
               </button>
@@ -553,7 +575,7 @@ export default function QuickSearch({
           )}
 
           {showModrinthStatus && remote.error && remote.query === query.trim() && (
-            <div className="qs-remote-note">Modrinth couldn’t be reached — local results only.</div>
+            <div className="qs-remote-note">Modrinth and CurseForge couldn’t be reached — local results only.</div>
           )}
         </div>
 
@@ -564,7 +586,7 @@ export default function QuickSearch({
           <span><kbd>Esc</kbd> close</span>
           {query.trim().length >= 2 && (
             <button type="button" className="qs-footer-link" onMouseDown={(event) => event.preventDefault()} onClick={searchOnDiscover}>
-              Search all of Modrinth <ArrowRight size={11} aria-hidden="true" />
+              Search in Discover <ArrowRight size={11} aria-hidden="true" />
             </button>
           )}
         </footer>
