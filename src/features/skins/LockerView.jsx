@@ -226,6 +226,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     else if (!before) syncInBackground();
   }, [online]);
 
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer?.playerObject) return;
+    if (viewer.playerObject.skin?.outerLayer) viewer.playerObject.skin.outerLayer.visible = showLayers;
+    if (viewer.playerObject.cape) viewer.playerObject.cape.visible = showCape;
+    if (viewer.renderPaused) viewer.render();
+  }, [showLayers, showCape]);
 
   const official = useOfficialCapes(account);
   // Microsoft accounts manage their REAL owned Minecraft capes; everyone else
@@ -274,15 +281,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
     return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...cosAssets[id], side: sides[slot] || null } : null)).filter(Boolean);
   }, [wearing, cosAssets, showCosmetics, tryOn, sides]);
-  const backWorn = wornCosmetics.some((item) => item.slot === 'back');
-  useEffect(() => {
-    const viewer = viewerRef.current;
-    if (!viewer?.playerObject) return;
-    if (viewer.playerObject.skin?.outerLayer) viewer.playerObject.skin.outerLayer.visible = showLayers;
-    // wings, jetpacks and backpacks take the cloak's place on your back (like in game)
-    if (viewer.playerObject.cape) viewer.playerObject.cape.visible = showCape && !backWorn && Boolean(previewCapeUrl) && viewer.capeTexture != null;
-    if (viewer.renderPaused) viewer.render();
-  }, [showLayers, showCape, backWorn, previewCapeUrl, viewerTick]);
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
@@ -646,7 +644,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         : item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}
       <span>{item.name}</span>
       <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{priceLabel(item)}</em>
-      {trying && <span className="locker-trying-tag">Trying on</span>}
+      {trying && <span className="locker-trying-tag" title="Trying on" aria-label="Trying on"><Check size={11} strokeWidth={3}/></span>}
     </button>;
   };
   const renderShop = (tab) => {

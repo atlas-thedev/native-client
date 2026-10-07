@@ -790,7 +790,8 @@
 .locker-price.is-free { background: #1fbf63; color: #062611; }
 .locker-price.is-paid { background: #ffd166; color: #2a1c00; }
 .locker-price.is-event { background: #9b6bff; color: #fff; }
-.locker-trying-tag { position: absolute; left: 7px; top: 7px; padding: 2px 6px; border-radius: 6px; background: #fff; color: #0b0b0f; font: 800 9.5px var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; }
+/* small check chip, so it never runs into the price badge on narrow cards */
+.locker-trying-tag { position: absolute; left: 7px; top: 7px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #fff; color: #0b0b0f; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }
 
 /* Try-on bar floating on the model */
 .locker-tryon {
