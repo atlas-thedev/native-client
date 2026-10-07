@@ -804,7 +804,8 @@ async function fetchStoreCosmetic(itemId) {
   const [model, texture, thumb] = await Promise.all([
     textureCache.fetchCached(item.modelUrl, { maxBytes: 1024 * 1024, timeoutMs: 20_000 }), // same caps as the API and the mod
     textureCache.fetchCached(item.textureUrl, { maxBytes: 2 * 1024 * 1024, timeoutMs: 20_000 }),
-    item.stillUrl ? textureCache.fetchCached(item.stillUrl, { maxBytes: 5 * 1024 * 1024, timeoutMs: 20_000 }).catch(() => null) : null
+    // items without their own thumbnail use the texture sheet as stillUrl: that's not a picture of the piece
+    item.stillUrl && item.stillUrl !== item.textureUrl ? textureCache.fetchCached(item.stillUrl, { maxBytes: 5 * 1024 * 1024, timeoutMs: 20_000 }).catch(() => null) : null
   ]);
   if (!model || !texture) throw new Error('Couldn’t download that cosmetic.');
   const value = {

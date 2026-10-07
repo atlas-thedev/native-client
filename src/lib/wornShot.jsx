@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import steveSkin from '../assets/steve.png';
+import alexSkin from '../assets/alex.png';
 
 /**
  * Store art for cosmetics: the piece worn on the player's own skin. Nothing is hand-placed: the camera is fitted
@@ -142,8 +144,13 @@ async function draw(item, asset, skinUrl, model, prepare) {
   const { viewer, THREE, ncm } = s;
   const wantSkin = `${tag(skinUrl)}|${model}`;
   if (s.skinKey !== wantSkin) {
-    const { source, model: resolved } = await prepare(skinUrl, model);
-    await Promise.resolve(viewer.loadSkin(source, { model: resolved }));
+    try {
+      const { source, model: resolved } = await prepare(skinUrl, model);
+      await Promise.resolve(viewer.loadSkin(source, { model: resolved }));
+    } catch {
+      // the player's skin couldn't be loaded (offline, blocked host…): still show the piece, on the default skin
+      await Promise.resolve(viewer.loadSkin(model === 'slim' ? alexSkin : steveSkin, { model: model === 'slim' ? 'slim' : 'default' }));
+    }
     viewer.loadCape(null);
     s.skinKey = wantSkin;
   }
@@ -186,19 +193,34 @@ export function wornShot({ item, asset, skinUrl, model, prepare }) {
   return job;
 }
 
-/** `<img>` of the worn cosmetic; shows `fallback` (the item's flat thumbnail) until the 3D shot is ready. */
+/**
+ * `<img>` of the worn cosmetic; shows `fallback` (the item's flat thumbnail) until the 3D shot is ready.
+ * A "thumbnail" that is really the texture sheet (items without their own thumbnail) is never shown: it reads as a
+ * thin stripe. A shot that fails is retried once a little later.
+ */
 export function WornShot({ item, asset, skinUrl, model, prepare, fallback = null, className = '', alt = '' }) {
   const key = asset ? shotKey(item, asset, skinUrl, model) : null;
   const [url, setUrl] = useState(() => (key ? peekWornShot(key) : null));
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
+    setFailed(false);
     if (!key) { setUrl(null); return undefined; }
     const hit = peekWornShot(key);
     if (hit) { setUrl(hit); return undefined; }
     setUrl(null);
     let live = true;
-    wornShot({ item, asset, skinUrl, model, prepare }).then((value) => { if (live && value) setUrl(value); });
-    return () => { live = false; };
+    let timer = null;
+    const attempt = (left) => wornShot({ item, asset, skinUrl, model, prepare }).then((value) => {
+      if (!live) return;
+      if (value) setUrl(value);
+      else if (left > 0) timer = setTimeout(() => attempt(left - 1), 2500);
+      else setFailed(true);
+    });
+    attempt(1);
+    return () => { live = false; clearTimeout(timer); };
   }, [key]);
-  const src = url || fallback;
-  return src ? <img className={className} src={src} alt={alt} draggable={false} /> : <span className={`${className} is-loading`} />;
+  const usable = fallback && fallback !== asset?.texture ? fallback : null;
+  const src = url || usable;
+  if (src) return <img className={className} src={src} alt={alt} draggable={false} />;
+  return <span className={`${className} ${failed ? 'is-empty' : 'is-loading'}`} aria-hidden="true" />;
 }
