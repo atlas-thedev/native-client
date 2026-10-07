@@ -4,13 +4,17 @@ const { spawn } = require('node:child_process');
 const { autoUpdater, CancellationToken } = require('electron-updater');
 const log = require('electron-log');
 const parts = require('./partDownloader');
+const diff = require('./diffDownloader');
 
 /**
  * Launcher updates, all in the background.
  *
  * - Checks on startup, every few hours, and after the PC wakes up.
  * - Downloads by itself (unless turned off in Settings).
- *   Windows: the installer is fetched in 4 MB parts over a few parallel
+ *   Windows: if the installer of the version that's installed now is still in
+ *   the update cache, only the blocks that changed are downloaded (blockmap
+ *   diff, usually a few MB) and the rest is copied from that installer.
+ *   Otherwise the installer is fetched in 4 MB parts over a few parallel
  *   connections. Finished parts are saved, so a download that was paused,
  *   lost its connection or was cut off by closing Native picks up where it
  *   stopped, even after a restart. While Minecraft runs it uses one
@@ -232,12 +236,19 @@ function windowsAsset(info) {
   const sha512 = file?.sha512 || info?.sha512;
   if (!size || !sha512) return null;
   const safe = path.basename(name);
+  const releaseUrl = (version, file) => `https://github.com/${FEED.owner}/${FEED.repo}/releases/download/v${version}/${encodeURIComponent(file)}`;
+  const url = /^https:\/\//.test(name) ? name : releaseUrl(info.version, safe);
   return {
     name: safe,
     size,
     sha512,
-    url: /^https:\/\//.test(name) ? name
-      : `https://github.com/${FEED.owner}/${FEED.repo}/releases/download/v${info.version}/${encodeURIComponent(safe)}`
+    url,
+    blockmapUrl: `${url}.blockmap`,
+    /** The same installer for another version, e.g. the one that's installed now. */
+    forVersion: (version) => {
+      const file = safe.split(String(info.version)).join(String(version));
+      return file === safe ? null : { name: file, blockmapUrl: `${releaseUrl(version, file)}.blockmap` };
+    }
   };
 }
 
@@ -257,15 +268,27 @@ async function cleanupInstalled() {
   const current = appRef.getVersion();
   await Promise.all(names.map((n) => {
     const v = (n.match(/(\d+\.\d+\.\d+)/) || [])[1];
-    // the update that is now installed (or older): drop it
-    return v && compareVersions(v, current) <= 0 ? fsp.rm(path.join(dir, n), { force: true }) : null;
+    if (!v) return null;
+    const order = compareVersions(v, current);
+    // keep the installer of the version that's installed now: the next update is built from it
+    const keepAsBase = order === 0 && /\.exe$/i.test(n);
+    return order <= 0 && !keepAsBase ? fsp.rm(path.join(dir, n), { force: true }) : null;
   }));
 }
 
-async function pruneOthers(keep) {
+/** Installer of the running version, kept from the last update (Windows). */
+async function baseInstaller(asset) {
+  const base = asset?.forVersion(appRef.getVersion());
+  if (!base) return null;
+  const file = path.join(cacheDir(), base.name);
+  const st = await fsp.stat(file).catch(() => null);
+  return st?.isFile() && st.size > 0 ? { ...base, file } : null;
+}
+
+async function pruneOthers(keep, alsoKeep = null) {
   const dir = cacheDir();
   const names = await fsp.readdir(dir).catch(() => []);
-  await Promise.all(names.filter((n) => !n.startsWith(keep)).map((n) => fsp.rm(path.join(dir, n), { force: true, recursive: true })));
+  await Promise.all(names.filter((n) => !n.startsWith(keep) && n !== alsoKeep).map((n) => fsp.rm(path.join(dir, n), { force: true, recursive: true })));
 }
 
 function downloadWithParts(info, background) {
@@ -278,7 +301,7 @@ function downloadWithParts(info, background) {
   setStatus(statusWithMeta('downloading', { ...meta, percent: 0, transferred: 0, total: asset.size, bytesPerSecond: 0 }));
 
   const run = async (partSize) => {
-    await pruneOthers(asset.name);
+    await pruneOthers(asset.name, asset.forVersion(appRef.getVersion())?.name);
     return parts.download({
       url: asset.url,
       dest,
@@ -302,13 +325,59 @@ function downloadWithParts(info, background) {
     });
   };
 
-  return run().catch((err) => {
+  const full = () => run().catch((err) => {
     if (/does not support ranges/i.test(err?.message)) return run(asset.size); // one big part
     throw err;
-  }).then(({ path: file, resumed }) => {
+  });
+
+  // Only what changed, built from the installer of the version that's installed now.
+  const patch = async () => {
+    const base = await baseInstaller(asset);
+    if (!base) return null;
+    const saved = await parts.inspect(dest).catch(() => null);
+    if (saved && saved.sha512 === asset.sha512 && saved.doneParts / saved.parts > 0.5) return null; // nearly there already
+    await pruneOthers(asset.name, base.name);
+    setStatus(statusWithMeta('preparing', { ...meta, optimized: true }));
+    let planned = null;
+    try {
+      const result = await diff.download({
+        url: asset.url,
+        dest,
+        size: asset.size,
+        sha512: asset.sha512,
+        baseFile: base.file,
+        oldBlockmapUrl: base.blockmapUrl,
+        newBlockmapUrl: asset.blockmapUrl,
+        signal,
+        getConnections: () => (gameRunning() ? 1 : 4),
+        onPlan: (p) => {
+          planned = p;
+          log.info(`Differential update: downloading ${p.downloadBytes} of ${asset.size} bytes, reusing ${p.copyBytes}`);
+          setStatus(statusWithMeta('downloading', { ...meta, optimized: true, percent: 0, transferred: 0, total: p.downloadBytes, bytesPerSecond: 0 }));
+        },
+        onProgress: (p) => setStatus(statusWithMeta('downloading', {
+          ...meta,
+          optimized: true,
+          percent: clampPercent(p.percent),
+          transferred: p.transferred,
+          total: p.total,
+          bytesPerSecond: p.bytesPerSecond,
+          throttled: gameRunning()
+        }), true)
+      });
+      return { path: result.path, resumed: false, patched: true };
+    } catch (err) {
+      if (err?.cancelled || signal.cancelled) throw err;
+      log.warn(`Differential update not used (${err?.message || err}); downloading the full installer${planned ? ' instead' : ''}.`);
+      setStatus(statusWithMeta('downloading', { ...meta, percent: 0, transferred: 0, total: asset.size, bytesPerSecond: 0 }));
+      return null;
+    }
+  };
+
+  return patch().then((done) => done || full()).then(({ path: file, resumed, patched }) => {
     readyInstaller = file;
-    log.info(`Update ${info.version} downloaded${resumed ? ' (resumed)' : ''}: ${file}`);
-    setStatus(statusWithMeta('downloaded', { ...updateMeta(info), downloadedAt: Date.now(), resumed }));
+    log.info(`Update ${info.version} downloaded${patched ? ' (only what changed)' : resumed ? ' (resumed)' : ''}: ${file}`);
+    setStatus(statusWithMeta('downloaded', { ...updateMeta(info), downloadedAt: Date.now(), resumed, optimized: !!patched }));
   });
 }
 
@@ -446,4 +515,4 @@ function friendlyError(error) {
   return first || 'Unknown update error';
 }
 
-module.exports = { init, _internals: { compareVersions, windowsAsset } };
+module.exports = { init, _internals: { compareVersions, windowsAsset, diffPlan: diff.plan } };

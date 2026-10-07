@@ -72,7 +72,7 @@ function deriveUpdatePill(status, t) {
     case 'downloading': {
       const percent = Math.max(0, Math.min(100, Math.round(status.percent || 0)));
       const label = t('update.downloadingPercent', { percent });
-      return { variant: 'downloading', Icon: Download, spin: false, label, tooltip: label };
+      return { variant: 'downloading', Icon: Download, spin: false, label, tooltip: label, percent };
     }
     case 'downloaded':
     case 'installing': {
@@ -175,6 +175,7 @@ export default function AppNavbar({
                 onClick={onOpenUpdater}
                 title={updatePill.tooltip}
                 aria-label={updatePill.tooltip}
+                style={updatePill.percent != null ? { '--p': `${updatePill.percent}%` } : undefined}
               >
                 <updatePill.Icon size={12} strokeWidth={2.3} className={updatePill.spin ? 'native-update-spin' : ''} aria-hidden="true" />
                 <span>{updatePill.label}</span>

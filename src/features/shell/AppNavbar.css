@@ -155,11 +155,11 @@
 .native-update-pill svg { flex: none; }
 .native-update-pill b { font-weight: 800; color: inherit; opacity: 0.82; }
 
-/* Available — brand accent invites the user to open the update center. */
+/* Available — brighter outline invites the user to open the update center. */
 .native-update-pill.available {
   border-color: var(--brand-border);
   background: var(--brand-subtle);
-  color: var(--brand-soft);
+  color: var(--fg-primary-hover, #fff);
 }
 
 /* Ready to install — success accent signals the restart action. */
@@ -169,10 +169,14 @@
   color: var(--color-success);
 }
 
-/* Downloading — quiet brand tint while work is in progress. */
+/* Downloading — readable white text over a quiet fill that grows with the download. */
 .native-update-pill.downloading {
   border-color: var(--brand-border);
-  color: var(--brand-soft);
+  color: var(--fg-primary-hover, #fff);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) var(--p, 0%), transparent var(--p, 0%)),
+    var(--surface-tint);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Checking — the most subtle state, with a spinning glyph. */
