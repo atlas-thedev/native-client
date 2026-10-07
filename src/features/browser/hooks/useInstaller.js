@@ -233,7 +233,7 @@ export default function useInstaller({
             description: '',
             iconUrl: extra.iconUrl || '',
             author: '',
-            source: 'modrinth',
+            source: String(extra.projectId || '').startsWith('cf:') ? 'cf' : 'modrinth',
             version: extra.versionNumber,
             gameVersions: extra.gameVersions,
             loaders: extra.loaders
@@ -255,7 +255,7 @@ export default function useInstaller({
           description: project.description,
           iconUrl: project.icon_url,
           author: project.author,
-          source: 'modrinth',
+          source: String(id || '').startsWith('cf:') ? 'cf' : 'modrinth',
           version: mainVersion.version_number,
           gameVersions: mainVersion.game_versions,
           loaders: mainVersion.loaders

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
-import { CONTENT_TYPES, isVanilla } from '../api/modrinthApi.js';
+import { CONTENT_TYPES, SOURCES, isVanilla } from '../api/modrinthApi.js';
 import useBrowseSearch from '../hooks/useBrowseSearch.js';
 import useInstaller from '../hooks/useInstaller.js';
 import BrowseHeader from './BrowseHeader.jsx';
@@ -97,6 +97,8 @@ export default function BrowsePage({
     setQueryImmediate,
     sort,
     setSort,
+    source,
+    setSource,
     loadMore,
     hasMore
   } = search;
@@ -271,6 +273,23 @@ export default function BrowsePage({
                   </span>
                 )}
               </div>
+              {contentType?.id !== 'modpack' && (
+                <div className="browse-source-toggle" role="tablist" aria-label="Source">
+                  {SOURCES.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={source === entry.id}
+                      aria-label={entry.label}
+                      className={`browse-source-btn ${source === entry.id ? 'is-active' : ''}`}
+                      onClick={() => setSource(entry.id)}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <SortSelect sort={sort} onChange={setSort} />
             </div>
           </div>
