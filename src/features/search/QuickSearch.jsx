@@ -370,8 +370,18 @@ export default function QuickSearch({
 
   /* Keep the highlighted row in view. */
   useEffect(() => {
-    const row = listRef.current?.querySelector(`[data-index="${activeIndex}"]`);
-    row?.scrollIntoView?.({ block: 'nearest' });
+    // scroll only the results list: scrollIntoView would also scroll the (overflow: hidden) panel
+    // and push the search box out of sight
+    const list = listRef.current;
+    const row = list?.querySelector(`[data-index="${activeIndex}"]`);
+    if (!list || !row) return;
+    const box = list.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    const top = r.top - box.top + list.scrollTop;
+    const bottom = top + r.height;
+    if (activeIndex === 0) list.scrollTop = 0;
+    else if (top < list.scrollTop) list.scrollTop = top - 8;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight + 8;
   }, [activeIndex, results]);
 
   const run = useCallback((item, useSecondary = false) => {

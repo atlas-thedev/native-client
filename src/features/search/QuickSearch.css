@@ -33,6 +33,7 @@
 }
 
 .qs-input-row {
+  flex: none;
   position: relative;
   display: flex;
   align-items: center;
@@ -500,3 +501,6 @@
 :root[data-motion='reduced'] .qs-row {
   animation: none;
 }
+
+.qs-scopes { flex: none; }
+.qs-panel { overflow: clip; }
