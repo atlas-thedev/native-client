@@ -209,7 +209,7 @@ export default function AdminStore({ onNotify, onError }) {
       featured: draft.featured,
       hidden: draft.hidden,
       exclusive: draft.exclusive,
-      price: draft.exclusive ? 0 : Math.max(0, Number(draft.price) || 0),
+      price: draft.exclusive ? 0 : Math.max(0, Number(draft.price) || 0), // 0 = the server picks the automatic price
       ...(draft.order !== '' && Number.isFinite(Number(draft.order)) ? { order: Number(draft.order) } : {}),
       fps
     };
@@ -293,7 +293,7 @@ export default function AdminStore({ onNotify, onError }) {
                   {!item.animated && <em className="admin-tag">Static</em>}
                   {item.exclusive && <em className="admin-tag is-exclusive">Event</em>}
                   {item.paid && <em className="admin-tag is-price">${Number(item.price).toFixed(2)}</em>}
-                  {!item.paid && !item.exclusive && <em className="admin-tag">Free</em>}
+                  
                   {item.featured && <em className="admin-tag is-featured">Featured</em>}
                   {item.hidden && <em className="admin-tag is-hidden">Hidden</em>}
                   {item.isNew && <em className="admin-tag">New</em>}
@@ -339,7 +339,7 @@ export default function AdminStore({ onNotify, onError }) {
               <label><span>Author</span><input value={draft.author} maxLength={40} onChange={set('author')}/></label>
               {previewAnimated && <label><span>Frames</span><input type="number" min={2} max={MAX_FRAMES} value={draft.frames} disabled={!draft.texture} onChange={set('frames')}/></label>}
               {previewAnimated && <label><span>Speed (fps)</span><input type="number" min={1} max={MAX_FPS} value={draft.fps} onChange={set('fps')}/></label>}
-              <label><span>Price (USD)</span><input type="number" min={0} max={99.99} step={0.01} value={draft.exclusive ? '' : draft.price} disabled={draft.exclusive} onChange={set('price')} placeholder="0 = free"/></label>
+              <label><span>Price (USD)</span><input type="number" min={1.99} max={99.99} step={0.01} value={draft.exclusive ? '' : draft.price} disabled={draft.exclusive} onChange={set('price')} placeholder="Automatic"/></label>
               <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
               <label className="admin-check" title={featuredFull && !draft.featured ? `Up to ${MAX_FEATURED} capes can be featured` : undefined}><input type="checkbox" checked={draft.featured} disabled={!draft.featured && featuredFull && !(editing !== 'new' && items?.find((item) => item.id === editing)?.featured)} onChange={set('featured')}/><span>Featured ({totals.featured}/{MAX_FEATURED})</span></label>
               <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
@@ -348,7 +348,7 @@ export default function AdminStore({ onNotify, onError }) {
 
             {editingItem && <CapeOwners item={editingItem} onNotify={onNotify} onChanged={(next) => next && setItems(next)}/>}
 
-            <p className="admin-note">{draft.exclusive ? 'Event cloak: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Native+ members get it included.` : 'Free: anyone can add it to their locker.'}</p>
+            <p className="admin-note">{draft.exclusive ? 'Event cloak: players can’t buy or claim it. Give it to people below, or make a redeem code in Sales.' : Number(draft.price) > 0 ? `Sold for $${Number(draft.price).toFixed(2)}. Native+ members get it included.` : 'Automatic price (1.99 and up). Native+ members get it included.'}</p>
             {fileError && <div className="admin-error" role="alert"><span>{fileError}</span></div>}
 
             <footer>

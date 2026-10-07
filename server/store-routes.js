@@ -49,6 +49,7 @@ const capes = require('./capes');
 const events = require('./social-events');
 const billing = require('./billing');
 const cosmetics = require('./cosmetics');
+const pricing = require('./pricing');
 const site = () => require('./site-routes');
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,47}$/;
@@ -307,14 +308,19 @@ function offerOf(item) {
 const lockedFor = (user) => { try { return site().storeLocked() && !(user && user.is_admin); } catch { return false; } };
 const LOCKED = 'The Native store opens at launch. Pre-launch accounts can pick one free founder cape.';
 
-/** Bulk price change (admin). price 0 = free. Returns how many capes changed. */
+/** Bulk price change (admin). price 0/empty = the automatic price of each item. Returns how many changed. */
 function setPrices(price, itemIds = null) {
   const cat = current();
-  const value = priceFrom(price);
+  const auto = !(Number(price) > 0);
+  const modelOf = (item) => {
+    if (!item.model) return null;
+    try { return fs.readFileSync(path.join(db.DATA_DIR || path.join(__dirname, '..', 'data'), 'textures', item.model), 'utf8'); } catch { return null; }
+  };
   let changed = 0;
   cat.items = cat.items.map((item) => {
     if (item.exclusive) return item;
     if (itemIds && itemIds.length && !itemIds.includes(item.id)) return item;
+    const value = auto ? pricing.suggestPrice(item, modelOf(item)) : pricing.finalPrice(price, item);
     if (Number(item.price) === value) return item;
     changed += 1;
     return { ...item, price: value, updatedAt: Date.now() };
@@ -377,11 +383,6 @@ const cleanTags = (value) => (Array.isArray(value) ? value : String(value || '')
   .map((tag) => slug(tag).slice(0, 24)).filter(Boolean).filter((tag, i, all) => all.indexOf(tag) === i).slice(0, 8);
 
 /** 0 = free. Otherwise USD, 0.50-99.99, two decimals. */
-function priceFrom(value) {
-  const n = Math.round((Number(value) || 0) * 100) / 100;
-  if (n <= 0) return 0;
-  return Math.min(99.99, Math.max(0.5, n));
-}
 
 /** Validates uploaded textures. Returns texture fields for an item. */
 function texturesFrom(body) {
@@ -682,6 +683,9 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     const id = slug(body.id || name);
     if (!ID_RE.test(id)) { send(res, 400, { ok: false, error: 'The id may only use a-z, 0-9 and dashes.' }); return true; }
     if (findItem(id)) { send(res, 409, { ok: false, error: `A cloak with the id "${id}" already exists.` }); return true; }
+    const modelText = body.model ? (typeof body.model === 'string' ? body.model : JSON.stringify(body.model)) : null;
+    // a cosmetic uploaded without a slot (or with "auto") goes where its parts attach
+    if (body.kind === 'cosmetic' && (!body.slot || body.slot === 'auto') && modelText) body.slot = pricing.guessSlot(modelText, body.name);
     const slot = body.kind === 'cosmetic' || cosmetics.isSlot(body.slot) || cosmetics.isSlot(body.section) ? String(body.slot || body.section || '') : null;
     if (slot !== null && !cosmetics.isSlot(slot)) { send(res, 400, { ok: false, error: `Pick a slot: ${cosmetics.SLOTS.join(', ')}.` }); return true; }
     if (body.featured && featuredCount(cat.items, null, slot || 'capes') >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
@@ -699,12 +703,12 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       featured: Boolean(body.featured),
       hidden: Boolean(body.hidden),
       exclusive: Boolean(body.exclusive),
-      price: priceFrom(body.price),
       order: Number.isFinite(Number(body.order)) ? Number(body.order) : -1,
       ...textures,
       createdAt: now,
       updatedAt: now
     };
+    item.price = pricing.finalPrice(body.price, item, modelText); // nothing is free; 0/empty = automatic price
     cat.items.push(item);
     cat.deleted = cat.deleted.filter((entry) => entry !== id);
     persist();
@@ -828,7 +832,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       }
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
       if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
-      if (body.price !== undefined) next.price = priceFrom(body.price);
+      if (body.price !== undefined || body.exclusive !== undefined) next.price = pricing.finalPrice(body.price !== undefined ? body.price : next.price, next);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
       if (cosmetics.isCosmetic(item)) {
         if (body.model || body.texture || body.thumb || body.still) {

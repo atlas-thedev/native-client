@@ -15,7 +15,6 @@ import '../../components/ui/shop.css';
 
 /** The hero spotlight rotates through at most this many featured capes. */
 export const MAX_FEATURED = 5;
-const HERO_ROTATE_MS = 7000;
 
 /** Featured capes in catalogue order (the API sorts featured first by `order`), capped at MAX_FEATURED. */
 export const featuredCapes = (items = []) => items
@@ -54,7 +53,7 @@ const FILTERS = [
   { id: 'wish', label: 'Wishlist' }
 ];
 const SORTS = [
-  { id: 'featured', label: 'Featured' },
+  { id: 'featured', label: 'Recommended' },
   { id: 'popular', label: 'Most used' },
   { id: 'new', label: 'Newest' },
   { id: 'name', label: 'A–Z' }
@@ -99,8 +98,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('featured');
   const [viewId, setViewId] = useState(null); // cape open in the 3D viewer popup
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [heroPaused, setHeroPaused] = useState(false);
   const [wardrobe, setWardrobe] = useState(null);
   const [previews, setPreviews] = useState({}); // id -> data URL (strip or still)
   const canvases = useRef(new Map());
@@ -269,23 +266,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     ? (catalog?.items || []).filter((item) => sectionOf(item) === section && item.isNew && !item.exclusive).sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0)).slice(0, 4)
     : []), [catalog, section, filter, query, sort, newMeans]);
 
-  const featured = useMemo(() => featuredIn(catalog?.items || [], section), [catalog, section]);
-  const heroList = featured.length ? featured : (items[0] ? [items[0]] : []);
-  const hero = heroList.length ? heroList[heroIndex % heroList.length] : null;
   const viewing = viewId ? (catalog?.items || []).find((item) => item.id === viewId) || null : null;
-
-  // Keep the hero index valid when the featured list changes.
-  useEffect(() => { setHeroIndex((index) => (heroList.length ? index % heroList.length : 0)); }, [heroList.length]);
-  useEffect(() => { setHeroIndex(0); }, [section]);
-
-  // Rotate through the featured capes; pause while hovered or while the 3D popup is open.
-  useEffect(() => {
-    if (featured.length < 2 || heroPaused || viewId) return undefined;
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if (reduce) return undefined;
-    const timer = setTimeout(() => setHeroIndex((index) => (index + 1) % featured.length), HERO_ROTATE_MS);
-    return () => clearTimeout(timer);
-  }, [featured.length, heroIndex, heroPaused, viewId]);
 
   // The popup steps through the capes currently listed in the grid.
   const stepView = useCallback((delta) => {
@@ -432,7 +413,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       capeAnim: cape?.animated && preview ? { stripUrl: preview, frames: cape.frames, fps: cape.fps } : null
     };
   }, [previews, wardrobe, account, wornCape]);
-  const heroAccount = useMemo(() => accountWearing(hero), [accountWearing, hero]);
   const viewAccount = useMemo(() => accountWearing(viewing), [accountWearing, viewing]);
   /** The cosmetic being shown, plus what the player wears in the other slots (cloaks show with the whole outfit too). */
   const cosmeticsFor = useCallback((item) => {
@@ -443,7 +423,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const list = [isCosmetic(item) ? cosAssets[item.id] : null, ...others].filter(Boolean);
     return list.length ? list : null;
   }, [cosAssets, me.wearing]);
-  const heroCosmetics = useMemo(() => cosmeticsFor(hero), [cosmeticsFor, hero]);
   const viewCosmetics = useMemo(() => cosmeticsFor(viewing), [cosmeticsFor, viewing]);
   /** Store art for a cosmetic: the piece worn on the player's own skin (drawn once, then cached), the flat thumbnail until then. */
   const shotSkin = skinTextureUrl({ ...account, skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null });
@@ -665,57 +644,6 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
       {catalog && (catalog.items || []).length > 0 && (
         <div className="store-scroll">
-          {hero && (
-            <section
-              className={`store-spot${featured.length ? ' is-featured' : ''}`}
-              aria-label={featured.length ? 'Featured' : `${hero.name} details`}
-              aria-roledescription={featured.length > 1 ? 'carousel' : undefined}
-              onMouseEnter={() => setHeroPaused(true)}
-              onMouseLeave={() => setHeroPaused(false)}
-              onFocus={() => setHeroPaused(true)}
-              onBlur={() => setHeroPaused(false)}
-            >
-              <SpotBackdrop />
-              <div className="store-spot-info" key={`info:${hero.id}`}>
-                {renderDetails(hero, {
-                  kicker: featured.length
-                    ? <span className="store-badge solid"><PixelStar size={9} />{featured.length > 1 ? `Featured · ${(heroIndex % featured.length) + 1}/${featured.length}` : 'Featured'}</span>
-                    : null
-                })}
-              </div>
-              <button type="button" className="store-spot-stage" onClick={() => setViewId(hero.id)} title={`View ${hero.name} in 3D`} aria-label={`View ${hero.name} in 3D`}>
-                {heroAccount && <SkinViewer3D key={`hero:${hero.id}:${previews[hero.id] ? 1 : 0}`} account={heroAccount} cosmetics={heroCosmetics} zoom={isCosmetic(hero) ? 0.72 : 0.82} width={280} height={330} animation="walk" autoRotate />}
-                <span className="store-spot-zoom"><Rotate3d size={13} />View in 3D</span>
-              </button>
-              {featured.length > 1 ? (
-                <div className="store-spot-picker" role="tablist" aria-label="Featured items">
-                  {featured.map((item, index) => {
-                    const active = index === heroIndex % featured.length;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        className={`store-spot-thumb${active ? ' active' : ''}`}
-                        onClick={() => setHeroIndex(index)}
-                        title={item.name}
-                      >
-                        {isCosmetic(item) ? cosmeticArt(item, 'store-spot-thumb-img') : <canvas ref={bindCanvas(`thumb:${item.id}`)} width={80} height={128} aria-hidden="true" />}
-                        <span>{item.name}</span>
-                        {active && !heroPaused && !viewId && <i key={`bar:${heroIndex}`} className="store-spot-progress" style={{ animationDuration: `${HERO_ROTATE_MS}ms` }} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="store-spot-art" aria-hidden="true">
-                  {isCosmetic(hero) ? cosmeticArt(hero, 'store-spot-art-img') : <canvas ref={bindCanvas(`hero:${hero.id}`)} width={80} height={128} />}
-                </div>
-              )}
-            </section>
-          )}
-
           {billing.enabled && (
             <section className={`store-plus${plus?.active ? ' is-member' : ''}`} aria-label="Native+">
               <span className="store-plus-mark is-plus"><NativePlusIcon size={30} title="Native+" /></span>

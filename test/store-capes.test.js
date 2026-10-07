@@ -168,7 +168,12 @@ test('admin store: create animated + static capes, edit, hide, delete', async ()
   assert.ok(catalog.items.some((i) => i.id === 'plain-black'));
   assert.equal(catalog.items.find((i) => i.id === 'galaxy-swirl').isNew, true);
 
-  // Static store capes can be worn too.
+  // Nothing is free: a new item gets the automatic price (1.99 for a static cape)...
+  assert.equal(flat.body.item.price, 1.99);
+  assert.equal(created.body.item.price, 2.49);
+  assert.equal((await post('/v1/store/equip', { itemId: 'plain-black' }, pleb)).status, 402);
+  // ...and once it's in the locker, a static store cape can be worn too.
+  assert.equal((await req('POST', '/v1/admin/store/items/plain-black/grant', { username: 'Pleb' })).status, 200);
   const wear = await post('/v1/store/equip', { itemId: 'plain-black' }, pleb);
   assert.equal(wear.body.equipped, 'plain-black');
   assert.equal(wear.body.profile.capeAnimation, undefined);

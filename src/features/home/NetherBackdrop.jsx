@@ -2,31 +2,37 @@ import React, { useEffect, useRef, useState } from 'react';
 import netherLoop from '../../assets/backgrounds/nether-loop.webm';
 import netherPoster from '../../assets/backgrounds/nether-poster.jpg';
 
-/* Seamless 20s animated Nether (rendered with Remotion, see the nether project). Stills only
-   when the user asked for reduced motion; paused while the window is hidden to save GPU. */
-const wantsStill = () =>
-  document.documentElement.dataset.reducedMotion === 'true' ||
-  window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+/* Seamless 20s animated Nether (rendered with Remotion, see tools/nether-bg). Only the launcher's
+   own Animations switch (Settings > Appearance) turns it into a still: the Windows "animation
+   effects" setting is off on many PCs and must not freeze the home screen. Paused while hidden. */
+const wantsStill = () => document.documentElement.dataset.motion === 'reduced';
 
 export default function NetherBackdrop() {
   const ref = useRef(null);
   const [still, setStill] = useState(wantsStill);
 
   useEffect(() => {
-    const sync = () => setStill(wantsStill());
-    const mo = new MutationObserver(sync);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduced-motion'] });
-    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    mq?.addEventListener?.('change', sync);
-    return () => { mo.disconnect(); mq?.removeEventListener?.('change', sync); };
+    const mo = new MutationObserver(() => setStill(wantsStill()));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] });
+    return () => mo.disconnect();
   }, []);
 
   useEffect(() => {
     const v = ref.current;
     if (!v) return undefined;
-    const onVis = () => { if (document.hidden) v.pause(); else v.play().catch(() => {}); };
+    v.muted = true; // autoplay needs it set as a property too
+    const play = () => { if (!document.hidden) v.play().catch(() => {}); };
+    const onVis = () => (document.hidden ? v.pause() : play());
+    play();
+    v.addEventListener('canplay', play);
+    v.addEventListener('pause', () => { if (!document.hidden) setTimeout(play, 400); });
+    window.addEventListener('focus', play);
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    return () => {
+      v.removeEventListener('canplay', play);
+      window.removeEventListener('focus', play);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [still]);
 
   if (still) return <img className="home-bg-img home-bg-nether" src={netherPoster} alt="" draggable="false" />;
@@ -40,6 +46,7 @@ export default function NetherBackdrop() {
       muted
       loop
       playsInline
+      preload="auto"
       disablePictureInPicture
       aria-hidden="true"
     />

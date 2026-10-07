@@ -43,8 +43,8 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
     // Make one cape paid.
     const { items } = await (await call('GET', '/v1/admin/store/items', null, bossSession.token)).json();
     const paid = items.find((item) => !item.exclusive);
-    const patched = await (await call('PATCH', `/v1/admin/store/items/${paid.id}`, { price: 1.49 }, bossSession.token)).json();
-    assert.equal(patched.item.price, 1.49);
+    const patched = await (await call('PATCH', `/v1/admin/store/items/${paid.id}`, { price: 2.49 }, bossSession.token)).json();
+    assert.equal(patched.item.price, 2.49);
     assert.equal(patched.item.paid, true);
 
     // Paid capes can't be claimed or worn for free.
