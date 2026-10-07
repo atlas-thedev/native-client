@@ -156,7 +156,20 @@ function checkMask(maskBuffer) {
   return mask;
 }
 
-/** Colours offered as quick picks in the launcher and on the website. */
-const SWATCHES = ['#f2f2f2', '#9a9aa2', '#2b2b30', '#e5484d', '#ff8a3d', '#ffd23f', '#7ed957', '#2fbf71', '#3ec7e0', '#3d7bff', '#8a5cff', '#ff6fb5', '#8b5a2b', '#d4af37'];
+/** Most colours an admin can offer per item (besides its default). */
+const MAX_COLORS = 5;
+/** Cleans an admin list of colours: '#rrggbb', unique, without the default, at most MAX_COLORS. */
+function cleanColors(list, fallback = null) {
+  const raw = Array.isArray(list) ? list : typeof list === 'string' ? list.split(/[\s,]+/) : [];
+  const out = [];
+  for (const entry of raw) {
+    if (entry === '' || entry == null) continue;
+    const hex = cleanHex(entry);
+    if (!hex) throw new Error(`${String(entry).slice(0, 12)} isn’t a colour like #ff8800.`);
+    if (hex !== fallback && !out.includes(hex)) out.push(hex);
+  }
+  if (out.length > MAX_COLORS) throw new Error(`Pick up to ${MAX_COLORS} dye colours.`);
+  return out;
+}
 
-module.exports = { HEX, cleanHex, decodePng, encodePng, bake, checkMask, SWATCHES };
+module.exports = { HEX, cleanHex, decodePng, encodePng, bake, checkMask, cleanColors, MAX_COLORS };

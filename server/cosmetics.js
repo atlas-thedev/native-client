@@ -127,7 +127,9 @@ function withSide(profile, slot, side) {
 function dyeOf(profile, item) {
   if (!item || !item.dyeable || !item.dyeBase) return null;
   const hex = profile && profile.cosmeticDyes && profile.cosmeticDyes[item.id];
-  return typeof hex === 'string' && /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
+  if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/.test(hex)) return null;
+  // Only the colours the admin offers (a colour removed later falls back to the item's own).
+  return hex === item.dyeDefault || (Array.isArray(item.dyeColors) && item.dyeColors.includes(hex)) ? hex : null;
 }
 /** The texture hash to show for `item` on `profile` (the dyed one when the player picked a colour). */
 function textureFor(profile, item, dyedTexture) {
