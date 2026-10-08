@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Eye, EyeOff, FileJson, Gift, ImageIcon, LoaderCircle, Palette, Pencil, Plus, Search, Star, Trash2, Upload, X } from 'lucide-react';
+import { Box, DollarSign, Eye, EyeOff, FileJson, Gift, ImageIcon, LoaderCircle, Palette, PackagePlus, Pencil, Plus, Search, Star, Trash2, Upload, X } from 'lucide-react';
 import { drawCapeFront, firstFrameDataUrl, guessFrames, isNativeCapeRatio, MAX_FPS, MAX_FRAMES } from '../../lib/animatedCape.js';
 import { WornShot, wornShot } from '../../lib/wornShot.jsx';
 import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3D.jsx';
 import { PixelTabs } from '../../components/ui/PixelControls.jsx';
 import steveSkin from '../../assets/steve.png';
+import { ImportPackModal, PricingModal } from './AdminStoreTools.jsx';
 
 /** Store sections, in the same order as the Store. */
 export const SECTIONS = [
@@ -205,8 +206,9 @@ const draftFrom = (item) => ({
 });
 
 /** Admin -> Store: add, edit, hide, feature and delete cloaks and every kind of cosmetic. */
-export default function AdminStore({ onNotify, onError }) {
+export default function AdminStore({ onNotify, onError, onAccessRevoked, onItemsChanged }) {
   const [items, setItems] = useState(null);
+  const [tool, setTool] = useState(null); // null | 'pricing' | 'import'
   const [section, setSection] = useState('capes');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
@@ -465,8 +467,12 @@ export default function AdminStore({ onNotify, onError }) {
           ))}
         </div>
         <span className="admin-result-count">{totals.count} items · {totals.animated} {cosmeticSection ? 'moving' : 'animated'} · {totals.featured}/{MAX_FEATURED} featured · {totals.owners} in lockers</span>
+        <button type="button" className="admin-btn ghost" onClick={() => setTool('pricing')} title="Set every price at once"><DollarSign size={13}/>Pricing</button>
+        <button type="button" className="admin-btn ghost" onClick={() => setTool('import')} title="Import cosmetics from an ItemsAdder, Nexo, Oraxen, ModelEngine or HMCCosmetics pack"><PackagePlus size={13}/>Import pack</button>
         <button type="button" className="admin-store-new" onClick={openNew}><Plus size={14}/>New {meta.noun}</button>
       </div>
+      {tool === 'pricing' && <PricingModal onClose={() => setTool(null)} onDone={async () => { await load(); onItemsChanged?.(); }} onNotify={onNotify} onAccessRevoked={onAccessRevoked}/>}
+      {tool === 'import' && <ImportPackModal onClose={() => setTool(null)} onImported={async (next) => { if (next) setItems(next); else await load(); onItemsChanged?.(); }} onNotify={onNotify}/>}
 
       <div className="admin-store-body">
         <div className="admin-store-list" aria-busy={!items}>
