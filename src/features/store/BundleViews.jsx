@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { OwnedMark, RarityBadge } from './RarityBadges.jsx';
+import './RarityBadges.css';
 import { Check, ChevronRight, Clock, Layers, Lock, Sparkles } from 'lucide-react';
 import { OutfitShot } from '../../lib/wornShot.jsx';
 import './BundleViews.css';
@@ -60,8 +62,8 @@ export function Countdown({ endsAt, className = '' }) {
   );
 }
 
-export function RarityTag({ bundle, children }) {
-  return <span className="bdl-rarity" style={{ '--bc': bundleColor(bundle) }}><Sparkles size={10} strokeWidth={2.6} aria-hidden="true" />{children || `${RARITY[bundle.rarity]?.label || 'Epic'} bundle`}</span>;
+export function RarityTag({ bundle, children, size = 'md' }) {
+  return <RarityBadge rarity={bundle?.rarity} size={size} label={children || `${RARITY[bundle?.rarity]?.label || 'Epic'} bundle`} />;
 }
 
 /** Price block: crossed-out worth, the save tag and the bundle price (or what's left to pay for your missing pieces). */
@@ -113,13 +115,13 @@ export function BundleCard({ bundle, pieces, mine, outfit, onOpen, active = fals
           <strong>{bundle.name}</strong>
           <small>{bundle.tagline || `${pieces.length} items`}</small>
         </div>
-        <RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
+        <RarityTag bundle={bundle} size="sm">{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
       </div>
       <div className="bdl-card-art">
         {bundle.artUrl ? <img className="bdl-card-bg" src={bundle.artUrl} alt="" draggable={false} /> : <span className="bdl-card-glow" aria-hidden="true" />}
         <OutfitShot {...outfit} className="bdl-card-shot" alt={`${bundle.name}: every piece worn`} />
         {bundle.isNew && !ended && <span className="bdl-new bdl-card-new">New</span>}
-        {mine?.complete && <span className="bdl-card-owned"><Check size={11} strokeWidth={3} />Owned</span>}
+        {mine?.complete && <OwnedMark className="bdl-card-owned" label="Owned" />}
       </div>
       <div className="bdl-card-meta">
         <small className="bdl-card-info"><Layers size={11} strokeWidth={2.4} aria-hidden="true" />{pieces.length} items{bundle.endsAt && !ended ? <> · <Countdown endsAt={bundle.endsAt} className="is-inline" /></> : null}</small>
@@ -160,7 +162,7 @@ export function BundlesPage({
           <span className="bdl-stage-floor" aria-hidden="true" />
           <div className="bdl-stage-model">{stage(current)}</div>
           <div className="bdl-stage-top">
-            <RarityTag bundle={current} />
+            <RarityTag bundle={current} size="lg" />
             {current.isNew && !ended && <span className="bdl-new">New</span>}
             <span className="bdl-stage-spacer" />
             {current.endsAt && <Countdown endsAt={current.endsAt} />}
@@ -182,7 +184,7 @@ export function BundlesPage({
                   <button type="button" className={`bdl-row${have ? ' is-owned' : ''}`} onClick={() => onOpenItem(item.id)}>
                     <span className="bdl-row-art">{renderPieceArt(item, 'bdl-row-img', `row:${current.id}`)}</span>
                     <span className="bdl-row-text"><strong>{item.name}</strong><small>{pieceType(item)}</small></span>
-                    <span className="bdl-row-end">{have ? <span className="bdl-row-own"><Check size={11} strokeWidth={3} />Owned</span> : item.exclusive ? 'Event' : item.paid ? <s>{money(item.salePrice ?? item.price)}</s> : 'Free'}</span>
+                    <span className="bdl-row-end">{have ? <OwnedMark /> : item.exclusive ? 'Event' : item.paid ? <s>{money(item.salePrice ?? item.price)}</s> : 'Free'}</span>
                     <ChevronRight size={14} className="bdl-row-go" aria-hidden="true" />
                   </button>
                 </li>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Crown, Gift, LoaderCircle, LogOut, Search, Shirt, ShieldCheck, ShieldOff, Sparkles, X } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
+import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import { ItemThumb } from './AdminStore.jsx';
 import { InitialAvatar, Presence, adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
 
@@ -19,6 +20,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
   const [pickerQuery, setPickerQuery] = useState('');
   const [confirm, setConfirm] = useState('');
   const [copied, setCopied] = useState(false);
+  const [plusGift, setPlusGift] = useState(undefined); // this player's given Native+ (null = none), undefined while loading
 
   const load = useCallback(async () => {
     setError('');
@@ -27,6 +29,13 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
     setUser(result.user);
     return result.user;
   }, [userId, onAccessRevoked]);
+
+  const loadPlus = useCallback(async () => {
+    const result = await window.native?.admin?.plusGifts?.();
+    if (!result?.ok) { setPlusGift(null); return; }
+    setPlusGift((result.gifts || []).find((row) => String(row.userId) === String(userId)) || null);
+  }, [userId]);
+  useEffect(() => { setPlusGift(undefined); loadPlus().catch(() => setPlusGift(null)); }, [loadPlus]);
 
   useEffect(() => {
     setUser(null);
@@ -51,6 +60,24 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
     try { await fn(); } catch (reason) { setError(reason?.message || 'Something went wrong.'); } finally { setBusy(''); }
   };
 
+  const givePlus = (days, label) => run(`plus:${days}`, async () => {
+    const result = await window.native?.admin?.givePlus?.({ username: view?.username, days, note: 'From the user panel' });
+    if (!result?.ok) throw adminError(result, 'Could not give Native+.', onAccessRevoked);
+    setPlusGift((result.gifts || []).find((row) => String(row.userId) === String(userId)) || { userId, expiresAt: result.expiresAt });
+    onNotify?.('Native+', `${result.username} has Native+ ${result.expiresAt ? `until ${formatDate(result.expiresAt)}` : 'forever'} (${label}).`);
+    onUserChanged?.();
+  });
+  const removePlus = () => {
+    if (confirm !== 'plus') { setConfirm('plus'); setTimeout(() => setConfirm((current) => (current === 'plus' ? '' : current)), 2600); return; }
+    setConfirm('');
+    run('plus:off', async () => {
+      const result = await window.native?.admin?.removePlus?.(userId);
+      if (!result?.ok) throw adminError(result, 'Could not take Native+ away.', onAccessRevoked);
+      setPlusGift(null);
+      onNotify?.('Native+', `Took Native+ away from ${view?.username || 'this player'}.`);
+      onUserChanged?.();
+    });
+  };
   const cape = (item, action) => run(`${action}:${item?.id || 'off'}`, async () => {
     const result = await window.native?.admin?.userCape?.(userId, item?.id ?? null, action);
     if (!result?.ok) throw adminError(result, 'Could not update capes.', onAccessRevoked);
@@ -205,6 +232,27 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
                   ))}
                 </div>
               )}
+        </div>
+      </section>
+
+      <section className="admin-block">
+        <div className="admin-block-head"><h3>Native+</h3><span>{plusGift === undefined ? 'Loading…' : plusGift ? (plusGift.expiresAt ? `Given · ends ${formatDate(plusGift.expiresAt)}` : 'Given · forever') : 'Not given'}</span></div>
+        <div className="admin-plus-user">
+          <span className="admin-plus-chip"><NativePlusIcon size={18} /></span>
+          <div className="admin-plus-user-text">
+            <strong>{plusGift ? 'Has Native+' : 'Give Native+'}</strong>
+            <span>{plusGift ? `${plusGift.expiresAt ? `${Math.max(1, Math.ceil((plusGift.expiresAt - Date.now()) / 86_400_000))} days left` : 'Never ends'}. More time adds to what's left.` : 'Every paid cloak and cosmetic plus the Native+ badge, free. No payment.'}</span>
+          </div>
+        </div>
+        <div className="admin-plus-actions">
+          {[['30', '1 month'], ['90', '3 months'], ['365', '1 year'], ['0', 'Forever']].map(([days, label]) => (
+            <button key={days} type="button" className="admin-btn ghost" disabled={Boolean(busy) || !view.username} onClick={() => givePlus(Number(days), label)}>
+              {busy === `plus:${days}` ? <LoaderCircle size={13} className="is-spinning" /> : <Gift size={13} />}{plusGift ? `+${label}` : label}
+            </button>
+          ))}
+          {plusGift && <button type="button" className={`admin-btn danger${confirm === 'plus' ? ' is-confirm' : ''}`} disabled={Boolean(busy)} onClick={removePlus}>
+            {busy === 'plus:off' ? <LoaderCircle size={13} className="is-spinning" /> : <X size={13} />}{confirm === 'plus' ? 'Click to confirm' : 'Take away'}
+          </button>}
         </div>
       </section>
 

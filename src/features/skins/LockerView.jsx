@@ -1,5 +1,6 @@
 import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, RarityTag, bundleColor, Countdown } from '../store/BundleViews.jsx';
+import { OwnedMark } from '../store/RarityBadges.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -898,12 +899,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
               <strong>{bundle.name}</strong>
               {bundle.tagline && <small>{bundle.tagline}</small>}
             </div>
-            <div className="locker-set-count" title={`You own ${have} of ${pieces.length}`}>
-              {complete ? <><Check size={12} strokeWidth={3}/>Complete</> : <><b>{have}</b>/{pieces.length}</>}
-            </div>
+            {complete ? <OwnedMark label="Complete"/> : <div className="locker-set-count" title={`You own ${have} of ${pieces.length}`}><b>{have}</b>/{pieces.length}</div>}
           </header>
           <div className="locker-set-look">
-            <span className="locker-set-tags"><RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>{!ended && bundle.endsAt && !complete && <Countdown endsAt={bundle.endsAt} className="locker-set-time"/>}</span>
+            <span className="locker-set-tags"><RarityTag bundle={bundle} size="sm">{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>{!ended && bundle.endsAt && !complete && <Countdown endsAt={bundle.endsAt} className="locker-set-time"/>}</span>
             <OutfitShot
               pieces={pieces.filter((item) => item.kind === 'cosmetic').map((item) => ({ item, asset: ownedIds.has(item.id) ? dyedAsset(item.id) : cosAssets[item.id] }))}
               cape={(() => { const cloak = pieces.find((item) => item.kind !== 'cosmetic'); return cloak ? { id: cloak.id, url: cloak.stillUrl } : null; })()}
