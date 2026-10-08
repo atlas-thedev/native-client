@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
 # Publish the current ./release to the public update server AND to the
-# website download/update dirs served by nginx on nativelaunch.xyz.
+# website download/update dirs served by nginx on playnative.fun.
 #
 #   1. Update feed :8800  -> ./release          (electron-updater, public IP 80.225.195.237)
-#   2. Website download   -> /home/native/native-website/downloads  (https://nativelaunch.xyz/downloads/)
-#   3. Website update dir -> /home/native/native-website/updates    (https://nativelaunch.xyz/updates/)
+#   2. Website download   -> /home/native/native-website/downloads  (https://playnative.fun/downloads/)
+#   3. Website update dir -> /home/native/native-website/updates    (https://playnative.fun/updates/)
 #
 # Versioned artifacts are copied with "no clobber". Update metadata is replaced
 # on every publish so clients can discover the newly published version.
@@ -16,7 +16,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PUBLIC_URL="${PUBLIC_URL:-https://nativelaunch.xyz/updates}"
+PUBLIC_URL="${PUBLIC_URL:-https://playnative.fun/updates}"
 SERVICE="${SERVICE:-native-update}"
 PUB_SITE="${PUB_SITE:-/home/native/native-website}"
 
@@ -77,4 +77,4 @@ fi
 VERSION=$(sed -n 's/^[[:space:]]*version:[[:space:]]*//p' release/latest.yml | head -1)
 echo "==> published version: ${VERSION:-unknown}"
 echo "    public updater URL: $PUBLIC_URL/latest.yml"
-echo "    site download:     https://nativelaunch.xyz/downloads/"
+echo "    site download:     https://playnative.fun/downloads/"

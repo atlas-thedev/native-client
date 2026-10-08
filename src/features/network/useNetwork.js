@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 // launcher claim it is offline. Any single answer proves the internet works.
 const PROBE_URLS = [
   'https://www.gstatic.com/generate_204',
-  'https://api.nativelaunch.xyz/',
+  'https://api.playnative.fun/',
   'https://api.modrinth.com/',
   'https://cloudflare.com/cdn-cgi/trace'
 ];

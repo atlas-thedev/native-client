@@ -3,7 +3,7 @@
  *
  *   GET  /v1/billing/config                 public: is billing on, Tebex public token, Native+ prices
  *   POST /v1/billing/checkout               { kind: 'cape', itemId } | { kind: 'bundle', bundleId } | { kind: 'bundle', itemIds } | { kind: 'plus', plan: 'monthly'|'yearly' }
- *                                           -> { transactionId (basket ident), url (nativelaunch.xyz/checkout), payUrl (pay.tebex.io) }
+ *                                           -> { transactionId (basket ident), url (playnative.fun/checkout), payUrl (pay.tebex.io) }
  *                                           (a bundle is several custom packages in one Tebex basket; a store bundle is sold at its
  *                                           bundle price, split over the pieces still to buy)
  *   GET  /v1/billing/me                     Native+ status and purchases of the signed-in account
@@ -48,8 +48,8 @@ const TEBEX_IPS = new Set(['18.209.80.3', '54.87.231.232']);
 
 const site = () => require('./site-routes');
 const env = (name) => String(process.env[name] || '').trim();
-const SITE_URL = () => (env('NATIVE_SITE_URL') || env('PUBLIC_SITE_URL') || 'https://nativelaunch.xyz').replace(/\/$/, '');
-const WEBHOOK_URL = () => env('TEBEX_WEBHOOK_URL') || `${(env('PUBLIC_API_URL') || 'https://api.nativelaunch.xyz').replace(/\/$/, '')}/v1/billing/tebex/webhook`;
+const SITE_URL = () => (env('NATIVE_SITE_URL') || env('PUBLIC_SITE_URL') || 'https://playnative.fun').replace(/\/$/, '');
+const WEBHOOK_URL = () => env('TEBEX_WEBHOOK_URL') || `${(env('PUBLIC_API_URL') || 'https://api.playnative.fun').replace(/\/$/, '')}/v1/billing/tebex/webhook`;
 const FIELDS = { projectId: 'TEBEX_PROJECT_ID', privateKey: 'TEBEX_PRIVATE_KEY', publicToken: 'TEBEX_PUBLIC_TOKEN', webhookSecret: 'TEBEX_WEBHOOK_SECRET' };
 
 function savedSettings() {

@@ -8,7 +8,7 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Globe, Infinity as InfinityIcon, Loader2, AppWindow, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -119,6 +119,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   useEffect(() => { setPlusState(isStoreAccount(account) ? readCache(plusCacheKey(account)) : null); }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pending, setPending] = useState(null); // checkout waiting in the checkout window
   const [redeemOpen, setRedeemOpen] = useState(false);
+  const [payAsk, setPayAsk] = useState(null); // { key, request, info } while asking where to pay
   const [code, setCode] = useState('');
   const cosAssetsRef = useRef({});
 
@@ -393,24 +394,30 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     );
   };
 
-  const shareUrl = (item) => `https://nativelaunch.xyz/${isCosmetic(item) ? 'cosmetics' : 'cloaks'}/${encodeURIComponent(item.id)}`;
+  const shareUrl = (item) => `https://playnative.fun/${isCosmetic(item) ? 'cosmetics' : 'cloaks'}/${encodeURIComponent(item.id)}`;
   const copyLink = async (item) => {
     try { await navigator.clipboard.writeText(shareUrl(item)); onNotify?.('Store', `Link to ${item.name} copied. Paste it anywhere to show it off.`); }
     catch { window.native?.openExternal?.(shareUrl(item)); }
   };
-  const myProfileUrl = () => `https://nativelaunch.xyz/u/${encodeURIComponent(account?.name || account?.username || '')}`;
+  const myProfileUrl = () => `https://playnative.fun/u/${encodeURIComponent(account?.name || account?.username || '')}`;
 
-  const buy = (item) => run(`buy:${item.id}`, async () => {
-    const res = await window.native.billing.checkout(account, { kind: 'cape', itemId: item.id });
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
-    setPending({ kind: 'cape', itemId: item.id, name: item.name });
-  });
+  // Every purchase first asks where to pay: a checkout window inside the launcher, or the web browser.
+  const askPay = (key, request, info) => { if (!busy) setPayAsk({ key, request, info }); };
+  const pay = (where) => {
+    const ask = payAsk;
+    if (!ask) return;
+    setPayAsk(null);
+    run(ask.key, async () => {
+      const res = await window.native.billing.checkout(account, { ...ask.request, where });
+      if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
+      setPending({ ...ask.info, where: res.inApp ? 'app' : 'browser' });
+    });
+  };
+  const payLabel = pending?.where === 'browser' ? 'Finish paying in your browser…' : 'Finish paying in the checkout window…';
 
-  const joinPlus = (plan) => run(`plus:${plan}`, async () => {
-    const res = await window.native.billing.checkout(account, { kind: 'plus', plan });
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
-    setPending({ kind: 'plus', plan, name: 'Native+' });
-  });
+  const buy = (item) => askPay(`buy:${item.id}`, { kind: 'cape', itemId: item.id }, { kind: 'cape', itemId: item.id, name: item.name });
+
+  const joinPlus = (plan) => askPay(`plus:${plan}`, { kind: 'plus', plan }, { kind: 'plus', plan, name: 'Native+' });
 
   const manageBilling = () => run('portal', async () => {
     const res = await window.native.billing.portal(account);
@@ -580,11 +587,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const pieces = piecesOf(bundle).filter((item) => ownedIds.has(item.id));
     return pieces.length > 0 && pieces.every((item) => (isCosmetic(item) ? (me.wearing || {})[item.slot] === item.id : me.equipped === item.id));
   };
-  const buyBundle = (bundle) => run(`bundle:${bundle.id}`, async () => {
-    const res = await window.native.billing.checkout(account, { kind: 'bundle', bundleId: bundle.id });
-    if (!res?.ok) throw new Error(res?.error || 'Couldn’t start the checkout.');
-    setPending({ kind: 'bundle', bundleId: bundle.id, name: bundle.name });
-  });
+  const buyBundle = (bundle) => askPay(`bundle:${bundle.id}`, { kind: 'bundle', bundleId: bundle.id }, { kind: 'bundle', bundleId: bundle.id, name: bundle.name });
   const claimBundle = (bundle) => run(`bundle:${bundle.id}`, async () => {
     const res = await window.native.store.claimBundle(account, bundle.id);
     if (!res?.ok) throw new Error(res?.error || 'Couldn’t add that bundle.');
@@ -641,7 +644,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (due > 0) {
       if (plus?.active) main = <PixelButton variant="gold" size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label="Add with Native+" title="Included with Native+" onClick={() => claimBundle(bundle)} />;
       else if (!billing.enabled) main = <PixelButton variant="locked" size="lg" label={`$${due.toFixed(2)} · soon`} title="Payments are switched on soon." />;
-      else if (pending?.kind === 'bundle' && pending.bundleId === bundle.id) main = <PixelButton variant="ghost" size="lg" icon={spin} label="Finish paying in the checkout window…" title="Waiting for your payment. Click to stop waiting." onClick={() => setPending(null)} />;
+      else if (pending?.kind === 'bundle' && pending.bundleId === bundle.id) main = <PixelButton variant="ghost" size="lg" icon={spin} label={payLabel} title="Waiting for your payment. Click to stop waiting." onClick={() => setPending(null)} />;
       else main = <PixelButton size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={ownsSome ? `Complete set $${due.toFixed(2)}` : `Buy bundle $${due.toFixed(2)}`} onClick={() => buyBundle(bundle)} />;
     } else {
       main = <PixelButton size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label="Claim bundle" onClick={() => claimBundle(bundle)} />;
@@ -690,7 +693,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         return <PixelButton variant="locked" size={size} block={block} label={`$${nowPrice(item).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
       }
       if (pending?.itemId === item.id) {
-        return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : 'Finish paying in the checkout window…'} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
+        return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : payLabel} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
       return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
@@ -902,7 +905,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 ) : plus?.active ? (
                   <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'portal'} busyIcon={<Loader2 size={15} className="is-spinning" />} label="Manage" onClick={manageBilling} />
                 ) : pending?.kind === 'plus' ? (
-                  <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label="Finish paying in the checkout window…" onClick={() => setPending(null)} />
+                  <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label={payLabel} onClick={() => setPending(null)} />
                 ) : (
                   <>
                     <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'plus:monthly'} busyIcon={<Loader2 size={15} className="is-spinning" />} label={`$${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month`} onClick={() => joinPlus('monthly')} />
@@ -1016,6 +1019,22 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               {renderDetails(viewing, { Heading: 'h3' })}
             </div>
             <PixelIconButton size="md" className="store-viewer-close" icon={<X size={16} strokeWidth={3} />} label="Close" onClick={() => setViewId(null)} />
+          </div>
+        </div>
+      )}
+      {payAsk && (
+        <div className="store-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPayAsk(null); }}>
+          <div className="store-modal" role="dialog" aria-label="Where do you want to pay?">
+            <div className="store-modal-head">
+              <span className="store-plus-mark"><ShoppingBag size={16} /></span>
+              <div>
+                <h3>Where do you want to pay?</h3>
+                <p>{payAsk.info?.name ? `${payAsk.info.name}: ` : ''}secure checkout by Tebex either way. It unlocks here as soon as you’ve paid.</p>
+              </div>
+              <PixelIconButton icon={<X size={15} strokeWidth={3} />} label="Close" onClick={() => setPayAsk(null)} />
+            </div>
+            <PixelButton size="lg" block poof autoFocus icon={<AppWindow size={15} />} label="Pay in the launcher" onClick={() => pay('app')} />
+            <PixelButton variant="ghost" size="lg" block icon={<Globe size={15} />} label="Pay in my browser" onClick={() => pay('browser')} />
           </div>
         </div>
       )}

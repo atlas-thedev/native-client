@@ -17,7 +17,7 @@ const safeFile = require('./safeFile');
  * - Strict authentication against Native accounts only
  */
 
-const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.nativelaunch.xyz').replace(/\/+$/, '');
+const REMOTE_ROOT = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.fun').replace(/\/+$/, '');
 // A local/self-hosted API is only used when explicitly configured. Never send
 // the session token to whatever happens to listen on localhost.
 const LOCAL_ROOT = process.env.NATIVE_LOCAL_API ? String(process.env.NATIVE_LOCAL_API).replace(/\/+$/, '') : null;

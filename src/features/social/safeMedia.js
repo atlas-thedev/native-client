@@ -7,7 +7,7 @@
 const GIPHY_GIF = /^https:\/\/(?:media\d?|i)\.giphy\.com\/media\/[A-Za-z0-9]{6,40}\/giphy\.gif$/;
 const NATIVE_MEDIA_PATH = /^\/v1\/social\/media\/[a-f0-9]{32}\.[a-z0-9]{2,4}$/;
 // Only our own API hosts (plus a local dev server) may serve attachments.
-const NATIVE_MEDIA_HOSTS = new Set(['api.nativelaunch.xyz', 'localhost', '127.0.0.1', '[::1]']);
+const NATIVE_MEDIA_HOSTS = new Set(['api.playnative.fun', 'api.nativelaunch.xyz', 'localhost', '127.0.0.1', '[::1]']);
 
 export function safeMediaUrl(value) {
   const raw = String(value || '').trim();
@@ -20,7 +20,9 @@ export function safeMediaUrl(value) {
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
     if (url.username || url.password || url.search || url.hash) return null;
     if (!NATIVE_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
-    if (url.protocol === 'http:' && url.hostname === 'api.nativelaunch.xyz') return null;
+    if (url.protocol === 'http:' && /^api\.(?:playnative\.fun|nativelaunch\.xyz)$/i.test(url.hostname)) return null;
+    // Messages sent before the move still point at the old domain; load them from the new one.
+    if (url.hostname.toLowerCase() === 'api.nativelaunch.xyz') url.hostname = 'api.playnative.fun';
     return NATIVE_MEDIA_PATH.test(url.pathname) ? url.href : null;
   } catch {
     return null;

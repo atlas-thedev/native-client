@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
  * launcher update. The manifest overrides the built-in URLs when available.
  */
 
-export const GUIDE_MEDIA_ROOT = 'https://api.nativelaunch.xyz/guides';
+export const GUIDE_MEDIA_ROOT = 'https://api.playnative.fun/guides';
 const MANIFEST_URL = `${GUIDE_MEDIA_ROOT}/manifest.json`;
 
 export const GUIDE_CATEGORIES = [
@@ -265,7 +265,7 @@ export function loadGuideManifest() {
   return manifestPromise;
 }
 
-const SAFE_MEDIA = /^https:\/\/api\.nativelaunch\.xyz\/guides\/[A-Za-z0-9._-]+\.(?:mp4|webm|jpg|png|webp|vtt)$/;
+const SAFE_MEDIA = /^https:\/\/api\.(?:playnative\.fun|nativelaunch\.xyz)\/guides\/[A-Za-z0-9._-]+\.(?:mp4|webm|jpg|png|webp|vtt)$/;
 
 function cleanVideo(id, entry) {
   const base = defaultVideo(id);
