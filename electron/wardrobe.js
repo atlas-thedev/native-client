@@ -1011,6 +1011,29 @@ async function toggleStoreWish(account, itemId, on) {
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t update your wishlist (HTTP ${response.status}).`);
   return { wishlist: Array.isArray(body.wishlist) ? body.wishlist : [] };
 }
+function communityAccount(account) {
+  const resolved = resolveBillingAccount(account);
+  return resolved?.token && !isMicrosoftAccount(resolved) && !isLocalOnlyAccount(resolved) ? resolved : null;
+}
+async function fetchCommunityPolls(account) {
+  if (!isOnline()) throw new Error('You’re offline. Connect to the internet to see community votes.');
+  const signed = communityAccount(account);
+  const response = await fetch(`${apiRoot()}/v1/polls`, { headers: signed ? storeHeaders(signed) : {}, signal: AbortSignal.timeout(10_000) });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load the community votes (HTTP ${response.status}).`);
+  return { signedIn: Boolean(body.signedIn), polls: Array.isArray(body.polls) ? body.polls : [] };
+}
+async function voteCommunityPoll(account, pollId, optionId) {
+  const signed = communityAccount(account);
+  if (!signed) throw new Error('Sign in with a Native account to vote.');
+  if (!/^[a-f0-9]{6,24}$/.test(pollId) || !/^[a-f0-9]{6,24}$/.test(optionId)) throw new Error('Pick an option.');
+  const response = await fetch(`${apiRoot()}/v1/polls/${pollId}/vote`, { method: 'POST', headers: storeHeaders(signed), body: JSON.stringify({ optionId }), signal: AbortSignal.timeout(10_000) });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  if (!response.ok || body.ok === false) throw new Error(body.error || `That vote didn’t go through (HTTP ${response.status}).`);
+  return { poll: body.poll || null };
+}
 async function setStorePrefs(account, prefs) {
   requireStoreAccount(account);
   const response = await fetch(`${apiRoot()}/v1/store/prefs`, { method: 'POST', headers: storeHeaders(account), body: JSON.stringify(prefs || {}), signal: AbortSignal.timeout(10_000) });
@@ -1994,6 +2017,17 @@ function init(dependencies, ipcMain) {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('admin:cosmeticAsset', async (_event, item) => {
+    try { return { ok: true, ...(await fetchAdminCosmetic(item || {})) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  // Community votes (same as the website's /vote page): read with or without an account, vote with a Native one.
+  ipc.handle('community:polls', async (_event, account) => {
+    try { return { ok: true, ...(await fetchCommunityPolls(account)) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('community:vote', async (_event, { account, pollId, optionId } = {}) => {
+    try { return { ok: true, ...(await voteCommunityPoll(account, String(pollId || ''), String(optionId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  // 3D preview of a vote option's cosmetic (concept pieces may still be hidden in the Store)
+  ipc.handle('community:cosmetic', async (_event, item) => {
     try { return { ok: true, ...(await fetchAdminCosmetic(item || {})) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:cosmetic', async (_event, itemId) => {

@@ -415,6 +415,18 @@ function publicItem(item, textureBase, counts) {
   };
 }
 
+/** A Store item as shown on a community vote option (hidden concept pieces included). */
+function pollItem(id, textureBase) {
+  const item = findItem(String(id || ''));
+  if (!item) return null;
+  const v = publicItem(item, textureBase);
+  return {
+    id: v.id, name: v.name, kind: v.kind, slot: v.slot || null, hidden: v.hidden, exclusive: v.exclusive, price: v.price,
+    animated: v.animated, frames: v.frames, fps: v.fps, stripUrl: v.stripUrl, stillUrl: v.stillUrl,
+    modelUrl: v.modelUrl || null, textureUrl: v.textureUrl || null, motion: Boolean(v.motion)
+  };
+}
+
 /** The launcher's store hero rotates through at most this many featured capes. */
 const MAX_FEATURED = 5;
 /** Featured items are counted per section (capes, hats, glasses, ...). */
@@ -1145,4 +1157,4 @@ function bundleSales(bundleId) {
 /** Test hook: forget the in-memory catalogue (it is re-read from disk). */
 function resetCatalog() { catalog = null; }
 
-module.exports = { findBundle, allBundles, quoteBundle, bundleOnSale: (bundle, q) => bundles.onSale(bundle, q), dyedTexture, setTextureReader, wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, staticStoreCape, owns, grant, resetCatalog };
+module.exports = { pollItem, findBundle, allBundles, quoteBundle, bundleOnSale: (bundle, q) => bundles.onSale(bundle, q), dyedTexture, setTextureReader, wearingOf, setPrices, MAX_FEATURED, handleStoreRoutes, ensureCatalog, animationFor, authorizeAnimation, findItem, allItems, grantPlusCapes, isStoreStill, capeAllowed, staticStoreCape, owns, grant, resetCatalog };

@@ -106,6 +106,29 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   r = await call('PATCH', `/v1/admin/polls/${poll.id}`, { status: 'closed' }, admin);
   assert.equal(r.status, 200);
   assert.equal((await call('POST', `/v1/polls/${poll.id}/vote`, { optionId: poll.options[0].id }, user)).status, 410);
+  // closed: the most-voted option wins, the admin can name another, and Store items show on options
+  r = await json('/v1/polls');
+  assert.equal(r.body.polls[0].winnerId, poll.options[1].id);
+  r = await call('PATCH', `/v1/admin/polls/${poll.id}`, { winnerOptionId: poll.options[0].id }, admin);
+  assert.equal(r.body.polls[0].winnerId, poll.options[0].id);
+  assert.equal(r.body.polls[0].winnerPicked, true);
+  assert.equal((await call('PATCH', `/v1/admin/polls/${poll.id}`, { winnerOptionId: 'nope00' }, admin)).status, 400);
+  const allItems = (await json('/v1/store/catalog')).body.items;
+  const cos = allItems.find((i) => i.kind === 'cosmetic') || allItems.find((i) => !ids.includes(i.id));
+  if (cos) {
+    r = await call('POST', '/v1/admin/polls', { title: 'Next hat', kind: 'cosmetic', options: [{ itemId: cos.id }, { label: 'Other' }] }, admin);
+    assert.equal(r.status, 200);
+    const made = r.body.polls[0];
+    assert.equal(made.options[0].label, cos.name);
+    assert.equal(made.options[0].item.id, cos.id);
+    assert.ok(made.options[0].item.kind === 'cosmetic' ? made.options[0].item.modelUrl : made.options[0].image);
+    assert.equal(made.winnerId, null);
+    // founder gifts may be cosmetics too
+    r = await call('POST', '/v1/admin/site', { launch: { founderCapes: [...ids, cos.id] } }, admin);
+    assert.ok(r.body.config.launch.founderCapes.includes(cos.id));
+    r = await call('POST', '/v1/admin/site', { launch: { founderCapes: ids } }, admin);
+  }
+  assert.equal((await call('POST', '/v1/admin/polls', { title: 'Bad', options: [{ itemId: 'no-such-item' }, { label: 'B' }] }, admin)).status, 400);
 
   // launch: unlock
   r = await call('POST', '/v1/admin/site', { launch: { prelaunch: false } }, admin);

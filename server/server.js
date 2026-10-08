@@ -490,6 +490,7 @@ async function handler(req, res) {
         findItem: storeRoutes.findItem,
         allItems: storeRoutes.allItems,
         storeTexture: textureHash,
+        itemView: (id, textureBase) => storeRoutes.pollItem(id, textureBase),
         grant: (userId, itemId, source) => billing.grantItem(userId, itemId, source),
         setPrices: storeRoutes.setPrices,
         onGrant: (user, item) => events.publish(user.id, 'wardrobe:changed', { userId: user.id, name: user.username, capeStore: readProfile(user.username)?.capeStore || null, owned: true })

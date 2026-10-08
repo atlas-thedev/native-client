@@ -242,7 +242,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['sales', 'Sales', null],
     ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
     ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
-    ['votes', 'Votes', siteDoc?.overview?.openPolls ? `${siteDoc.overview.openPolls} open` : null],
+    ['votes', 'Community votes', siteDoc?.overview?.openPolls ? `${siteDoc.overview.openPolls} open` : null],
     ['beta', 'Beta', null],
     ['domains', 'Domains', null]
   ];
@@ -291,7 +291,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       ) : section === 'offers' ? (
         <AdminOffers doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'votes' ? (
-        <AdminVotes onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+        <AdminVotes items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'bundles' ? (
         <AdminBundles items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'sales' ? (

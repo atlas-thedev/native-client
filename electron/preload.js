@@ -94,6 +94,11 @@ const api = {
     wish: (account, itemId, on) => ipcRenderer.invoke('store:wish', { account, itemId, on }),
     prefs: (account, prefs) => ipcRenderer.invoke('store:prefs', { account, prefs })
   },
+  community: {
+    polls: (account) => ipcRenderer.invoke('community:polls', account),
+    vote: (account, pollId, optionId) => ipcRenderer.invoke('community:vote', { account, pollId, optionId }),
+    cosmetic: (item) => ipcRenderer.invoke('community:cosmetic', item)
+  },
   billing: {
     config: () => ipcRenderer.invoke('billing:config'),
     me: (account) => ipcRenderer.invoke('billing:me', account),

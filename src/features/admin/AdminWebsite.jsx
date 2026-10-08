@@ -18,9 +18,10 @@ function Countdown({ at }) {
   );
 }
 
-/** Website controls: launch, countdown and locks, founder capes, maintenance screen and the announcement bar. */
+/** Website controls: launch, countdown and locks, founder gifts, maintenance screen and the announcement bar. */
 export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onAccessRevoked }) {
   const { busy, error, run } = useAdminAction(onNotify, 'Website');
+  const [giftKind, setGiftKind] = useState('all');
   const { armed, ask } = useConfirm();
   const [launch, setLaunch] = useState(doc?.settings?.launch || null);
   const [maintenance, setMaintenance] = useState(doc?.settings?.maintenance || null);
@@ -41,7 +42,12 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
   const maintenanceDirty = JSON.stringify(maintenance) !== JSON.stringify(doc.settings.maintenance);
   const bannerDirty = JSON.stringify(banner) !== JSON.stringify(doc.settings.announcement);
   const setL = (key, value) => setLaunch((current) => ({ ...current, [key]: value }));
-  const sellable = (items || []).filter((item) => !item.exclusive && !isCosmetic(item));
+  // Founder gift: any visible Store item — a cloak or a cosmetic. Picked ones always stay listed.
+  const picked = launch.founderCapes || [];
+  const giftable = (items || []).filter((item) => (!item.hidden || picked.includes(item.id))
+    && (giftKind === 'all' || (giftKind === 'cosmetic' ? isCosmetic(item) : !isCosmetic(item))));
+  const giftCounts = { all: 0, cape: 0, cosmetic: 0 };
+  for (const id of picked) { const it = (items || []).find((entry) => entry.id === id); if (it) giftCounts[isCosmetic(it) ? 'cosmetic' : 'cape'] += 1; }
   const saveBtn = (dirty, key, onClick, label = 'Save changes') => (
     <button type="button" className="admin-btn primary" disabled={!dirty || Boolean(busy)} onClick={onClick}>
       {busy === key ? <LoaderCircle size={13} className="is-spinning" /> : <Save size={13} />}{label}
@@ -57,7 +63,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
           <h3><Rocket size={14} />Launch status</h3>
           <span className={`admin-chip ${live.prelaunch ? 'is-test' : 'is-live'}`}>{live.prelaunch ? 'Pre-launch' : 'Live'}</span>
         </div>
-        <p className="admin-note">{live.prelaunch ? 'The website is in pre-launch mode: countdown hero, sign-ups and founder capes.' : 'Native is live. The countdown is gone and the store and downloads are open.'}</p>
+        <p className="admin-note">{live.prelaunch ? 'The website is in pre-launch mode: countdown hero, sign-ups and founder gifts.' : 'Native is live. The countdown is gone and the store and downloads are open.'}</p>
         {live.prelaunch && live.at ? <Countdown at={live.at} /> : null}
         <div className="admin-row-actions">
           {live.prelaunch ? (
@@ -117,14 +123,19 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
 
         <section className="admin-card is-wide">
           <div className="admin-card-head">
-            <h3><Rocket size={14} />Founder cape</h3>
-            <span>{(launch.founderCapes || []).length}/6 picked</span>
+            <h3><Rocket size={14} />Founder gift</h3>
+            <span>{picked.length}/6 picked{picked.length ? ` · ${giftCounts.cape} cloak${giftCounts.cape === 1 ? '' : 's'}, ${giftCounts.cosmetic} cosmetic${giftCounts.cosmetic === 1 ? '' : 's'}` : ''}</span>
             <span className="admin-head-spacer" />
-            {saveBtn(launchDirty, 'founder', () => post({ launch }, 'founder', 'Founder capes saved.'))}
+            {saveBtn(launchDirty, 'founder', () => post({ launch }, 'founder', 'Founder gifts saved.'))}
           </div>
-          <p className="admin-note">Accounts created before launch pick ONE of these for free (up to 6). Everyone else buys them.</p>
-          <AdminSwitch on={launch.founderPick} onChange={(v) => setL('founderPick', v)} label="Free founder cape for pre-launch accounts" />
-          <AdminPicker items={sellable} strips={strips} value={launch.founderCapes || []} onChange={(v) => setL('founderCapes', v)} max={6} empty="No buyable capes yet." />
+          <p className="admin-note">Accounts created before launch pick ONE of these for free (up to 6) — cloaks or cosmetics. Change them any time; players who already picked keep theirs.</p>
+          <AdminSwitch on={launch.founderPick} onChange={(v) => setL('founderPick', v)} label="Free founder gift for pre-launch accounts" />
+          <div className="admin-filters">
+            {[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']].map(([id, label]) => (
+              <button key={id} type="button" className={giftKind === id ? 'active' : ''} onClick={() => setGiftKind(id)}>{label}</button>
+            ))}
+          </div>
+          <AdminPicker items={giftable} strips={strips} value={picked} onChange={(v) => setL('founderCapes', v)} max={6} empty={giftKind === 'cosmetic' ? 'No cosmetics in the Store yet.' : 'No Store items yet.'} />
         </section>
       </div>
     </div>

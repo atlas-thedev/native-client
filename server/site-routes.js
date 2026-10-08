@@ -8,7 +8,7 @@
  *   GET  /v1/polls                       community votes (Bearer optional: adds your vote)
  * Signed in
  *   GET  /v1/site/founder                { eligible, picked, capes }
- *   POST /v1/site/founder                { itemId }  pick the one free founder cape
+ *   POST /v1/site/founder                { itemId }  pick the one free founder gift (a cape or a cosmetic)
  *   POST /v1/polls/:id/vote              { optionId }  vote (you may change it while the vote is open)
  * Admin (session with is_admin)
  *   GET  /v1/admin/site                  settings + overview numbers
@@ -16,7 +16,8 @@
  *   POST /v1/admin/site/offers           create an offer        PATCH/DELETE /v1/admin/site/offers/:id
  *   POST /v1/admin/site/prices           { price, itemIds? }  set the price of many capes at once
  *   GET  /v1/admin/polls                 every vote with full results
- *   POST /v1/admin/polls                 create                 PATCH/DELETE /v1/admin/polls/:id
+ *   POST /v1/admin/polls                 create (options may be Store items: { itemId })
+ *   PATCH/DELETE /v1/admin/polls/:id     PATCH { status?, winnerOptionId?, resetVotes?, ... }
  */
 const crypto = require('crypto');
 const db = require('./db');
@@ -69,6 +70,10 @@ function sql() {
         poll_id TEXT NOT NULL, user_id TEXT NOT NULL, option_id TEXT NOT NULL, voted_at INTEGER NOT NULL,
         PRIMARY KEY (poll_id, user_id));
       CREATE INDEX IF NOT EXISTS idx_poll_votes_option ON poll_votes(option_id);`);
+    // later columns: an option can be a real Store item; the admin can name the winner
+    const cols = (table) => new Set(h.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    if (!cols('poll_options').has('item_id')) h.exec('ALTER TABLE poll_options ADD COLUMN item_id TEXT');
+    if (!cols('polls').has('winner_option_id')) h.exec('ALTER TABLE polls ADD COLUMN winner_option_id TEXT');
     ready = true;
   }
   return h;
@@ -171,15 +176,32 @@ function pollDoc(p, textureBase, userId, admin = false) {
   const mine = userId ? sql().prepare('SELECT option_id FROM poll_votes WHERE poll_id = ? AND user_id = ?').get(p.id, String(userId))?.option_id || null : null;
   const open = pollOpen(p);
   const show = admin || p.results === 'always' || (p.results === 'after_vote' && (mine || !open)) || (p.results === 'after_close' && !open);
+  const winnerId = !open && p.status !== 'draft' ? winnerOf(p, options, counts) : null;
   return {
     id: p.id, title: p.title, description: p.description, kind: p.kind, status: open ? 'open' : 'closed', rawStatus: p.status,
     results: p.results, endsAt: p.ends_at || null, createdAt: p.created_at, myVote: mine, total: show ? total : null, showResults: show,
-    options: options.map((o) => ({
-      id: o.id, label: o.label, description: o.description,
-      image: o.image ? (/^[a-f0-9]{64}$/.test(o.image) ? `${textureBase}${o.image}` : o.image) : null,
-      votes: show ? (counts.get(o.id) || 0) : null
-    }))
+    winnerId, winnerPicked: Boolean(winnerId && p.winner_option_id === winnerId),
+    options: options.map((o) => {
+      const item = o.item_id && hooks.itemView ? hooks.itemView(o.item_id, textureBase) : null;
+      return {
+        id: o.id, label: o.label, description: o.description,
+        image: o.image ? (/^[a-f0-9]{64}$/.test(o.image) ? `${textureBase}${o.image}` : o.image) : (item && item.kind !== 'cosmetic' ? item.stillUrl : null),
+        itemId: o.item_id || null, item,
+        votes: show ? (counts.get(o.id) || 0) : null
+      };
+    })
   };
+}
+
+/** The admin's pick, else the option with the most votes (no winner on a tie or with no votes). */
+function winnerOf(p, options, counts) {
+  if (p.winner_option_id && options.some((o) => o.id === p.winner_option_id)) return p.winner_option_id;
+  let best = null; let top = 0; let tie = false;
+  for (const o of options) {
+    const n = counts.get(o.id) || 0;
+    if (n > top) { best = o.id; top = n; tie = false; } else if (n === top && n > 0) tie = true;
+  }
+  return best && !tie ? best : null;
 }
 
 function optionImage(value) {
@@ -209,7 +231,7 @@ function applyLaunch(prev, b) {
   }
   for (const k of ['prelaunch', 'lockStore', 'lockDownloads', 'founderPick']) next[k] = bool(b[k], prev[k]);
   if (b.founderCapes !== undefined) {
-    const ids = (Array.isArray(b.founderCapes) ? b.founderCapes : []).map(String).filter((id) => { const it = hooks.findItem(id); return it && it.kind !== 'cosmetic'; });
+    const ids = (Array.isArray(b.founderCapes) ? b.founderCapes : []).map(String).filter((id) => { return Boolean(hooks.findItem(id)); });
     next.founderCapes = [...new Set(ids)].slice(0, 6);
   }
   if (b.headline !== undefined) next.headline = clean(b.headline, 80);
@@ -360,9 +382,12 @@ async function handleSiteRoutes(req, res, ctx) {
         const opts = Array.isArray(body.options) ? body.options : [];
         if (opts.length < 2 || opts.length > 8) return fail(400, 'A vote needs 2-8 options.');
         const prepared = opts.map((o, i) => {
-          const label = clean(o?.label, 40);
+          const itemId = o?.itemId ? String(o.itemId).slice(0, 80) : null;
+          const item = itemId ? hooks.findItem(itemId) : null;
+          if (itemId && !item) throw new Error(`Option ${i + 1}: that Store item no longer exists.`);
+          const label = clean(o?.label, 40) || clean(item?.name, 40);
           if (!label) throw new Error(`Option ${i + 1} needs a name.`);
-          return { id: ID(), label, description: clean(o?.description, 200), image: optionImage(o?.image), position: i };
+          return { id: ID(), label, description: clean(o?.description, 200) || clean(item?.description, 200), image: optionImage(o?.image), itemId: item ? item.id : null, position: i };
         });
         const endsAt = timeOf(body.endsAt);
         if (endsAt === undefined) return fail(400, 'Invalid end date.');
@@ -372,8 +397,8 @@ async function handleSiteRoutes(req, res, ctx) {
         const status = body.status === 'draft' ? 'draft' : 'open';
         sql().prepare('INSERT INTO polls (id, title, description, kind, status, results, ends_at, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
           .run(id, title, clean(body.description, 500), clean(body.kind, 20) || 'cape', status, results, endsAt, String(user.id), now, now);
-        const ins = sql().prepare('INSERT INTO poll_options (id, poll_id, label, description, image, position) VALUES (?, ?, ?, ?, ?, ?)');
-        for (const o of prepared) ins.run(o.id, id, o.label, o.description, o.image, o.position);
+        const ins = sql().prepare('INSERT INTO poll_options (id, poll_id, label, description, image, item_id, position) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        for (const o of prepared) ins.run(o.id, id, o.label, o.description, o.image, o.itemId, o.position);
         send(res, 200, { ok: true, polls: allPolls() }, noStore);
         return true;
       }
@@ -391,6 +416,11 @@ async function handleSiteRoutes(req, res, ctx) {
           sql().prepare('UPDATE polls SET title = ?, description = ?, status = ?, results = ?, ends_at = ?, updated_at = ? WHERE id = ?')
             .run(next.title, next.description, next.status, next.results, next.ends_at, Date.now(), row.id);
           if (body.resetVotes === true) sql().prepare('DELETE FROM poll_votes WHERE poll_id = ?').run(row.id);
+          if (body.winnerOptionId !== undefined) {
+            const pick = body.winnerOptionId ? sql().prepare('SELECT id FROM poll_options WHERE id = ? AND poll_id = ?').get(String(body.winnerOptionId), row.id) : null;
+            if (body.winnerOptionId && !pick) return fail(400, 'That option is not part of this vote.');
+            sql().prepare('UPDATE polls SET winner_option_id = ? WHERE id = ?').run(pick ? pick.id : null, row.id);
+          }
           send(res, 200, { ok: true, polls: allPolls() }, noStore);
           return true;
         }
