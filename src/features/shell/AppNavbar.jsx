@@ -62,7 +62,7 @@ function deriveUpdatePill(status, t) {
   const type = status?.type;
   switch (type) {
     case 'checking':
-      return { variant: 'checking', Icon: RefreshCw, spin: true, label: t('update.checking'), tooltip: t('update.checking') };
+      return { variant: 'checking', Icon: RefreshCw, spin: false, label: t('update.checking'), tooltip: t('update.checking') };
     case 'available': {
       const label = t('update.pillAvailable');
       const version = status.version || null;
@@ -77,7 +77,7 @@ function deriveUpdatePill(status, t) {
     case 'downloaded':
     case 'installing': {
       const label = t('update.pillReady');
-      return { variant: 'ready', Icon: RefreshCw, spin: type === 'installing', label, tooltip: label };
+      return { variant: 'ready', Icon: RefreshCw, spin: false, label, tooltip: label };
     }
     default:
       return null;
