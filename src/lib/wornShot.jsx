@@ -59,6 +59,8 @@ const tag = (value) => {
   for (let i = 0; i < text.length; i += step) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
   return `${text.length.toString(36)}${(h >>> 0).toString(36)}`;
 };
+/** A drawing that hangs (an image that never loads) must not block every picture queued after it. */
+const capped = (promise, ms = 12000) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 export const shotKey = (item, asset, skinUrl, model) => `${VERSION}|${item?.id}|${tag(asset?.texture)}${tag(JSON.stringify(asset?.model || ''))}|${tag(skinUrl)}|${model}`;
 
 /* ---------- drawing ---------- */
@@ -202,7 +204,7 @@ export function wornShot({ item, asset, skinUrl, model, prepare }) {
     const saved = await readSaved(key);
     if (saved) { memory.set(key, saved); return saved; }
     // one picture at a time keeps the shared viewer simple and the UI smooth
-    const run = chain.then(() => draw(item, asset, skinUrl, model, prepare));
+    const run = chain.then(() => capped(draw(item, asset, skinUrl, model, prepare)));
     chain = run.catch(() => {});
     const url = await run;
     if (url) { memory.set(key, url); writeSaved(key, url); }
@@ -334,7 +336,7 @@ export function outfitShot({ pieces = [], cape = null, skinUrl, model, prepare }
   const job = (async () => {
     const saved = await readSaved(key);
     if (saved) { memory.set(key, saved); return saved; }
-    const run = chain.then(() => drawOutfit(usable, cape, skinUrl, model, prepare));
+    const run = chain.then(() => capped(drawOutfit(usable, cape, skinUrl, model, prepare), 15000));
     chain = run.catch(() => {});
     const url = await run;
     if (url) { memory.set(key, url); writeSaved(key, url); }
