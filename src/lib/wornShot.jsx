@@ -11,7 +11,7 @@ import alexSkin from '../assets/alex.png';
  */
 
 const SIZE = 288;
-const VERSION = 'v5';
+const VERSION = 'v6';
 const memory = new Map(); // key -> data URL
 const waiting = new Map(); // key -> Promise
 let chain = Promise.resolve();
@@ -60,6 +60,24 @@ const tag = (value) => {
   return `${text.length.toString(36)}${(h >>> 0).toString(36)}`;
 };
 /** A drawing that hangs (an image that never loads) must not block every picture queued after it. */
+/** The picture on the stage, or null if it came out empty (lost GPU context), so a blank is never cached. */
+function snapshot(viewer) {
+  const gl = viewer.renderer?.getContext?.();
+  if (!gl || gl.isContextLost?.()) { stage = null; return null; }
+  const url = viewer.canvas.toDataURL('image/png');
+  try {
+    const w = viewer.canvas.width, h = viewer.canvas.height;
+    const px = new Uint8Array(4 * 64);
+    // sample a coarse grid of pixels; any non-transparent one means something was drawn
+    let seen = false;
+    for (let i = 0; i < 64 && !seen; i++) {
+      gl.readPixels(Math.floor(((i % 8) + 0.5) * w / 8), Math.floor((Math.floor(i / 8) + 0.5) * h / 8), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px.subarray(i * 4, i * 4 + 4));
+      if (px[i * 4 + 3]) seen = true;
+    }
+    if (!seen) return url.length > 3000 ? url : null;
+  } catch { /* reading back is only a check */ }
+  return url;
+}
 const capped = (promise, ms = 12000) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 export const shotKey = (item, asset, skinUrl, model) => `${VERSION}|${item?.id}|${tag(asset?.texture)}${tag(JSON.stringify(asset?.model || ''))}|${tag(skinUrl)}|${model}`;
 
@@ -74,7 +92,10 @@ async function getStage() {
   viewer.animation = null;
   if (viewer.controls) { viewer.controls.enabled = false; }
   viewer.renderPaused = true;
-  stage = { viewer, THREE, ncm, skinKey: null };
+  const mine = { viewer, THREE, ncm, skinKey: null };
+  // If the GPU drops this context (too many 3D views open), build a fresh stage for the next picture.
+  canvas.addEventListener('webglcontextlost', (event) => { event.preventDefault(); if (stage === mine) stage = null; try { viewer.dispose(); } catch {} }, { once: true });
+  stage = mine;
   return stage;
 }
 
@@ -182,7 +203,7 @@ async function draw(item, asset, skinUrl, model, prepare) {
     if (viewer.playerObject.cape) viewer.playerObject.cape.visible = false;
     frameShot(viewer, THREE, built);
     viewer.render();
-    return viewer.canvas.toDataURL('image/png');
+    return snapshot(viewer);
   } finally {
     built.dispose();
   }
@@ -313,7 +334,7 @@ async function drawOutfit(pieces, cape, skinUrl, model, prepare) {
     for (const [part, x, y, z] of pose) part?.rotation.set(x, y, z);
     frameOutfit(viewer, THREE, back ? 0.95 : 0.42);
     viewer.render();
-    return viewer.canvas.toDataURL('image/png');
+    return snapshot(viewer);
   } finally {
     built.forEach((b) => { try { b.dispose(); } catch {} });
     for (const [part] of pose) part?.rotation.set(0, 0, 0);
@@ -349,7 +370,10 @@ export function outfitShot({ pieces = [], cape = null, skinUrl, model, prepare }
 /** `<img>` of a whole look; waits until every piece's model has loaded (`ready`) so the shot is drawn once, complete. */
 export function OutfitShot({ pieces, cape, skinUrl, model, prepare, ready = true, className = '', alt = '' }) {
   const usable = (pieces || []).filter(({ item, asset }) => item && asset?.model && asset?.texture);
-  const key = ready && (usable.length || cape) ? outfitKey(usable, cape, skinUrl, model) : null;
+  // a piece that never loads must not keep the picture empty: after a few seconds, draw what we have
+  const [waited, setWaited] = useState(false);
+  useEffect(() => { if (ready) return undefined; const t = setTimeout(() => setWaited(true), 6000); return () => clearTimeout(t); }, [ready]);
+  const key = (ready || waited) && (usable.length || cape) ? outfitKey(usable, cape, skinUrl, model) : null;
   const [url, setUrl] = useState(() => (key ? memory.get(key) || null : null));
   useEffect(() => {
     if (!key) { setUrl(null); return undefined; }

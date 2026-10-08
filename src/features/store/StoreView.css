@@ -527,3 +527,17 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-dye-swatch.is-own::after { content: ''; position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 2px; background: #fff; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
 .store-dye-note { flex-basis: 100%; font: 600 11.5px var(--font-sans); color: var(--fg-muted, #8b8b95); }
 @media (prefers-reduced-motion: reduce) { .store-dye-swatch { transition: none; } }
+
+/* 3D viewer controls: same round buttons as the locker */
+.store-viewer-actions { position: absolute !important; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 14px; pointer-events: none; }
+.store-viewer-actions > div { display: flex; gap: 6px; pointer-events: auto; }
+.store-viewer-actions button {
+  display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--lk-line-strong, rgba(255, 255, 255, 0.14)); border-radius: var(--radius-full, 999px);
+  background: var(--lk-well, #0b0b0c); color: var(--fg-muted); cursor: pointer;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.store-viewer-actions button:hover:not(:disabled) { background: var(--lk-raise, #1c1c20); color: var(--fg-primary-hover, #fff); }
+.store-viewer-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
+.store-viewer-stage .store-viewer-nav { bottom: 60px; }
+.store-viewer-stage .store-viewer-hint { bottom: 64px; }
