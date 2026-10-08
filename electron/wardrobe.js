@@ -1052,7 +1052,7 @@ function openBillingPage(url) {
   let parsed = null;
   try { parsed = new URL(String(url || '')); } catch { return false; }
   const host = parsed.hostname.toLowerCase();
-  const allowed = parsed.protocol === 'https:' && (host === 'playnative.fun' || host.endsWith('.playnative.fun') || host === 'nativelaunch.xyz' || host.endsWith('.nativelaunch.xyz') || host === 'tebex.io' || host.endsWith('.tebex.io'));
+  const allowed = parsed.protocol === 'https:' && (require('./siteUrl').isSiteHost(host) || host === 'tebex.io' || host.endsWith('.tebex.io'));
   if (!allowed) return false;
   shell.openExternal(parsed.toString());
   return true;

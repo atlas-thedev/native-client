@@ -3,6 +3,7 @@ import { OwnedMark } from './RarityBadges.jsx';
 import { BundlesPage, BundleShelf, bundleColor } from './BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { siteUrl } from '../../lib/siteUrl.js';
 import { announcePlus } from '../../lib/usePlus.js';
 import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
@@ -394,12 +395,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     );
   };
 
-  const shareUrl = (item) => `https://playnative.fun/${isCosmetic(item) ? 'cosmetics' : 'cloaks'}/${encodeURIComponent(item.id)}`;
+  const shareUrl = (item) => `${siteUrl()}/${isCosmetic(item) ? 'cosmetics' : 'cloaks'}/${encodeURIComponent(item.id)}`;
   const copyLink = async (item) => {
     try { await navigator.clipboard.writeText(shareUrl(item)); onNotify?.('Store', `Link to ${item.name} copied. Paste it anywhere to show it off.`); }
     catch { window.native?.openExternal?.(shareUrl(item)); }
   };
-  const myProfileUrl = () => `https://playnative.fun/u/${encodeURIComponent(account?.name || account?.username || '')}`;
+  const myProfileUrl = () => `${siteUrl()}/u/${encodeURIComponent(account?.name || account?.username || '')}`;
 
   // Every purchase first asks where to pay: a checkout window inside the launcher, or the web browser.
   const askPay = (key, request, info) => { if (!busy) setPayAsk({ key, request, info }); };

@@ -171,6 +171,7 @@ crashReporterMod.init({ app, getWin: () => win }, ipcMain);
 gameConsoleMod.init({ app, getWin: () => win }, ipcMain);
 mods.init({ app, getWin: () => win }, ipcMain);
 authMod.init({ app, getWin: () => win }, ipcMain);
+require('./siteUrl').init(ipcMain);
 settingsMod.init({ app }, ipcMain);
 javaMod.init({ app, getWin: () => win }, ipcMain);
 loadersMod.init({ app, getWin: () => win }, ipcMain);

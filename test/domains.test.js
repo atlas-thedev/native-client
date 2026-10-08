@@ -37,6 +37,7 @@ test('domain autopilot is admin-only, guards input, and drives site/email choice
     assert.equal(backend.status, 400);
     const primary = await (await call('GET', '/v1/domains/primary')).json();
     assert.equal(primary.api, 'https://api.nativelaunch.xyz');
+    assert.ok(primary.sites.includes('playnative.fun'));
     assert.equal(domains.siteUrl(), 'https://playnative.fun');
     assert.equal(domains.senderEmail(), 'noreply@playnative.fun');
     assert.equal(domains.cleanDomain('https://WWW.Example.com/path'), 'example.com');

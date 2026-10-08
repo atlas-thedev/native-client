@@ -285,7 +285,11 @@ function rebuildSite(domain) {
 async function handleDomainRoutes(req, res, ctx) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method === 'GET' && url.pathname === '/v1/domains/primary') {
-    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.nativelaunch.xyz' }, { 'Cache-Control': 'no-store' });
+    let sites = [];
+    try { sites = sql().prepare('SELECT name FROM domains WHERE website = 1').all().map((r) => r.name); } catch { /* db not ready */ }
+    try { sites.push(new URL(siteUrl()).hostname); } catch {}
+    sites = [...new Set(['playnative.fun', 'nativelaunch.xyz', ...sites])];
+    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.nativelaunch.xyz', sites }, { 'Cache-Control': 'max-age=300' });
     return true;
   }
   if (!url.pathname.startsWith('/v1/admin/domains')) return false;

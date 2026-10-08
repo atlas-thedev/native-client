@@ -9,8 +9,8 @@
 const { BrowserWindow, session } = require('electron');
 
 const PARTITION = 'native-checkout'; // not persisted: nothing payment-related outlives the launcher session
-// nativelaunch.xyz is the old domain; keep recognising it while it redirects.
-const isSite = (host) => ['playnative.fun', 'nativelaunch.xyz'].some((d) => host === d || host.endsWith(`.${d}`));
+// Any Native website domain (old, new, or set up in Admin → Domains).
+const isSite = (host) => require('./siteUrl').isSiteHost(host);
 const isTebex = (host) => host === 'tebex.io' || host.endsWith('.tebex.io');
 
 let prepared = false;
