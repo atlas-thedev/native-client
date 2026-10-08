@@ -204,3 +204,12 @@
   .bdl-hero, .bdl-card { animation: none; }
 }
 :root[data-motion='reduced'] .bdl-hero, :root[data-motion='reduced'] .bdl-card { animation: none; }
+
+/* Card: the bundle name first, then the player wearing every piece, then the price. */
+.bdl-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 10px; border-bottom: 2px solid color-mix(in srgb, var(--bc) 60%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--bc) 14%, transparent), transparent); }
+.bdl-card-head .bdl-rarity { flex: none; }
+.bdl-card-head .bdl-card-name strong { font-size: 15.5px; }
+.bdl-card-new { position: absolute; top: 10px; left: 10px; z-index: 1; }
+.bdl-card .bdl-card-meta { border-top: 0; padding-top: 10px; }
+.bdl-card-info { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: rgba(255, 255, 255, 0.55); font-size: 11px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.bdl-card .bdl-card-meta .bdl-price s { display: inline; }

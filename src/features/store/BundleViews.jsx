@@ -108,23 +108,21 @@ export function BundleCard({ bundle, pieces, mine, outfit, onOpen, active = fals
       onClick={onOpen}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
     >
+      <div className="bdl-card-head">
+        <div className="bdl-card-name">
+          <strong>{bundle.name}</strong>
+          <small>{bundle.tagline || `${pieces.length} items`}</small>
+        </div>
+        <RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
+      </div>
       <div className="bdl-card-art">
         {bundle.artUrl ? <img className="bdl-card-bg" src={bundle.artUrl} alt="" draggable={false} /> : <span className="bdl-card-glow" aria-hidden="true" />}
-        <OutfitShot {...outfit} className="bdl-card-shot" alt="" />
-        <div className="bdl-card-top">
-          <RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
-          {bundle.isNew && !ended && <span className="bdl-new">New</span>}
-        </div>
-        <div className="bdl-card-pieces" aria-hidden="true">
-          {pieces.slice(0, 6).map((item) => <i key={item.id} className={mine && !mine.toBuy?.includes(item.id) && mine.owned ? 'is-owned' : ''} />)}
-        </div>
+        <OutfitShot {...outfit} className="bdl-card-shot" alt={`${bundle.name}: every piece worn`} />
+        {bundle.isNew && !ended && <span className="bdl-new bdl-card-new">New</span>}
         {mine?.complete && <span className="bdl-card-owned"><Check size={11} strokeWidth={3} />Owned</span>}
       </div>
       <div className="bdl-card-meta">
-        <div className="bdl-card-name">
-          <strong>{bundle.name}</strong>
-          <small><Layers size={11} strokeWidth={2.4} aria-hidden="true" />{pieces.length} items{bundle.endsAt ? <> · <Countdown endsAt={bundle.endsAt} className="is-inline" /></> : null}</small>
-        </div>
+        <small className="bdl-card-info"><Layers size={11} strokeWidth={2.4} aria-hidden="true" />{pieces.length} items{bundle.endsAt && !ended ? <> · <Countdown endsAt={bundle.endsAt} className="is-inline" /></> : null}</small>
         {ended ? <span className="bdl-card-ended">Ended</span> : <BundlePrice bundle={bundle} mine={mine} size="sm" />}
       </div>
     </article>
@@ -170,17 +168,6 @@ export function BundlesPage({
           <div className="bdl-stage-title">
             <h2>{current.name}</h2>
             {current.tagline && <p>{current.tagline}</p>}
-          </div>
-          <div className="bdl-rail" role="list" aria-label="In this bundle">
-            {pieces.map((item) => {
-              const have = signedIn && ownedIds.has(item.id);
-              return (
-                <button key={item.id} type="button" role="listitem" className={`bdl-tile${have ? ' is-owned' : ''}`} title={`${item.name} · ${pieceType(item)}`} onClick={() => onOpenItem(item.id)}>
-                  {renderPieceArt(item, 'bdl-tile-art', `rail:${current.id}`)}
-                  {have && <span className="bdl-tile-check"><Check size={10} strokeWidth={3.2} /></span>}
-                </button>
-              );
-            })}
           </div>
         </div>
         <div className="bdl-panel">

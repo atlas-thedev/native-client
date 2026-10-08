@@ -1,4 +1,4 @@
-import { WornShot } from '../../lib/wornShot.jsx';
+import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, RarityTag, bundleColor, Countdown } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -895,23 +895,26 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         return <article key={`set:${bundle.id}`} className={`locker-set locker-pop${complete ? ' is-complete' : ''}${previewing ? ' is-trying' : ''}`} style={{ '--i': index, '--bc': color }}>
           <header className="locker-set-head">
             <div className="locker-set-title">
-              <RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
               <strong>{bundle.name}</strong>
               {bundle.tagline && <small>{bundle.tagline}</small>}
-              {!ended && bundle.endsAt && !complete && <Countdown endsAt={bundle.endsAt} className="locker-set-time"/>}
             </div>
             <div className="locker-set-count" title={`You own ${have} of ${pieces.length}`}>
               {complete ? <><Check size={12} strokeWidth={3}/>Complete</> : <><b>{have}</b>/{pieces.length}</>}
             </div>
           </header>
-          <div className="locker-set-pieces" style={{ '--n': pieces.length }}>
-            {pieces.map((item) => {
-              const mineHas = ownedIds.has(item.id);
-              return <span key={item.id} className={`locker-set-piece${mineHas ? ' is-owned' : ' is-locked'}`} title={mineHas ? item.name : `${item.name} · not in your locker yet`}>
-                {pieceArt(item)}
-                {!mineHas && <i className="locker-set-lock"><Lock size={10} strokeWidth={2.8}/></i>}
-              </span>;
-            })}
+          <div className="locker-set-look">
+            <span className="locker-set-tags"><RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>{!ended && bundle.endsAt && !complete && <Countdown endsAt={bundle.endsAt} className="locker-set-time"/>}</span>
+            <OutfitShot
+              pieces={pieces.filter((item) => item.kind === 'cosmetic').map((item) => ({ item, asset: ownedIds.has(item.id) ? dyedAsset(item.id) : cosAssets[item.id] }))}
+              cape={(() => { const cloak = pieces.find((item) => item.kind !== 'cosmetic'); return cloak ? { id: cloak.id, url: cloak.stillUrl } : null; })()}
+              skinUrl={shotSkin}
+              model={shotModel}
+              prepare={prepareSkinSource}
+              ready={pieces.every((item) => item.kind !== 'cosmetic' || cosAssets[item.id])}
+              className="locker-set-shot"
+              alt={`${bundle.name}: every piece worn`}
+            />
+            <span className="locker-set-owned">{pieces.map((item) => <i key={item.id} className={ownedIds.has(item.id) ? 'is-owned' : ''} title={`${item.name}${ownedIds.has(item.id) ? '' : ' · not in your locker yet'}`} />)}</span>
           </div>
           <div className="locker-set-bar" aria-hidden="true"><i style={{ width: `${(have / pieces.length) * 100}%` }}/></div>
           <div className="locker-set-actions">
