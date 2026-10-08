@@ -306,9 +306,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     if (dyeRequested.current.has(key)) return;
     dyeRequested.current.add(key);
     window.native?.store?.dyeTexture?.(id, color).then((res) => {
-      if (res?.ok) setDyeTex((current) => ({ ...current, [key]: res.texture }));
-      else dyeRequested.current.delete(key);
-    }).catch(() => { dyeRequested.current.delete(key); });
+      if (res?.ok && res.texture) { setDyeTex((current) => ({ ...current, [key]: res.texture })); return; }
+      dyeRequested.current.delete(key);
+      onNotify?.(t('locker.title'), res?.error || 'Couldn’t load that colour. Try again.');
+    }).catch((error) => { dyeRequested.current.delete(key); onNotify?.(t('locker.title'), error?.message || 'Couldn’t load that colour. Try again.'); });
   };
   const dyedAsset = (id) => {
     const asset = cosAssets[id];
