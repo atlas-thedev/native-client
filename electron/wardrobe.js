@@ -798,6 +798,28 @@ async function fetchStoreCosmetic(itemId) {
   const catalog = await fetchStoreCatalog();
   const item = catalog.items.find((entry) => entry.id === itemId);
   if (!item || item.kind !== 'cosmetic' || !item.modelUrl || !item.textureUrl) throw new Error('That cosmetic does not exist.');
+  return loadCosmeticAsset(item);
+}
+
+/** Only Native's own texture store is fetched for admin previews. */
+function isNativeTextureUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const root = new URL(apiRoot());
+    return url.origin === root.origin && url.pathname.startsWith('/csl/textures/');
+  } catch { return false; }
+}
+
+/** Model + texture (+ thumbnail) of an admin-listed cosmetic, hidden ones included. */
+async function fetchAdminCosmetic(item = {}) {
+  const entry = { id: String(item.id || ''), slot: String(item.slot || ''), modelUrl: item.modelUrl, textureUrl: item.textureUrl, stillUrl: item.stillUrl || null };
+  if (!entry.id || !isNativeTextureUrl(entry.modelUrl) || !isNativeTextureUrl(entry.textureUrl)) throw new Error('That cosmetic does not exist.');
+  if (entry.stillUrl && !isNativeTextureUrl(entry.stillUrl)) entry.stillUrl = null;
+  return loadCosmeticAsset(entry);
+}
+
+async function loadCosmeticAsset(item) {
+  const itemId = item.id;
   const key = `${item.modelUrl}|${item.textureUrl}|${item.stillUrl}`;
   const hit = cosmeticCache.get(itemId);
   if (hit && hit.key === key) return hit.value;
@@ -1955,6 +1977,9 @@ function init(dependencies, ipcMain) {
   });
   ipc.handle('store:strip', async (_event, itemId) => {
     try { return { ok: true, url: await fetchStoreStrip(String(itemId || '')) }; } catch (error) { return { ok: false, error: error.message }; }
+  });
+  ipc.handle('admin:cosmeticAsset', async (_event, item) => {
+    try { return { ok: true, ...(await fetchAdminCosmetic(item || {})) }; } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:cosmetic', async (_event, itemId) => {
     try { return { ok: true, ...(await fetchStoreCosmetic(String(itemId || ''))) }; } catch (error) { return { ok: false, error: error.message }; }

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import { BADGE_DEFS } from '../social/Badges.jsx';
-import AdminStore, { CapeThumb } from './AdminStore.jsx';
+import AdminStore, { ItemThumb } from './AdminStore.jsx';
 import AdminUserPanel from './AdminUserPanel.jsx';
 import AdminBeta from './AdminBeta.jsx';
 import AdminSales from './AdminSales.jsx';
@@ -71,7 +71,7 @@ function QuickGive({ items, strips, onNotify, onDone }) {
     <form className="admin-card admin-quick-give" onSubmit={give}>
       <div className="admin-card-head"><h3><Gift size={14} />Give a cape</h3><span>Goes straight to their locker</span></div>
       <div className="admin-quick-give-body">
-        <div className="admin-quick-give-art">{item ? <CapeThumb key={`${item.id}:${strips[item.id] ? 1 : 0}`} src={strips[item.id] || item.stillUrl} frames={strips[item.id] ? item.frames : 1} fps={item.fps} width={45} height={72} /> : <Shirt size={18} />}</div>
+        <div className="admin-quick-give-art">{item ? <ItemThumb item={item} strips={strips} width={45} height={72} /> : <Shirt size={18} />}</div>
         <div className="admin-quick-give-fields">
           <label className="admin-field"><span>Player</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Native username" maxLength={32} /></label>
           <label className="admin-field"><span>Cape</span>
@@ -203,7 +203,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
   const tabs = [
     ['overview', 'Overview', null],
     ['users', 'Users', pagination.total ? formatNumber(pagination.total) : null],
-    ['store', 'Capes', storeItems ? formatNumber(storeItems.length) : null],
+    ['store', 'Store', storeItems ? formatNumber(storeItems.length) : null],
     ['sales', 'Sales', null],
     ['beta', 'Beta', null]
   ];
@@ -213,7 +213,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       <header className="admin-header">
         <div className="admin-heading">
           <h1 className="admin-title page-title">Administration</h1>
-          <p className="admin-subtitle">Manage Native users, badges, Store cloaks, and database health.</p>
+          <p className="admin-subtitle">Manage Native users, badges, Store cloaks and cosmetics, and database health.</p>
         </div>
         <div className="admin-header-actions">
           <span className="admin-access-label"><i />Admin only</span>
@@ -246,7 +246,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
             <Kpi icon={<Users size={15} />} label="Registered players" value={formatNumber(overview?.users)} hint={overview ? `+${formatNumber(overview.newThisWeek)} this week` : '—'} onClick={() => { setUserFilter('all'); setSection('users'); }} />
             <Kpi icon={<Wifi size={15} />} label="Online now" value={formatNumber(overview?.onlineUsers)} hint={overview?.users ? `${Math.round(((overview.onlineUsers || 0) / overview.users) * 100)}% of players` : '—'} onClick={() => { setUserFilter('online'); setSection('users'); }} />
             <Kpi icon={<Activity size={15} />} label="Active sessions" value={formatNumber(overview?.activeSessions)} hint="Signed-in devices" />
-            <Kpi icon={<Shirt size={15} />} label="Capes in lockers" value={formatNumber(capeTotals.owners)} hint={`${formatNumber(capeTotals.capes)} capes in the Store`} onClick={() => setSection('store')} />
+            <Kpi icon={<Shirt size={15} />} label="Items in lockers" value={formatNumber(capeTotals.owners)} hint={`${formatNumber(capeTotals.capes)} items in the Store`} onClick={() => setSection('store')} />
           </div>
 
           <div className="admin-overview-grid">
@@ -278,7 +278,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
               <div className="admin-top-capes">
                 {topCapes.length ? topCapes.map((item) => (
                   <div key={item.id} className="admin-top-cape">
-                    <CapeThumb key={`${item.id}:${strips[item.id] ? 1 : 0}`} src={strips[item.id] || item.stillUrl} frames={strips[item.id] ? item.frames : 1} fps={item.fps} width={25} height={40} />
+                    <ItemThumb item={item} strips={strips} width={25} height={40} />
                     <div><strong>{item.name}</strong><span className="admin-bar"><i style={{ width: `${Math.round(((item.owners || 0) / maxOwners) * 100)}%` }} /></span></div>
                     <small>{formatNumber(item.owners)}</small>
                   </div>
