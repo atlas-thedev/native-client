@@ -97,7 +97,8 @@ const api = {
     config: () => ipcRenderer.invoke('billing:config'),
     me: (account) => ipcRenderer.invoke('billing:me', account),
     checkout: (account, request) => ipcRenderer.invoke('billing:checkout', { account, ...request }),
-    portal: (account) => ipcRenderer.invoke('billing:portal', account)
+    portal: (account) => ipcRenderer.invoke('billing:portal', account),
+    onWindowClosed: (callback) => subscribe('billing:windowClosed', callback)
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),

@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { dialog, net, shell } = require('electron');
+const { BrowserWindow, dialog, net, shell } = require('electron');
+const { openCheckoutWindow } = require('./checkoutWindow');
 const { downloadFile, writeFileAtomic } = require('./download');
 const safeFile = require('./safeFile');
 const textureCache = require('./textureCache');
@@ -2035,18 +2036,31 @@ function init(dependencies, ipcMain) {
   ipc.handle('billing:me', async (_event, account) => {
     try { return { ok: true, ...(await billingRequest(resolveBillingAccount(account), '/v1/billing/me')) }; } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipc.handle('billing:checkout', async (_event, { account, kind, itemId, itemIds, bundleId, plan }) => {
+  // Checkout and billing open in a launcher window (see checkoutWindow.js); the system browser is only a fallback.
+  const inLauncher = (event, url, kind, transactionId = null) => {
+    const sender = event.sender;
+    const parent = BrowserWindow.fromWebContents(sender);
+    return openCheckoutWindow({
+      url,
+      parent,
+      kind,
+      onClose: ({ paid }) => { if (!sender.isDestroyed()) sender.send('billing:windowClosed', { kind, transactionId, paid }); }
+    });
+  };
+  ipc.handle('billing:checkout', async (event, { account, kind, itemId, itemIds, bundleId, plan }) => {
     try {
       const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/checkout', { method: 'POST', body: { kind, itemId, itemIds, bundleId, plan } });
+      if (inLauncher(event, payload.payUrl || payload.url, 'checkout', payload.transactionId)) return { ok: true, transactionId: payload.transactionId, inApp: true };
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open the checkout page.');
-      return { ok: true, transactionId: payload.transactionId };
+      return { ok: true, transactionId: payload.transactionId, inApp: false };
     } catch (error) { return { ok: false, error: error.message }; }
   });
-  ipc.handle('billing:portal', async (_event, account) => {
+  ipc.handle('billing:portal', async (event, account) => {
     try {
       const payload = await billingRequest(resolveBillingAccount(account), '/v1/billing/portal', { method: 'POST', body: {} });
+      if (inLauncher(event, payload.url, 'portal')) return { ok: true, inApp: true };
       if (!openBillingPage(payload.url)) throw new Error('Couldn’t open billing.');
-      return { ok: true };
+      return { ok: true, inApp: false };
     } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('store:redeem', async (_event, { account, code }) => {

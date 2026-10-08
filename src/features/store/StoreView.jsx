@@ -117,7 +117,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const setBilling = useCallback((next) => { setBillingState(next); writeCache(BILLING_CACHE, next); }, []);
   const setPlus = useCallback((next) => { setPlusState(next); if (isStoreAccount(account)) writeCache(plusCacheKey(account), next); }, [account]);
   useEffect(() => { setPlusState(isStoreAccount(account) ? readCache(plusCacheKey(account)) : null); }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [pending, setPending] = useState(null); // checkout waiting in the browser
+  const [pending, setPending] = useState(null); // checkout waiting in the checkout window
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [code, setCode] = useState('');
   const cosAssetsRef = useRef({});
@@ -152,7 +152,14 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   useEffect(() => { load(false); }, [load]);
   useEffect(() => { loadBilling(); }, [loadBilling]);
 
-  // After a checkout opens in the browser, watch for the payment to land.
+  // After a checkout opens, watch for the payment to land.
+  // The in-launcher checkout window closed: paid → keep watching (the webhook lands in seconds);
+  // closed without paying → stop waiting shortly after one last check. Billing window → refresh.
+  useEffect(() => window.native?.billing?.onWindowClosed?.(({ kind, paid } = {}) => {
+    if (kind !== 'checkout') { load(true); return; }
+    if (paid) setPending((current) => (current ? { ...current, paid: true } : current));
+    else setTimeout(() => setPending((current) => (current && !current.paid ? null : current)), 8000);
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pending) return undefined;
     let stopped = false;
@@ -634,7 +641,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     if (due > 0) {
       if (plus?.active) main = <PixelButton variant="gold" size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label="Add with Native+" title="Included with Native+" onClick={() => claimBundle(bundle)} />;
       else if (!billing.enabled) main = <PixelButton variant="locked" size="lg" label={`$${due.toFixed(2)} · soon`} title="Payments are switched on soon." />;
-      else if (pending?.kind === 'bundle' && pending.bundleId === bundle.id) main = <PixelButton variant="ghost" size="lg" icon={spin} label="Finish paying in your browser…" title="Waiting for your payment. Click to stop waiting." onClick={() => setPending(null)} />;
+      else if (pending?.kind === 'bundle' && pending.bundleId === bundle.id) main = <PixelButton variant="ghost" size="lg" icon={spin} label="Finish paying in the checkout window…" title="Waiting for your payment. Click to stop waiting." onClick={() => setPending(null)} />;
       else main = <PixelButton size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={ownsSome ? `Complete set $${due.toFixed(2)}` : `Buy bundle $${due.toFixed(2)}`} onClick={() => buyBundle(bundle)} />;
     } else {
       main = <PixelButton size="lg" poof disabled={locked} busy={busy === `bundle:${bundle.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label="Claim bundle" onClick={() => claimBundle(bundle)} />;
@@ -683,7 +690,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         return <PixelButton variant="locked" size={size} block={block} label={`$${nowPrice(item).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
       }
       if (pending?.itemId === item.id) {
-        return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : 'Finish paying in your browser…'} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
+        return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : 'Finish paying in the checkout window…'} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
       return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
@@ -895,7 +902,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                 ) : plus?.active ? (
                   <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'portal'} busyIcon={<Loader2 size={15} className="is-spinning" />} label="Manage" onClick={manageBilling} />
                 ) : pending?.kind === 'plus' ? (
-                  <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label="Finish paying in your browser…" onClick={() => setPending(null)} />
+                  <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label="Finish paying in the checkout window…" onClick={() => setPending(null)} />
                 ) : (
                   <>
                     <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'plus:monthly'} busyIcon={<Loader2 size={15} className="is-spinning" />} label={`$${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month`} onClick={() => joinPlus('monthly')} />
