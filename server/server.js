@@ -12,6 +12,7 @@ const capes = require('./capes');
 const storeRoutes = require('./store-routes');
 const cosmetics = require('./cosmetics');
 const billing = require('./billing');
+const domains = require('./domains');
 const siteRoutes = require('./site-routes');
 const betaRoutes = require('./beta-routes');
 
@@ -510,6 +511,14 @@ async function handler(req, res) {
     } catch (siteError) {
       console.error('[Native Site]', siteError);
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Site route failed.' });
+      return;
+    }
+
+    try {
+      if (await domains.handleDomainRoutes(req, res, { send, readJson })) return;
+    } catch (domainError) {
+      console.error('[Native Domains]', domainError);
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Domain route failed.' });
       return;
     }
 

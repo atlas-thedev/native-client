@@ -292,10 +292,10 @@ test('an existing CustomSkinLoader config gets LocalSkin first, then the Native 
       version: '15.0.1',
       enable: true,
       loadlist: [
-        { name: 'Native Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.playnative.fun/csl/' },
+        { name: 'Native Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.nativelaunch.xyz/csl/' },
         { name: 'Mojang', type: 'MojangAPI' },
         { name: 'LocalSkin', type: 'Legacy', checkPNG: false, skin: 'LocalSkin/skins/{USERNAME}.png', model: 'auto' },
-        { name: 'Native Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.playnative.fun/csl/' },
+        { name: 'Native Client Wardrobe', type: 'CustomSkinAPI', root: 'https://api.nativelaunch.xyz/csl/' },
         { name: 'OptiFine', type: 'Legacy', cape: 'https://optifine.net/capes/{USERNAME}.png' }
       ]
     }));

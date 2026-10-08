@@ -22,7 +22,7 @@ syntax-checks it, backs up the running code, swaps it in (never touching `data/`
 reloads pm2 and waits for `/health`. If anything fails it restores the backup and waits for the next commit.
 No GitHub secrets or inbound SSH are needed.
 
-One-time install on the VPS (the API now answers on `api.playnative.fun` and the old `api.nativelaunch.xyz`):
+One-time install on the VPS (already done for `api.nativelaunch.xyz`, which stays the backend domain):
 
 ```bash
 git clone --depth 1 https://github.com/atlas-thedev/native-client /tmp/nc && bash /tmp/nc/server/deploy/install.sh

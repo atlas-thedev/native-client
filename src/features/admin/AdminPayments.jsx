@@ -129,7 +129,7 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
 
       {steps.length > 0 && <p className="admin-note">{steps.join(' · ')}</p>}
       <p className="admin-note">
-        In Tebex, add a webhook endpoint for <code>{s?.webhookUrl || 'https://api.playnative.fun/v1/billing/tebex/webhook'}</code> with
+        In Tebex, add a webhook endpoint for <code>{s?.webhookUrl || 'https://api.nativelaunch.xyz/v1/billing/tebex/webhook'}</code> with
         all payment and recurring-payment events, then paste its secret here. Keys are stored only on the Native server and can’t be read back.
         Test mode lets only admins check out (use Tebex’s test payment method); go live once Tebex has approved Checkout API access.
       </p>
