@@ -882,7 +882,7 @@
 
 /* The set worn on your skin, under its name. */
 .locker-set-look { position: relative; height: 230px; overflow: hidden; border-radius: 11px; background: radial-gradient(60% 55% at 50% 62%, color-mix(in srgb, var(--bc) 34%, transparent), transparent 75%), rgba(0, 0, 0, 0.3); }
-.locker-set-shot { position: absolute; left: 50%; bottom: -4px; height: calc(100% - 20px); scale: 1.25; transform-origin: 50% 100%; width: auto; max-width: 100%; translate: -50% 0; object-fit: contain; filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45)); transition: transform 0.3s var(--ease); }
+.locker-set-shot { position: absolute; left: 50%; bottom: -4px; height: calc(100% - 20px); scale: 1.1; transform-origin: 50% 100%; width: auto; max-width: 100%; translate: -50% 0; object-fit: contain; filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45)); transition: transform 0.3s var(--ease); }
 .locker-set:hover .locker-set-shot { transform: scale(1.04); }
 .locker-set-shot.is-loading { width: 34%; height: 65%; bottom: 14%; border-radius: 12px; background: rgba(255, 255, 255, 0.05); animation: locker-cos-pulse 1.4s ease-in-out infinite; }
 .locker-set-owned { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 3px; }
