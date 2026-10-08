@@ -19,7 +19,7 @@ const COMMUNITY = {
   youtube: 'https://www.youtube.com/@native-client'
 };
 
-const LEGAL = 'https://nativelaunch.xyz';
+const LEGAL = 'https://playnative.fun';
 
 /** "just now", "5 min ago", "3 days ago", "Mar 4" */
 function lastUsedLabel(ms) {
@@ -80,7 +80,7 @@ function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite
       <span className="acc-card-end">
       <span className="acc-card-tools">
         {onWebsite && (
-          <button type="button" className="acc-card-tool" title="Open nativelaunch.xyz signed in" aria-label={`Open the Native website as ${account.name}`} onClick={stop(onWebsite)}>
+          <button type="button" className="acc-card-tool" title="Open playnative.fun signed in" aria-label={`Open the Native website as ${account.name}`} onClick={stop(onWebsite)}>
             <Globe size={13} strokeWidth={2.2} />
           </button>
         )}

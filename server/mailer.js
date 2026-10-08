@@ -44,7 +44,7 @@ function resolveSendGridKey() {
 }
 
 const DEFAULT_SENDER = {
-  email: process.env.NATIVE_SECURITY_EMAIL || 'noreply@nativelaunch.xyz',
+  email: process.env.NATIVE_SECURITY_EMAIL || 'noreply@playnative.fun',
   name: 'Native Security'
 };
 

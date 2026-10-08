@@ -7,7 +7,7 @@
   "homepage": "https://github.com/atlas-thedev/native-client",
   "author": {
     "name": "Native Client",
-    "email": "support@nativelaunch.xyz"
+    "email": "support@playnative.fun"
   },
   "main": "electron/main.js",
   "scripts": {

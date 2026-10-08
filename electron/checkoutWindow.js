@@ -3,13 +3,14 @@
 /**
  * In-launcher checkout: shows the Tebex payment page (pay.tebex.io) or the Native billing page in a
  * locked-down child window instead of the system browser. No preload, no Node, sandboxed, its own
- * in-memory session. Tebex sends buyers to nativelaunch.xyz/checkout?done=1 when they've paid; we
+ * in-memory session. Tebex sends buyers to playnative.fun/checkout?done=1 when they've paid; we
  * catch that redirect and close the window.
  */
 const { BrowserWindow, session } = require('electron');
 
 const PARTITION = 'native-checkout'; // not persisted: nothing payment-related outlives the launcher session
-const isSite = (host) => host === 'nativelaunch.xyz' || host.endsWith('.nativelaunch.xyz');
+// nativelaunch.xyz is the old domain; keep recognising it while it redirects.
+const isSite = (host) => ['playnative.fun', 'nativelaunch.xyz'].some((d) => host === d || host.endsWith(`.${d}`));
 const isTebex = (host) => host === 'tebex.io' || host.endsWith('.tebex.io');
 
 let prepared = false;
