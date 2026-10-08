@@ -226,7 +226,7 @@ export function WornShot({ item, asset, skinUrl, model, prepare, fallback = null
     if (!key) { setUrl(null); return undefined; }
     const hit = peekWornShot(key);
     if (hit) { setUrl(hit); return undefined; }
-    setUrl(null);
+    // keep the last picture (e.g. the old colour) until the new one is drawn, so it never flashes empty
     let live = true;
     let timer = null;
     const attempt = (left) => wornShot({ item, asset, skinUrl, model, prepare }).then((value) => {
