@@ -83,7 +83,7 @@ export default function AdminBeta({ onNotify, onAccessRevoked }) {
           <div className="admin-card-head"><h3><FlaskConical size={14} />Beta channel</h3></div>
           <div className="admin-beta-switches">
             <BetaSwitch on={cfg.enabled} disabled={busy === 'config'} label="Beta updates" hint="Off = every launcher stays on stable builds, testers included." onChange={(v) => saveConfig({ enabled: v })} />
-            <BetaSwitch on={cfg.includeAccepted} disabled={busy === 'config' || !cfg.enabled} label="Accepted Super Beta Testers" hint="Players accepted on the website join automatically (Auto)." onChange={(v) => saveConfig({ includeAccepted: v })} />
+            <BetaSwitch on={cfg.includeAccepted} disabled={busy === 'config' || !cfg.enabled} label="Accepted Super Beta Testers" hint="Players accepted in Beta → Applications join automatically (Auto)." onChange={(v) => saveConfig({ includeAccepted: v })} />
           </div>
           <p className="admin-note">
             Ship a beta with <code>release.bat</code> → option <strong>beta</strong> (tag <code>vX.Y.Z-beta.N</code>). Only testers get it; when the
@@ -113,7 +113,7 @@ export default function AdminBeta({ onNotify, onAccessRevoked }) {
           {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
           <div className="admin-beta-list">
             {!data ? <p className="admin-note">Loading…</p> : !testers.length ? (
-              <p className="admin-note">{q ? 'No testers match.' : 'No beta testers yet. Add someone above, or accept applications on the website.'}</p>
+              <p className="admin-note">{q ? 'No testers match.' : 'No beta testers yet. Add someone above, or accept applications in the Applications tab.'}</p>
             ) : testers.map((t) => (
               <div key={t.userId} className={`admin-beta-row${t.active ? ' is-active' : ''}`}>
                 <InitialAvatar name={t.username} size="sm" />

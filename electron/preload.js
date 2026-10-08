@@ -275,6 +275,8 @@ const api = {
   },
   admin: {
     status: () => ipcRenderer.invoke('admin:status'),
+    // generic admin call for website settings, offers, votes and beta applications: (method, '/site', body)
+    request: (method, path, body) => ipcRenderer.invoke('admin:request', method, path, body),
     overview: () => ipcRenderer.invoke('admin:overview'),
     listUsers: (options) => ipcRenderer.invoke('admin:listUsers', options),
     setBadge: (userId, badge, granted) => ipcRenderer.invoke('admin:setBadge', userId, badge, granted),
