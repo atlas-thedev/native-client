@@ -148,7 +148,7 @@ test('publishing an outfit serves a CustomSkinLoader profile and texture', async
     req.on('error', reject);
     req.end();
   });
-  assert.match(spoofed.skins.slim, /^https:\/\/api\.playnative\.fun\/csl\/textures\//);
+  assert.match(spoofed.skins.slim, /^https:\/\/api\.nativelaunch\.xyz\/csl\/textures\//);
 
   // Without a session nobody can publish; another account can't touch this name.
   const anonymous = await fetch(`${base}/v1/wardrobe`, {

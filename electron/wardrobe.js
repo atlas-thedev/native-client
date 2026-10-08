@@ -13,17 +13,17 @@ const textureCache = require('./textureCache');
  * Every skin and cape the player uploads is kept as a library item in
  * `{userData}/wardrobe/{accountKey}/`. One skin and one cape are *active*; the
  * active pair is what CustomSkinLoader renders in game and what gets published
- * to the Native wardrobe API (api.playnative.fun, see skin-server/).
+ * to the Native wardrobe API (api.nativelaunch.xyz, see skin-server/).
  *
  * Older profiles stored three fixed "slots" (skin + cape + model each). Those
  * are migrated on read: every filled slot becomes a library item and the
  * selected slot becomes the active outfit.
  */
 
-const API_ROOT = 'https://api.playnative.fun';
+const API_ROOT = 'https://api.nativelaunch.xyz';
 
 /**
- * The wardrobe API usually runs on Native Cloud (scripts/api.playnative.fun.nginx
+ * The wardrobe API usually runs on Native Cloud (scripts/api.nativelaunch.xyz.nginx
  * proxies it to skin-server/server.js on port 3418). Set NATIVE_WARDROBE_API to
  * point a build at a self-hosted instance, e.g. http://127.0.0.1:3418 for the
  * server started by `npm run skin-server`.

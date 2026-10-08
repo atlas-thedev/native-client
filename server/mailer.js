@@ -164,6 +164,11 @@ function sendSendGridEmail({ to, subject, html, text, from = DEFAULT_SENDER, rep
  * Universal email dispatcher: Resend -> SendGrid -> Dev Console
  */
 function sendEmail(options) {
+  if (!options.from) {
+    let email = DEFAULT_SENDER.email;
+    try { email = require('./domains').senderEmail(email); } catch {}
+    options = { ...options, from: { ...DEFAULT_SENDER, email } };
+  }
   const resendKey = resolveResendKey();
   if (resendKey) {
     return sendResendEmail(options, resendKey);
@@ -288,4 +293,4 @@ async function sendPasswordResetEmail(email, code, username = '') {
   return sendEmail({ to: email, subject, html, text });
 }
 
-module.exports = { sendEmail, sendVerificationCodeEmail, sendPasswordResetEmail, DEFAULT_SENDER, REPLY_TO, FOOTER_ADDRESS };
+module.exports = { resolveResendKey, sendEmail, sendVerificationCodeEmail, sendPasswordResetEmail, DEFAULT_SENDER, REPLY_TO, FOOTER_ADDRESS };
