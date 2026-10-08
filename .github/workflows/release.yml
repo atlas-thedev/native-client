@@ -117,8 +117,23 @@ jobs:
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
           PRE="${{ needs.prepare.outputs.prerelease }}"
-          if [[ "$PRE" == "true" ]]; then FEEDS="beta.yml beta-mac.yml beta-linux.yml"; else FEEDS="latest.yml latest-mac.yml latest-linux.yml beta.yml"; fi
+          if [[ "$PRE" == "true" ]]; then FEEDS="beta.yml beta-mac.yml beta-linux.yml"; else FEEDS="latest.yml latest-mac.yml latest-linux.yml beta.yml beta-mac.yml beta-linux.yml"; fi
           NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          # Stable builds only get latest*.yml from electron-builder. Beta testers' launchers read beta*.yml,
+          # so give them the same feeds: when a stable release is newer than their beta they move onto it.
+          if [[ "$PRE" != "true" ]]; then
+            mkdir -p feeds
+            for pair in "latest.yml:beta.yml" "latest-mac.yml:beta-mac.yml" "latest-linux.yml:beta-linux.yml"; do
+              src="${pair%%:*}"; dst="${pair##*:}"
+              if grep -qx "$src" <<<"$NAMES" && ! grep -qx "$dst" <<<"$NAMES"; then
+                gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$src" --dir feeds --clobber
+                cp "feeds/$src" "feeds/$dst"
+                gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "feeds/$dst" --clobber
+                echo "Added $dst (copy of $src)"
+              fi
+            done
+            NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          fi
           echo "$NAMES"
           missing=0
           for f in $FEEDS; do
