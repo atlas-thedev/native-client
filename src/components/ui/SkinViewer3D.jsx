@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PlayerAvatar from './PlayerAvatar.jsx';
 import { loadStripImage, startCapeAnimation } from '../../lib/animatedCape.js';
 import { createCamera } from '../../lib/viewerCamera.js';
@@ -64,7 +64,8 @@ export function prepareSkinSource(url, modelOption) {
  * The library is imported lazily so the launcher still runs (falling back to a
  * flat avatar) when node_modules have not been refreshed yet.
  */
-export default function SkinViewer3D({
+function SkinViewerCanvas({
+  onLost = null,
   account,
   width = 200,
   height = 300,
@@ -137,6 +138,8 @@ export default function SkinViewer3D({
   const camRef = useRef(null);
   useEffect(() => () => { camRef.current?.dispose(); camRef.current = null; }, []);
 
+  const onLostRef = useRef(onLost);
+  onLostRef.current = onLost;
   const onViewerRef = useRef(onViewer);
   onViewerRef.current = onViewer;
 
@@ -204,6 +207,8 @@ export default function SkinViewer3D({
         if (shotRef.current) { camRef.current = createCamera(viewer); camRef.current.fly(shotRef.current, { duration: 0 }); }
         onViewerRef.current?.(viewer);
         setReady(true);
+        // The GPU can drop a WebGL context when many previews are open; rebuild the viewer instead of staying blank.
+        canvasRef.current?.addEventListener('webglcontextlost', (event) => { event.preventDefault(); if (!disposed) onLostRef.current?.(); }, { once: true });
       })
       .catch(() => {
         if (!disposed) setFailed(true);
@@ -411,4 +416,15 @@ export default function SkinViewer3D({
       {!ready && <span className="skin3d-loading" />}
     </div>
   );
+}
+
+/** 3D skin preview; comes back by itself if the browser drops its WebGL context. */
+export default function SkinViewer3D(props) {
+  const [gen, setGen] = useState(0);
+  const lost = useRef(0);
+  const onLost = useCallback(() => {
+    if (++lost.current > 5) return; // give up after a few tries rather than loop
+    setTimeout(() => setGen((n) => n + 1), 400);
+  }, []);
+  return <SkinViewerCanvas key={gen} {...props} onLost={onLost} />;
 }

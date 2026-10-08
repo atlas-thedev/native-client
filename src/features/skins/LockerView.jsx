@@ -1,4 +1,4 @@
-import { WornShot } from '../../lib/wornShot.jsx';
+import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -888,13 +888,21 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         const wornAll = pieces.every((item) => (item.kind === 'cosmetic' ? wearing?.[item.slot] === item.id : (officialMode ? premiumEquipped : (wardrobe?.active?.cape?.storeId || storeEquipped)) === item.id));
         const busy = storeBusy === `set:${bundle.id}`;
         const cloak = pieces.find((item) => item.kind !== 'cosmetic');
-        const look = pieces.filter((item) => item.kind === 'cosmetic' && cosAssets[item.id]).map((item) => (ownedIds.has(item.id) ? dyedAsset(item.id) : cosAssets[item.id]));
         const act = () => (have > 0 ? (!wornAll && !storeBusy && wearSet(bundle)) : openStoreBundle(bundle));
         const tip = have > 0 ? (wornAll ? 'Wearing this set' : complete ? 'Put on every piece' : 'Put on the pieces you own') : 'Open this bundle in the Native Store';
         return <article key={`set:${bundle.id}`} style={{ '--i': index, '--bc': color }} title={`${bundle.name} · ${RARITY[bundle.rarity]?.label || 'Epic'} · ${tip}`} className={`locker-skin-card locker-set-card locker-pop${wornAll ? ' active' : ''}${previewing ? ' is-trying' : ''}${busy ? ' is-busy' : ''}${have === 0 ? ' is-unowned' : ''}`} onClick={act} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') act(); }}>
           <span className="locker-set-mark" aria-hidden="true">{bundle.name}</span>
           <button type="button" className="locker-favourite locker-set-eye" onClick={(event) => { event.stopPropagation(); setTryOn(null); setTrySet(previewing ? null : bundle.id); }} title={previewing ? 'Stop previewing' : 'Preview the whole set on you'}>{previewing ? <EyeOff size={13}/> : <Eye size={13}/>}</button>
-          <div className="locker-skin-preview"><SkinViewer3D key={`set:${bundle.id}:${look.length}`} account={{ ...account, skinUrl: shotSkin, model: shotModel, capeUrl: cloak?.stillUrl || null, capeAnim: null }} cosmetics={look.length ? look : null} zoom={0.55} width={116} height={156} paused/></div>
+          <div className="locker-skin-preview"><OutfitShot
+            pieces={pieces.filter((item) => item.kind === 'cosmetic').map((item) => ({ item, asset: ownedIds.has(item.id) ? dyedAsset(item.id) : cosAssets[item.id] }))}
+            cape={cloak ? { id: cloak.id, url: cloak.stillUrl } : null}
+            skinUrl={shotSkin}
+            model={shotModel}
+            prepare={prepareSkinSource}
+            ready={pieces.every((item) => item.kind !== 'cosmetic' || cosAssets[item.id])}
+            className="locker-set-shot"
+            alt={`${bundle.name}: every piece worn`}
+          /></div>
           <div className="locker-card-meta"><strong>{bundle.name}</strong><small>{complete ? <Check size={11} strokeWidth={3}/> : `${have}/${pieces.length}`}</small></div>
           {busy && <RefreshCw size={13} className="locker-skin-busy is-spinning"/>}
         </article>;
