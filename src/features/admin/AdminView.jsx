@@ -6,7 +6,6 @@ import {
   DollarSign,
   Rocket,
   Tag,
-  Vote,
   ChevronLeft,
   ChevronRight,
   Crown,
@@ -32,7 +31,6 @@ import AdminSales from './AdminSales.jsx';
 import AdminBundles from './AdminBundles.jsx';
 import AdminWebsite from './AdminWebsite.jsx';
 import AdminOffers from './AdminOffers.jsx';
-import AdminVotes from './AdminVotes.jsx';
 import AdminApplications from './AdminApplications.jsx';
 import AdminDomains from './AdminDomains.jsx';
 import { InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
@@ -242,7 +240,6 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['sales', 'Sales', null],
     ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
     ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
-    ['votes', 'Community votes', siteDoc?.overview?.openPolls ? `${siteDoc.overview.openPolls} open` : null],
     ['beta', 'Beta', null],
     ['domains', 'Domains', null]
   ];
@@ -252,7 +249,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
       <header className="admin-header">
         <div className="admin-heading">
           <h1 className="admin-title page-title">Administration</h1>
-          <p className="admin-subtitle">Manage Native users, badges, Store cloaks and cosmetics, the website, offers, votes, beta testers, and database health.</p>
+          <p className="admin-subtitle">Manage Native users, badges, Store cloaks and cosmetics, the website, offers, beta testers, and database health.</p>
         </div>
         <div className="admin-header-actions">
           <span className="admin-access-label"><i />Admin only</span>
@@ -290,8 +287,6 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         <AdminWebsite doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'offers' ? (
         <AdminOffers doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
-      ) : section === 'votes' ? (
-        <AdminVotes items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'bundles' ? (
         <AdminBundles items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'sales' ? (
@@ -309,7 +304,6 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           <div className="admin-kpis">
             <Kpi icon={<DollarSign size={15} />} label="Sales, all time" value={billing?.sales ? usd(billing.sales.total) : '—'} hint={billing?.sales ? `${formatNumber(billing.sales.count)} orders · ${usd(billing.sales.last30)} last 30d` : 'Loading…'} onClick={() => setSection('sales')} />
             <Kpi icon={<Crown size={15} />} label="Native+ members" value={billing?.plus ? formatNumber(billing.plus.active) : '—'} hint={billing ? `Payments ${billing.enabled ? 'on' : 'off'}${billing.environment ? ` · ${billing.environment}` : ''}` : 'Loading…'} onClick={() => setSection('sales')} />
-            <Kpi icon={<Vote size={15} />} label="Votes cast" value={siteOverview ? formatNumber(siteOverview.votes) : '—'} hint={siteOverview ? `${siteOverview.openPolls} open vote${siteOverview.openPolls === 1 ? '' : 's'}` : 'Loading…'} onClick={() => setSection('votes')} />
             <Kpi icon={<Tag size={15} />} label="Live offers" value={siteDoc ? formatNumber(liveOffers.length) : '—'} hint={liveOffers.length ? liveOffers.map((offer) => `${offer.title} −${offer.percent}%`).join(', ') : 'None'} onClick={() => setSection('offers')} />
           </div>
 
@@ -385,7 +379,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
             </section>
 
             <section className="admin-card">
-              <div className="admin-card-head"><h3><MessagesSquare size={14} />Community</h3></div>
+              <div className="admin-card-head"><h3><MessagesSquare size={14} />Relay & friends</h3></div>
               <dl className="admin-facts">
                 <div><dt><UsersRound size={12} />Friendships</dt><dd>{formatNumber(overview?.friendships)}</dd></div>
                 <div><dt><MessagesSquare size={12} />Relay messages</dt><dd>{formatNumber(overview?.messages)}</dd></div>
