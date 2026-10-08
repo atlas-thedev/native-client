@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag, Vote } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -21,7 +21,6 @@ export const CORE_NAV_ITEMS = [
 export const PERSONAL_NAV_ITEMS = [
   { id: 'skins', labelKey: 'nav.locker', icon: User },
   { id: 'store', labelKey: 'nav.store', icon: ShoppingBag },
-  { id: 'community', labelKey: 'nav.community', icon: Vote },
   { id: 'relay', labelKey: 'nav.relay', icon: MessageSquare }
 ];
 
