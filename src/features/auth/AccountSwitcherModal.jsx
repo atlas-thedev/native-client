@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, Globe, GitMerge, Minus, Square, WifiOff, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, Globe, GitMerge, Minus, Square, Trash2, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import ProviderLogo from '../../components/ui/ProviderLogo.jsx';
@@ -20,6 +20,87 @@ const COMMUNITY = {
 };
 
 const LEGAL = 'https://nativelaunch.xyz';
+
+/** "just now", "5 min ago", "3 days ago", "Mar 4" */
+function lastUsedLabel(ms) {
+  const at = Number(ms);
+  if (!at) return '';
+  const minutes = Math.max(0, Math.round((Date.now() - at) / 60000));
+  if (minutes < 2) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 2) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  return new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+/** The little provider mark on the corner of a saved account's face. */
+function ProviderBadge({ type }) {
+  if (type === 'microsoft') return <span className="acc-card-badge is-ms" title="Microsoft"><i /><i /><i /><i /></span>;
+  if (type === 'offline') return <span className="acc-card-badge is-offline" title="Offline"><WifiOff size={9} strokeWidth={2.6} /></span>;
+  return <span className="acc-card-badge is-native" title="Native"><Logo height={9} variant="mark" /></span>;
+}
+
+/**
+ * A saved account on the login screen: face with its provider mark, name, how it signs in and when it was last
+ * used. Click anywhere to continue as that player; the tools (website, merge, remove) show on hover.
+ */
+function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite, onRemove, t }) {
+  const type = account.type === 'microsoft' ? 'microsoft' : account.type === 'offline' ? 'offline' : 'native';
+  const merged = type === 'microsoft' && account.nativeLink?.type === 'merged';
+  const provider = type === 'microsoft' ? (t('account.microsoft') || 'Microsoft') : type === 'offline' ? 'Offline' : 'Native';
+  const detail = type === 'native' && account.email ? account.email : type === 'offline' ? 'This PC only' : '';
+  const when = active ? '' : lastUsedLabel(account.lastUsedAt);
+  const stop = (fn) => (event) => { event.stopPropagation(); fn(); };
+  return (
+    <div
+      role="listitem"
+      className={`acc-card is-${type}${active ? ' is-active' : ''}${confirming ? ' is-confirming' : ''}`}
+      tabIndex={0}
+      onClick={onChoose}
+      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onChoose(); } }}
+      aria-label={`${active ? 'Signed in as' : 'Continue as'} ${account.name}, ${provider}`}
+      aria-current={active ? 'true' : undefined}
+    >
+      <span className="acc-card-face">
+        <PlayerAvatar account={account} kind="avatar" size={38} radius={9} />
+        <ProviderBadge type={type} />
+      </span>
+      <span className="acc-card-text">
+        <strong>{account.name}</strong>
+        <small>
+          <b className="acc-card-provider">{provider}</b>
+          {merged && <span className="acc-card-chip" title={`Merged with ${account.nativeLink.email || 'your Native account'}`}><GitMerge size={9} strokeWidth={2.6} aria-hidden="true" />Merged</span>}
+          {detail && <span className="acc-card-detail">{detail}</span>}
+          {when && <span className="acc-card-when">{when}</span>}
+        </small>
+      </span>
+      <span className="acc-card-end">
+      <span className="acc-card-tools">
+        {onWebsite && (
+          <button type="button" className="acc-card-tool" title="Open nativelaunch.xyz signed in" aria-label={`Open the Native website as ${account.name}`} onClick={stop(onWebsite)}>
+            <Globe size={13} strokeWidth={2.2} />
+          </button>
+        )}
+        {onMerge && (
+          <button type="button" className="acc-card-tool" title="Merge with an email Native account" aria-label={`Merge ${account.name} with a Native account`} onClick={stop(onMerge)}>
+            <GitMerge size={13} strokeWidth={2.2} />
+          </button>
+        )}
+        <button type="button" className={`acc-card-tool is-danger${confirming ? ' is-armed' : ''}`} title={confirming ? 'Click again to remove' : (t('account.remove') || 'Remove')} aria-label={confirming ? `Confirm removing ${account.name}` : `Remove ${account.name}`} onClick={stop(onRemove)}>
+          <Trash2 size={13} strokeWidth={2.2} />
+          {confirming && <span>Remove?</span>}
+        </button>
+      </span>
+      {active
+        ? <span className="acc-card-state"><i aria-hidden="true" />Signed in</span>
+        : <span className="acc-card-go" aria-hidden="true"><ChevronRight size={15} strokeWidth={2.4} /></span>}
+      </span>
+    </div>
+  );
+}
 
 export default function AccountSwitcherModal({
   open,
@@ -44,6 +125,13 @@ export default function AccountSwitcherModal({
 
   // Navigation view: main or a Native authentication step.
   const [view, setView] = useState('main');
+  // Removing a saved account takes two clicks: the bin turns into "Remove?" for a few seconds.
+  const [confirmRemove, setConfirmRemove] = useState(null);
+  useEffect(() => {
+    if (!confirmRemove) return undefined;
+    const timer = setTimeout(() => setConfirmRemove(null), 3500);
+    return () => clearTimeout(timer);
+  }, [confirmRemove]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -552,87 +640,30 @@ export default function AccountSwitcherModal({
                   {accounts.length > 0 && (
                     <div className="account-login-saved">
                       <div className="account-login-saved-head">
-                        <span>Saved accounts</span>
+                        <span>{firstRun ? 'Continue as' : 'Saved accounts'}</span>
                         <small>{accounts.length}</small>
                       </div>
-                      <div className="account-login-list">
-                        {accounts.map((acc) => {
-                          const active = acc.id === activeId;
-                          const choose = () => {
-                            onSwitchAccount?.(acc.id);
-                            if (firstRun) onClose?.();
-                          };
-                          const microsoft = acc.type === 'microsoft';
-                          const merged = microsoft && acc.nativeLink?.type === 'merged';
-                          const hasNative = acc.type === 'native' || (microsoft && acc.nativeLink?.connected);
-                          return (
-                            <div
-                              key={acc.id}
-                              className={`account-login-item ${active ? 'active' : ''}`}
-                              role="button"
-                              tabIndex={0}
-                              onClick={choose}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') choose();
-                              }}
-                            >
-                              <PlayerAvatar account={acc} kind="avatar" size={30} />
-                              <div className="account-login-item-text">
-                                <strong>{acc.name}</strong>
-                                <small className={microsoft ? 'is-ms' : 'is-native'}>
-                                  {microsoft ? t('account.microsoft') : acc.type === 'offline' ? 'Offline' : (t('account.native'))}
-                                  {merged && (
-                                    <span className="account-login-item-link" title={`Merged with ${acc.nativeLink.email || 'your Native account'}`}>
-                                      <GitMerge size={10} strokeWidth={2.4} aria-hidden="true" /> Merged
-                                    </span>
-                                  )}
-                                </small>
-                              </div>
-                              {microsoft && !merged && onMergeNative && (
-                                <button
-                                  type="button"
-                                  className="account-login-item-connect"
-                                  title="Merge with an email Native account"
-                                  aria-label={`Merge ${acc.name} with a Native account`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openConnect(acc.id);
-                                  }}
-                                >
-                                  <GitMerge size={12} strokeWidth={2.2} aria-hidden="true" />
-                                  <span>Merge</span>
-                                </button>
-                              )}
-                              {hasNative && onOpenWebsite && (
-                                <button
-                                  type="button"
-                                  className="account-login-item-connect is-connected"
-                                  title="Open nativelaunch.xyz signed in"
-                                  aria-label={`Open the Native website as ${acc.name}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openWebsite(acc.id);
-                                  }}
-                                >
-                                  <Globe size={12} strokeWidth={2.2} aria-hidden="true" />
-                                </button>
-                              )}
-                              {active && <span className="account-login-item-active">Active</span>}
-                              <button
-                                type="button"
-                                className="account-login-item-remove"
-                                title={t('account.remove')}
-                                aria-label={t('account.remove')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onRemoveAccount?.(acc.id);
-                                }}
-                              >
-                                <NativeIcon name="trash" size={13} />
-                              </button>
-                            </div>
-                          );
-                        })}
+                      <div className="account-login-list" role="list">
+                        {accounts.map((acc) => (
+                          <AccountCard
+                            key={acc.id}
+                            account={acc}
+                            active={acc.id === activeId}
+                            confirming={confirmRemove === acc.id}
+                            onChoose={() => {
+                              onSwitchAccount?.(acc.id);
+                              if (firstRun) onClose?.();
+                            }}
+                            onMerge={acc.type === 'microsoft' && acc.nativeLink?.type !== 'merged' && onMergeNative ? () => openConnect(acc.id) : null}
+                            onWebsite={(acc.type === 'native' || (acc.type === 'microsoft' && acc.nativeLink?.connected)) && onOpenWebsite ? () => openWebsite(acc.id) : null}
+                            onRemove={() => {
+                              if (confirmRemove !== acc.id) { setConfirmRemove(acc.id); return; }
+                              setConfirmRemove(null);
+                              onRemoveAccount?.(acc.id);
+                            }}
+                            t={t}
+                          />
+                        ))}
                       </div>
                     </div>
                   )}

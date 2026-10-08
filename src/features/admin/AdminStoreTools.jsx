@@ -23,7 +23,7 @@ const toDataUrl = (bytes, type = 'image/png') => new Promise((resolve, reject) =
   reader.readAsDataURL(new Blob([bytes], { type }));
 });
 
-function Modal({ title, icon, onClose, children, wide = false }) {
+export function Modal({ title, icon, onClose, children, wide = false }) {
   useEffect(() => {
     const onKey = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);

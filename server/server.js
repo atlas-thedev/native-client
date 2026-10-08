@@ -514,7 +514,7 @@ async function handler(req, res) {
     }
 
     try {
-      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems });
+      billing.setHooks({ readProfile, saveProfile, findItem: storeRoutes.findItem, allItems: storeRoutes.allItems, findBundle: storeRoutes.findBundle, quoteBundle: storeRoutes.quoteBundle, bundleOnSale: storeRoutes.bundleOnSale });
       if (await billing.handleBillingRoutes(req, res, { ip, send, hit, tooMany, readJson, findItem: storeRoutes.findItem })) return;
     } catch (billingError) {
       console.error('[Native Billing]', billingError);

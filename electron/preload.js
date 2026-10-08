@@ -86,6 +86,8 @@ const api = {
     dye: (account, itemId, color) => ipcRenderer.invoke('store:dye', { account, itemId, color }),
     dyeTexture: (itemId, color) => ipcRenderer.invoke('store:dyeTexture', { itemId, color }),
     claim: (account, itemId) => ipcRenderer.invoke('store:claim', { account, itemId }),
+    // bundles: every piece of a free bundle (or any bundle with Native+) into the locker
+    claimBundle: (account, bundleId) => ipcRenderer.invoke('store:claimBundle', { account, bundleId }),
     unclaim: (account, itemId) => ipcRenderer.invoke('store:unclaim', { account, itemId }),
     redeem: (account, code) => ipcRenderer.invoke('store:redeem', { account, code }),
     wish: (account, itemId, on) => ipcRenderer.invoke('store:wish', { account, itemId, on }),
