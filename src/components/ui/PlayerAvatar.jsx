@@ -61,7 +61,7 @@ function faceFrom(url, atlas) {
 }
 
 // A new skin anywhere (locker upload, website, another PC): forget this session's lookups so they are fetched again.
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('native:wardrobe-refreshed', () => { wardrobeSkinCache.clear(); officialSkinCache.clear(); });
 }
 

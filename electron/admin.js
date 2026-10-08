@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const { getActiveNativeAccount, API_ROOTS } = require('./social');
 
 const ROOTS = API_ROOTS;
+const ADMIN_REQUEST_PATH = /^\/(site|polls|beta|store|billing|users|overview)(\/[A-Za-z0-9_\-.%]+)*(\?[^#\s]*)?$/;
 
 async function adminFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
   const account = getActiveNativeAccount();
@@ -93,6 +94,14 @@ function init() {
   handle('admin:betaSetTester', (userId, enabled) => adminFetch(`/beta/testers/${encodeURIComponent(String(userId || ''))}`, { method: 'PATCH', body: { enabled: enabled === true ? true : enabled === false ? false : null } }));
   handle('admin:betaRemoveTester', (userId) => adminFetch(`/beta/testers/${encodeURIComponent(String(userId || ''))}`, { method: 'DELETE' }));
   handle('admin:betaUpdates', (patch = {}) => adminFetch('/beta/updates', { method: 'POST', body: { ...(patch.enabled !== undefined ? { enabled: Boolean(patch.enabled) } : {}), ...(patch.includeAccepted !== undefined ? { includeAccepted: Boolean(patch.includeAccepted) } : {}) } }));
+  // Website settings, offers, votes and beta applications (everything the old website admin did).
+  handle('admin:request', (method = 'GET', pathname = '', body = null) => {
+    const verb = String(method || 'GET').toUpperCase();
+    const target = String(pathname || '');
+    if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(verb)) return { ok: false, error: 'Unsupported method.' };
+    if (!ADMIN_REQUEST_PATH.test(target) || target.includes('..')) return { ok: false, error: 'Not found.' };
+    return adminFetch(target, { method: verb, body: verb === 'GET' ? null : (body || {}), timeout: 60_000 });
+  });
   handle('admin:setBadge', (userId, badge, granted) =>
     adminFetch(`/users/${encodeURIComponent(userId)}/badges`, {
       method: 'POST',

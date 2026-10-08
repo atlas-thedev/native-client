@@ -828,3 +828,7 @@
 .locker-subpanel > .locker-cape-hint { margin: 0; padding: 4px 14px; }
 .locker-cape-hint.is-warn { color: #ffcf8a; }
 .locker-cape-hint-link { padding: 0; border: 0; background: none; color: #fff; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+/* "Nothing" in a cosmetic slot: same square tile as the worn shots next to it */
+.locker-cosmetic-card .locker-no-cape { width: 100%; max-width: 150px; height: auto; aspect-ratio: 1 / 1; border-radius: 10px; border-style: dashed; }
+.locker-cosmetic-card .locker-no-cape > svg { width: 30%; height: 30%; opacity: 0.8; }
+.locker-cosmetic-card:hover .locker-no-cape { border-color: rgba(255, 255, 255, 0.3); color: var(--fg-primary-hover); }
