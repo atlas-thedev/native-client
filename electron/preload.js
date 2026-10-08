@@ -279,6 +279,8 @@ const api = {
     listUsers: (options) => ipcRenderer.invoke('admin:listUsers', options),
     setBadge: (userId, badge, granted) => ipcRenderer.invoke('admin:setBadge', userId, badge, granted),
     storeItems: () => ipcRenderer.invoke('admin:storeItems'),
+    // { id, slot, modelUrl, textureUrl, stillUrl } of an admin-listed cosmetic -> { model, texture, thumb }
+    cosmeticAsset: (item) => ipcRenderer.invoke('admin:cosmeticAsset', item),
     storeCreate: (item) => ipcRenderer.invoke('admin:storeCreate', item),
     storeUpdate: (id, patch) => ipcRenderer.invoke('admin:storeUpdate', id, patch),
     storeDelete: (id) => ipcRenderer.invoke('admin:storeDelete', id),

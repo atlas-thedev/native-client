@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Crown, Gift, LoaderCircle, LogOut, Search, Shirt, ShieldCheck, ShieldOff, Sparkles, X } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
-import { CapeThumb } from './AdminStore.jsx';
+import { ItemThumb } from './AdminStore.jsx';
 import { InitialAvatar, Presence, adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
 
 function Stat({ label, value, title }) {
@@ -110,7 +110,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
   }
 
   const thumb = (item, width = 40, height = 64) => (
-    <CapeThumb key={`${item.id}:${strips[item.id] ? 1 : 0}`} src={strips[item.id] || item.stillUrl} frames={strips[item.id] ? item.frames : 1} fps={item.fps} width={width} height={height} />
+    <ItemThumb item={item} strips={strips} width={width} height={height} />
   );
 
   return (
