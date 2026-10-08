@@ -480,7 +480,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       capeAnim: cape && !back && cape.animated && strip ? { stripUrl: strip, frames: cape.frames, fps: cape.fps } : null
     };
     const ready = pieces.filter(isCosmetic).every((item) => cosAssets[item.id]);
-    return <SkinViewer3D key={`bundle:${bundle.id}:${ready ? 1 : 0}:${strip ? 1 : 0}`} account={who} cosmetics={cos.length ? cos : null} zoom={0.8} width={380} height={400} animation="walk" autoRotate />;
+    return <SkinViewer3D key={`bundle:${bundle.id}:${ready ? 1 : 0}:${strip ? 1 : 0}`} account={who} cosmetics={cos.length ? cos : null} zoom={0.6} width={400} height={440} animation="walk" autoRotate />;
   };
   const setWorn = (bundle) => {
     const pieces = piecesOf(bundle).filter((item) => ownedIds.has(item.id));
@@ -628,7 +628,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       .sort((a, b) => rank(a) - rank(b));
     const list = ids.map((id) => ({ id, label: SECTION_LABELS[id] || (catalog?.sections || []).find((entry) => entry.id === id)?.name || id, count: everything.filter((item) => sectionOf(item) === id).length }));
     const withBundles = bundles.length ? [{ id: 'bundles', label: SECTION_LABELS.bundles, count: bundles.filter((b) => b.phase !== 'ended').length || bundles.length, color: '#ffc23d' }, ...list] : list;
-    return withBundles.length > 1 ? [{ id: 'all', label: SECTION_LABELS.all, count: everything.length }, ...withBundles] : withBundles;
+    return withBundles; // no "All" tab: Bundles first, then each category
   })();
   // a category that vanished (e.g. after a refresh) falls back to All
   const sectionKey = sections.map((entry) => entry.id).join();
