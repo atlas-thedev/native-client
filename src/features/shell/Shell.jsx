@@ -9,7 +9,6 @@ import BrowseView from '../browser/BrowseView.jsx';
 import ClusterDetailView from '../cluster/ClusterDetailView.jsx';
 import LockerView from '../skins/LockerView.jsx';
 import StoreView from '../store/StoreView.jsx';
-import CommunityView from '../community/CommunityView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
 import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
@@ -682,20 +681,6 @@ export default function Shell({
           )
         )}
 
-        {currentTab === 'community' && (
-          netBlocked ? (
-            <OfflineGate feature="store" onRetry={onRetryNetwork} onBackHome={() => setCurrentTab('home')} />
-          ) : (
-            <CommunityView
-              account={launchAccount}
-              isAdmin={isAdmin}
-              onNotify={notify}
-              onOpenStore={() => setCurrentTab('store')}
-              onOpenAdmin={() => setCurrentTab('admin')}
-              onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
-            />
-          )
-        )}
 
         {currentTab === 'relay' && (
           netBlocked ? (
