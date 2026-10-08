@@ -122,9 +122,15 @@ export function BundleCard({ bundle, pieces, mine, outfit, onOpen, active = fals
         <OutfitShot {...outfit} className="bdl-card-shot" alt={`${bundle.name}: every piece worn`} />
         {bundle.isNew && !ended && <span className="bdl-new bdl-card-new">New</span>}
         {mine?.complete && <OwnedMark className="bdl-card-owned" label="Owned" />}
+        {/* On the art, so the footer always has room for the full "Ends in" label and the price. */}
+        {bundle.endsAt && !ended && (
+          <span className="bdl-card-timer" style={{ position: 'absolute', left: 10, bottom: 10, zIndex: 3 }}>
+            <Countdown endsAt={bundle.endsAt} />
+          </span>
+        )}
       </div>
       <div className="bdl-card-meta">
-        <small className="bdl-card-info"><Layers size={11} strokeWidth={2.4} aria-hidden="true" />{pieces.length} items{bundle.endsAt && !ended ? <> · <Countdown endsAt={bundle.endsAt} className="is-inline" /></> : null}</small>
+        <small className="bdl-card-info"><Layers size={11} strokeWidth={2.4} aria-hidden="true" />{pieces.length} items</small>
         {ended ? <span className="bdl-card-ended">Ended</span> : <BundlePrice bundle={bundle} mine={mine} size="sm" />}
       </div>
     </article>
