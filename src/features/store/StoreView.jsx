@@ -8,12 +8,12 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, Copy, Layers, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Infinity as InfinityIcon, Loader2, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
-import { SHOTS } from '../../lib/viewerCamera.js';
+import { SHOTS, createCamera } from '../../lib/viewerCamera.js';
 import '../../components/ui/shop.css';
 
 /** The hero spotlight rotates through at most this many featured capes. */
@@ -280,6 +280,28 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     : []), [catalog, section, filter, query, sort, newMeans]);
 
   const viewing = viewId ? (catalog?.items || []).find((item) => item.id === viewId) || null : null;
+  // 3D viewer controls: the same round buttons and smooth camera as the locker.
+  const viewViewer = useRef(null);
+  const viewCam = useRef(null);
+  const [viewTick, setViewTick] = useState(0);
+  const [viewZoom, setViewZoom] = useState({ in: true, out: true });
+  const [viewPaused, setViewPaused] = useState(false);
+  const syncViewZoom = () => { const cam = viewCam.current; if (cam) setViewZoom({ in: cam.canZoomIn(), out: cam.canZoomOut() }); };
+  useEffect(() => {
+    const viewer = viewViewer.current;
+    if (!viewer || !viewing) return undefined;
+    const cam = createCamera(viewer);
+    viewCam.current = cam;
+    cam.fly(viewing.slot === 'balloon' ? SHOTS.balloon : [-1, viewing.kind === 'cosmetic' ? 0.74 : 0.82], { duration: 0 });
+    syncViewZoom();
+    return () => { cam.dispose(); if (viewCam.current === cam) viewCam.current = null; };
+  }, [viewTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const viewZoomBy = (factor) => { viewCam.current?.zoomBy(factor); syncViewZoom(); };
+  const viewReset = () => {
+    const viewer = viewViewer.current;
+    if (!viewer) return;
+    try { viewer.resetCameraPose?.(); viewer.controls?.update?.(); viewer.playerObject?.rotation.set(0, 0, 0); viewCam.current?.reset(); syncViewZoom(); viewer.render?.(); } catch {}
+  };
 
   // The popup steps through the capes currently listed in the grid.
   const stepView = useCallback((delta) => {
@@ -963,7 +985,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           <div className="store-viewer" role="dialog" aria-modal="true" aria-label={`${viewing.name} in 3D`}>
             <div className="store-viewer-stage">
               <SpotBackdrop />
-              {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} cosmetics={viewCosmetics} zoom={isCosmetic(viewing) ? 0.74 : 0.82} shot={viewing.slot === 'balloon' ? SHOTS.balloon : null} width={320} height={400} animation="walk" autoRotate />}
+              {viewAccount && <SkinViewer3D key={`view:${viewing.id}:${previews[viewing.id] ? 1 : 0}`} account={viewAccount} cosmetics={viewCosmetics} zoom={isCosmetic(viewing) ? 0.74 : 0.82} shot={viewing.slot === 'balloon' ? SHOTS.balloon : null} width={320} height={400} animation={viewPaused ? null : 'walk'} paused={viewPaused} autoRotate={!viewPaused} onViewer={(viewer) => { viewViewer.current = viewer; setViewTick((n) => n + 1); }} />}
+              <div className="store-viewer-actions"><div><button type="button" onClick={viewReset} title="Reset view"><RotateCcw size={16} /></button><button type="button" onClick={() => viewZoomBy(1 / 1.25)} disabled={!viewZoom.out} title="Zoom out"><ZoomOut size={16} /></button><button type="button" onClick={() => viewZoomBy(1.25)} disabled={!viewZoom.in} title="Zoom in"><ZoomIn size={16} /></button></div><div><button type="button" onClick={() => setViewPaused((value) => !value)} title={viewPaused ? 'Play preview' : 'Pause preview'}>{viewPaused ? <Play size={16} /> : <Pause size={16} />}</button></div></div>
               <div className="store-viewer-art" aria-hidden="true">{isCosmetic(viewing) ? cosmeticArt(viewing, 'store-viewer-art-img') : <canvas ref={bindCanvas(`view:${viewing.id}`)} width={80} height={128} />}</div>
               {items.length > 1 ? (
                 <div className="store-viewer-nav">
