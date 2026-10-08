@@ -890,3 +890,21 @@
 .locker-set-owned i.is-owned { background: var(--bc); box-shadow: 0 0 6px var(--bc); }
 .locker-set-tags { position: absolute; top: 9px; left: 9px; right: 9px; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .locker-set-title strong { font-size: 17px; }
+
+/* Sets as skin-style cards: rarity border + bundle-name watermark */
+.locker-set-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.locker-skin-card.locker-set-card { --bc: #a45cff; border: 2px solid color-mix(in srgb, var(--bc) 70%, transparent); isolation: isolate; }
+.locker-skin-card.locker-set-card:hover { border-color: var(--bc); background: var(--lk-tile); }
+.locker-skin-card.locker-set-card.active,
+.locker-skin-card.locker-set-card.is-trying { border-color: var(--bc); box-shadow: 0 0 0 1px var(--bc), 0 0 22px -6px var(--bc); }
+.locker-skin-card.locker-set-card.is-unowned .locker-skin-preview { filter: grayscale(0.6) brightness(0.7); }
+.locker-set-mark {
+  position: absolute; inset: 0 0 34px; z-index: -1; display: flex; align-items: center; justify-content: center;
+  padding: 0 6px; overflow: hidden; pointer-events: none; text-align: center; word-break: break-word;
+  font: 900 26px/0.9 var(--font-sans); letter-spacing: -0.02em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--bc) 22%, transparent); transform: rotate(-12deg);
+}
+.locker-set-card .locker-card-meta small { display: inline-flex; align-items: center; color: var(--bc); font-weight: 700; }
+.locker-set-eye { opacity: 0; }
+.locker-set-card:hover .locker-set-eye, .locker-set-card.is-trying .locker-set-eye, .locker-set-eye:focus-visible { opacity: 1; }
+@media (max-width: 1100px) { .locker-set-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
