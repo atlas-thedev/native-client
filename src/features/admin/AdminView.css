@@ -640,7 +640,7 @@
 .admin-bdl-pieces span { display: grid; place-items: center; width: 40px; height: 52px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden; }
 .admin-bdl-pieces span canvas, .admin-bdl-pieces span img { max-width: 100%; max-height: 100%; }
 .admin-bdl-pieces em { color: #fff; font: 800 11px var(--font-sans); font-style: normal; align-self: center; }
-.admin-bdl-rarity { position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--bc) 60%, transparent); background: rgba(0, 0, 0, 0.55); color: var(--bc); font: 800 9.5px var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; }
+.admin-bdl-rarity { position: absolute !important; top: 8px; left: 8px; z-index: 1; }
 .admin-bdl-star { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #ffb020; color: #0b0b0f; }
 .admin-bdl-body { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px 12px; }
 .admin-bdl-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -704,3 +704,11 @@
 .admin-bdl-foot { display: flex; align-items: center; gap: 8px; }
 .admin-bdl-foot > span { flex: 1; }
 @media (max-width: 860px) { .admin-bdl-editor { grid-template-columns: 1fr; } .admin-bdl-preview { position: static; } }
+
+/* Native+ in the user panel */
+.admin-plus-user { display: flex; align-items: center; gap: 10px; }
+.admin-plus-user-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-plus-user-text strong { color: var(--fg-primary-hover); font-size: 13px; }
+.admin-plus-user-text span { color: var(--fg-muted); font-size: 11.5px; line-height: 1.4; }
+.admin-plus-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.admin-plus-actions .admin-btn { padding: 6px 10px; font-size: 11.5px; }

@@ -3,6 +3,8 @@ import { CalendarClock, Check, Copy, Eye, EyeOff, Gift, ImagePlus, Layers, Loade
 import AdminPicker from './AdminPicker.jsx';
 import { ItemThumb } from './AdminStore.jsx';
 import { Modal } from './AdminStoreTools.jsx';
+import { RarityBadge, RarityEmblem } from '../store/RarityBadges.jsx';
+import '../store/RarityBadges.css';
 import { AdminSwitch, adminCall, formatDate, formatNumber, fromLocalInput, toLocalInput, useConfirm, usd } from './adminShared.jsx';
 
 // Same colours as the Store's bundle page.
@@ -156,7 +158,7 @@ export default function AdminBundles({ items, strips = {}, onNotify, onAccessRev
                       {pieces.slice(0, 6).map((item) => <span key={item.id} title={item.name}><ItemThumb item={item} strips={strips} width={24} height={38} /></span>)}
                       {pieces.length > 6 && <em>+{pieces.length - 6}</em>}
                     </div>
-                    <span className="admin-bdl-rarity"><Sparkles size={10} />{rarity.label}</span>
+                    <RarityBadge rarity={rarity.id} size="sm" className="admin-bdl-rarity" />
                     {bundle.featured && <span className="admin-bdl-star" title="Featured"><Star size={11} fill="currentColor" /></span>}
                   </div>
                   <div className="admin-bdl-body">
@@ -264,7 +266,7 @@ function BundleEditor({ initial, isNew, items, strips, maxItems, busy, error, on
             <div className="admin-bdl-rarities" role="radiogroup" aria-label="Rarity">
               {RARITIES.map((entry) => (
                 <button key={entry.id} type="button" role="radio" aria-checked={draft.rarity === entry.id} className={draft.rarity === entry.id ? 'is-on' : ''} style={{ '--rc': entry.color }} onClick={() => set('rarity')(entry.id)}>
-                  <i />{entry.label}
+                  <RarityEmblem rarity={entry.id} size={16} />{entry.label}
                 </button>
               ))}
               <label className="admin-bdl-accent" title="Custom colour (leave it to use the rarity colour)">
@@ -330,7 +332,7 @@ function BundleEditor({ initial, isNew, items, strips, maxItems, busy, error, on
           <div className="admin-bdl-pcard">
             <div className="admin-bdl-pcard-art">
               {draft.artPreview && <img src={draft.artPreview} alt="" />}
-              <span className="admin-bdl-rarity"><Sparkles size={10} />{rarityOf(draft.rarity).label}</span>
+              <RarityBadge rarity={rarityOf(draft.rarity).id} className="admin-bdl-rarity" />
               <div className="admin-bdl-pcard-pieces">
                 {picked.slice(0, 8).map((item) => <span key={item.id}><ItemThumb item={item} strips={strips} width={30} height={48} /></span>)}
                 {!picked.length && <small>Pick some items</small>}

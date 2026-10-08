@@ -382,8 +382,8 @@
 
 .rail-btn.tone-alert { color: var(--danger); }
 
-.rail-admin-btn { color: #a78bfa; }
-.rail-admin-btn:hover { color: #c4b5fd; background: rgba(139, 92, 246, 0.1); }
+
+
 
 .rail-divider { display: block; width: 22px; height: 1px; margin: 8px 0; background: var(--hairline); }
 .rail-spacer { flex: 1; }

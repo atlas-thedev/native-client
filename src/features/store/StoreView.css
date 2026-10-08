@@ -505,3 +505,5 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
   color: var(--fg-muted); font-variant-numeric: tabular-nums; user-select: none;
 }
 .store-viewer-count strong { color: #fff; font-weight: 600; }
+
+.store-card-owned { position: absolute; right: 9px; bottom: 9px; }

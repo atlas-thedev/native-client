@@ -1,0 +1,39 @@
+/* Rarity badges + owned marks (Store, Locker, Admin). */
+.rarity-emblem { flex: none; display: block; image-rendering: pixelated; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6)); }
+.rarity-badge {
+  --rc: #a45cff; --rc2: #5b1fa8;
+  position: relative; isolation: isolate; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 6px;
+  border-radius: 5px; white-space: nowrap;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 46%, #0b0b0d) 0%, color-mix(in srgb, var(--rc2) 60%, #0b0b0d) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 75%, #000), inset 0 1px 0 color-mix(in srgb, var(--rc) 40%, #fff), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 0 14px color-mix(in srgb, var(--rc) 28%, transparent);
+}
+.rarity-badge b { color: #fff; font: 900 10px/1 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55); }
+.rarity-badge.is-sm { height: 20px; gap: 5px; padding: 0 8px 0 5px; }
+.rarity-badge.is-sm b { font-size: 9px; }
+.rarity-badge.is-lg { height: 30px; gap: 8px; padding: 0 13px 0 8px; border-radius: 6px; }
+.rarity-badge.is-lg b { font-size: 11.5px; }
+.rarity-badge.is-rare { --rc: #3d8bff; --rc2: #1546a8; }
+.rarity-badge.is-epic { --rc: #a45cff; --rc2: #5b1fa8; }
+.rarity-badge.is-legendary { --rc: #ffb020; --rc2: #a35f00; }
+.rarity-badge.is-legendary b { color: #fff6c9; }
+.rarity-badge.is-mythic { --rc: #ff3d6e; --rc2: #8a0027; }
+/* Legendary and Mythic catch the light now and then. */
+.rarity-badge.is-legendary::after, .rarity-badge.is-mythic::after {
+  content: ''; position: absolute; inset: -2px auto -2px -40%; z-index: -1; width: 34%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-18deg); animation: rarity-shine 3.6s ease-in-out infinite;
+}
+.rarity-badge.is-mythic::after { animation-duration: 2.8s; }
+@keyframes rarity-shine { 0%, 62% { left: -40%; } 100% { left: 130%; } }
+@media (prefers-reduced-motion: reduce) { .rarity-badge::after { animation: none !important; display: none; } }
+:root[data-motion='reduced'] .rarity-badge::after { animation: none !important; display: none; }
+
+.owned-seal { flex: none; display: block; image-rendering: pixelated; }
+.owned-mark {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px 0 5px; border-radius: 5px;
+  background: rgba(10, 32, 20, 0.88); box-shadow: inset 0 0 0 1px rgba(31, 191, 99, 0.55), inset 0 1px 0 rgba(140, 255, 190, 0.18);
+  white-space: nowrap;
+}
+.owned-mark b { color: #7dffb0; font: 800 10px/1 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; }
+.owned-mark.is-compact { width: 22px; padding: 0; justify-content: center; }

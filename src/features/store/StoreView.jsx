@@ -1,4 +1,5 @@
 import { WornShot } from '../../lib/wornShot.jsx';
+import { OwnedMark } from './RarityBadges.jsx';
 import { BundlesPage, BundleShelf, bundleColor } from './BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -733,7 +734,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           )}
           {owned && (isCosmetic(item) && (me.wearing || {})[item.slot] === item.id
             ? <span className="store-card-state is-worn"><i />Wearing</span>
-            : <span className="store-card-state"><Check size={10} strokeWidth={3} />Owned</span>)}
+            : <OwnedMark className="store-card-owned" />)}
         </div>
         <div className="store-card-meta">
           <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
