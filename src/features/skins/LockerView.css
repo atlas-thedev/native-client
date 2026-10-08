@@ -908,3 +908,6 @@
 .locker-set-eye { opacity: 0; }
 .locker-set-card:hover .locker-set-eye, .locker-set-card.is-trying .locker-set-eye, .locker-set-eye:focus-visible { opacity: 1; }
 @media (max-width: 1100px) { .locker-set-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.locker-set-card .locker-skin-preview { position: relative; }
+.locker-set-card .locker-set-shot { position: static; height: 146px; width: auto; max-width: 100%; scale: 1; translate: none; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)); }
+.locker-set-card .locker-set-shot.is-loading { width: 40px; height: 100px; border-radius: 8px; }
