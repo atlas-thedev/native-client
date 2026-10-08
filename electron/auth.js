@@ -86,10 +86,13 @@ function revealAccount(account) {
 }
 
 function saveAccounts(data, dir) {
+  const now = Date.now();
   const protectedData = {
     ...data,
     accounts: (data.accounts || []).map((account) => {
       const next = { ...account, refresh: protectRefresh(account.refresh) };
+      // the login screen shows when each saved account was last used
+      if (account.id === data.activeId) next.lastUsedAt = now;
       for (const field of SECRET_FIELDS) {
         if (next[field]) next[field] = protectRefresh(next[field]);
       }

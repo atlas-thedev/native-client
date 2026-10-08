@@ -832,3 +832,50 @@
 .locker-cosmetic-card .locker-no-cape { width: 100%; max-width: 150px; height: auto; aspect-ratio: 1 / 1; border-radius: 10px; border-style: dashed; }
 .locker-cosmetic-card .locker-no-cape > svg { width: 30%; height: 30%; opacity: 0.8; }
 .locker-cosmetic-card:hover .locker-no-cape { border-color: rgba(255, 255, 255, 0.3); color: var(--fg-primary-hover); }
+
+/* ── Sets (Store bundles) ─────────────────────────────────── */
+.locker-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; gap: 12px; }
+.locker-set {
+  --bc: #a45cff;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid color-mix(in srgb, var(--bc) 28%, var(--lk-line-strong));
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--bc) 22%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bc) 7%, var(--lk-tile)), var(--lk-tile));
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.locker-set::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--bc), transparent); opacity: 0.8; }
+.locker-set:hover { border-color: color-mix(in srgb, var(--bc) 55%, transparent); transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35); }
+.locker-set.is-trying { border-color: var(--bc); box-shadow: 0 0 0 1px var(--bc), 0 10px 30px color-mix(in srgb, var(--bc) 25%, transparent); }
+.locker-set.is-complete .locker-set-count { background: var(--bc); color: #0b0b0f; border-color: transparent; }
+.locker-set-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.locker-set-title { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+.locker-set-title strong { max-width: 100%; overflow: hidden; color: #fff; font: 800 16px/1.1 var(--font-sans); letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.locker-set-title small { max-width: 100%; overflow: hidden; color: rgba(255, 255, 255, 0.55); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.locker-set-count {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35); color: rgba(255, 255, 255, 0.65); font: 700 11px var(--font-sans);
+}
+.locker-set-count b { color: #fff; font-weight: 800; }
+.locker-set-pieces { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 66px)); gap: 7px; }
+.locker-set-piece {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1 / 1; overflow: hidden;
+  border: 1px solid var(--lk-line-strong); border-radius: 10px; background: rgba(0, 0, 0, 0.35);
+}
+.locker-set-piece.is-owned { border-color: color-mix(in srgb, var(--bc) 45%, transparent); background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--bc) 22%, transparent), rgba(0, 0, 0, 0.3) 70%); }
+.locker-set-piece .locker-cosmetic-thumb { width: 100%; max-width: none; }
+.locker-set-piece .locker-cape-texture { width: 26px; height: 40px; background-size: 166px 83px; background-position: -2px -2px; }
+.locker-set-piece.is-locked > :not(.locker-set-lock) { filter: grayscale(0.85) brightness(0.55); }
+.locker-set-lock { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: rgba(0, 0, 0, 0.75); color: rgba(255, 255, 255, 0.8); }
+.locker-set-bar { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, 0.08); }
+.locker-set-bar i { display: block; height: 100%; border-radius: inherit; background: var(--bc); box-shadow: 0 0 10px var(--bc); transition: width 0.5s var(--ease); }
+.locker-set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.locker-set-time { margin-top: 1px; }
+.locker-set-actions .pxb { flex: 0 1 auto; min-width: 0; }
+.locker-set-ended { color: rgba(255, 255, 255, 0.45); font: 700 11px var(--font-sans); }
+.locker-tryon.is-set { border-color: color-mix(in srgb, var(--bc) 55%, transparent); }
+.locker-tryon.is-set .locker-tryon-text span { color: var(--bc); }

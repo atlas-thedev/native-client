@@ -243,3 +243,121 @@ export function WornShot({ item, asset, skinUrl, model, prepare, fallback = null
   if (src) return <img className={className} src={src} alt={alt} draggable={false} />;
   return <span className={`${className} ${failed ? 'is-empty' : 'is-loading'}`} aria-hidden="true" />;
 }
+
+/* ---------- whole outfits (store bundles) ---------- */
+
+const OUTFIT_W = 300;
+const OUTFIT_H = 400;
+export const outfitKey = (pieces, cape, skinUrl, model) => `${VERSION}|outfit|${pieces.map(({ item, asset }) => `${item?.id}:${tag(asset?.texture)}`).join(',')}|${cape ? `${cape.id}:${tag(cape.url)}` : '-'}|${tag(skinUrl)}|${model}`;
+
+/** Fits the whole player (and everything they wear) from a three-quarter front view, a little from above. */
+function frameOutfit(viewer, THREE, yaw) {
+  viewer.playerObject.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(viewer.playerObject);
+  if (box.isEmpty()) return;
+  const pts = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) pts.push(new THREE.Vector3(x, y, z));
+  const pitch = 0.1;
+  const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+  const up = new THREE.Vector3().crossVectors(dir, right).normalize();
+  const center = box.getCenter(new THREE.Vector3());
+  const aspect = OUTFIT_W / OUTFIT_H;
+  const tanV = Math.tan((viewer.fov / 2) * Math.PI / 180) / 1.06;
+  const tanH = tanV * aspect;
+  let distance = 10;
+  for (const p of pts) {
+    const o = p.clone().sub(center);
+    distance = Math.max(distance, Math.abs(o.dot(right)) / tanH + o.dot(dir), Math.abs(o.dot(up)) / tanV + o.dot(dir));
+  }
+  viewer.camera.position.copy(center).addScaledVector(dir, distance);
+  viewer.camera.lookAt(center);
+}
+
+async function drawOutfit(pieces, cape, skinUrl, model, prepare) {
+  const s = await getStage();
+  const { viewer, THREE, ncm } = s;
+  const wantSkin = `${tag(skinUrl)}|${model}`;
+  if (s.skinKey !== wantSkin) {
+    try {
+      const { source, model: resolved } = await prepare(skinUrl, model);
+      await Promise.resolve(viewer.loadSkin(source, { model: resolved }));
+    } catch {
+      await Promise.resolve(viewer.loadSkin(model === 'slim' ? alexSkin : steveSkin, { model: model === 'slim' ? 'slim' : 'default' }));
+    }
+    s.skinKey = wantSkin;
+  }
+  const back = pieces.some(({ item }) => item?.slot === 'back');
+  const built = [];
+  const skin = viewer.playerObject.skin;
+  const pose = [[skin.rightArm, -0.32, 0, 0.08], [skin.leftArm, 0.3, 0, -0.08], [skin.rightLeg, 0.24, 0, 0], [skin.leftLeg, -0.24, 0, 0]];
+  try {
+    viewer.setSize(OUTFIT_W, OUTFIT_H);
+    if (cape && !back) {
+      try { await viewer.loadCape(cape.url); } catch { viewer.loadCape(null); }
+      if (viewer.playerObject.cape) { viewer.playerObject.cape.visible = true; viewer.playerObject.cape.position.z = -2.5; viewer.playerObject.cape.rotation.x = 0.22; }
+    } else {
+      viewer.loadCape(null);
+      if (viewer.playerObject.cape) viewer.playerObject.cape.visible = false;
+    }
+    for (const { asset } of pieces) {
+      try {
+        const image = await ncm.loadImage(asset.texture);
+        const one = ncm.attachToPlayer(ncm.buildCosmetic(THREE, asset.model, image), skin);
+        one.update(0.35, 0);
+        built.push(one);
+      } catch { /* a broken piece is left out */ }
+    }
+    for (const [part, x, y, z] of pose) part?.rotation.set(x, y, z);
+    frameOutfit(viewer, THREE, back ? 0.95 : 0.42);
+    viewer.render();
+    return viewer.canvas.toDataURL('image/png');
+  } finally {
+    built.forEach((b) => { try { b.dispose(); } catch {} });
+    for (const [part] of pose) part?.rotation.set(0, 0, 0);
+    try { viewer.loadCape(null); } catch {}
+    if (viewer.playerObject.cape) viewer.playerObject.cape.rotation.x = 0;
+    viewer.setSize(SIZE, SIZE);
+  }
+}
+
+/**
+ * A whole look worn on `skinUrl`: every cosmetic in `pieces` ([{ item, asset }]) plus `cape` ({ id, url }), as a
+ * PNG data URL. Drawn once on the shared viewer, then kept in memory and IndexedDB like the single-piece shots.
+ */
+export function outfitShot({ pieces = [], cape = null, skinUrl, model, prepare }) {
+  const usable = pieces.filter(({ item, asset }) => item && asset?.model && asset?.texture);
+  if (!usable.length && !cape) return Promise.resolve(null);
+  const key = outfitKey(usable, cape, skinUrl, model);
+  if (memory.has(key)) return Promise.resolve(memory.get(key));
+  if (waiting.has(key)) return waiting.get(key);
+  const job = (async () => {
+    const saved = await readSaved(key);
+    if (saved) { memory.set(key, saved); return saved; }
+    const run = chain.then(() => drawOutfit(usable, cape, skinUrl, model, prepare));
+    chain = run.catch(() => {});
+    const url = await run;
+    if (url) { memory.set(key, url); writeSaved(key, url); }
+    return url;
+  })().catch(() => null).finally(() => waiting.delete(key));
+  waiting.set(key, job);
+  return job;
+}
+
+/** `<img>` of a whole look; waits until every piece's model has loaded (`ready`) so the shot is drawn once, complete. */
+export function OutfitShot({ pieces, cape, skinUrl, model, prepare, ready = true, className = '', alt = '' }) {
+  const usable = (pieces || []).filter(({ item, asset }) => item && asset?.model && asset?.texture);
+  const key = ready && (usable.length || cape) ? outfitKey(usable, cape, skinUrl, model) : null;
+  const [url, setUrl] = useState(() => (key ? memory.get(key) || null : null));
+  useEffect(() => {
+    if (!key) { setUrl(null); return undefined; }
+    const hit = memory.get(key);
+    if (hit) { setUrl(hit); return undefined; }
+    setUrl(null);
+    let live = true;
+    outfitShot({ pieces: usable, cape, skinUrl, model, prepare }).then((value) => { if (live && value) setUrl(value); });
+    return () => { live = false; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (url) return <img className={className} src={url} alt={alt} draggable={false} />;
+  return <span className={`${className} is-loading`} aria-hidden="true" />;
+}

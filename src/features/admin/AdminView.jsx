@@ -29,6 +29,7 @@ import AdminStore, { ItemThumb } from './AdminStore.jsx';
 import AdminUserPanel from './AdminUserPanel.jsx';
 import AdminBeta from './AdminBeta.jsx';
 import AdminSales from './AdminSales.jsx';
+import AdminBundles from './AdminBundles.jsx';
 import AdminWebsite from './AdminWebsite.jsx';
 import AdminOffers from './AdminOffers.jsx';
 import AdminVotes from './AdminVotes.jsx';
@@ -236,6 +237,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['overview', 'Overview', null],
     ['users', 'Users', pagination.total ? formatNumber(pagination.total) : null],
     ['store', 'Store', storeItems ? formatNumber(storeItems.length) : null],
+    ['bundles', 'Bundles', null],
     ['sales', 'Sales', null],
     ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
     ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
@@ -286,6 +288,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         <AdminOffers doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'votes' ? (
         <AdminVotes onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+      ) : section === 'bundles' ? (
+        <AdminBundles items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'sales' ? (
         <AdminSales items={storeItems} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'store' ? (

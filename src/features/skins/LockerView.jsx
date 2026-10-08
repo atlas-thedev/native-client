@@ -1,4 +1,5 @@
 import { WornShot } from '../../lib/wornShot.jsx';
+import { RARITY, RarityTag, bundleColor, Countdown } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, Eye, EyeOff, Folder, HardDrive, Layers, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -27,10 +28,11 @@ const COS_TABS = [
   { id: 'back', label: 'Wings', color: '#9fe0ff', slot: 'back', kicker: 'Native Store · 3D', title: 'Wings & Backpacks', noun: 'wings or backpacks' },
   { id: 'shoes', label: 'Shoes', color: '#ffb45c', slot: 'shoes', kicker: 'Native Store · 3D', title: 'Shoes', noun: 'shoes' },
   { id: 'hand', label: 'Hand', color: '#d7a6ff', slot: 'hand', kicker: 'Native Store · 3D', title: 'Hand Items', noun: 'hand items' },
+  { id: 'bundles', label: 'Sets', color: '#ffb020', kicker: 'Native Store · Bundles', title: 'Sets', noun: 'sets' },
   { id: 'capes', label: 'Capes', color: '#8ee07a', kicker: 'Minecraft', title: 'Capes', noun: 'capes' }
 ];
 // Front-facing slots turn the player to face you; the rest show the back.
-const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand']);
+const FRONT_TABS = new Set(['hats', 'glasses', 'shoes', 'hand', 'bundles']);
 const priceLabel = (item) => { const sale = Number(item.salePrice); const now = item.salePrice != null && Number.isFinite(sale) && sale > 0 ? sale : Number(item.price) || 0; return item.exclusive ? 'Event' : item.paid ? `$${now.toFixed(2)}` : 'Free'; };
 
 // Collapses "Founder's Cape", "founders", "FOUNDER" … to one comparable token so
@@ -73,6 +75,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
   const [catalogItems, setCatalogItems] = useState([]);
   const [tryOn, setTryOn] = useState(null);
+  const [catalogBundles, setCatalogBundles] = useState([]); // Store bundles (sets of items)
+  const [bundleMine, setBundleMine] = useState({}); // bundleId -> { owned, total, complete, due }
+  const [trySet, setTrySet] = useState(null); // a bundle being previewed on the model
   const [cosTab, setCosTab] = useState(() => {
     try { const saved = localStorage.getItem(COS_TAB_KEY); return COS_TABS.some((tab) => tab.id === saved) ? saved : 'cloaks'; } catch { return 'cloaks'; }
   });
@@ -185,11 +190,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     try {
       // The catalogue is cached locally, so show it (and start loading the worn cloak) without waiting for the account call.
       const catalogJob = Promise.resolve(window.native?.store?.catalog?.({}));
-      catalogJob.then((early) => { if (run === storeSeq.current && early?.ok) setCatalogItems(early.items || []); }).catch(() => {});
+      catalogJob.then((early) => { if (run === storeSeq.current && early?.ok) { setCatalogItems(early.items || []); setCatalogBundles(early.bundles || []); } }).catch(() => {});
       const [catalog, mine] = await Promise.all([catalogJob, window.native?.store?.me?.(account)]);
       if (run !== storeSeq.current || !catalog?.ok || !mine?.ok) return;
       const byId = new Map((catalog.items || []).map((item) => [item.id, item]));
       setCatalogItems(catalog.items || []);
+      setCatalogBundles(catalog.bundles || []);
+      setBundleMine(mine.bundles || {});
       setStoreEquipped(mine.equipped || null);
       try { if (mine.equipped) localStorage.setItem(wornHintKey, mine.equipped); else localStorage.removeItem(wornHintKey); } catch {}
       setStoreCapes((mine.owned || []).filter((entry) => byId.has(entry.id)).map((entry) => ({ item: byId.get(entry.id), acquiredAt: entry.acquiredAt })));
@@ -213,9 +220,16 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Store items you don't own yet get their thumbnails when their tab opens.
   useEffect(() => {
     const slot = COS_TABS.find((tab) => tab.id === cosTab)?.slot;
+    if (section === 'cosmetics' && cosTab === 'bundles') {
+      const ids = new Set(catalogBundles.flatMap((bundle) => bundle.itemIds || []));
+      for (const item of catalogItems) if (item.kind === 'cosmetic' && ids.has(item.id)) fetchCosmetic(item.id);
+      return;
+    }
     if (section !== 'cosmetics' || !slot) return;
     for (const item of catalogItems) if (item.kind === 'cosmetic' && item.slot === slot) fetchCosmetic(item.id);
-  }, [section, cosTab, catalogItems]);
+  }, [section, cosTab, catalogItems, catalogBundles]);
+  // Leaving the Sets tab stops previewing a set.
+  useEffect(() => { if (cosTab !== 'bundles' || section !== 'cosmetics') setTrySet(null); }, [cosTab, section]);
   useEffect(() => { loadStoreCapes(); }, [account?.id, account?.token, account?.nativeLink?.connected, online]);
   useEffect(() => {
     const refresh = () => loadStoreCapes();
@@ -265,7 +279,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const earlyCapeItem = !officialMode && !wardrobe?.active?.cape?.storeId && storeEquipped
     ? (catalogItems.find((item) => item.id === storeEquipped && item.kind !== 'cosmetic') || null) : null;
   const wornCapeUrl = showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || earlyCapeItem?.stillUrl || null);
-  const tryCloak = tryOn && tryOn.kind !== 'cosmetic' ? tryOn : null;
+  const trySetBundle = trySet ? (catalogBundles.find((bundle) => bundle.id === trySet) || null) : null;
+  const trySetPieces = trySetBundle ? trySetBundle.itemIds.map((id) => catalogItems.find((item) => item.id === id)).filter(Boolean) : [];
+  const tryCloak = tryOn && tryOn.kind !== 'cosmetic' ? tryOn : (trySetPieces.find((item) => item.kind !== 'cosmetic') || null);
   const previewStoreItem = tryCloak || (showCape ? (premiumCapeItem || earlyCapeItem) : null);
   useEffect(() => {
     if (!previewStoreItem || peekStoreCape(previewStoreItem)) return undefined;
@@ -309,8 +325,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
     if (tryOn?.kind === 'cosmetic') slots[tryOn.slot] = tryOn.id;
     if (tryOn && tryOn.kind !== 'cosmetic') delete slots.back; // a cloak being tried on must be seen
+    if (trySetPieces.length) {
+      if (trySetPieces.some((item) => item.kind !== 'cosmetic')) delete slots.back;
+      for (const item of trySetPieces) if (item.kind === 'cosmetic') slots[item.slot] = item.id;
+    }
     return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
-  }, [wearing, cosAssets, showCosmetics, tryOn, sides, dyes, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wearing, cosAssets, showCosmetics, tryOn, trySet, catalogBundles, sides, dyes, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
 
@@ -660,11 +680,46 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not add that.'); }
     finally { setStoreBusy(null); }
   };
+  // Sets: put on every piece of a bundle you own (one per slot, plus its cloak).
+  const wearSet = async (bundle) => {
+    if (!account || storeBusy || localOnly) return;
+    const pieces = (bundle.itemIds || []).map((id) => catalogById.get(id)).filter((item) => item && ownedIds.has(item.id));
+    if (!pieces.length) return;
+    setStoreBusy(`set:${bundle.id}`);
+    try {
+      let worn = wearing || {};
+      for (const item of pieces.filter((piece) => piece.kind === 'cosmetic')) {
+        const res = await window.native?.store?.wear?.(account, item.id, item.slot);
+        if (!res?.ok) throw new Error(res?.error || `Could not put on ${item.name}.`);
+        worn = res.wearing || worn;
+        if (res.sides) setSides(res.sides);
+      }
+      setWearing(worn);
+      const cloak = pieces.find((piece) => piece.kind !== 'cosmetic');
+      if (cloak) {
+        const res = await window.native?.store?.equip?.(account, cloak.id, officialMode ? { target: 'premium' } : undefined);
+        if (!res?.ok) throw new Error(res?.error || `Could not wear ${cloak.name}.`);
+        if (officialMode) setPremiumEquipped(res.premiumEquipped || cloak.id);
+        else if (res.state) publishState(res.state);
+      }
+      setTrySet(null);
+      window.dispatchEvent(new Event('native:cosmetics-changed'));
+      const all = pieces.length === (bundle.itemIds || []).length;
+      onNotify?.(t('locker.title'), all ? `You’re wearing the ${bundle.name} set — in the launcher and in game.` : `You’re wearing your ${pieces.length} ${bundle.name} pieces.`);
+    } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not wear that set.'); }
+    finally { setStoreBusy(null); }
+  };
+  // "Get the rest": open the Store on that bundle.
+  const openStoreBundle = (bundle) => {
+    try { localStorage.setItem('native.store.openBundle', bundle.id); } catch {}
+    window.dispatchEvent(new Event('native:store-open-bundle'));
+    onOpenStore?.();
+  };
   const ownedCosmetics = storeCapes.filter(({ item }) => item.kind === 'cosmetic').map(({ item }) => item);
   const ownedIds = useMemo(() => new Set(storeCapes.map(({ item }) => item.id)), [storeCapes]);
   const canShop = !localOnly && catalogItems.length > 0;
   const storeItemsFor = (tab) => catalogItems.filter((item) => (tab.slot ? item.kind === 'cosmetic' && item.slot === tab.slot : item.kind !== 'cosmetic') && !ownedIds.has(item.id));
-  const cosTabCount = (tab) => (tab.id === 'cloaks' ? storeCapes.length - ownedCosmetics.length : tab.slot ? ownedCosmetics.filter((item) => item.slot === tab.slot).length : null);
+  const cosTabCount = (tab) => (tab.id === 'bundles' ? catalogBundles.filter((bundle) => (bundle.itemIds || []).some((id) => ownedIds.has(id))).length : tab.id === 'cloaks' ? storeCapes.length - ownedCosmetics.length : tab.slot ? ownedCosmetics.filter((item) => item.slot === tab.slot).length : null);
   const nothingCard = (slot) => {
     const active = !wearing?.[slot];
     return <button key={`none:${slot}`} type="button" style={{ '--i': 0 }} className={`locker-cape-card locker-cosmetic-card locker-pop ${active ? 'active' : ''}`.trim()} onClick={() => clearSlot(slot)} title="Wear nothing here">
@@ -693,7 +748,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     </button>;
   };
   const renderShop = (tab) => {
-    if (!canShop || tab.id === 'capes') return null;
+    if (!canShop || tab.id === 'capes' || tab.id === 'bundles') return null;
     const more = storeItemsFor(tab).filter((item) => matches(item.name, capeQuery));
     if (!more.length) {
       if (capeQuery.trim()) return null;
@@ -819,6 +874,63 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
           {wearing?.back && <p className="locker-cape-hint">Your {ownedCosmetics.find((item) => item.id === wearing.back)?.name || 'back item'} takes the cloak’s place on your back. <button type="button" className="locker-inline-link" onClick={() => clearSlot('back')}>Take it off</button> to show your cloak.</p>}
         </>}
       </section>;
+    } else if (tab.id === 'bundles') {
+      const sets = catalogBundles
+        .map((bundle) => ({ bundle, pieces: (bundle.itemIds || []).map((id) => catalogById.get(id)).filter(Boolean) }))
+        .filter(({ bundle, pieces }) => pieces.length && matches(bundle.name, capeQuery))
+        .map((entry) => ({ ...entry, have: entry.pieces.filter((item) => ownedIds.has(item.id)).length }))
+        .filter(({ bundle, have }) => have > 0 || bundle.phase !== 'ended')
+        .sort((a, b) => Number(b.have === b.pieces.length) - Number(a.have === a.pieces.length) || b.have / b.pieces.length - a.have / a.pieces.length);
+      const pieceArt = (item) => (item.kind === 'cosmetic'
+        ? cosmeticShot(item)
+        : item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>);
+      const setCard = ({ bundle, pieces, have }, index) => {
+        const color = bundleColor(bundle);
+        const complete = have === pieces.length;
+        const ended = bundle.phase === 'ended';
+        const previewing = trySet === bundle.id;
+        const wornAll = pieces.every((item) => (item.kind === 'cosmetic' ? wearing?.[item.slot] === item.id : (officialMode ? premiumEquipped : (wardrobe?.active?.cape?.storeId || storeEquipped)) === item.id));
+        const due = bundleMine?.[bundle.id]?.due;
+        const busy = storeBusy === `set:${bundle.id}`;
+        return <article key={`set:${bundle.id}`} className={`locker-set locker-pop${complete ? ' is-complete' : ''}${previewing ? ' is-trying' : ''}`} style={{ '--i': index, '--bc': color }}>
+          <header className="locker-set-head">
+            <div className="locker-set-title">
+              <RarityTag bundle={bundle}>{RARITY[bundle.rarity]?.label || 'Epic'}</RarityTag>
+              <strong>{bundle.name}</strong>
+              {bundle.tagline && <small>{bundle.tagline}</small>}
+              {!ended && bundle.endsAt && !complete && <Countdown endsAt={bundle.endsAt} className="locker-set-time"/>}
+            </div>
+            <div className="locker-set-count" title={`You own ${have} of ${pieces.length}`}>
+              {complete ? <><Check size={12} strokeWidth={3}/>Complete</> : <><b>{have}</b>/{pieces.length}</>}
+            </div>
+          </header>
+          <div className="locker-set-pieces" style={{ '--n': pieces.length }}>
+            {pieces.map((item) => {
+              const mineHas = ownedIds.has(item.id);
+              return <span key={item.id} className={`locker-set-piece${mineHas ? ' is-owned' : ' is-locked'}`} title={mineHas ? item.name : `${item.name} · not in your locker yet`}>
+                {pieceArt(item)}
+                {!mineHas && <i className="locker-set-lock"><Lock size={10} strokeWidth={2.8}/></i>}
+              </span>;
+            })}
+          </div>
+          <div className="locker-set-bar" aria-hidden="true"><i style={{ width: `${(have / pieces.length) * 100}%` }}/></div>
+          <div className="locker-set-actions">
+            <PixelIconButton size="sm" icon={previewing ? <EyeOff size={14}/> : <Eye size={14}/>} label={previewing ? 'Stop previewing' : 'Preview the whole set on you'} onClick={() => { setTryOn(null); setTrySet(previewing ? null : bundle.id); }}/>
+            {have > 0 && <PixelButton size="sm" variant={complete ? 'gold' : 'ghost'} disabled={Boolean(storeBusy) || wornAll} busy={busy} busyIcon={<RefreshCw size={14} className="is-spinning"/>} icon={wornAll ? <Check size={14} strokeWidth={3}/> : <Sparkles size={14}/>} label={wornAll ? 'Wearing' : complete ? 'Wear set' : 'Wear yours'} title={complete ? 'Put on every piece' : 'Put on the pieces you own'} onClick={() => wearSet(bundle)}/>}
+            {!complete && (ended
+              ? <span className="locker-set-ended">Bundle ended</span>
+              : <PixelButton size="sm" variant={have > 0 ? 'ghost' : 'primary'} icon={<Store size={14}/>} label={due != null ? (due > 0 ? `Get the rest · $${due.toFixed(2)}` : 'Claim the rest') : 'Get the set'} title="Open this bundle in the Native Store" onClick={() => openStoreBundle(bundle)}/>)}
+          </div>
+        </article>;
+      };
+      body = <section className="locker-row locker-capes-row">
+        {header}
+        {localOnly ? <p className="locker-cape-hint">Sets come from the Native Store. Sign in with Microsoft or a Native account to get them.</p> : <>
+          {sets.length > 0 && <div className="locker-sets">{sets.map(setCard)}</div>}
+          {!sets.length && <p className="locker-cape-hint">{capeQuery.trim() ? `No set matches “${capeQuery.trim()}”.` : <>No sets yet. <button type="button" className="locker-inline-link" onClick={() => onOpenStore?.()}>See the bundles in the Native Store</button> — full looks for less.</>}</p>}
+          {sets.length > 0 && <p className="locker-cape-hint">Pieces you already own are left out of a bundle’s price.</p>}
+        </>}
+      </section>;
     } else if (tab.slot) {
       const owned = ownedCosmetics.filter((item) => item.slot === tab.slot && matches(item.name, capeQuery));
       body = <section className="locker-row locker-capes-row">
@@ -900,6 +1012,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>
         <div className="locker-stage-heading"><h2>{t('locker.currentSkin')}</h2><div className="locker-stage-toggles"><button type="button" className={showCape ? 'active' : ''} onClick={() => setShowCape((value) => !value)} title={showCape ? 'Hide cape' : 'Show cape'}>{showCape ? <Eye size={15}/> : <EyeOff size={15}/>}</button><button type="button" className={showLayers ? 'active' : ''} onClick={() => setShowLayers((value) => !value)} title={showLayers ? 'Hide outer layer' : 'Show outer layer'}><Layers size={15}/></button>{Object.keys(wearing || {}).length > 0 && <button type="button" className={showCosmetics ? 'active' : ''} onClick={() => setShowCosmetics((value) => !value)} title={showCosmetics ? 'Hide hats, glasses, wings and shoes' : 'Show hats, glasses, wings and shoes'}><Sparkles size={15}/></button>}</div></div>
         <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
+        {trySetBundle && !tryOn && section === 'cosmetics' && <div key={`tryset:${trySetBundle.id}`} className="locker-tryon is-set" role="status" style={{ '--bc': bundleColor(trySetBundle) }}>
+          <div className="locker-tryon-text"><span>Previewing set</span><strong>{trySetBundle.name}</strong></div>
+          <div className="locker-tryon-actions">
+            <PixelIconButton size="sm" icon={<X size={14} strokeWidth={3}/>} label="Stop previewing" onClick={() => setTrySet(null)}/>
+          </div>
+        </div>}
         {tryOn && section === 'cosmetics' && <div key={`try:${tryOn.id}`} className="locker-tryon" role="status">
           <div className="locker-tryon-text"><span>Trying on</span><strong>{tryOn.name}</strong></div>
           <div className="locker-tryon-actions">
