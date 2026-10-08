@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ImagePlus, LoaderCircle, Lock, Plus, RotateCcw, Send, Trash2, Vote, X } from 'lucide-react';
+import { Crown, Eye, ImagePlus, LoaderCircle, Lock, Package, Plus, RotateCcw, Search, Send, Trash2, Vote, X } from 'lucide-react';
+import { ItemThumb } from './AdminStore.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import { adminCall, formatDate, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
 
-const newOption = () => ({ label: '', description: '', image: null, preview: null });
-const blank = () => ({ title: '', description: '', kind: 'cape', results: 'after_vote', status: 'open', endsAt: Date.now() + 7 * 86_400_000, options: [newOption(), newOption(), newOption()] });
-const KINDS = [{ value: 'cape', label: 'Cape' }, { value: 'feature', label: 'Feature' }, { value: 'other', label: 'Other' }];
+const newOption = () => ({ label: '', description: '', image: null, preview: null, itemId: null });
+const blank = () => ({ title: '', description: '', kind: 'cosmetic', results: 'after_vote', status: 'open', endsAt: Date.now() + 7 * 86_400_000, options: [newOption(), newOption(), newOption()] });
+const KINDS = [{ value: 'cosmetic', label: 'Cosmetic' }, { value: 'cape', label: 'Cape' }, { value: 'feature', label: 'Feature' }, { value: 'other', label: 'Other' }];
 const RESULTS = [{ value: 'after_vote', label: 'After voting' }, { value: 'always', label: 'Always' }, { value: 'after_close', label: 'When closed' }];
 const PUBLISH = [{ value: 'open', label: 'Open now' }, { value: 'draft', label: 'Draft' }];
 
@@ -16,8 +17,37 @@ const readPng = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-/** Community votes (like the Minecraft mob vote): players pick one option on the website’s /vote page. */
-export default function AdminVotes({ onNotify, onAccessRevoked }) {
+/** Pick a Store item (hidden concept pieces included) for a vote option. */
+function ItemPick({ items, strips, onPick, onClose }) {
+  const [q, setQ] = useState('');
+  const list = (items || []).filter((it) => {
+    const t = q.trim().toLowerCase();
+    return !t || `${it.name} ${it.id} ${it.slot || ''}`.toLowerCase().includes(t);
+  }).sort((a, b) => Number(b.kind === 'cosmetic') - Number(a.kind === 'cosmetic') || Number(b.hidden) - Number(a.hidden)).slice(0, 60);
+  return (
+    <div className="admin-vote-itempick">
+      <div className="admin-attach-head">
+        <span><Package size={13} />Use a Store item (hidden ones are fine — release the winner later)</span>
+        <label className="admin-search is-small"><Search size={12} /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an item" aria-label="Find a Store item" /></label>
+        <button type="button" className="admin-icon-btn" onClick={onClose} aria-label="Close"><X size={12} /></button>
+      </div>
+      <div className="admin-picker">
+        {list.map((it) => (
+          <button key={it.id} type="button" className={`admin-picker-tile${it.hidden ? ' is-hidden' : ''}`} onClick={() => onPick(it)} title={it.name}>
+            <span className="admin-picker-art"><ItemThumb item={it} strips={strips} width={30} height={48} /></span>
+            <span className="admin-picker-name">{it.name}</span>
+          </button>
+        ))}
+        {!list.length && <p className="admin-note">No items match.</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Community votes (like the Minecraft mob vote): players vote in the launcher’s Community tab and on the website’s /vote page. */
+export default function AdminVotes({ items = [], strips = {}, onNotify, onAccessRevoked }) {
+  const [picking, setPicking] = useState(null);
+  const itemById = React.useMemo(() => new Map((items || []).map((it) => [it.id, it])), [items]);
   const { busy, error, setError, run } = useAdminAction(onNotify, 'Votes');
   const { armed, ask } = useConfirm();
   const [polls, setPolls] = useState(null);
@@ -35,9 +65,16 @@ export default function AdminVotes({ onNotify, onAccessRevoked }) {
     const url = await readPng(file);
     return setOption(index, { image: url.replace(/^data:[^,]+,/, ''), preview: url });
   };
-  const ready = draft.title.trim().length >= 3 && draft.options.filter((option) => option.label.trim()).length >= 2;
+  const ready = draft.title.trim().length >= 3 && draft.options.filter((option) => option.label.trim() || option.itemId).length >= 2;
+  const pickItem = (index, item) => { setOption(index, { itemId: item.id, label: draft.options[index].label || item.name.slice(0, 40), image: null, preview: null }); setPicking(null); };
+  const setWinner = (poll, optionId) => patch(poll.id, { winnerOptionId: optionId }, optionId ? 'Winner set — it shows under Past campaigns.' : 'Winner cleared.');
+  const release = (item) => run(`rel:${item.id}`, async () => {
+    const r = await window.native?.admin?.storeUpdate?.(item.id, { hidden: false });
+    if (!r?.ok) throw new Error(r?.error || 'Could not release it.');
+    await load();
+  }, `${item.name} is now in the Store.`);
   const create = () => run('create', async () => {
-    const result = await adminCall('POST', '/polls', { ...draft, options: draft.options.filter((o) => o.label.trim()).map(({ label, description, image }) => ({ label, description, image })) }, onAccessRevoked);
+    const result = await adminCall('POST', '/polls', { ...draft, options: draft.options.filter((o) => o.label.trim() || o.itemId).map(({ label, description, image, itemId }) => ({ label, description, image: itemId ? null : image, itemId })) }, onAccessRevoked);
     setPolls(result.polls || []);
     setDraft(blank());
   }, 'Vote created.');
@@ -67,23 +104,34 @@ export default function AdminVotes({ onNotify, onAccessRevoked }) {
             <label className="admin-field"><span>Publish</span><Dropdown className="admin-dropdown" value={draft.status} onChange={(v) => set('status', v)} options={PUBLISH} /></label>
           </div>
         </div>
-        <p className="admin-note"><strong>Options</strong>&nbsp;2 to 8. Add a PNG concept image for each cape.</p>
+        <p className="admin-note"><strong>Options</strong>&nbsp;2 to 8. Pick a Store cosmetic or cloak (shown in 3D), or upload a PNG concept image.</p>
         <div className="admin-vote-options">
           {draft.options.map((option, index) => (
             <div key={index} className="admin-vote-option">
-              <label className="admin-vote-image" title="Upload PNG">
-                {option.preview ? <img src={option.preview} alt="" /> : <ImagePlus size={18} />}
-                <input type="file" accept="image/png" onChange={(event) => { pickImage(index, event.target.files?.[0]); event.target.value = ''; }} />
-              </label>
+              {option.itemId && itemById.get(option.itemId) ? (
+                <button type="button" className="admin-vote-image" title="Change Store item" onClick={() => setPicking(index)}>
+                  <ItemThumb item={itemById.get(option.itemId)} strips={strips} width={30} height={48} />
+                </button>
+              ) : (
+                <label className="admin-vote-image" title="Upload PNG">
+                  {option.preview ? <img src={option.preview} alt="" /> : <ImagePlus size={18} />}
+                  <input type="file" accept="image/png" onChange={(event) => { pickImage(index, event.target.files?.[0]); event.target.value = ''; }} />
+                </label>
+              )}
               <div className="admin-vote-option-fields">
                 <input maxLength={40} placeholder={`Option ${index + 1}`} value={option.label} onChange={(event) => setOption(index, { label: event.target.value })} />
                 <input maxLength={200} placeholder="Short description" value={option.description} onChange={(event) => setOption(index, { description: event.target.value })} />
+                <span className="admin-vote-option-tools">
+                  <button type="button" className="admin-link-btn" onClick={() => setPicking(picking === index ? null : index)}><Package size={11} />{option.itemId ? 'Change Store item' : 'Use a Store item'}</button>
+                  {option.itemId && <button type="button" className="admin-link-btn" onClick={() => setOption(index, { itemId: null })}><X size={11} />Remove item</button>}
+                </span>
               </div>
               {draft.options.length > 2 && (
                 <button type="button" className="admin-vote-remove" aria-label="Remove option" onClick={() => setDraft((current) => ({ ...current, options: current.options.filter((_, i) => i !== index) }))}><X size={12} /></button>
               )}
             </div>
           ))}
+          {picking != null && <ItemPick items={items} strips={strips} onPick={(it) => pickItem(picking, it)} onClose={() => setPicking(null)} />}
           {draft.options.length < 8 && (
             <button type="button" className="admin-vote-add" onClick={() => setDraft((current) => ({ ...current, options: [...current.options, newOption()] }))}><Plus size={14} />Add option</button>
           )}
@@ -91,7 +139,7 @@ export default function AdminVotes({ onNotify, onAccessRevoked }) {
       </section>
 
       <section className="admin-card">
-        <div className="admin-card-head"><h3><Vote size={14} />All votes</h3><span>{polls ? `${polls.length} total · shown on the website’s /vote page` : ''}</span></div>
+        <div className="admin-card-head"><h3><Vote size={14} />All votes</h3><span>{polls ? `${polls.length} total · shown in the launcher’s Community tab and on the website’s /vote page` : ''}</span></div>
         {!polls ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading…</p> : !polls.length ? <p className="admin-note">No votes yet. Create the first one above.</p> : (
           <div className="admin-vote-list">
             {polls.map((poll) => {
@@ -124,17 +172,28 @@ export default function AdminVotes({ onNotify, onAccessRevoked }) {
                   <div className="admin-vote-results">
                     {(poll.options || []).map((option) => {
                       const pct = total ? Math.round(((option.votes ?? 0) / total) * 100) : 0;
+                      const item = option.itemId ? itemById.get(option.itemId) : null;
+                      const won = poll.winnerId === option.id;
                       return (
-                        <div key={option.id} className="admin-vote-result">
-                          {option.image ? <img src={option.image} alt="" /> : <span className="admin-vote-letter">{String(option.label || '?')[0]}</span>}
+                        <div key={option.id} className={`admin-vote-result${won ? ' is-winner' : ''}`}>
+                          {item ? <span className="admin-vote-thumb"><ItemThumb item={item} strips={strips} width={24} height={38} /></span> : option.image ? <img src={option.image} alt="" /> : <span className="admin-vote-letter">{String(option.label || '?')[0]}</span>}
                           <div>
-                            <p><span>{option.label}</span><small>{option.votes ?? 0} · {pct}%</small></p>
+                            <p><span>{won && <Crown size={11} />}{option.label}{item?.hidden && <em className="admin-chip is-inline is-muted">hidden</em>}</span><small>{option.votes ?? 0} · {pct}%</small></p>
                             <span className="admin-bar"><i style={{ width: `${pct}%` }} /></span>
                           </div>
+                          {state === 'Closed' && (
+                            <span className="admin-vote-result-actions">
+                              {won
+                                ? (poll.winnerPicked && <button type="button" className="admin-link-btn" disabled={Boolean(busy)} onClick={() => setWinner(poll, null)}>Auto</button>)
+                                : <button type="button" className="admin-link-btn" disabled={Boolean(busy)} onClick={() => setWinner(poll, option.id)} title="Make this the winner"><Crown size={11} />Winner</button>}
+                              {won && item?.hidden && <button type="button" className="admin-link-btn is-strong" disabled={Boolean(busy)} onClick={() => release(item)}>{busy === `rel:${item.id}` ? <LoaderCircle size={11} className="is-spinning" /> : <Eye size={11} />}Release in Store</button>}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
                   </div>
+                  {state === 'Closed' && !poll.winnerId && <p className="admin-note">No clear winner (tie or no votes). Pick one with the crown.</p>}
                 </article>
               );
             })}

@@ -18,6 +18,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerKind, setPickerKind] = useState('all');
   const [confirm, setConfirm] = useState('');
   const [copied, setCopied] = useState(false);
   const [plusGift, setPlusGift] = useState(undefined); // this player's given Native+ (null = none), undefined while loading
@@ -50,6 +51,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
   const owned = (user?.owned || []).map((entry) => ({ ...entry, item: itemById.get(entry.id) })).filter((entry) => entry.item);
   const wearing = user?.equipped ? itemById.get(user.equipped) : null;
   const attachable = (items || []).filter((item) => !ownedIds.has(item.id)).filter((item) => {
+    if (pickerKind !== 'all' && (item.kind === 'cosmetic') !== (pickerKind === 'cosmetic')) return false;
     const q = pickerQuery.trim().toLowerCase();
     return !q || `${item.name} ${item.id} ${(item.tags || []).join(' ')}`.toLowerCase().includes(q);
   });
@@ -87,10 +89,10 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
     const copy = {
       grant: `${item?.name} was added to ${name}’s locker.`,
       equip: `${name} is now wearing ${item?.name}.`,
-      unequip: `${name}’s cape was taken off.`,
+      unequip: `${item?.name || 'That item'} was taken off ${name}.`,
       revoke: `${item?.name} was taken back from ${name}.`
     }[action];
-    onNotify?.('Capes', copy);
+    onNotify?.('Locker', copy);
     onUserChanged?.();
   });
 
@@ -210,11 +212,16 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
 
         <div className="admin-attach">
           <div className="admin-attach-head">
-            <span><Gift size={13} />Attach a cape</span>
-            <label className="admin-search is-small"><Search size={12} /><input value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder="Find a cape" aria-label="Find a cape to attach" /></label>
+            <span><Gift size={13} />Give an item</span>
+            <div className="admin-filters">
+              {[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']].map(([id, label]) => (
+                <button key={id} type="button" className={pickerKind === id ? 'active' : ''} onClick={() => setPickerKind(id)}>{label}</button>
+              ))}
+            </div>
+            <label className="admin-search is-small"><Search size={12} /><input value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder="Find a cloak or cosmetic" aria-label="Find an item to give" /></label>
           </div>
           {!items ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading Store cloaks…</p>
-            : !attachable.length ? <p className="admin-note">{(items || []).length && !pickerQuery ? 'They already have every Store cape.' : 'No cloaks match.'}</p>
+            : !attachable.length ? <p className="admin-note">{(items || []).length && !pickerQuery && pickerKind === 'all' ? 'They already have every Store item.' : 'Nothing matches.'}</p>
               : (
                 <div className="admin-attach-grid">
                   {attachable.map((item) => (
@@ -222,7 +229,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
                       <div className="admin-attach-art">{thumb(item, 30, 48)}</div>
                       <div className="admin-attach-copy">
                         <strong title={item.name}>{item.name}</strong>
-                        <small>{item.exclusive ? 'Exclusive' : item.hidden ? 'Hidden' : item.animated ? 'Animated' : 'Static'}</small>
+                        <small>{item.kind === 'cosmetic' ? 'Cosmetic' : 'Cloak'} · {item.exclusive ? 'Exclusive' : item.hidden ? 'Hidden' : item.animated ? 'Animated' : 'Static'}</small>
                       </div>
                       <div className="admin-attach-actions">
                         <button type="button" disabled={Boolean(busy) || !user} onClick={() => cape(item, 'grant')} title={`Give ${item.name}`}>{busy === `grant:${item.id}` ? <LoaderCircle size={12} className="is-spinning" /> : <Gift size={12} />}Give</button>
