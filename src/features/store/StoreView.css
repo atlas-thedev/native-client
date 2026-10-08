@@ -507,3 +507,23 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-viewer-count strong { color: #fff; font-weight: 600; }
 
 .store-card-owned { position: absolute; right: 9px; bottom: 9px; }
+
+/* Dyeable cosmetics: try colours on the 3D preview */
+.store-dye {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; background: #0b0b0c; box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+.store-dye-label { display: inline-flex; align-items: center; gap: 6px; font: 700 12px var(--font-sans); color: var(--fg-muted, #8b8b95); white-space: nowrap; }
+.store-dye-swatches { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
+.store-dye-swatch {
+  position: relative; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+  background-color: var(--dye); background-image: var(--px-texture); background-size: 48px 48px; image-rendering: pixelated;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(0, 0, 0, 0.28), 0 2px 0 rgba(0, 0, 0, 0.5);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.store-dye-swatch:hover { transform: translateY(-2px); }
+.store-dye-swatch:active { transform: translateY(1px) scale(0.94); }
+.store-dye-swatch.is-on { outline: 2px solid #fff; outline-offset: 2px; }
+.store-dye-swatch.is-own::after { content: ''; position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 2px; background: #fff; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.store-dye-note { flex-basis: 100%; font: 600 11.5px var(--font-sans); color: var(--fg-muted, #8b8b95); }
+@media (prefers-reduced-motion: reduce) { .store-dye-swatch { transition: none; } }

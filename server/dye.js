@@ -172,4 +172,13 @@ function cleanColors(list, fallback = null) {
   return out;
 }
 
-module.exports = { HEX, cleanHex, decodePng, encodePng, bake, checkMask, cleanColors, MAX_COLORS };
+/** Colours offered when the admin hasn't picked any for a dyeable item (so every dyeable item can be dyed). */
+const DEFAULT_COLORS = ['#e5484d', '#3e8bff', '#46c35a', '#ff6fb5', '#f2f2f2', '#2b2b30'];
+/** The colours players may pick for `item`: the admin's list, or the default palette when it is empty. */
+function colorsOf(item) {
+  const own = Array.isArray(item && item.dyeColors) ? item.dyeColors.filter((hex) => cleanHex(hex)) : [];
+  if (own.length) return own;
+  return DEFAULT_COLORS.filter((hex) => hex !== (item && item.dyeDefault)).slice(0, MAX_COLORS);
+}
+
+module.exports = { HEX, cleanHex, decodePng, encodePng, bake, checkMask, cleanColors, colorsOf, DEFAULT_COLORS, MAX_COLORS };

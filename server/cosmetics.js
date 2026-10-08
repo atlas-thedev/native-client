@@ -1,4 +1,5 @@
 'use strict';
+const { colorsOf: dyeColors } = require('./dye');
 /**
  * Native 3D cosmetics: hats, glasses, back items (wings, backpacks, jetpacks), shoes and hand items.
  *
@@ -129,7 +130,7 @@ function dyeOf(profile, item) {
   const hex = profile && profile.cosmeticDyes && profile.cosmeticDyes[item.id];
   if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/.test(hex)) return null;
   // Only the colours the admin offers (a colour removed later falls back to the item's own).
-  return hex === item.dyeDefault || (Array.isArray(item.dyeColors) && item.dyeColors.includes(hex)) ? hex : null;
+  return hex === item.dyeDefault || dyeColors(item).includes(hex) ? hex : null;
 }
 /** The texture hash to show for `item` on `profile` (the dyed one when the player picked a colour). */
 function textureFor(profile, item, dyedTexture) {
