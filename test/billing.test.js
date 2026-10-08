@@ -8,18 +8,19 @@ const path = require('node:path');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-billing-test-'));
 process.env.NATIVE_DATA_DIR = DATA_DIR;
 process.env.NATIVE_ADMIN_EMAILS = 'boss@test.local';
-const SECRET = 'pdl_ntfset_test_secret';
+const SECRET = 'tebex_webhook_test_secret';
 Object.assign(process.env, {
-  PADDLE_ENV: 'sandbox', PADDLE_API_KEY: 'test-key', PADDLE_CLIENT_TOKEN: 'test_token', PADDLE_WEBHOOK_SECRET: SECRET,
-  PADDLE_CAPE_PRODUCT: 'pro_cape', PADDLE_PLUS_MONTHLY_PRICE: 'pri_month', PADDLE_PLUS_YEARLY_PRICE: 'pri_year'
+  TEBEX_PROJECT_ID: '1234567', TEBEX_PRIVATE_KEY: 'privatekeyprivatekey123', TEBEX_PUBLIC_TOKEN: 'abcd-0123456789abcdef', TEBEX_WEBHOOK_SECRET: SECRET, TEBEX_MODE: 'live'
 });
 
 const db = require('../server/db');
 const { listen } = require('../server/server');
 
-const sign = (body, ts = Math.floor(Date.now() / 1000)) => `ts=${ts};h1=${crypto.createHmac('sha256', SECRET).update(`${ts}:${body}`).digest('hex')}`;
+const sign = (body, secret = SECRET) => crypto.createHmac('sha256', secret).update(crypto.createHash('sha256').update(body).digest('hex')).digest('hex');
+let eventNo = 0;
+const ev = (type, subject) => ({ id: `evt_${++eventNo}`, type, date: new Date().toISOString(), subject });
 
-test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async () => {
+test('Tebex webhooks sell capes, run Native+, refund, and redeem codes', async () => {
   const buyer = db.createUser({ email: 'buyer@test.local', username: 'Buyer', password: 'password123' });
   const boss = db.createUser({ email: 'boss@test.local', username: 'Boss', password: 'password123' });
   const buyerSession = db.createSession(buyer.id);
@@ -31,14 +32,19 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
   });
   const hook = (event) => {
     const raw = JSON.stringify(event);
-    return fetch(`${base}/v1/billing/paddle/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Paddle-Signature': sign(raw) }, body: raw });
+    return fetch(`${base}/v1/billing/tebex/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Signature': sign(raw) }, body: raw });
   };
   const owned = async () => (await (await call('GET', '/v1/store/me', null, buyerSession.token)).json()).owned;
 
   try {
     const config = await (await call('GET', '/v1/billing/config')).json();
     assert.equal(config.enabled, true);
-    assert.equal(config.clientToken, 'test_token');
+    assert.equal(config.provider, 'tebex');
+    assert.equal(config.publicToken, 'abcd-0123456789abcdef');
+
+    // Tebex validates a new endpoint by expecting its id back.
+    const validation = await (await hook({ id: 'val-1', type: 'validation.webhook', date: new Date().toISOString(), subject: {} })).json();
+    assert.deepEqual(validation, { id: 'val-1' });
 
     // Make one cape paid.
     const { items } = await (await call('GET', '/v1/admin/store/items', null, bossSession.token)).json();
@@ -54,14 +60,15 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
     assert.equal((await call('POST', '/v1/store/equip', { itemId: paid.id }, buyerSession.token)).status, 402);
 
     // Forged webhooks are rejected.
-    const forged = await fetch(`${base}/v1/billing/paddle/webhook`, { method: 'POST', headers: { 'Paddle-Signature': 'ts=1;h1=00' }, body: '{}' });
+    const forged = await fetch(`${base}/v1/billing/tebex/webhook`, { method: 'POST', headers: { 'X-Signature': sign('{}', 'wrong-secret') }, body: '{}' });
     assert.equal(forged.status, 401);
 
     // Buying a cape.
-    const sale = { event_id: 'evt_1', event_type: 'transaction.completed', data: {
-      id: 'txn_1', status: 'completed', customer_id: 'ctm_1', currency_code: 'USD', custom_data: { userId: buyer.id, kind: 'cape', itemId: paid.id },
-      details: { totals: { grand_total: '149' } }, items: [{ price: { id: 'pri_x' } }]
-    } };
+    const sale = ev('payment.completed', {
+      transaction_id: 'tbx-1', status: { id: 1, description: 'Complete' }, price: { amount: 2.49, currency: 'USD' }, price_paid: { amount: 2.49, currency: 'USD' },
+      payment_method: { name: 'PayPal', refundable: true }, customer: { email: 'buyer@test.local' }, custom: { userId: buyer.id, kind: 'cape', itemId: paid.id },
+      products: [{ id: null, name: paid.name, quantity: 1, custom: { userId: buyer.id, kind: 'cape', itemId: paid.id } }], recurring_payment_reference: null
+    });
     assert.equal((await hook(sale)).status, 200);
     assert.equal((await (await hook(sale)).json()).duplicate, true, 'events are processed once');
     assert.ok((await owned()).some((entry) => entry.id === paid.id && entry.source === 'purchase'));
@@ -69,14 +76,18 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
     assert.equal(unclaim.status, 403, 'bought capes stay in the locker');
 
     // Refund takes it back.
-    await hook({ event_id: 'evt_2', event_type: 'adjustment.updated', data: { id: 'adj_1', action: 'refund', status: 'approved', transaction_id: 'txn_1' } });
+    await hook(ev('payment.refunded', { transaction_id: 'tbx-1', status: { id: 2, description: 'Refund' } }));
     assert.ok(!(await owned()).some((entry) => entry.id === paid.id));
 
     // Native+ unlocks paid capes while active.
-    await hook({ event_id: 'evt_3', event_type: 'subscription.created', data: {
-      id: 'sub_1', status: 'active', customer_id: 'ctm_1', custom_data: { userId: buyer.id, kind: 'plus', plan: 'monthly' },
-      items: [{ price: { id: 'pri_month' } }], current_billing_period: { ends_at: new Date(Date.now() + 864e5 * 30).toISOString() }
-    } });
+    const firstPayment = {
+      transaction_id: 'tbx-2', status: { id: 1 }, price: { amount: 2.99, currency: 'USD' }, price_paid: { amount: 2.99, currency: 'USD' },
+      payment_method: { name: 'Card' }, custom: { userId: buyer.id, kind: 'plus', plan: 'monthly' }, products: [{ name: 'Native+ (monthly)', custom: { plan: 'monthly' } }],
+      recurring_payment_reference: 'tbx-r-1'
+    };
+    await hook(ev('payment.completed', firstPayment));
+    const renewsAt = new Date(Date.now() + 864e5 * 30).toISOString();
+    await hook(ev('recurring-payment.started', { reference: 'tbx-r-1', next_payment_at: renewsAt, status: { id: 2, description: 'Active' }, initial_payment: firstPayment, price: { amount: 2.99, currency: 'USD' } }));
     const me = await (await call('GET', '/v1/billing/me', null, buyerSession.token)).json();
     assert.equal(me.plus.active, true);
     assert.equal(me.plus.plan, 'monthly');
@@ -85,8 +96,17 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
     assert.equal(wear.equipped, paid.id);
     assert.ok((await owned()).some((entry) => entry.id === paid.id && entry.source === 'plus'));
 
+    assert.equal(me.plus.renewsAt, Date.parse(renewsAt));
+
+    // Asking to cancel keeps Native+ until the paid period ends.
+    await hook(ev('recurring-payment.cancellation.requested', { reference: 'tbx-r-1', next_payment_at: renewsAt, status: { id: 2 }, initial_payment: firstPayment }));
+    const cancelling = (await (await call('GET', '/v1/billing/me', null, buyerSession.token)).json()).plus;
+    assert.equal(cancelling.active, true);
+    assert.equal(cancelling.endsAt, Date.parse(renewsAt));
+    assert.equal(cancelling.renewsAt, null);
+
     // Ending Native+ takes plus capes back off.
-    await hook({ event_id: 'evt_4', event_type: 'subscription.canceled', data: { id: 'sub_1', status: 'canceled', customer_id: 'ctm_1', items: [{ price: { id: 'pri_month' } }] } });
+    await hook(ev('recurring-payment.ended', { reference: 'tbx-r-1', status: { id: 5, description: 'Cancelled' }, initial_payment: firstPayment, cancelled_at: new Date().toISOString() }));
     assert.ok(!(await owned()).some((entry) => entry.id === paid.id));
     assert.equal((await (await call('GET', '/v1/store/me', null, buyerSession.token)).json()).equipped, null);
     assert.ok(!db.getUserById(buyer.id).badges.includes('plus'));
@@ -142,34 +162,43 @@ test('Paddle webhooks sell capes, run Native+, refund, and redeem codes', async 
   }
 });
 
-test('admin Paddle settings: secrets are write-only, live needs setup, sandbox events are ignored while live', async () => {
+test('admin Tebex settings: secrets are write-only, modes, test mode is admins only', async () => {
   const boss = db.getUserByUsername('Boss') || db.createUser({ email: 'boss@test.local', username: 'Boss', password: 'password123' });
+  const shopper = db.createUser({ email: 'shopper@test.local', username: 'Shopper', password: 'password123' });
   const token = db.createSession(boss.id).token;
+  const shopperToken = db.createSession(shopper.id).token;
   const server = await listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = (method, pathname, body) => fetch(`${base}${pathname}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const call = (method, pathname, body, as = token) => fetch(`${base}${pathname}`, { method, headers: { Authorization: `Bearer ${as}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   try {
-    let r = await call('POST', '/v1/admin/billing/settings', { environment: 'production', apiKey: 'pdl_sdbx_apikey_wrongwrongwrongwrongwrong' });
+    let r = await call('POST', '/v1/admin/billing/settings', { projectId: 'not-a-number' });
     assert.equal(r.status, 400);
-    r = await call('POST', '/v1/admin/billing/settings', { environment: 'production', apiKey: 'pdl_live_apikey_01abcdefghijklmnopqrstuvwxyz_SECRET', clientToken: 'live_0123456789abcdef0123456789' });
+    r = await call('POST', '/v1/admin/billing/settings', { projectId: '7654321', privateKey: 'liveprivatekey0123456789SECRET' });
     const body = await r.json();
     assert.equal(r.status, 200);
     assert.equal(JSON.stringify(body).includes('SECRET'), false);
-    assert.equal(body.settings.environments.production.apiKey, '…CRET');
-    assert.equal(body.settings.environments.production.ready, false);
-    r = await call('POST', '/v1/admin/billing/activate', { environment: 'production' });
-    assert.equal(r.status, 400);
+    assert.equal(body.settings.privateKey, '…CRET');
+    assert.equal(body.settings.projectId, '7654321');
+    assert.equal((await call('POST', '/v1/admin/billing/settings', { privateKey: 'x' }, shopperToken)).status, 403);
 
-    // pretend setup ran, then go live
-    const billing = require('../server/billing');
-    for (const [k, v] of Object.entries({ webhookSecret: 'pdl_ntfset_live_secret', capeProduct: 'pro_live' })) billing.saveSetting(`production.${k}`, v);
-    r = await call('POST', '/v1/admin/billing/activate', { environment: 'production' });
+    // test mode: only admins can check out
+    r = await call('POST', '/v1/admin/billing/activate', { mode: 'test' });
     assert.equal(r.status, 200);
-    assert.equal((await (await fetch(`${base}/v1/billing/config`)).json()).environment, 'production');
-    const raw = JSON.stringify({ event_id: 'evt_sbx_after_live', event_type: 'transaction.completed', data: { id: 'txn_x', custom_data: { userId: boss.id, kind: 'cape', itemId: 'aurora' } } });
-    r = await fetch(`${base}/v1/billing/paddle/webhook`, { method: 'POST', headers: { 'Paddle-Signature': sign(raw) }, body: raw });
-    assert.equal((await r.json()).ignored, 'sandbox event while live');
-    await call('POST', '/v1/admin/billing/activate', { environment: 'sandbox' });
+    assert.equal((await (await fetch(`${base}/v1/billing/config`)).json()).testMode, true);
+    r = await call('POST', '/v1/billing/checkout', { kind: 'plus', plan: 'monthly' }, shopperToken);
+    assert.equal(r.status, 503);
+    assert.equal((await (await call('GET', '/v1/billing/me', null, shopperToken)).json()).enabled, false);
+    assert.equal((await (await call('GET', '/v1/billing/me')).json()).enabled, true);
+
+    // off
+    await call('POST', '/v1/admin/billing/activate', { mode: 'off' });
+    assert.equal((await (await fetch(`${base}/v1/billing/config`)).json()).enabled, false);
+    assert.equal((await call('POST', '/v1/admin/billing/activate', { mode: 'nope' })).status, 400);
+
+    // the portal points at the website billing page
+    const portal = await (await call('POST', '/v1/billing/portal', {}, shopperToken)).json();
+    assert.match(portal.url, /\/billing$/);
+    await call('POST', '/v1/admin/billing/activate', { mode: 'live' });
   } finally {
     server.close();
   }

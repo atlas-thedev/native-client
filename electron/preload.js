@@ -309,8 +309,8 @@ const api = {
     removePlus: (userId) => ipcRenderer.invoke('admin:removePlus', userId),
     billingSettings: () => ipcRenderer.invoke('admin:billingSettings'),
     billingSaveSettings: (payload) => ipcRenderer.invoke('admin:billingSaveSettings', payload),
-    billingSetup: (environment) => ipcRenderer.invoke('admin:billingSetup', environment),
-    billingActivate: (environment) => ipcRenderer.invoke('admin:billingActivate', environment)
+    billingSetup: () => ipcRenderer.invoke('admin:billingSetup'),
+    billingActivate: (mode) => ipcRenderer.invoke('admin:billingActivate', mode)
   },
 };
 

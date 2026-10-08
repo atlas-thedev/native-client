@@ -1046,12 +1046,12 @@ async function billingRequest(account, pathname, { method = 'GET', body = null }
   return payload;
 }
 
-/** Only ever hand Paddle / Native pages to the system browser. */
+/** Only ever hand Tebex / Native pages to the system browser. */
 function openBillingPage(url) {
   let parsed = null;
   try { parsed = new URL(String(url || '')); } catch { return false; }
   const host = parsed.hostname.toLowerCase();
-  const allowed = parsed.protocol === 'https:' && (host === 'nativelaunch.xyz' || host.endsWith('.nativelaunch.xyz') || host.endsWith('.paddle.com'));
+  const allowed = parsed.protocol === 'https:' && (host === 'nativelaunch.xyz' || host.endsWith('.nativelaunch.xyz') || host === 'tebex.io' || host.endsWith('.tebex.io'));
   if (!allowed) return false;
   shell.openExternal(parsed.toString());
   return true;

@@ -2,16 +2,24 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Check, CircleAlert, KeyRound, LoaderCircle, Power, Trash2, Wand2 } from 'lucide-react';
 import { adminError } from './adminShared.jsx';
 
-const ENV_LABEL = { sandbox: 'Sandbox', production: 'Live' };
-const EMPTY = { apiKey: '', clientToken: '', webhookSecret: '' };
+const EMPTY = { projectId: '', privateKey: '', publicToken: '', webhookSecret: '' };
+const MODES = [
+  { id: 'off', label: 'Off' },
+  { id: 'test', label: 'Test (admins only)' },
+  { id: 'live', label: 'Live' }
+];
+const MODE_NOTE = {
+  off: 'Checkouts are switched off.',
+  test: 'Only admins can check out now — use Tebex’s test payment method.',
+  live: 'Checkouts now take real payments.'
+};
 
 /**
- * Paddle keys per environment + one-click setup. Secrets go straight to the Native server and
- * can never be read back — the server only returns the last 4 characters.
+ * Tebex Checkout keys + mode. Secrets go straight to the Native server and can never be
+ * read back — the server only returns a short hint.
  */
 export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) {
   const [settings, setSettings] = useState(null);
-  const [env, setEnv] = useState('production');
   const [draft, setDraft] = useState(EMPTY);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -24,11 +32,10 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
   };
   const load = useCallback(async () => {
     const result = await window.native?.admin?.billingSettings?.();
-    if (!result?.ok) throw adminError(result, 'Could not load the Paddle settings.', onAccessRevoked);
+    if (!result?.ok) throw adminError(result, 'Could not load the Tebex settings.', onAccessRevoked);
     setSettings(result.settings);
   }, [onAccessRevoked]);
-  useEffect(() => { load().catch((reason) => setError(reason?.message || 'Could not load the Paddle settings.')); }, [load]);
-  useEffect(() => { setDraft(EMPTY); setSteps([]); setError(''); }, [env]);
+  useEffect(() => { load().catch((reason) => setError(reason?.message || 'Could not load the Tebex settings.')); }, [load]);
 
   const run = async (key, fn) => {
     if (busy) return;
@@ -40,32 +47,32 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
   const save = (event) => {
     event.preventDefault();
     run('save', async () => {
-      const payload = { environment: env };
+      const payload = {};
       for (const [k, v] of Object.entries(draft)) if (v.trim()) payload[k] = v.trim();
-      if (Object.keys(payload).length === 1) throw new Error('Paste at least one key to save.');
+      if (!Object.keys(payload).length) throw new Error('Paste at least one value to save.');
       apply(await window.native?.admin?.billingSaveSettings?.(payload), 'Could not save the keys.');
       setDraft(EMPTY);
-      onNotify?.('Paddle', `${ENV_LABEL[env]} keys saved on the server.`);
+      onNotify?.('Tebex', 'Keys saved on the server.');
     });
   };
-  const setup = () => run('setup', async () => {
-    const result = apply(await window.native?.admin?.billingSetup?.(env), 'Paddle setup failed.');
+  const check = () => run('setup', async () => {
+    const result = apply(await window.native?.admin?.billingSetup?.(), 'Tebex check failed.');
     setSteps(result.steps || []);
-    onNotify?.('Paddle', `${ENV_LABEL[env]} is set up.`);
+    onNotify?.('Tebex', 'Keys checked.');
     onChanged?.();
   });
-  const activate = () => run('activate', async () => {
-    apply(await window.native?.admin?.billingActivate?.(env), 'Could not switch checkouts.');
-    onNotify?.('Paddle', env === 'production' ? 'Checkouts now take real payments.' : 'Checkouts are back in test mode.');
+  const activate = (mode) => run(`mode:${mode}`, async () => {
+    apply(await window.native?.admin?.billingActivate?.(mode), 'Could not switch checkouts.');
+    onNotify?.('Tebex', MODE_NOTE[mode]);
     onChanged?.();
   });
   const clearKey = () => run('clear', async () => {
-    apply(await window.native?.admin?.billingSaveSettings?.({ environment: env, clear: ['apiKey'] }), 'Could not remove the key.');
-    onNotify?.('Paddle', `${ENV_LABEL[env]} API key removed. Checkouts in ${ENV_LABEL[env].toLowerCase()} stop until you add a new one.`);
+    apply(await window.native?.admin?.billingSaveSettings?.({ clear: ['privateKey'] }), 'Could not remove the key.');
+    onNotify?.('Tebex', 'Private key removed. Checkouts stop until you add a new one.');
   });
 
-  const cur = settings?.environments?.[env];
-  const active = settings?.active;
+  const s = settings;
+  const mode = s?.mode || 'off';
   const row = (label, value, ok) => (
     <div className="admin-pay-check">
       {ok ? <Check size={12} /> : <CircleAlert size={12} />}
@@ -73,59 +80,58 @@ export default function AdminPayments({ onNotify, onAccessRevoked, onChanged }) 
       <code>{value || 'missing'}</code>
     </div>
   );
+  const field = (key, label, saved, placeholder, secret) => (
+    <label className="admin-field"><span>{label} {saved && <em>saved {saved}</em>}</span>
+      <input type={secret ? 'password' : 'text'} value={draft[key]} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} placeholder={saved ? 'Paste a new value to replace it' : placeholder} spellCheck={false} />
+    </label>
+  );
 
   return (
     <section className="admin-card admin-pay">
       <div className="admin-card-head">
-        <h3><KeyRound size={14} />Paddle setup</h3>
-        {settings && <span className={`admin-chip ${active === 'production' ? 'is-live' : 'is-test'}`}>Checkouts: {active === 'production' ? 'Live' : 'Test mode'}</span>}
+        <h3><KeyRound size={14} />Tebex setup</h3>
+        {s && <span className={`admin-chip ${mode === 'live' ? 'is-live' : 'is-test'}`}>Checkouts: {mode === 'live' ? 'Live' : mode === 'test' ? 'Test mode' : 'Off'}</span>}
       </div>
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
 
-      <div className="admin-tabs admin-pay-env" role="tablist">
-        {['production', 'sandbox'].map((name) => (
-          <button key={name} type="button" role="tab" aria-selected={env === name} className={env === name ? 'active' : ''} onClick={() => setEnv(name)}>
-            {ENV_LABEL[name]}{settings?.environments?.[name]?.ready && <span>ready</span>}
-          </button>
-        ))}
-      </div>
-
       <form className="admin-pay-form" onSubmit={save} autoComplete="off">
-        <label className="admin-field"><span>API key {cur?.apiKey && <em>saved {cur.apiKey}</em>}</span>
-          <input type="password" value={draft.apiKey} onChange={(e) => setDraft((d) => ({ ...d, apiKey: e.target.value }))} placeholder={cur?.apiKey ? 'Paste a new key to replace it' : env === 'production' ? 'pdl_live_apikey_…' : 'pdl_sdbx_apikey_…'} spellCheck={false} />
-        </label>
-        <label className="admin-field"><span>Client-side token {cur?.clientToken && <em>saved {cur.clientToken.slice(0, 9)}…</em>}</span>
-          <input value={draft.clientToken} onChange={(e) => setDraft((d) => ({ ...d, clientToken: e.target.value }))} placeholder={env === 'production' ? 'live_…' : 'test_…'} spellCheck={false} />
-        </label>
-        <label className="admin-field"><span>Webhook secret {cur?.webhookSecret ? <em>saved</em> : <em>optional — Set up fills it</em>}</span>
-          <input type="password" value={draft.webhookSecret} onChange={(e) => setDraft((d) => ({ ...d, webhookSecret: e.target.value }))} placeholder="pdl_ntfset_…" spellCheck={false} />
-        </label>
+        {field('projectId', 'Project ID', s?.projectId, 'e.g. 1234567')}
+        {field('privateKey', 'Private key', s?.privateKey, 'From Tebex → Settings → API keys', true)}
+        {field('publicToken', 'Public token', s?.publicToken ? `${s.publicToken.slice(0, 6)}…` : null, 'Used by the website for the payment portal')}
+        {field('webhookSecret', 'Webhook secret', s?.webhookSecret ? 'yes' : null, 'From Tebex → Webhooks → Endpoints', true)}
         <div className="admin-pay-actions">
           <button type="submit" className="admin-btn" disabled={Boolean(busy)}>{busy === 'save' ? <LoaderCircle size={13} className="is-spinning" /> : <KeyRound size={13} />}Save keys</button>
-          <button type="button" className="admin-btn primary" onClick={setup} disabled={Boolean(busy) || !cur?.apiKey}>{busy === 'setup' ? <LoaderCircle size={13} className="is-spinning" /> : <Wand2 size={13} />}Set up Paddle</button>
-          {cur?.ready && active !== env && (
-            <button type="button" className="admin-btn" onClick={activate} disabled={Boolean(busy)}>{busy === 'activate' ? <LoaderCircle size={13} className="is-spinning" /> : <Power size={13} />}{env === 'production' ? 'Go live' : 'Use test mode'}</button>
-          )}
-          {cur?.apiKey && !cur?.fromEnvFile && (
-            <button type="button" className="admin-icon-btn" onClick={clearKey} disabled={Boolean(busy)} title="Remove the saved API key" aria-label="Remove the saved API key"><Trash2 size={13} /></button>
+          <button type="button" className="admin-btn primary" onClick={check} disabled={Boolean(busy) || !s?.projectId || !s?.privateKey}>{busy === 'setup' ? <LoaderCircle size={13} className="is-spinning" /> : <Wand2 size={13} />}Check keys</button>
+          {s?.privateKey && !s?.fromEnvFile && (
+            <button type="button" className="admin-icon-btn" onClick={clearKey} disabled={Boolean(busy)} title="Remove the saved private key" aria-label="Remove the saved private key"><Trash2 size={13} /></button>
           )}
         </div>
       </form>
 
-      {cur && (
+      {s && (
         <div className="admin-pay-checks">
-          {row('Cape product', cur.capeProduct, cur.capeProduct)}
-          {row('Native+ product', cur.plusProduct, cur.plusProduct)}
-          {row('Monthly $2.99', cur.monthlyPrice, cur.monthlyPrice)}
-          {row('Yearly $24.99', cur.yearlyPrice, cur.yearlyPrice)}
-          {row('Webhook', cur.notificationId, cur.notificationId && cur.webhookSecret)}
+          {row('Project ID', s.projectId, s.projectId)}
+          {row('Private key', s.privateKey, s.privateKey)}
+          {row('Public token', s.publicToken ? `${s.publicToken.slice(0, 6)}…` : null, s.publicToken)}
+          {row('Webhook secret', s.webhookSecret ? 'saved' : null, s.webhookSecret)}
+          {row('Keys checked', s.checkedAt ? new Date(s.checkedAt).toLocaleString() : null, s.checkedAt)}
         </div>
       )}
+
+      <div className="admin-tabs admin-pay-env" role="tablist" aria-label="Checkout mode">
+        {MODES.map((m) => (
+          <button key={m.id} type="button" role="tab" aria-selected={mode === m.id} className={mode === m.id ? 'active' : ''}
+            onClick={() => mode !== m.id && activate(m.id)} disabled={Boolean(busy) || (m.id !== 'off' && !s?.ready)}>
+            {busy === `mode:${m.id}` ? <LoaderCircle size={12} className="is-spinning" /> : <Power size={12} />}{m.label}
+          </button>
+        ))}
+      </div>
+
       {steps.length > 0 && <p className="admin-note">{steps.join(' · ')}</p>}
       <p className="admin-note">
-        Keys are stored only on the Native server and can’t be read back. Set up Paddle creates or finds the products, prices and the webhook
-        ({settings?.webhookUrl || 'api.nativelaunch.xyz'}). Keep the API key in place while selling — the server needs it to start checkouts; rotate it here any time.
-        Go live only after Paddle has approved nativelaunch.xyz.
+        In Tebex, add a webhook endpoint for <code>{s?.webhookUrl || 'https://api.nativelaunch.xyz/v1/billing/tebex/webhook'}</code> with
+        all payment and recurring-payment events, then paste its secret here. Keys are stored only on the Native server and can’t be read back.
+        Test mode lets only admins check out (use Tebex’s test payment method); go live once Tebex has approved Checkout API access.
       </p>
     </section>
   );

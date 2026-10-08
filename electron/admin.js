@@ -86,8 +86,8 @@ function init() {
   handle('admin:removePlus', (userId) => adminFetch(`/billing/plus/${encodeURIComponent(String(userId || ''))}`, { method: 'DELETE' }));
   handle('admin:billingSettings', () => adminFetch('/billing/settings'));
   handle('admin:billingSaveSettings', (payload = {}) => adminFetch('/billing/settings', { method: 'POST', body: payload }));
-  handle('admin:billingSetup', (environment) => adminFetch('/billing/setup', { method: 'POST', body: { environment } }));
-  handle('admin:billingActivate', (environment) => adminFetch('/billing/activate', { method: 'POST', body: { environment } }));
+  handle('admin:billingSetup', () => adminFetch('/billing/setup', { method: 'POST', body: {} }));
+  handle('admin:billingActivate', (mode) => adminFetch('/billing/activate', { method: 'POST', body: { mode: String(mode || '') } }));
   // beta updates channel
   handle('admin:betaTesters', (q = '') => adminFetch(`/beta/testers?q=${encodeURIComponent(String(q || ''))}`));
   handle('admin:betaAddTester', (username, note = '') => adminFetch('/beta/testers', { method: 'POST', body: { username: String(username || ''), note: String(note || '') } }));

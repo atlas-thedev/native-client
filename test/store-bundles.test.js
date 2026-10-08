@@ -11,17 +11,16 @@ const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'native-bundles-test-'));
 process.env.NATIVE_DATA_DIR = DATA_DIR;
 process.env.NATIVE_SKIN_DATA = DATA_DIR;
 process.env.NATIVE_ADMIN_EMAILS = 'boss@bundles.local';
-const SECRET = 'pdl_ntfset_bundle_secret';
+const SECRET = 'tebex_bundle_secret';
 Object.assign(process.env, {
-  PADDLE_ENV: 'sandbox', PADDLE_API_KEY: 'test-key', PADDLE_CLIENT_TOKEN: 'test_token', PADDLE_WEBHOOK_SECRET: SECRET,
-  PADDLE_CAPE_PRODUCT: 'pro_cape', PADDLE_PLUS_MONTHLY_PRICE: 'pri_month', PADDLE_PLUS_YEARLY_PRICE: 'pri_year'
+  TEBEX_PROJECT_ID: '1234567', TEBEX_PRIVATE_KEY: 'privatekeyprivatekey123', TEBEX_PUBLIC_TOKEN: 'abcd-0123456789abcdef', TEBEX_WEBHOOK_SECRET: SECRET, TEBEX_MODE: 'live'
 });
 
 const db = require('../server/db');
 const { listen } = require('../server/server');
 const bundles = require('../server/bundles');
 
-const sign = (body, ts = Math.floor(Date.now() / 1000)) => `ts=${ts};h1=${crypto.createHmac('sha256', SECRET).update(`${ts}:${body}`).digest('hex')}`;
+const sign = (body) => crypto.createHmac('sha256', SECRET).update(crypto.createHash('sha256').update(body).digest('hex')).digest('hex');
 
 /** A plain RGBA PNG (cape sized) in one colour. */
 function png(width, height, [r, g, b]) {
@@ -77,20 +76,20 @@ test('store bundles: admin CRUD, catalogue, checkout split, webhook grant, refun
   const server = await listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${server.address().port}`;
   const realFetch = globalThis.fetch;
-  const paddleCalls = [];
+  const tebexCalls = [];
   globalThis.fetch = async (url, init = {}) => {
     const href = String(url);
-    if (!href.includes('paddle.com')) return realFetch(url, init);
+    if (!href.includes('checkout.tebex.io')) return realFetch(url, init);
     const body = init.body ? JSON.parse(init.body) : null;
-    paddleCalls.push({ href, body });
-    const reply = href.endsWith('/customers') ? { data: { id: 'ctm_bundle' } } : { data: { id: `txn_${paddleCalls.length}`, checkout: { url: 'https://pay.example/checkout' } } };
+    tebexCalls.push({ href, body, auth: init.headers?.Authorization });
+    const reply = { ident: 'basket-abc', links: { checkout: 'https://pay.tebex.io/basket-abc' } };
     return new Response(JSON.stringify(reply), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   const call = (method, pathname, body, token) => realFetch(`${base}${pathname}`, {
     method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined
   });
   const json = async (...args) => (await call(...args)).json();
-  const hook = (event) => { const raw = JSON.stringify(event); return realFetch(`${base}/v1/billing/paddle/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Paddle-Signature': sign(raw) }, body: raw }); };
+  const hook = (event) => { const raw = JSON.stringify(event); return realFetch(`${base}/v1/billing/tebex/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Signature': sign(raw) }, body: raw }); };
 
   try {
     // A static paid cape, plus two of the bundled capes (one paid, one free).
@@ -149,15 +148,21 @@ test('store bundles: admin CRUD, catalogue, checkout split, webhook grant, refun
     // Checkout: one line per paid piece, adding up to the bundle price.
     const checkout = await json('POST', '/v1/billing/checkout', { kind: 'bundle', bundleId: 'starter-pack' }, buyerToken);
     assert.equal(checkout.ok, true, checkout.error);
-    const txn = paddleCalls.find((entry) => entry.href.endsWith('/transactions')).body;
-    assert.equal(txn.items.length, 2);
-    assert.equal(txn.items.reduce((sum, line) => sum + Number(line.price.unit_price.amount), 0), 400);
-    assert.equal(txn.custom_data.bundleId, 'starter-pack');
+    assert.equal(checkout.transactionId, 'basket-abc');
+    assert.equal(checkout.payUrl, 'https://pay.tebex.io/basket-abc');
+    assert.match(checkout.url, /\/checkout\?ident=basket-abc$/);
+    const basket = tebexCalls.find((entry) => entry.href.endsWith('/baskets')).body;
+    assert.equal(tebexCalls[0].auth, `Basic ${Buffer.from('1234567:privatekeyprivatekey123').toString('base64')}`);
+    assert.equal(basket.custom.bundleId, 'starter-pack');
+    const packages = tebexCalls.filter((entry) => entry.href.endsWith('/baskets/basket-abc/packages')).map((entry) => entry.body);
+    assert.equal(packages.length, 2);
+    assert.equal(Math.round(packages.reduce((sum, line) => sum + line.package.price, 0) * 100), 400);
+    assert.ok(packages.every((line) => line.type === 'single' && line.package.custom.itemId && line.qty === 1));
 
     // The webhook grants every piece (the free one too) and remembers the bundle.
-    const sale = { event_id: 'evt_b1', event_type: 'transaction.completed', data: {
-      id: checkout.transactionId, status: 'completed', customer_id: 'ctm_bundle', currency_code: 'USD', custom_data: txn.custom_data,
-      details: { totals: { grand_total: '400' }, line_items: [] }, items: []
+    const sale = { id: 'evt_b1', type: 'payment.completed', subject: {
+      transaction_id: 'tbx-bundle-1', status: { id: 1 }, price_paid: { amount: 4, currency: 'USD' }, payment_method: { name: 'Card' },
+      custom: basket.custom, products: packages.map((line) => ({ name: line.package.name, quantity: 1, custom: line.package.custom }))
     } };
     assert.equal((await hook(sale)).status, 200);
     const me = await json('GET', '/v1/store/me', null, buyerToken);
@@ -177,7 +182,7 @@ test('store bundles: admin CRUD, catalogue, checkout split, webhook grant, refun
 
     // Buying again is refused; a full refund takes everything back and off.
     assert.equal((await call('POST', '/v1/billing/checkout', { kind: 'bundle', bundleId: 'starter-pack' }, buyerToken)).status, 400);
-    await hook({ event_id: 'evt_b2', event_type: 'adjustment.updated', data: { id: 'adj_b', action: 'refund', status: 'approved', transaction_id: checkout.transactionId } });
+    await hook({ id: 'evt_b2', type: 'payment.refunded', subject: { transaction_id: 'tbx-bundle-1', status: { id: 2 } } });
     const after = await json('GET', '/v1/store/me', null, buyerToken);
     assert.ok(!after.owned.some((entry) => entry.id === red || entry.id === 'aurora'));
     assert.equal(after.equipped, null, 'a refunded cape comes off');

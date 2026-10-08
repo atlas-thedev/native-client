@@ -132,7 +132,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
   return (
     <div className="admin-scroll">
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
-      {overview && !overview.enabled && <div className="admin-error" role="status"><span>Payments are off: add your Paddle keys in Paddle setup below.</span></div>}
+      {overview && !overview.enabled && <div className="admin-error" role="status"><span>Payments are off: add your Tebex keys in Tebex setup below and pick a mode.</span></div>}
 
       <div className="admin-kpis">
         <div className="admin-kpi"><span className="admin-kpi-icon"><DollarSign size={15} /></span><span className="admin-kpi-label">Sales, all time</span><strong className="admin-kpi-value">{overview ? money(overview.sales.total) : '—'}</strong><span className="admin-kpi-hint">{overview ? `${formatNumber(overview.sales.count)} payments` : ''}</span></div>
@@ -145,7 +145,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
         <section className="admin-card">
           <div className="admin-card-head">
             <h3><Receipt size={14} />Recent payments</h3>
-            {overview && <span className={`admin-chip ${overview.environment === 'production' ? 'is-live' : 'is-test'}`}>{overview.environment === 'production' ? 'Live' : 'Test mode'}</span>}
+            {overview && <span className={`admin-chip ${overview.mode === 'live' ? 'is-live' : 'is-test'}`}>{overview.mode === 'live' ? 'Live' : overview.mode === 'test' ? 'Test mode' : 'Off'}</span>}
           </div>
           <div className="admin-sales-list">
             {!overview ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading…</p>
@@ -161,7 +161,7 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
                   </div>
                 ))}
           </div>
-          <p className="admin-note">Refunds are made in Paddle. Refunded capes are taken back automatically.</p>
+          <p className="admin-note">Refunds are made in the Tebex panel. Refunded capes are taken back automatically.</p>
         </section>
 
         <section className="admin-card admin-plus-card">

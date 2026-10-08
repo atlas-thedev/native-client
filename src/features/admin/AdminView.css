@@ -398,7 +398,7 @@
 .admin-code-chip code { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; }
 .admin-icon-btn.is-danger { color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); }
 
-/* Paddle setup */
+/* Tebex setup */
 .admin-pay { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
 .admin-pay-env { margin-top: 2px; }
 .admin-pay-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
