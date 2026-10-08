@@ -486,7 +486,7 @@ let readTexture = () => null;
 function setTextureReader(fn) { if (typeof fn === 'function') readTexture = fn; }
 const dyeCache = new Map(); // `${base}|${mask}|${hex}` -> texture hash
 /** The colours an admin offers for `item` (its default is always allowed too). */
-const dyeColorsOf = (item) => (Array.isArray(item && item.dyeColors) ? item.dyeColors.filter((hex) => dye.cleanHex(hex)) : []);
+const dyeColorsOf = (item) => dye.colorsOf(item);
 /** Whether players may wear `item` dyed `hex`. */
 const dyeAllowed = (item, hex) => Boolean(hex) && (hex === item.dyeDefault || dyeColorsOf(item).includes(hex));
 /** The hash of `item`'s texture dyed `hex` (baked once, then served like any other texture). */

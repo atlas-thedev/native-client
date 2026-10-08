@@ -93,7 +93,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [offline, setOffline] = useState(false);
-  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [], bundles: {} });
+  const [me, setMe] = useState({ owned: [], equipped: null, wearing: {}, wishlist: [], bundles: {}, dyes: {} });
+  const [tryDye, setTryDye] = useState({}); // itemId -> colour being tried in the 3D preview
+  const [dyeTex, setDyeTex] = useState({}); // `${itemId}|${hex}` -> dyed texture (data URL)
+  const dyeAsked = useRef(new Set());
   const [bundleId, setBundleId] = useState(null); // the bundle on the Bundles page stage
   const [section, setSection] = useState('all');
   const [sectionDir, setSectionDir] = useState(null); // 'right' | 'left': where the new shelf slides in from
@@ -142,7 +145,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     }
     if (isStoreAccount(account)) {
       const mine = await window.native?.store?.me?.(account).catch(() => null);
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
     }
   }, [account]);
 
@@ -160,7 +163,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         window.native?.billing?.me?.(account).catch(() => null)
       ]);
       if (stopped) return;
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active
         : pending.kind === 'bundle' ? Boolean(mine?.bundles?.[pending.bundleId]?.complete)
@@ -425,14 +428,76 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [previews, wardrobe, account, wornCape]);
   const viewAccount = useMemo(() => accountWearing(viewing), [accountWearing, viewing]);
   /** The cosmetic being shown, plus what the player wears in the other slots (cloaks show with the whole outfit too). */
+  const catalogById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog]);
+  // Dyeable cosmetics: the colour shown (being tried, saved, or its own) and its dyed texture.
+  const dyeShown = useCallback((item) => (item?.dyeable ? tryDye[item.id] || me.dyes?.[item.id] || item.dyeDefault || null : null), [tryDye, me.dyes]);
+  const loadDye = useCallback((id, color) => {
+    const key = `${id}|${color}`;
+    if (dyeAsked.current.has(key)) return;
+    dyeAsked.current.add(key);
+    window.native?.store?.dyeTexture?.(id, color).then((res) => {
+      if (res?.ok && res.texture) setDyeTex((current) => ({ ...current, [key]: res.texture }));
+      else dyeAsked.current.delete(key);
+    }).catch(() => { dyeAsked.current.delete(key); });
+  }, []);
+  const dyedAsset = useCallback((id) => {
+    const asset = cosAssets[id];
+    const item = catalogById.get(id);
+    const color = dyeShown(item);
+    if (!asset || !color || color === item.dyeDefault) return asset;
+    return dyeTex[`${id}|${color}`] ? { ...asset, texture: dyeTex[`${id}|${color}`] } : asset;
+  }, [cosAssets, catalogById, dyeShown, dyeTex]);
+  useEffect(() => {
+    for (const id of new Set([viewId, ...Object.values(me.wearing || {})].filter(Boolean))) {
+      const item = catalogById.get(id);
+      const color = dyeShown(item);
+      if (color && color !== item.dyeDefault) loadDye(id, color);
+    }
+  }, [viewId, me.wearing, catalogById, dyeShown, loadDye]);
+  useEffect(() => { if (!viewId) setTryDye({}); }, [viewId]);
+  // Owners can keep the colour they tried: it shows in the launcher, on the website and in game.
+  const [dyeBusy, setDyeBusy] = useState(false);
+  const saveDye = async (item) => {
+    const color = tryDye[item.id];
+    if (!color || dyeBusy) return;
+    setDyeBusy(true);
+    try {
+      const res = await window.native?.store?.dye?.(account, item.id, color === item.dyeDefault ? null : color);
+      if (!res?.ok) throw new Error(res?.error || 'Could not dye that.');
+      setMe((current) => ({ ...current, dyes: res.dyes || current.dyes }));
+      setTryDye((current) => { const next = { ...current }; delete next[item.id]; return next; });
+      onNotify?.('Store', `${item.name} is now ${color === item.dyeDefault ? 'back to its own colour' : 'dyed'}.`);
+    } catch (error) { onNotify?.('Store', error?.message || 'Could not dye that.'); }
+    finally { setDyeBusy(false); }
+  };
+  const renderDye = (item) => {
+    const own = item.dyeDefault || null;
+    const picks = [...(own ? [own] : []), ...(item.dyeColors || []).filter((hex) => hex !== own)];
+    if (picks.length < 2) return null;
+    const current = dyeShown(item) || own;
+    const saved = me.dyes?.[item.id] || own;
+    const owned = signedIn && ownedIds.has(item.id);
+    const changed = tryDye[item.id] && tryDye[item.id] !== saved;
+    return (
+      <div className="store-dye" role="group" aria-label={`Try colours on ${item.name}`}>
+        <span className="store-dye-label"><Palette size={13} />Try a colour</span>
+        <div className="store-dye-swatches">
+          {picks.map((hex) => <button key={hex} type="button" className={`store-dye-swatch${current === hex ? ' is-on' : ''}${hex === own ? ' is-own' : ''}`} style={{ '--dye': hex }} title={hex === own ? `Original (${hex})` : hex} aria-label={hex === own ? 'Original colour' : `Colour ${hex}`} aria-pressed={current === hex} onClick={() => setTryDye((cur) => ({ ...cur, [item.id]: hex }))} />)}
+        </div>
+        {owned && changed
+          ? <PixelButton size="sm" icon={dyeBusy ? <Loader2 size={13} className="is-spinning" /> : <Check size={13} />} label="Keep this colour" disabled={dyeBusy} onClick={() => saveDye(item)} />
+          : <small className="store-dye-note">{owned ? 'Your colour shows in game too.' : 'Pick any colour once it’s in your locker.'}</small>}
+      </div>
+    );
+  };
   const cosmeticsFor = useCallback((item) => {
     if (!item) return null;
     const slot = isCosmetic(item) ? item.slot : null;
     // wings / backpacks replace the cloak, so leave them off while a cloak is the thing being previewed
-    const others = Object.entries(me.wearing || {}).filter(([s]) => s !== slot && (slot || s !== 'back')).map(([, id]) => cosAssets[id]).filter(Boolean);
-    const list = [isCosmetic(item) ? cosAssets[item.id] : null, ...others].filter(Boolean);
+    const others = Object.entries(me.wearing || {}).filter(([s]) => s !== slot && (slot || s !== 'back')).map(([, id]) => dyedAsset(id)).filter(Boolean);
+    const list = [isCosmetic(item) ? dyedAsset(item.id) : null, ...others].filter(Boolean);
     return list.length ? list : null;
-  }, [cosAssets, me.wearing]);
+  }, [dyedAsset, me.wearing]);
   const viewCosmetics = useMemo(() => cosmeticsFor(viewing), [cosmeticsFor, viewing]);
   /** Store art for a cosmetic: the piece worn on the player's own skin (drawn once, then cached), the flat thumbnail until then. */
   const shotSkin = skinTextureUrl({ ...account, skinUrl: wardrobe?.active?.skinUrl || account?.skinUrl || null });
@@ -682,6 +747,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         </div>
         <span className="shop-creator"><Pencil />Creator: <b>{item.author || 'Native'}</b></span>
       </div>
+      {Heading === 'h3' && item.dyeable && isCosmetic(item) && renderDye(item)}
       {ownedIds.has(item.id) && renderOwned(item)}
       {renderUpsell(item)}
       <dl className="store-spot-facts">
@@ -725,7 +791,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
             {moves(item) && movesMean && <span className="store-anim-badge">Animated</span>}
-            {item.dyeable && <span className="store-dye-badge" title="Pick its colour in your locker"><Palette size={11} />Dyeable</span>}
+            {item.dyeable && <span className="store-dye-badge" title="Try its colours in the 3D preview"><Palette size={11} />Dyeable</span>}
           </div>
           {signedIn && (
             <button type="button" className={`store-wish${wished ? ' is-on' : ''}`} aria-pressed={wished} aria-label={wished ? `Remove ${item.name} from wishlist` : `Add ${item.name} to wishlist`} title={wished ? 'In your wishlist' : 'Add to wishlist'} onClick={(event) => { event.stopPropagation(); toggleWish(item); }}>
