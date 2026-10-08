@@ -9,6 +9,7 @@ import { preloadAccountAvatars } from '../../lib/skins.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import packageInfo from '../../../package.json';
 import loginSide from '../../assets/native-login-side.png';
+import { siteUrl } from '../../lib/siteUrl.js';
 import './AccountSwitcherModal.css';
 
 const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
@@ -19,7 +20,6 @@ const COMMUNITY = {
   youtube: 'https://www.youtube.com/@native-client'
 };
 
-const LEGAL = 'https://playnative.fun';
 
 /** "just now", "5 min ago", "3 days ago", "Mar 4" */
 function lastUsedLabel(ms) {
@@ -80,7 +80,7 @@ function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite
       <span className="acc-card-end">
       <span className="acc-card-tools">
         {onWebsite && (
-          <button type="button" className="acc-card-tool" title="Open playnative.fun signed in" aria-label={`Open the Native website as ${account.name}`} onClick={stop(onWebsite)}>
+          <button type="button" className="acc-card-tool" title="Open the Native website signed in" aria-label={`Open the Native website as ${account.name}`} onClick={stop(onWebsite)}>
             <Globe size={13} strokeWidth={2.2} />
           </button>
         )}
@@ -696,15 +696,15 @@ export default function AccountSwitcherModal({
 
                 {/* Legal navigation */}
                 <footer>
-                  <button type="button" onClick={() => openExternal(`${LEGAL}/privacy`)}>
+                  <button type="button" onClick={() => openExternal(`${siteUrl()}/privacy`)}>
                     Privacy Policy
                   </button>
                   <span aria-hidden="true">·</span>
-                  <button type="button" onClick={() => openExternal(`${LEGAL}/terms`)}>
+                  <button type="button" onClick={() => openExternal(`${siteUrl()}/terms`)}>
                     Terms of Service
                   </button>
                   <span aria-hidden="true">·</span>
-                  <button type="button" onClick={() => openExternal(`${LEGAL}/support`)}>
+                  <button type="button" onClick={() => openExternal(`${siteUrl()}/support`)}>
                     Support
                   </button>
                 </footer>

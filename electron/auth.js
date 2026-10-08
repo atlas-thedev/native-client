@@ -615,14 +615,14 @@ async function mergeNative({ microsoftAccountId, login, password } = {}) {
   return { ok: true, link };
 }
 
-/** Opens playnative.fun signed in as this account (one-time, 60-second link). */
+/** Opens the Native website signed in as this account (one-time, 60-second link). */
 async function openWebsite(accountId) {
   const { shell } = require('electron');
   const accounts = readAccounts().accounts;
   const account = accounts.find((a) => a.id === (accountId || readAccounts().activeId));
   if (account?.type === 'microsoft') await ensurePremiumLink(account.id).catch(() => null);
   const session = nativeSessionOf(readAccounts().accounts.find((a) => a.id === account?.id));
-  const site = 'https://playnative.fun';
+  const site = require('./siteUrl').siteUrl();
   if (!session) {
     await shell.openExternal(`${site}/login`);
     return { ok: true, signedIn: false };
