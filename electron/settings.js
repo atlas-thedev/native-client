@@ -4,6 +4,16 @@ const os = require('os');
 const javaRuntime = require('./javaRuntime');
 const textureCache = require('./textureCache');
 
+/**
+ * First-run memory: enough for modern versions and shaders without starving the
+ * rest of the PC (too big a heap only makes GC pauses longer).
+ */
+function recommendedMemory() {
+  const total = os.totalmem() / 1024 ** 3;
+  const max = total >= 31 ? 8 : total >= 15 ? 6 : total >= 11 ? 5 : total >= 7.5 ? 4 : total >= 5.5 ? 3 : 2;
+  return { min: Math.min(2, max), max };
+}
+
 const DEFAULTS = {
   onboarding: {
     // null distinguishes installs created before the onboarding flow existed.
@@ -18,13 +28,14 @@ const DEFAULTS = {
     reducedMotion: false,
     compactDensity: false
   },
-  memory: { min: 1, max: 4 }, // GB (0.5 GB steps)
+  memory: recommendedMemory(), // GB (0.5 GB steps), sized to this PC on first run
   java: {
     // one configured path per Java major "slot" — resolved per MC version at launch
     paths: { 8: '', 17: '', 21: '', 25: '' }
   },
   // Launcher-wide JVM flags; an instance can override them.
-  jvm: { preset: 'none', args: '' },
+  // Aikar's G1 flags by default: short, steady GC pauses (fewer stutters).
+  jvm: { preset: 'aikar', args: '' },
   resolution: { width: 854, height: 480, fullscreen: false },
   behavior: {
     startPage: 'play',
