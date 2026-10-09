@@ -6,9 +6,9 @@ server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
 
-    server_name api.nativelaunch.xyz 3.106.132.147; # the backend stays on api.nativelaunch.xyz (websites live in deploy/ of native-site)
-    ssl_certificate /etc/letsencrypt/live/api.nativelaunch.xyz/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/api.nativelaunch.xyz/privkey.pem; # managed by Certbot
+    server_name api.playnative.fun 3.106.132.147; # the backend lives on api.playnative.fun (websites live in deploy/ of native-site)
+    ssl_certificate /etc/letsencrypt/live/api.playnative.fun/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/api.playnative.fun/privkey.pem; # managed by Certbot
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 

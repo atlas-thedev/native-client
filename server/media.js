@@ -25,9 +25,9 @@ const KINDS = new Set(['image', 'audio', 'video', 'file']);
 // The launcher's built-in quick GIFs are served by Giphy's CDN.
 const GIPHY_GIF = /^https:\/\/(?:media\d?|i)\.giphy\.com\/media\/[A-Za-z0-9]{6,40}\/giphy\.gif$/;
 
-const DEFAULT_PUBLIC_URL = 'https://api.nativelaunch.xyz';
+const DEFAULT_PUBLIC_URL = 'https://api.playnative.fun';
 const ALLOWED_HOSTS = new Set(
-  String(process.env.NATIVE_ALLOWED_HOSTS || 'api.nativelaunch.xyz,localhost,127.0.0.1,[::1]')
+  String(process.env.NATIVE_ALLOWED_HOSTS || 'api.playnative.fun,localhost,127.0.0.1,[::1]')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
