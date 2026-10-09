@@ -22,7 +22,7 @@ const { downloadFile, writeFileAtomic } = require('./download');
 const MAX_LOG_CHARS = 1_500_000;
 const MAX_REPORTS = 30;
 const MODRINTH = 'https://api.modrinth.com/v2';
-const HEADERS = { 'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)' };
+const HEADERS = { 'User-Agent': 'NativeClient (https://playnative.fun)' };
 
 let deps = null;
 let session = null;

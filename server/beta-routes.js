@@ -176,7 +176,7 @@ let releaseCache = { at: 0, value: null };
 async function releases() {
   if (releaseCache.value && Date.now() - releaseCache.at < 5 * 60_000) return releaseCache.value;
   try {
-    const r = await fetch('https://api.github.com/repos/atlas-thedev/native-client/releases?per_page=30', {
+    const r = await fetch('https://api.github.com/repos/atlas-thedev/native-client-releases/releases?per_page=30', {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'native-server' },
       signal: AbortSignal.timeout(8000)
     });

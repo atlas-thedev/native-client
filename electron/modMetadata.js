@@ -22,7 +22,7 @@ const MAX_ICON_BYTES = 256 * 1024;
 const CHUNK = 50;
 
 const headers = {
-  'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)',
+  'User-Agent': 'NativeClient (https://playnative.fun)',
   'Content-Type': 'application/json'
 };
 

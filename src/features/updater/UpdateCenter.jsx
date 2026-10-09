@@ -11,7 +11,7 @@ import './UpdateCenter.css';
  */
 
 const ACTIVE = ['available', 'preparing', 'downloading', 'paused', 'downloaded', 'installing'];
-const RELEASE_API = 'https://api.github.com/repos/atlas-thedev/native-client/releases/tags/v';
+const RELEASE_API = 'https://api.github.com/repos/atlas-thedev/native-client-releases/releases/tags/v';
 
 export default function UpdateCenter({ open, onClose, status, onCheck, onDownload, onPause, onInstall }) {
   const checkedForOpen = useRef(false);

@@ -13,7 +13,7 @@ const manifest = (over = {}) => ({
   schema: 1,
   version: '1.2.3',
   file: 'native-client-1.2.3.jar',
-  url: 'https://github.com/atlas-thedev/native-mod/releases/download/v1.2.3/native-client-1.2.3.jar',
+  url: 'https://github.com/atlas-thedev/native-mod-releases/releases/download/v1.2.3/native-client-1.2.3.jar',
   sha256: sha,
   size: JAR.length,
   loaders: ['fabric', 'quilt'],
