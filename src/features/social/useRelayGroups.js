@@ -16,19 +16,6 @@ const GROUPS_CACHE_PREFIX = 'native.relay.groups.';
 const PRELOAD_CONCURRENCY = 3;
 const PRELOAD_MAX_GROUPS = 12;
 
-function readGroupsCache(selfId) {
-  if (!selfId) return [];
-  try {
-    const value = JSON.parse(localStorage.getItem(GROUPS_CACHE_PREFIX + selfId) || '[]');
-    return Array.isArray(value) ? value : [];
-  } catch { return []; }
-}
-
-function writeGroupsCache(selfId, groups) {
-  if (!selfId) return;
-  try { localStorage.setItem(GROUPS_CACHE_PREFIX + selfId, JSON.stringify(groups.slice(0, 60))); } catch { /* quota */ }
-}
-
 const relay = () => (typeof window !== 'undefined' ? window.native?.relay : null);
 const optimisticId = () => `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -53,7 +40,7 @@ function mergeMessages(existing = [], incoming = []) {
 }
 
 export function useRelayGroups({ selfId, selfName } = {}) {
-  const [groups, setGroups] = useState(() => readGroupsCache(selfId));
+  const [groups, setGroups] = useState([]);
   const [threads, setThreads] = useState({});
   const [activeGroupId, setActiveGroupId] = useState(null);
   // Only "loading" while there is nothing saved to show yet.
@@ -122,7 +109,6 @@ export function useRelayGroups({ selfId, selfName } = {}) {
     if (result?.ok) {
       const list = result.groups || [];
       setGroups(list);
-      writeGroupsCache(selfIdRef.current, list);
       setGroupError(null);
       setLoadingGroups(false);
       // Background: opening any group is instant, without hammering the server.
@@ -134,11 +120,12 @@ export function useRelayGroups({ selfId, selfName } = {}) {
     }
   }, [preloadThreads]);
 
-  // Account switched/signed in: show that account's saved groups right away, then refresh.
+  // Account switched/signed in: fresh list only (skeletons until it arrives), never an old snapshot.
   useEffect(() => {
-    const saved = readGroupsCache(selfId);
-    if (saved.length) setGroups(saved);
-    setLoadingGroups(saved.length === 0);
+    setGroups([]);
+    setThreads({});
+    setLoadingGroups(true);
+    try { if (selfId) localStorage.removeItem(GROUPS_CACHE_PREFIX + selfId); } catch { /* ignore */ }
     refreshGroups();
   }, [refreshGroups, selfId]);
 

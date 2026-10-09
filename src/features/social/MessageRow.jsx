@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { useDismiss } from './ComposerPickers.jsx';
 import {
   Check,
   CheckCheck,
@@ -59,6 +60,9 @@ export function MessageRow({
   onJump
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef(null);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+  useDismiss(pickerRef, pickerOpen, closePicker, `[data-testid="relay-message-react-${msg.id}"]`);
   const [draft, setDraft] = useState(null);
 
   const isMine = Boolean(msg.isMine);
@@ -168,7 +172,7 @@ export function MessageRow({
         )}
 
         {pickerOpen && (
-          <div className="rm-picker" data-testid={`relay-reaction-picker-${msg.id}`}>
+          <div className="rm-picker" ref={pickerRef} data-testid={`relay-reaction-picker-${msg.id}`}>
             {palette.map((emoji) => (
               <button
                 key={emoji}

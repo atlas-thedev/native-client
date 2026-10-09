@@ -841,7 +841,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  overflow-anchor: none;
 }
 
 .relay-stream-skeleton { display: grid; gap: 10px; padding: 6px 0 14px; }
@@ -1424,3 +1425,52 @@
 .relay-skel-lines span:first-child { width: 55%; }
 .relay-skel-lines span:last-child { width: 80%; height: 8px; opacity: 0.7; }
 @media (prefers-reduced-motion: reduce) { .relay-thread-skeleton { animation: none; } }
+
+/* ── Message skeletons ─────────────────────────────────── */
+.relay-stream-skeleton { display: flex; flex-direction: column; gap: 18px; padding: 8px 0 16px; margin-top: auto; }
+.relay-msg-skel { display: flex; gap: 12px; animation: relay-skeleton-pulse 1.4s infinite ease-in-out; }
+.relay-msg-skel .relay-skel-avatar { flex: 0 0 38px; width: 38px; height: 38px; }
+.relay-msg-skel-body { display: flex; flex: 1; flex-direction: column; gap: 7px; padding-top: 3px; }
+.relay-msg-skel-name { width: 110px; height: 10px; border-radius: 6px; background: var(--component-bg-hover, var(--component-bg)); border: 1px solid var(--hairline); }
+.relay-msg-skel-line { height: 11px; max-width: 520px; border-radius: 6px; background: var(--component-bg); border: 1px solid var(--hairline); }
+.relay-older-loading { display: flex; justify-content: center; padding: 6px 0 10px; }
+@media (prefers-reduced-motion: reduce) { .relay-msg-skel { animation: none; } }
+
+/* ── Full emoji / GIF pickers ──────────────────────────── */
+.relay-quick-popover.is-full { display: flex; flex-direction: column; padding: 8px; gap: 6px; }
+.relay-emoji-popover.is-full { width: 352px; height: 380px; }
+.relay-gif-popover.is-full { width: 380px; height: 420px; }
+.relay-picker-search {
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 6px 0 10px; flex: none;
+  border-radius: var(--radius-sm); background: var(--app-bg, rgba(0, 0, 0, 0.35)); border: 1px solid var(--hairline);
+  color: var(--fg-muted);
+}
+.relay-picker-search:focus-within { border-color: var(--hairline-strong); }
+.relay-picker-search input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; color: var(--fg-primary); font-size: 12.5px; }
+.relay-picker-close { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--fg-muted); cursor: pointer; }
+.relay-picker-close:hover { color: var(--fg-primary); background: var(--component-bg-hover); }
+.relay-emoji-tabs { display: flex; gap: 2px; flex: none; border-bottom: 1px solid var(--hairline); padding-bottom: 5px; }
+.relay-emoji-tabs button {
+  flex: 1; height: 28px; display: grid; place-items: center; border-radius: 6px; font-size: 15px; cursor: pointer;
+  color: var(--fg-muted); filter: grayscale(0.85); opacity: 0.7;
+  transition: background-color var(--relay-fast) var(--relay-ease), opacity var(--relay-fast) var(--relay-ease), filter var(--relay-fast) var(--relay-ease);
+}
+.relay-emoji-tabs button:hover { background: var(--component-bg-hover); opacity: 1; filter: none; }
+.relay-emoji-tabs button.is-active { background: var(--component-bg-hover); opacity: 1; filter: none; color: var(--fg-primary); }
+.relay-emoji-body, .relay-gif-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.relay-emoji-heading { position: sticky; top: 0; z-index: 1; padding: 6px 4px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); background: var(--component-bg); }
+.relay-emoji-body .relay-emoji-grid { grid-template-columns: repeat(9, 1fr); }
+.relay-emoji-hint { padding: 4px 6px 8px; font-size: 11.5px; color: var(--fg-muted); }
+.relay-emoji-skel { height: 28px; margin: 3px; border-radius: 8px; background: var(--component-bg-hover); animation: relay-skeleton-pulse 1.4s infinite ease-in-out; }
+.relay-picker-empty { display: grid; justify-items: center; gap: 6px; padding: 40px 0; color: var(--fg-muted); font-size: 12px; }
+.relay-gif-terms { display: flex; gap: 4px; flex: none; overflow-x: auto; scrollbar-width: none; }
+.relay-gif-terms button {
+  flex: none; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 600; cursor: pointer;
+  color: var(--fg-secondary, var(--fg-muted)); background: var(--component-bg-hover); border: 1px solid var(--hairline);
+}
+.relay-gif-terms button:hover, .relay-gif-terms button.is-active { color: var(--fg-primary); border-color: var(--hairline-strong); }
+.relay-gif-body .relay-gif-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.relay-gif-body .relay-gif-item { background: var(--component-bg-hover); }
+.relay-gif-body .relay-gif-item img { height: 84px; }
+.relay-gif-skel { height: 84px; border-radius: var(--radius-sm); background: var(--component-bg-hover); animation: relay-skeleton-pulse 1.4s infinite ease-in-out; }
+.relay-gif-credit { flex: none; text-align: right; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); opacity: 0.7; padding: 0 2px; }

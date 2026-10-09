@@ -298,6 +298,7 @@ const api = {
       ipcRenderer.invoke('social:getMessages', { friendId, limit, ...options }),
     sendMessage: (friendId, content, mediaOptions = {}) => ipcRenderer.invoke('social:sendMessage', { friendId, content, ...mediaOptions }),
     uploadMedia: (dataUrl, filename) => ipcRenderer.invoke('social:uploadMedia', { dataUrl, filename }),
+    searchGifs: (query, options = {}) => ipcRenderer.invoke('social:searchGifs', { query, ...options }),
     setMessageReaction: (messageId, reaction) => ipcRenderer.invoke('social:setMessageReaction', { messageId, reaction }),
     markRead: (friendId) => ipcRenderer.invoke('social:markRead', friendId),
     setTyping: (friendId, isTyping) => ipcRenderer.invoke('social:setTyping', { friendId, isTyping }),

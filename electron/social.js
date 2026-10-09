@@ -484,6 +484,12 @@ function init(dependencies, ipcMain) {
     });
   });
 
+  // GIF search goes through our API (it holds the provider key and only returns Giphy CDN links it accepts).
+  ipcMain.handle('social:searchGifs', async (_event, { query = '', limit = 24, offset = 0 } = {}) => {
+    const params = new URLSearchParams({ q: String(query || '').slice(0, 80), limit: String(limit), offset: String(offset) });
+    return await socialFetch(`/v1/social/gifs?${params.toString()}`);
+  });
+
   ipcMain.handle('social:setMessageReaction', async (_event, { messageId, reaction }) => {
     return await socialFetch(`/v1/social/messages/${encodeURIComponent(messageId)}/react`, {
       method: 'POST',

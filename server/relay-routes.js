@@ -24,12 +24,12 @@ function send(res, status, value, headers = {}) {
   res.end(body);
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 4 * 1024 * 1024) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 4 * 1024 * 1024) throw Object.assign(new Error('Request is too large.'), { status: 413 });
+    if (size > maxBytes) throw Object.assign(new Error('Request is too large.'), { status: 413 });
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -67,7 +67,40 @@ function gameTicketAllowed(method, segments) {
     return false;
   }
   if (a === 'dm' && b && c === 'messages') return method === 'GET' || method === 'POST';
+  if (a === 'gifs' && segments.length === 1) return method === 'GET';
+  if (a === 'upload' && segments.length === 1) return method === 'POST';
   return false;
+}
+
+// In-game uploads: images only (pasted screenshots / clipboard pictures).
+const GAME_UPLOAD_TYPES = new Map([['image/png', '.png'], ['image/jpeg', '.jpg'], ['image/gif', '.gif'], ['image/webp', '.webp']]);
+const gameUploads = new Map(); // userId -> recent upload timestamps
+function saveUpload(userId, body, origin) {
+  const now = Date.now();
+  const recent = (gameUploads.get(userId) || []).filter((at) => now - at < 10 * 60_000);
+  if (recent.length >= 30) return { status: 429, value: { ok: false, error: 'Too many uploads. Please wait a few minutes.' } };
+  const raw = String(body.data || body.dataUrl || body.base64 || '');
+  const match = raw.match(/^data:([^;,]+);base64,/i);
+  const mime = (match?.[1] || '').toLowerCase();
+  if (!GAME_UPLOAD_TYPES.has(mime)) return { status: 400, value: { ok: false, error: 'Only images can be sent from the game.' } };
+  const buffer = Buffer.from(raw.slice(match[0].length), 'base64');
+  if (!buffer.length || buffer.length > 8 * 1024 * 1024) return { status: 400, value: { ok: false, error: 'Images must be under 8MB.' } };
+  const crypto = require('crypto');
+  const fs = require('fs');
+  const path = require('path');
+  const filename = `${crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 32)}${GAME_UPLOAD_TYPES.get(mime)}`;
+  const target = path.join(media.MEDIA_DIR, filename);
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(media.MEDIA_DIR, { recursive: true });
+    const tmp = `${target}.${process.pid}.${now}.tmp`;
+    fs.writeFileSync(tmp, buffer);
+    fs.renameSync(tmp, target);
+  }
+  recent.push(now);
+  gameUploads.set(userId, recent);
+  if (gameUploads.size > 5000) gameUploads.clear();
+  const name = media.cleanMediaName(body.name || body.filename) || `image${GAME_UPLOAD_TYPES.get(mime)}`;
+  return { status: 200, value: { ok: true, url: `${origin}/v1/social/media/${filename}`, name, size: buffer.length, kind: 'image' } };
 }
 
 const gameWrites = new Map(); // userId -> recent POST timestamps
@@ -123,6 +156,22 @@ async function handleRelayRoutes(req, res) {
 
   try {
     // ── Groups collection ────────────────────────────────────────────────
+    // ── GIF search + image upload (launcher and in-game chat) ─────────────
+    if (segments[0] === 'gifs' && segments.length === 1 && req.method === 'GET') {
+      const result = await require('./gifs').searchGifs(url.searchParams.get('q') || '', {
+        limit: url.searchParams.get('limit'),
+        offset: url.searchParams.get('offset')
+      });
+      send(res, 200, result, { 'Cache-Control': 'private, max-age=300' });
+      return true;
+    }
+    if (segments[0] === 'upload' && segments.length === 1 && req.method === 'POST') {
+      const body = await readJson(req, 12 * 1024 * 1024);
+      const out = saveUpload(me, body, media.originOf(req));
+      send(res, out.status, out.value);
+      return true;
+    }
+
     if (segments[0] === 'groups' && segments.length === 1) {
       if (req.method === 'GET') {
         send(res, 200, { ok: true, groups: db.getGroups(me), serverTime: Date.now() });

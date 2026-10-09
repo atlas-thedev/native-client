@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { canJoinServer } from './presence.js';
 import {
@@ -39,6 +39,7 @@ import Badges, { isPlusUser } from './Badges.jsx';
 import UserProfilePanel from './UserProfilePanel.jsx';
 import GroupMembersPanel from './GroupMembersPanel.jsx';
 import FriendsHome from './FriendsHome.jsx';
+import { EmojiPicker, GifPicker, useDismiss } from './ComposerPickers.jsx';
 import './RelayPage.css';
 import './relay-groups.css';
 import './RelayMessages.css';
@@ -91,16 +92,6 @@ const formatLastSeen = (stamp, now = Date.now()) => {
   return `Last seen on ${date.toLocaleDateString([], { day: 'numeric', month: 'short' })} at ${time}`;
 };
 
-const QUICK_GIFS = [
-  { label: 'GG', url: 'https://media.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif' },
-  { label: 'Hype', url: 'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif' },
-  { label: 'Diamond', url: 'https://media.giphy.com/media/26FfcbCyEGvpDaPS8/giphy.gif' },
-  { label: 'Salute', url: 'https://media.giphy.com/media/3o7btXkbsV26U95Uly/giphy.gif' },
-  { label: 'Clap', url: 'https://media.giphy.com/media/nbvFVPiEiJH6JOGIok/giphy.gif' },
-  { label: 'Dance', url: 'https://media.giphy.com/media/13k4VSc3ngLPUY/giphy.gif' }
-];
-
-const EMOJIS = ['\u{1F600}', '\u{1F602}', '\u{1F525}', '\u2694\uFE0F', '\u{1F48E}', '\u{1F480}', '\u26CF\uFE0F', '\u{1F34E}', '\u{1F6E1}\uFE0F', '\u{1F36A}', '\u{1F3F9}', '\u{1F44D}', '\u2764\uFE0F', '\u{1F680}', '\u{1F440}', '\u{1F60E}'];
 const REACTION_PALETTE = ['\u2764\uFE0F', '\u{1F602}', '\u{1F525}', '\u{1F44D}', '\u{1F62E}', '\u{1F622}', '\u{1F389}', '\u{1F480}'];
 
 function loadPersistedState() {
@@ -117,6 +108,26 @@ function loadPersistedState() {
  * seconds. Overlay what we know live: friends from the realtime friend list and
  * ourselves from the launcher's own presence.
  */
+/** Placeholder message rows while a conversation's first page loads. */
+function MessageSkeletons() {
+  const rows = [[62, 2], [44, 1], [70, 3], [38, 1], [56, 2]];
+  return (
+    <div className="relay-stream-skeleton" aria-hidden="true" data-testid="relay-stream-skeleton">
+      {rows.map(([width, lines], i) => (
+        <div className="relay-msg-skel" key={i} style={{ animationDelay: `${i * 90}ms` }}>
+          <span className="relay-skel-avatar" />
+          <span className="relay-msg-skel-body">
+            <span className="relay-msg-skel-name" />
+            {Array.from({ length: lines }, (_, l) => (
+              <span key={l} className="relay-msg-skel-line" style={{ width: `${Math.max(24, width - l * 14)}%` }} />
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Placeholder inbox rows shown while threads are still loading. */
 function ThreadSkeletons({ count = 3 }) {
   return (
@@ -205,6 +216,8 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   const composerRef = useRef(null);
   const atBottomRef = useRef(true);
   const dragDepthRef = useRef(0);
+  const menuRef = useRef(null);
+  const scrollStateRef = useRef({ chatId: null, firstId: null, height: 0, top: 0 });
 
   useEffect(() => {
     return social?.subscribe?.((event) => relayGroups.handleSocialEvent(event));
@@ -534,21 +547,38 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
   const isTypingHere = Boolean(!isGroupThread && activeEntity && social?.typingBy?.[activeEntity.id]);
 
-  useEffect(() => {
+  // Scrolling: a chat always opens at its newest message (set before paint, no
+  // animation), older pages load in above without moving what you are reading,
+  // and new messages only pull you down when you were already at the bottom.
+  useLayoutEffect(() => {
+    const node = messageStreamRef.current;
+    if (!node) return;
+    const memo = scrollStateRef.current;
+    const chatId = activeEntity?.id || null;
+    const firstId = renderedItems.find((item) => !item.isDivider)?.id || null;
+    if (memo.chatId !== chatId) {
+      atBottomRef.current = true;
+      node.scrollTop = node.scrollHeight;
+    } else if (memo.firstId && firstId && memo.firstId !== firstId && !atBottomRef.current) {
+      node.scrollTop = memo.top + (node.scrollHeight - memo.height);
+    } else if (atBottomRef.current) {
+      node.scrollTop = node.scrollHeight;
+    }
+    scrollStateRef.current = { chatId, firstId, height: node.scrollHeight, top: node.scrollTop };
+  }, [renderedItems, isTypingHere, activeEntity?.id]);
+
+  // Images/GIFs finish loading after layout: stay pinned to the bottom.
+  const handleStreamMediaLoad = () => {
     const node = messageStreamRef.current;
     if (node && atBottomRef.current) node.scrollTop = node.scrollHeight;
-  }, [renderedItems.length, isTypingHere]);
-
-  useEffect(() => {
-    atBottomRef.current = true;
-    const node = messageStreamRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [activeEntity?.id]);
+    if (node) scrollStateRef.current = { ...scrollStateRef.current, height: node.scrollHeight, top: node.scrollTop };
+  };
 
   const handleStreamScroll = (event) => {
     const node = event.currentTarget;
     atBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 60;
-    if (node.scrollTop >= 48 || !activeEntity?.id) return;
+    scrollStateRef.current = { ...scrollStateRef.current, height: node.scrollHeight, top: node.scrollTop };
+    if (node.scrollTop >= 240 || !activeEntity?.id) return;
 
     if (isGroupThread) {
       if (!relayGroups.loadingThread && relayGroups.hasMoreMessages) relayGroups.loadOlder(activeEntity.id);
@@ -565,6 +595,36 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     setShowEmojiPicker(false);
     setShowGifPicker(false);
   };
+  const closeMenu = useCallback(() => setShowMenuDropdown(false), []);
+  const closeEmoji = useCallback(() => setShowEmojiPicker(false), []);
+  const closeGif = useCallback(() => setShowGifPicker(false), []);
+  useDismiss(menuRef, showMenuDropdown, closeMenu);
+
+  const focusComposer = useCallback(() => {
+    window.requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
+  }, []);
+
+  // Replying puts the cursor in the message box.
+  const handleReply = useCallback((message) => {
+    relayGroups.setReplyTarget(message);
+    focusComposer();
+  }, [relayGroups, focusComposer]);
+
+  const insertEmoji = useCallback((emoji) => {
+    const input = composerRef.current;
+    setComposerText((previous) => {
+      const start = input && typeof input.selectionStart === 'number' ? input.selectionStart : previous.length;
+      const end = input && typeof input.selectionEnd === 'number' ? input.selectionEnd : previous.length;
+      const next = (previous.slice(0, start) + emoji + previous.slice(end)).slice(0, MESSAGE_MAX);
+      window.requestAnimationFrame(() => {
+        if (!input) return;
+        input.focus({ preventScroll: true });
+        const caret = Math.min(next.length, start + emoji.length);
+        try { input.setSelectionRange(caret, caret); } catch { /* ignore */ }
+      });
+      return next;
+    });
+  }, []);
 
   const handleSelectThread = (thread) => {
     if (thread.id === selectedId) return;
@@ -856,6 +916,49 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     reader.readAsDataURL(file);
   };
 
+  // Ctrl+V with a picture on the clipboard (screenshot, copied image) attaches it.
+  const pastedImage = (clipboard) => {
+    const items = Array.from(clipboard?.items || []);
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const ext = (item.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          return file.name && file.name !== 'image.png' ? file : new File([file], `pasted-${Date.now()}.${ext}`, { type: item.type });
+        }
+      }
+    }
+    const files = Array.from(clipboard?.files || []);
+    return files.find((file) => file.type.startsWith('image/')) || files[0] || null;
+  };
+
+  const handleComposerPaste = (event) => {
+    const file = pastedImage(event.clipboardData);
+    if (!file) return;
+    event.preventDefault();
+    stageFile(file);
+  };
+
+  // Pasting a picture while the chat is open but the box isn't focused works too.
+  const stageFileRef = useRef(null);
+  stageFileRef.current = stageFile;
+  const hasChat = Boolean(activeEntity);
+  useEffect(() => {
+    if (!hasChat) return undefined;
+    const onPaste = (event) => {
+      const target = event.target;
+      if (target === composerRef.current) return;
+      if (target?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      const file = pastedImage(event.clipboardData);
+      if (!file) return;
+      event.preventDefault();
+      stageFileRef.current?.(file);
+      composerRef.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [hasChat]);
+
   const handleFileChange = (event) => {
     stageFile(event.target.files?.[0]);
     event.target.value = '';
@@ -890,7 +993,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
     await dispatchMessage(activeEntity, '', {
       mediaUrl: gif.url,
-      mediaName: `${gif.label}.gif`,
+      mediaName: `${String(gif.title || gif.label || 'GIF').replace(/[^\w .-]+/g, '').trim().slice(0, 60) || 'GIF'}.gif`,
       mediaKind: 'image',
       isMedia: true,
       ...reply
@@ -909,9 +1012,9 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   const activeThreadState = isGroupThread
     ? relayGroups.threads?.[activeEntity?.id]
     : social?.conversations?.[activeEntity?.id];
-  const isLoadingThread = isGroupThread
-    ? Boolean(!activeThreadState?.loaded && (!activeThreadState?.messages || activeThreadState.messages.length === 0) && relayGroups.loadingThread)
-    : Boolean(activeThreadState?.loading) || Boolean(activeEntity && !activeThreadState?.loaded);
+  // Skeletons until the first page of this chat has arrived (never another chat's messages).
+  const isLoadingThread = Boolean(activeEntity) && !activeThreadState?.loaded && !(activeThreadState?.messages?.length);
+  const isLoadingOlder = Boolean(activeThreadState?.loaded && activeThreadState?.loading && activeThreadState?.hasMore);
 
   if (social && social.isNative === false) {
     return (
@@ -1155,7 +1258,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                   <Pin size={16} />
                 </button>
 
-                <div className="relay-menu-wrapper">
+                <div className="relay-menu-wrapper" ref={menuRef}>
                   <button
                     type="button"
                     className={`relay-action-btn ${showMenuDropdown ? 'is-active' : ''}`}
@@ -1304,14 +1407,13 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
               </div>
             </header>
 
-            <div ref={messageStreamRef} className="relay-message-stream" onScroll={handleStreamScroll}>
-              {isLoadingThread && (
-                <div className="relay-stream-skeleton">
-                  {[0, 1, 2].map((row) => <span key={row} className="relay-skeleton-bubble" />)}
-                </div>
+            <div ref={messageStreamRef} className="relay-message-stream" onScroll={handleStreamScroll} onLoadCapture={handleStreamMediaLoad}>
+              {isLoadingThread && <MessageSkeletons />}
+              {isLoadingOlder && (
+                <div className="relay-older-loading" aria-label="Loading older messages"><span className="relay-typing-dots"><i /><i /><i /></span></div>
               )}
 
-              {renderedItems.length === 0 ? (
+              {isLoadingThread ? null : renderedItems.length === 0 ? (
                 isLoadingThread ? null : (
                   <div className="relay-empty-stream">
                     <div className="relay-empty-stream-avatar">
@@ -1350,7 +1452,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                       palette={REACTION_PALETTE}
                       canModerate={Boolean(relayGroups.canModerate)}
                       readAt={isGroupThread ? relayGroups.activeReadAt : 0}
-                      onReply={relayGroups.setReplyTarget}
+                      onReply={handleReply}
                       onReact={handleToggleReaction}
                       onEdit={handleEditMessage}
                       onDelete={handleDeleteMessage}
@@ -1422,49 +1524,9 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                 </div>
               )}
 
-              {showGifPicker && (
-                <div className="relay-quick-popover relay-gif-popover">
-                  <div className="relay-popover-header">
-                    <span><Sparkles size={12} /> Reaction GIFs</span>
-                    <button type="button" onClick={() => setShowGifPicker(false)}><X size={13} /></button>
-                  </div>
-                  <div className="relay-gif-grid">
-                    {QUICK_GIFS.map((gif) => (
-                      <button
-                        key={gif.label}
-                        type="button"
-                        className="relay-gif-item"
-                        onClick={() => handleSendGif(gif)}
-                        title={gif.label}
-                      >
-                        <img src={gif.url} alt={gif.label} loading="lazy" />
-                        <span>{gif.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {showGifPicker && <GifPicker onPick={handleSendGif} onClose={closeGif} />}
 
-              {showEmojiPicker && (
-                <div className="relay-quick-popover relay-emoji-popover">
-                  <div className="relay-popover-header">
-                    <span><Smile size={12} /> Emojis</span>
-                    <button type="button" onClick={() => setShowEmojiPicker(false)}><X size={13} /></button>
-                  </div>
-                  <div className="relay-emoji-grid">
-                    {EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        className="relay-emoji-item"
-                        onClick={() => setComposerText((previous) => (previous + emoji).slice(0, MESSAGE_MAX))}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {showEmojiPicker && <EmojiPicker onPick={insertEmoji} onClose={closeEmoji} />}
 
               <input ref={fileInputRef} type="file" accept="image/*,.txt,.log,.zip" hidden onChange={handleFileChange} />
 
@@ -1474,6 +1536,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                   type="text"
                   value={composerText}
                   onChange={handleComposerChange}
+                  onPaste={handleComposerPaste}
                   onBlur={() => {
                     if (!activeEntity?.id) return;
                     if (isGroupThread) relayGroups.stopGroupTyping(activeEntity.id);
@@ -1493,18 +1556,20 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                   <button
                     type="button"
                     className={`relay-composer-btn ${showGifPicker ? 'is-active' : ''}`}
+                    data-picker-toggle="gif"
                     data-testid="relay-gif-btn"
                     onClick={() => {
                       setShowGifPicker((open) => !open);
                       setShowEmojiPicker(false);
                     }}
-                    title="Reaction GIFs"
+                    title="GIFs"
                   >
                     <span className="relay-gif-label">GIF</span>
                   </button>
                   <button
                     type="button"
                     className={`relay-composer-btn ${showEmojiPicker ? 'is-active' : ''}`}
+                    data-picker-toggle="emoji"
                     data-testid="relay-emoji-btn"
                     onClick={() => {
                       setShowEmojiPicker((open) => !open);

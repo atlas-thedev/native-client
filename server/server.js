@@ -1343,6 +1343,15 @@ async function handler(req, res) {
         return send(res, 200, { ok: true, ...result }, { 'Cache-Control': 'no-store' });
       }
 
+      if (req.method === 'GET' && url.pathname === '/v1/social/gifs') {
+        if (!hit('gifs-user', authUser.id, 120, 60_000)) return tooMany(res, 60, 'Too many GIF searches. Please wait a moment.');
+        const result = await require('./gifs').searchGifs(url.searchParams.get('q') || '', {
+          limit: url.searchParams.get('limit'),
+          offset: url.searchParams.get('offset')
+        });
+        return send(res, 200, result, { 'Cache-Control': 'private, max-age=300' });
+      }
+
       if (req.method === 'POST' && url.pathname === '/v1/social/upload') {
         if (!hit('upload-user', authUser.id, 60, 10 * 60_000)) return tooMany(res, 600, 'Too many uploads. Please wait a few minutes.');
         const body = await readJson(req);
