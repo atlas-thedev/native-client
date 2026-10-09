@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
@@ -86,21 +85,21 @@ export default function ClusterDetailView({
 
   useEffect(() => {
     const previous = document.activeElement;
-    const root = document.getElementById('root');
-    const wasInert = root?.inert;
-    if (root) root.inert = true;
     dialog.current?.focus();
 
     const handleKey = (event) => {
       const nested = dialog.current?.querySelector(
         '.dep-prompt-backdrop, .mvp-backdrop, .content-modal-backdrop, .sm-dialog-backdrop, .browse-lightbox-backdrop, .browse-confirm-backdrop'
       );
-      if (event.key === 'Escape' && !nested) {
+      // A crash report or app dialog above this page owns Escape.
+      const above = document.querySelector('.crash-overlay, .settings-modal-backdrop, .create-instance-backdrop');
+      if (event.key === 'Escape' && !nested && !above) {
         event.preventDefault();
         event.stopPropagation();
         closeRef.current();
       }
-      if (event.key !== 'Tab') return;
+      // Full page, not a modal: only keep Tab inside an open nested dialog.
+      if (event.key !== 'Tab' || !nested) return;
       const focusable = [...(nested || dialog.current).querySelectorAll(
         'button, input, select, textarea, [tabindex="0"], a[href]'
       )].filter((el) => !el.matches(':disabled') && el.getClientRects().length);
@@ -122,7 +121,6 @@ export default function ClusterDetailView({
     document.addEventListener('keydown', handleKey, true);
     return () => {
       document.removeEventListener('keydown', handleKey, true);
-      if (root) root.inert = wasInert;
       if (previous?.isConnected) previous.focus();
     };
   }, []);
@@ -174,17 +172,11 @@ export default function ClusterDetailView({
   const playtimeSeconds = cluster.totalPlaytime || cluster.playtime || 0;
   const playtimeLabel = formatPlaytime(playtimeSeconds);
 
-  return createPortal(
-    <div
-      className="instance-manager-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) closeRef.current();
-      }}
-    >
+  return (
+    <div className="instance-manager-backdrop is-page">
       <section
         className="instance-manager"
-        role="dialog"
-        aria-modal="true"
+        role="region"
         aria-label={`Manage ${cluster.name || cluster.version}`}
         tabIndex={-1}
         ref={dialog}
@@ -457,7 +449,6 @@ export default function ClusterDetailView({
           )}
         </main>
       </section>
-    </div>,
-    document.body
+    </div>
   );
 }
