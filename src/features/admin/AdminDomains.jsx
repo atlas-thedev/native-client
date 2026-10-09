@@ -92,7 +92,7 @@ export default function AdminDomains({ onNotify, onAccessRevoked }) {
             <input type="text" value={draft.accountId} onChange={(e) => setDraft((d) => ({ ...d, accountId: e.target.value }))} placeholder={s?.accountId || 'Needed to add new domains to Cloudflare'} spellCheck={false} />
           </label>
           <label className="admin-field"><span>Server IP</span>
-            <input type="text" value={draft.serverIp} onChange={(e) => setDraft((d) => ({ ...d, serverIp: e.target.value }))} placeholder={s?.serverIp || '158.178.247.161'} spellCheck={false} />
+            <input type="text" value={draft.serverIp} onChange={(e) => setDraft((d) => ({ ...d, serverIp: e.target.value }))} placeholder={s?.serverIp || '3.106.132.147'} spellCheck={false} />
           </label>
           <div className="admin-pay-actions">
             <button type="submit" className="admin-btn" disabled={Boolean(busy)}>{spin('settings', KeyRound)}Save</button>

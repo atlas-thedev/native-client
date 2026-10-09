@@ -2,7 +2,8 @@
 /**
  * Store prices and slots, worked out automatically so a new upload is ready to sell with no setup.
  *
- * Nothing in the store is free (exclusive event items are granted, never sold). Prices start at
+ * Items are sold at an automatic price unless an admin marks them free (`item.free`: anyone can claim
+ * them at no cost) or exclusive (event items: granted, never sold). Automatic prices start at
  * $1.99 and go up with how much there is to look at: animation, size and detail.
  *   cloaks     static 1.99 · animated 2.49 · long smooth animations 2.99
  *   cosmetics  1.99 base, + moving parts, + big pieces (back, hand), + lots of detail
@@ -52,9 +53,9 @@ function guessSlot(modelText, name = '') {
   return ATTACH_SLOT[best] || 'hats';
 }
 
-/** The automatic price of an item (cloak or cosmetic). Exclusive items aren't sold: 0. */
+/** The automatic price of an item (cloak or cosmetic). Free and exclusive items: 0. */
 function suggestPrice(item, modelText = null) {
-  if (!item || item.exclusive) return 0;
+  if (!item || item.exclusive || item.free) return 0;
   if (!item.kind && !item.slot) {
     if (!item.animated) return MIN_PRICE;
     return (item.frames || 0) >= 32 ? 2.99 : 2.49;
@@ -68,8 +69,13 @@ function suggestPrice(item, modelText = null) {
   return Math.min(MAX_AUTO, snap(price));
 }
 
-/** The price to store: never free unless exclusive; a missing/zero price becomes the automatic one. */
+/**
+ * The price to store. Free items (`item.free`) cost 0; exclusive items keep what was asked (normally 0).
+ * Otherwise a missing/zero price becomes the automatic one, so older admin clients that send 0 for
+ * "automatic" never make an item free by accident.
+ */
 function finalPrice(requested, item, modelText = null) {
+  if (item && item.free && !item.exclusive) return 0;
   if (item && item.exclusive) return Math.max(0, Number(requested) || 0);
   const n = Math.round((Number(requested) || 0) * 100) / 100;
   if (n <= 0) return suggestPrice(item, modelText) || MIN_PRICE;

@@ -23,7 +23,7 @@ const db = require('./db');
 
 const CF = 'https://api.cloudflare.com/client/v4';
 const RESEND = 'https://api.resend.com';
-const DEFAULT_IP = '158.178.247.161';
+const DEFAULT_IP = '3.106.132.147';
 const env = (name) => String(process.env[name] || '').trim();
 
 let ready = null;

@@ -11,7 +11,7 @@
  *   GET  /v1/store/users/:name     a player's public profile: worn items, locker, wishlist
  * Signed in (Bearer or X-Native-Token)
  *   GET  /v1/store/me              { equipped, wearing: { slot: itemId }, owned: [{ id, acquiredAt }] }
- *   POST /v1/store/claim           { itemId }  add a store item to your locker (everything is free today)
+ *   POST /v1/store/claim           { itemId }  add a free store item to your locker
  *   POST /v1/store/unclaim         { itemId }  remove it from your locker (takes it off if worn)
  *   POST /v1/store/bundles/:id/claim  add a free bundle (or, with Native+, any bundle) to your locker
  *   POST /v1/store/dye             { itemId, color: '#rrggbb' | null }  recolour a dyeable item you own
@@ -26,7 +26,7 @@
  *   GET  /v1/store/stream          SSE: wardrobe:changed for the signed-in account
  * Admin (session with is_admin)
  *   GET    /v1/admin/store/items           every item, hidden ones included
- *   POST   /v1/admin/store/items           create (animated strip + still, or a static PNG)
+ *   POST   /v1/admin/store/items           create (animated strip + still, or a static PNG); { free: true } = no price
  *   PATCH  /v1/admin/store/items/:id       edit metadata and/or replace textures
  *   DELETE /v1/admin/store/items/:id       remove from the store (owners keep nothing)
  *   GET    /v1/admin/store/items/:id/owners   who has this item
@@ -358,7 +358,8 @@ function offerOf(item) {
 const lockedFor = (user) => { try { return site().storeLocked() && !(user && user.is_admin); } catch { return false; } };
 const LOCKED = 'The Native store opens at launch. Pre-launch accounts can pick one free founder cape.';
 
-/** Bulk price change (admin). price 0/empty = the automatic price of each item. Returns how many changed. */
+/** Bulk price change (admin). price 0/empty = the automatic price of each item. Free items are left alone
+ * unless they are listed in itemIds with a price above 0 (that makes them paid again). Returns how many changed. */
 function setPrices(price, itemIds = null) {
   const cat = current();
   const auto = !(Number(price) > 0);
@@ -369,11 +370,14 @@ function setPrices(price, itemIds = null) {
   let changed = 0;
   cat.items = cat.items.map((item) => {
     if (item.exclusive) return item;
-    if (itemIds && itemIds.length && !itemIds.includes(item.id)) return item;
-    const value = auto ? pricing.suggestPrice(item, modelOf(item)) : pricing.finalPrice(price, item);
-    if (Number(item.price) === value) return item;
+    const listed = Boolean(itemIds && itemIds.length && itemIds.includes(item.id));
+    if (itemIds && itemIds.length && !listed) return item;
+    if (item.free && !(listed && !auto)) return item;
+    const base = item.free ? { ...item, free: false } : item;
+    const value = auto ? pricing.suggestPrice(base, modelOf(base)) : pricing.finalPrice(price, base);
+    if (Number(item.price) === value && !item.free) return item;
     changed += 1;
-    return { ...item, price: value, updatedAt: Date.now() };
+    return { ...base, price: value, updatedAt: Date.now() };
   });
   if (changed) persist();
   return changed;
@@ -390,6 +394,7 @@ function publicItem(item, textureBase, counts) {
     featured: Boolean(item.featured),
     hidden: Boolean(item.hidden),
     exclusive: Boolean(item.exclusive),
+    free: Boolean(item.free) && !item.exclusive,
     isNew: Date.now() - (Number(item.createdAt) || 0) < NEW_FOR_MS,
     price: item.exclusive ? 0 : Math.max(0, Number(item.price) || 0),
     paid: billing.isPaid(item),
@@ -980,12 +985,13 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       featured: Boolean(body.featured),
       hidden: Boolean(body.hidden),
       exclusive: Boolean(body.exclusive),
+      free: Boolean(body.free) && !body.exclusive,
       order: Number.isFinite(Number(body.order)) ? Number(body.order) : -1,
       ...textures,
       createdAt: now,
       updatedAt: now
     };
-    item.price = pricing.finalPrice(body.price, item, modelText); // nothing is free; 0/empty = automatic price
+    item.price = pricing.finalPrice(body.price, item, modelText); // free: true = 0; otherwise 0/empty = automatic price
     cat.items.push(item);
     cat.deleted = cat.deleted.filter((entry) => entry !== id);
     persist();
@@ -1109,7 +1115,11 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       }
       if (body.hidden !== undefined) next.hidden = Boolean(body.hidden);
       if (body.exclusive !== undefined) next.exclusive = Boolean(body.exclusive);
-      if (body.price !== undefined || body.exclusive !== undefined) next.price = pricing.finalPrice(body.price !== undefined ? body.price : next.price, next);
+      if (body.free !== undefined) next.free = Boolean(body.free) && !next.exclusive;
+      if (next.exclusive) next.free = false;
+      // an item that stops being free gets a fresh (automatic or requested) price instead of keeping 0
+      const wasFree = Boolean(item.free) && !next.free;
+      if (body.price !== undefined || body.exclusive !== undefined || body.free !== undefined) next.price = pricing.finalPrice(body.price !== undefined ? body.price : (wasFree ? 0 : next.price), next);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
       if (cosmetics.isCosmetic(item)) {
         if (body.model || body.texture || body.thumb || body.still) {
