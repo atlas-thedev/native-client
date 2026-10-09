@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 
 // Ensure environment variables from .env are loaded first
@@ -15,6 +15,7 @@ for (const envPath of envCandidates) {
 }
 
 require('./env'); // pre-rename NOCTRA_* variables from .env keep working
+require('./rate-overrides'); // raise the Locker/Store equip limit (40 -> 300 per 10 min)
 const server = require('./server');
 const db = require('./db');
 
