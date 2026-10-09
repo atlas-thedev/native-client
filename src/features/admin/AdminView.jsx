@@ -32,7 +32,6 @@ import AdminBundles from './AdminBundles.jsx';
 import AdminWebsite from './AdminWebsite.jsx';
 import AdminOffers from './AdminOffers.jsx';
 import AdminApplications from './AdminApplications.jsx';
-import AdminDomains from './AdminDomains.jsx';
 import { InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
 import './AdminView.css';
@@ -240,8 +239,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['sales', 'Sales', null],
     ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
     ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
-    ['beta', 'Beta', null],
-    ['domains', 'Domains', null]
+    ['beta', 'Beta', null]
   ];
 
   return (
@@ -281,8 +279,6 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
             ? <div className="admin-scroll"><AdminApplications doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} /></div>
             : <AdminBeta onNotify={onNotify} onAccessRevoked={onAccessRevoked} />}
         </div>
-      ) : section === 'domains' ? (
-        <AdminDomains onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'website' ? (
         <AdminWebsite doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'offers' ? (

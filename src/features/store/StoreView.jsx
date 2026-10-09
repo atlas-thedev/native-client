@@ -846,11 +846,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   return (
     <div className="store-view">
-      <header className="store-header shop-hero">
-        <SpotBackdrop />
+      <header className="store-header">
         <div className="store-header-copy">
-          <h1 className="store-title page-title">Native Store</h1>
-          <p className="shop-hero-blurb">Cloaks and 3D cosmetics in one place. Try anything on your own skin, add it to your locker and wear it in the launcher and in game.</p>
+          <h1 className="store-title page-title">Store</h1>
+          <p className="store-subtitle">Cloaks and 3D cosmetics in one place. Try anything on your own skin, add it to your locker and wear it in the launcher and in game.</p>
         </div>
         <div className="store-header-actions">
           {signedIn && everything.length > 0 && (

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /**
  * When (almost) every catalogue item is flagged new, the store hides the New badge as noise.
@@ -267,6 +267,11 @@ const api = {
     revealScreenshot: (id, name) => ipcRenderer.invoke('instance:revealScreenshot', id, name),
     deleteScreenshot: (id, name) => ipcRenderer.invoke('instance:deleteScreenshot', id, name),
     toggleFile:  (id, sub, filename, enabled) => ipcRenderer.invoke('instance:toggleFile', id, sub, filename, enabled),
+    // drag & drop / "Add local": copy files into mods, resourcepacks, shaderpacks or saves
+    addFiles:    (id, sub, paths) => ipcRenderer.invoke('instance:addFiles', id, sub, paths),
+    pickFiles:   (id, sub)  => ipcRenderer.invoke('instance:pickFiles', id, sub),
+    // the disk path of a dropped File (File.path is gone in newer Electron)
+    pathForFile: (file) => { try { return webUtils?.getPathForFile ? webUtils.getPathForFile(file) : file?.path || ''; } catch { return file?.path || ''; } },
     getLogFile:  (id)       => ipcRenderer.invoke('instance:getLogFile', id),
     isInstalled: (version, loader) => ipcRenderer.invoke('instance:isInstalled', version, loader),
     verifyInstallation: (version, loader) => ipcRenderer.invoke('instance:verifyInstallation', version, loader),

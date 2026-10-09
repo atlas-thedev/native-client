@@ -1,0 +1,75 @@
+/* Servers page: same flat look as Locker / Store. */
+.srv-view {
+  --srv-tile: #0f0f11;
+  --srv-tile-hover: #141417;
+  --srv-line: rgba(255, 255, 255, 0.07);
+  --srv-line-strong: rgba(255, 255, 255, 0.12);
+  --srv-dim: rgba(255, 255, 255, 0.55);
+  height: 100%;
+  overflow-y: auto;
+  padding: 28px var(--page-padding, 32px) 40px;
+  font-family: var(--font-sans);
+  color: #fff;
+  background: #050506;
+}
+
+.srv-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--srv-line); }
+.srv-header h1 { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+.srv-subtitle { margin: 6px 0 0; font-size: 13px; color: var(--srv-dim); }
+
+.srv-instance { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--srv-dim); }
+.srv-instance select {
+  height: 34px; padding: 0 30px 0 12px; border: 1px solid var(--srv-line-strong); border-radius: 10px;
+  background: var(--srv-tile) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23aaa' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: #fff; font: inherit; font-size: 12.5px; font-weight: 600; appearance: none; cursor: pointer; outline: none;
+}
+.srv-instance select:focus { border-color: rgba(255, 255, 255, 0.35); }
+
+.srv-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.srv-search { display: flex; align-items: center; gap: 8px; height: 38px; max-width: 420px; padding: 0 12px; border: 1px solid var(--srv-line-strong); border-radius: 10px; background: var(--srv-tile); color: var(--srv-dim); }
+.srv-search:focus-within { border-color: rgba(255, 255, 255, 0.35); }
+.srv-search input { flex: 1; min-width: 0; border: 0; background: none; color: #fff; font: inherit; font-size: 13px; outline: none; }
+.srv-search button { display: grid; place-items: center; padding: 2px; border: 0; background: none; color: var(--srv-dim); cursor: pointer; }
+.srv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.srv-chip { height: 30px; padding: 0 13px; border: 1px solid var(--srv-line-strong); border-radius: 999px; background: transparent; color: rgba(255, 255, 255, 0.75); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.srv-chip:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.srv-chip.is-active { background: #fff; border-color: #fff; color: #000; }
+
+.srv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.srv-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--srv-line); border-radius: 14px; background: var(--srv-tile); transition: background 0.15s, border-color 0.15s; }
+.srv-card:hover { background: var(--srv-tile-hover); border-color: var(--srv-line-strong); }
+.srv-card-top { display: flex; align-items: center; gap: 12px; }
+.srv-icon { width: 48px; height: 48px; flex: none; border-radius: 10px; image-rendering: pixelated; background: #08080a; object-fit: cover; }
+.srv-ident { flex: 1; min-width: 0; }
+.srv-ident h3 { margin: 0 0 3px; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srv-address { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0; border: 0; background: none; color: var(--srv-dim); font: inherit; font-size: 12px; cursor: pointer; }
+.srv-address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srv-address:hover { color: #fff; }
+.srv-state { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 11px; font-weight: 600; color: var(--srv-dim); }
+.srv-state i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); }
+.srv-state.is-online { color: #7ee2a0; }
+.srv-state.is-online i { background: #3ddc84; box-shadow: 0 0 8px rgba(61, 220, 132, 0.6); }
+.srv-state.is-offline i { background: #e5484d; }
+.srv-desc { margin: 0; min-height: 34px; font-size: 12.5px; line-height: 1.45; color: rgba(255, 255, 255, 0.7); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.srv-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.srv-tag { padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+.srv-tag.is-version { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.srv-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--srv-line); }
+.srv-stats { display: flex; gap: 14px; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.8); }
+.srv-stats span { display: inline-flex; align-items: center; gap: 5px; }
+.srv-stats svg { color: var(--srv-dim); }
+.srv-play, .srv-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border: 0; border-radius: 9px; background: #fff; color: #000; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: transform 0.12s, background 0.15s; }
+.srv-play:hover, .srv-btn:hover { background: #e6e6e6; }
+.srv-play:active, .srv-btn:active { transform: scale(0.97); }
+.srv-btn.ghost { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.srv-btn.ghost:hover { background: rgba(255, 255, 255, 0.14); }
+.srv-empty { padding: 60px 0; text-align: center; color: var(--srv-dim); font-size: 13px; }
+
+.srv-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+.srv-dialog { position: relative; width: min(400px, calc(100vw - 40px)); padding: 22px; border: 1px solid var(--srv-line-strong, rgba(255,255,255,.12)); border-radius: 16px; background: #0f0f11; color: #fff; font-family: var(--font-sans); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
+.srv-dialog h3 { margin: 0 0 8px; font-size: 17px; }
+.srv-dialog p { margin: 0; font-size: 13px; line-height: 1.55; color: rgba(255, 255, 255, 0.7); }
+.srv-dialog p b { color: #fff; }
+.srv-dialog-close { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; padding: 4px; border: 0; border-radius: 6px; background: none; color: rgba(255, 255, 255, 0.5); cursor: pointer; }
+.srv-dialog-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.srv-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }

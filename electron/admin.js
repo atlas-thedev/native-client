@@ -2,7 +2,7 @@ const { ipcMain } = require('electron');
 const { getActiveNativeAccount, API_ROOTS } = require('./social');
 
 const ROOTS = API_ROOTS;
-const ADMIN_REQUEST_PATH = /^\/(site|polls|beta|store|billing|users|overview|domains)(\/[A-Za-z0-9_\-.%]+)*(\?[^#\s]*)?$/;
+const ADMIN_REQUEST_PATH = /^\/(site|polls|beta|store|billing|users|overview)(\/[A-Za-z0-9_\-.%]+)*(\?[^#\s]*)?$/;
 
 async function adminFetch(pathname, { method = 'GET', body = null, timeout = 15_000 } = {}) {
   const account = getActiveNativeAccount();

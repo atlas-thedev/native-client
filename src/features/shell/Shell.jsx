@@ -31,6 +31,7 @@ import OfflineGate from '../../components/ui/OfflineGate.jsx';
 import AdminView from '../admin/AdminView.jsx';
 import QuickSearch from '../search/QuickSearch.jsx';
 import GuidesView from '../guides/GuidesView.jsx';
+import ServersView from '../servers/ServersView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
@@ -758,6 +759,15 @@ export default function Shell({
             pageTitle="Discover"
           />
           )
+        )}
+
+        {currentTab === 'servers' && (
+          <ServersView
+            instances={instancesManager.instances}
+            selectedInstance={instancesManager.selected}
+            onLaunch={handleLaunch}
+            onNotify={notify}
+          />
         )}
 
         {currentTab === 'guides' && (
