@@ -5,9 +5,6 @@
 
 import cubecraftIcon from '../assets/servers/cubecraft.png';
 import hypixelIcon from '../assets/servers/hypixel.png';
-import lemoncloudIcon from '../assets/servers/lemoncloud.png';
-import mineplexIcon from '../assets/servers/mineplex.png';
-import timoliaIcon from '../assets/servers/timolia.png';
 
 export const SERVER_CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -38,10 +35,10 @@ export const SERVERS = [
   s('ManaCube', 'play.manacube.com', ['skyblock', 'prison', 'smp'], '1.8', 'NA', 'Skyblock, Prison, Parkour and Survival.'),
   s('Jartex Network', 'play.jartexnetwork.com', ['minigames', 'pvp', 'skyblock'], '1.8', 'EU', 'Bed Wars, Practice, Skyblock and Prison.'),
   s('BlocksMC', 'blocksmc.com', ['minigames', 'pvp'], '1.8', 'EU', 'Cracked-friendly minigames: SkyWars, Bed Wars, Egg Wars.'),
-  s('LemonCloud', 'play.lemoncloud.net', ['smp', 'skyblock', 'prison'], '1.20', 'NA', 'Survival, Skyblock, Prison and Factions.', { icon: lemoncloudIcon }),
-  s('Mineplex', 'us.mineplex.com', ['minigames'], '1.8', 'NA', 'Classic minigame network, back again.', { icon: mineplexIcon }),
+  s('LemonCloud', 'play.lemoncloud.net', ['smp', 'skyblock', 'prison'], '1.20', 'NA', 'Survival, Skyblock, Prison and Factions.'),
+  s('Mineplex', 'us.mineplex.com', ['minigames'], '1.8', 'NA', 'Classic minigame network, back again.'),
   s('GommeHD', 'gommehd.net', ['minigames', 'pvp'], '1.8', 'DE', 'Germany\u2019s biggest network: Bed Wars, SkyWars, Clans.'),
-  s('Timolia', 'play.timolia.de', ['minigames', 'pvp'], '1.8', 'DE', 'Minigames and competitive PvP modes.', { icon: timoliaIcon }),
+  s('Timolia', 'play.timolia.de', ['minigames', 'pvp'], '1.8', 'DE', 'Minigames and competitive PvP modes.'),
   s('GrieferGames', 'play.griefergames.net', ['smp'], '1.8', 'DE', 'German CityBuild and Survival.'),
   s('Universocraft', 'mc.universocraft.com', ['minigames', 'pvp'], '1.8', 'SA', 'The biggest Spanish-speaking minigame network.'),
   s('Rinaorc', 'play.rinaorc.com', ['minigames', 'pvp'], '1.8', 'EU', 'French minigames network.'),
