@@ -2,7 +2,7 @@
   "name": "native-client",
   "productName": "Native Client",
   "desktopName": "Native Client",
-  "version": "4.2.17",
+  "version": "4.2.18",
   "description": "Native Client — a Minecraft launcher",
   "homepage": "https://github.com/atlas-thedev/native-client",
   "author": {
