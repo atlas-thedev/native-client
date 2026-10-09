@@ -22,7 +22,11 @@ concurrency:
 env:
   # Never try to code-sign on CI (builds are unsigned; mac config has identity: null).
   CSC_IDENTITY_AUTO_DISCOVERY: "false"
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # This repo is private: installers and update feeds go to the public releases-only repo, which is
+  # what the launcher's auto-updater reads (package.json build.publish). RELEASES_TOKEN = fine-grained
+  # token with Contents: read and write on atlas-thedev/native-client-releases.
+  GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+  RELEASES_REPO: atlas-thedev/native-client-releases
 
 jobs:
   prepare:
@@ -34,6 +38,8 @@ jobs:
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Read version and validate tag
         id: v
@@ -59,13 +65,16 @@ jobs:
         shell: bash
         run: |
           TAG="${{ steps.v.outputs.tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if [ -z "$GH_TOKEN" ]; then echo "::error::RELEASES_TOKEN secret is not set"; exit 1; fi
+          if gh release view "$TAG" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
             echo "Release $TAG already exists, reusing it."
           else
+            prev="$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)"
+            { echo "## What's changed"; git log --no-merges --pretty='* %s' ${prev:+$prev..}HEAD | head -n 40; } > notes.md
             if [[ "${{ steps.v.outputs.prerelease }}" == "true" ]]; then
-              gh release create "$TAG" --draft --prerelease --title "Native Client $TAG (Beta)" --generate-notes --target "$GITHUB_SHA"
+              gh release create "$TAG" --repo "$RELEASES_REPO" --draft --prerelease --title "Native Client $TAG (Beta)" --notes-file notes.md
             else
-              gh release create "$TAG" --draft --title "Native Client $TAG" --generate-notes --target "$GITHUB_SHA"
+              gh release create "$TAG" --repo "$RELEASES_REPO" --draft --title "Native Client $TAG" --notes-file notes.md
             fi
           fi
 
@@ -118,7 +127,7 @@ jobs:
           TAG="${{ needs.prepare.outputs.tag }}"
           PRE="${{ needs.prepare.outputs.prerelease }}"
           if [[ "$PRE" == "true" ]]; then FEEDS="beta.yml beta-mac.yml beta-linux.yml"; else FEEDS="latest.yml latest-mac.yml latest-linux.yml beta.yml beta-mac.yml beta-linux.yml"; fi
-          NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          NAMES=$(gh release view "$TAG" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name')
           # Stable builds only get latest*.yml from electron-builder. Beta testers' launchers read beta*.yml,
           # so give them the same feeds: when a stable release is newer than their beta they move onto it.
           if [[ "$PRE" != "true" ]]; then
@@ -126,13 +135,13 @@ jobs:
             for pair in "latest.yml:beta.yml" "latest-mac.yml:beta-mac.yml" "latest-linux.yml:beta-linux.yml"; do
               src="${pair%%:*}"; dst="${pair##*:}"
               if grep -qx "$src" <<<"$NAMES" && ! grep -qx "$dst" <<<"$NAMES"; then
-                gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$src" --dir feeds --clobber
+                gh release download "$TAG" --repo "$RELEASES_REPO" --pattern "$src" --dir feeds --clobber
                 cp "feeds/$src" "feeds/$dst"
-                gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "feeds/$dst" --clobber
+                gh release upload "$TAG" --repo "$RELEASES_REPO" "feeds/$dst" --clobber
                 echo "Added $dst (copy of $src)"
               fi
             done
-            NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+            NAMES=$(gh release view "$TAG" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name')
           fi
           echo "$NAMES"
           missing=0
@@ -147,9 +156,9 @@ jobs:
             exit 1
           fi
           if [[ "$PRE" == "true" ]]; then
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+            gh release edit "$TAG" --repo "$RELEASES_REPO" --draft=false --prerelease --latest=false
             echo "Published beta $TAG (pre-release, beta testers only)"
           else
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+            gh release edit "$TAG" --repo "$RELEASES_REPO" --draft=false --prerelease=false --latest
             echo "Published $TAG"
           fi

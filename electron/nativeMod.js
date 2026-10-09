@@ -4,7 +4,7 @@
  * Native Client mod integration.
  *
  * For Fabric / Quilt instances on Minecraft 1.16 → 26.x the launcher installs the
- * "Native Client" mod (github.com/atlas-thedev/native-mod). The mod shows every
+ * "Native Client" mod (built in the private native-mod repo, downloaded from github.com/atlas-thedev/native-mod-releases). The mod shows every
  * Native player's skin and cape live, and signs the game in to the player's
  * Native account through a short-lived, game-only ticket the launcher writes to
  * `<gameDir>/.native/session.json` (mirrored to `.noctra/` for older mod builds). The account's real session token never
@@ -18,7 +18,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const MOD_REPO = process.env.NATIVE_MOD_REPO || 'atlas-thedev/native-mod';
+const MOD_REPO = process.env.NATIVE_MOD_REPO || 'atlas-thedev/native-mod-releases';
 const LEGACY_MOD_REPO = 'atlas-thedev/noctra-mod';
 const MANIFEST_URL = process.env.NATIVE_MOD_MANIFEST ||
   `https://github.com/${MOD_REPO}/releases/latest/download/manifest.json`;

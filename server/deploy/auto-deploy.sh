@@ -7,7 +7,9 @@
 #   4. swaps the code in (never touches data/, .env, node_modules/),
 #   5. reloads pm2 and waits for /health, 6. rolls back automatically if it fails.
 #
-# No GitHub secrets or inbound SSH needed. Run by hand any time:  ./auto-deploy.sh [--force]
+# The repo is private, so it reads a read-only GitHub token from $NATIVE_GITHUB_TOKEN or the file
+# ~/.native-github-token (fine-grained, Contents: read on atlas-thedev/native-client). No inbound SSH needed.
+# Run by hand any time:  ./auto-deploy.sh [--force]
 set -euo pipefail
 
 REPO="${NATIVE_REPO:-atlas-thedev/native-client}"
@@ -25,9 +27,11 @@ flock -n 9 || { echo "another deploy is running"; exit 0; }
 
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
 FORCE=0; [ "${1:-}" = "--force" ] && FORCE=1
+TOKEN="${NATIVE_GITHUB_TOKEN:-$(cat "$HOME/.native-github-token" 2>/dev/null || true)}"
+AUTH=(); [ -n "$TOKEN" ] && AUTH=(-H "Authorization: Bearer $TOKEN")
 
 # 1. newest commit on the branch that touched server/
-SHA="$(curl -fsS --max-time 20 -H 'Accept: application/vnd.github+json' \
+SHA="$(curl -fsS --max-time 20 "${AUTH[@]}" -H 'Accept: application/vnd.github+json' \
   "https://api.github.com/repos/$REPO/commits?sha=$BRANCH&path=server&per_page=1" |
   node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);console.log(Array.isArray(a)&&a[0]?a[0].sha:"")})')"
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { log "could not read the latest commit"; exit 0; }
@@ -42,7 +46,7 @@ log "deploying $SHA (was ${LAST:-none})"
 
 # 2. fetch + verify
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-curl -fsSL --max-time 120 "https://codeload.github.com/$REPO/tar.gz/$SHA" -o "$WORK/src.tgz"
+curl -fsSL --max-time 120 "${AUTH[@]}" "https://api.github.com/repos/$REPO/tarball/$SHA" -o "$WORK/src.tgz"
 mkdir "$WORK/src"; tar -xzf "$WORK/src.tgz" -C "$WORK/src" --strip-components=1 --wildcards '*/server'
 NEW="$WORK/src/server"
 [ -f "$NEW/index.js" ] && [ -f "$NEW/server.js" ] || { log "download has no server/"; exit 1; }

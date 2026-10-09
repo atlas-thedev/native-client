@@ -1,8 +1,8 @@
 ﻿import React, { useEffect, useState } from 'react';
 import fallbackSkin from '../../assets/steve.png';
 
-// Relay is a Native-only surface. Avatars resolve from the CustomSkinLoader API
-// and deliberately never contact Mojang head-rendering proxy services.
+// Relay avatars resolve through the Native API (Native skin, else the linked Microsoft
+// account's skin texture) and never contact head-rendering proxy services.
 const nativeSkinCache = new Map();
 const inFlightRequests = new Map();
 const NEGATIVE_CACHE_TTL = 30_000;
@@ -29,14 +29,15 @@ export function resolveNativeSkin(name) {
     const timer = window.setTimeout(() => ctrl.abort(), 3500);
 
     try {
-      const res = await fetch(`${root}/csl/${encodeURIComponent(key)}.json`, {
+      // Native skin, else the linked Microsoft account's skin (resolved by the Native API).
+      const res = await fetch(`${root}/v1/social/face/${encodeURIComponent(key)}`, {
         signal: ctrl.signal,
         cache: 'no-cache'
       });
       if (!res.ok) throw new Error(`Custom skin lookup failed (${res.status})`);
 
       const data = await res.json();
-      const skin = data.skin || data.skins?.default || data.skins?.slim || null;
+      const skin = data.skin || null;
       nativeSkinCache.set(key, { url: skin, checkedAt: Date.now() });
       return skin;
     } catch {

@@ -23,7 +23,7 @@ const API = 'https://api.modrinth.com/v2';
 const META_CACHE = '.native-meta-cache.json';
 const CONTENT = /\.(jar|zip)(\.disabled)?$/i;
 const HEADERS = {
-  'User-Agent': 'NativeClient (https://github.com/atlas-thedev/native-client)',
+  'User-Agent': 'NativeClient (https://playnative.fun)',
   'Content-Type': 'application/json'
 };
 

@@ -24,8 +24,16 @@ function updatePresence(db, userId, { status = 'online', activity = 'In Launcher
  * they go offline, keeping their last heartbeat as "last seen".
  */
 function expireStalePresence(db, olderThan, keep = () => false) {
-  const rows = db.prepare("SELECT user_id AS userId, last_seen AS lastSeen FROM presence WHERE status != 'offline' AND last_seen < ?").all(olderThan)
-    .filter((row) => !keep(row.userId));
+  const stale = db.prepare("SELECT user_id AS userId, last_seen AS lastSeen FROM presence WHERE status != 'offline' AND last_seen < ?").all(olderThan);
+  // Still connected (realtime stream or game) but the heartbeat lagged: refresh last_seen so the
+  // friends list (which reads last_seen) keeps showing them online instead of "Last seen 5m ago".
+  const touch = db.prepare('UPDATE presence SET last_seen = ? WHERE user_id = ?');
+  const now = Date.now();
+  const rows = stale.filter((row) => {
+    if (!keep(row.userId)) return true;
+    touch.run(now, row.userId);
+    return false;
+  });
   if (!rows.length) return [];
   const mark = db.prepare("UPDATE presence SET status = 'offline', activity = NULL, server_address = NULL WHERE user_id = ? AND last_seen = ?");
   return rows.filter((row) => mark.run(row.userId, row.lastSeen).changes > 0);

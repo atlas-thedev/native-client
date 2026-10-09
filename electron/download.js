@@ -8,7 +8,7 @@ const { app } = require('electron');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const appVersion = app?.getVersion?.() || require('../package.json').version;
 const DEFAULT_HEADERS = {
-  'User-Agent': `NativeClient/${appVersion} (https://github.com/atlas-thedev/native-client)`
+  'User-Agent': `NativeClient/${appVersion} (https://playnative.fun)`
 };
 
 function retryableStatus(status) {

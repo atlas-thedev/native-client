@@ -29,7 +29,7 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1_000;
 const RESUME_CHECK_DELAY_MS = 10_000;
 const RETRY_DELAYS_MS = [30_000, 2 * 60_000, 10 * 60_000, 30 * 60_000];
 
-const FEED = { provider: 'github', owner: 'atlas-thedev', repo: 'native-client' };
+const FEED = { provider: 'github', owner: 'atlas-thedev', repo: 'native-client-releases' };
 const USE_PARTS = process.platform === 'win32';
 
 autoUpdater.logger = log;

@@ -2,9 +2,9 @@
   "name": "native-client",
   "productName": "Native Client",
   "desktopName": "Native Client",
-  "version": "4.2.18",
+  "version": "4.2.21",
   "description": "Native Client — a Minecraft launcher",
-  "homepage": "https://github.com/atlas-thedev/native-client",
+  "homepage": "https://playnative.fun",
   "author": {
     "name": "Native Client",
     "email": "support@playnative.fun"
@@ -42,7 +42,7 @@
     "publish": {
       "provider": "github",
       "owner": "atlas-thedev",
-      "repo": "native-client"
+      "repo": "native-client-releases"
     },
     "directories": {
       "output": "release",
