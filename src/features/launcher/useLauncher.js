@@ -57,7 +57,23 @@ export default function useLauncher() {
       }
     });
 
-    const offProgress = api.onProgress(({ percent, detail, phase, task, total, bytes, size, stage, stageLabel }) => {
+    // Asset verification fires progress very often; re-rendering the whole shell for each event made
+    // the launcher lag. Coalesce: keep only the latest event and apply it at most every 250 ms.
+    let pendingProgress = null;
+    let progressTimer = null;
+    const flushProgress = () => {
+      progressTimer = null;
+      const event = pendingProgress;
+      pendingProgress = null;
+      if (event) applyProgress(event);
+    };
+    const offProgress = api.onProgress((event) => {
+      pendingProgress = event;
+      const urgent = event && (event.phase === 'launching' || event.stagePercent === 100 || event.stagePercent === 0);
+      if (urgent) { clearTimeout(progressTimer); flushProgress(); return; }
+      if (!progressTimer) progressTimer = setTimeout(flushProgress, 250);
+    });
+    const applyProgress = ({ percent, detail, phase, task, total, bytes, size, stage, stageLabel }) => {
       const sample = speedSample.current;
       const now = Date.now();
       if (typeof bytes === 'number') {
@@ -104,11 +120,12 @@ export default function useLauncher() {
               : prev.percent
         };
       });
-    });
+    };
 
     return () => {
       offState();
       offProgress();
+      clearTimeout(progressTimer);
       clearTimeout(errorTimer.current);
     };
   }, []);
