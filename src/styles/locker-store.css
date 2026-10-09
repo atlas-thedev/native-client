@@ -1,0 +1,235 @@
+/* Native — Locker + Store redesign layer
+   Flat, quiet surfaces: solid tiles, hairline borders, one accent.
+   No glows, no coloured shadows, no gradient washes. Buttons
+   (PixelButton / PixelTabs) and keyframe animations are untouched. */
+
+.locker-view,
+.store-view {
+  --ls-bg: #050506;
+  --ls-tile: #0d0d0f;
+  --ls-tile-2: #121215;
+  --ls-tile-hover: #16161a;
+  --ls-well: #08080a;
+  --ls-line: rgba(255, 255, 255, 0.07);
+  --ls-line-strong: rgba(255, 255, 255, 0.14);
+  --ls-text-dim: rgba(255, 255, 255, 0.56);
+  --ls-radius: 14px;
+  --ls-radius-sm: 10px;
+  --lk-tile: var(--ls-tile);
+  --lk-tile-hover: var(--ls-tile-hover);
+  --lk-line: var(--ls-line);
+  --lk-line-strong: var(--ls-line-strong);
+  --st-tile: var(--ls-tile);
+}
+
+/* Page header */
+.locker-view .locker-header,
+.store-view .store-header {
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--ls-line);
+}
+.locker-view .locker-title,
+.store-view .store-title,
+.locker-view .page-title,
+.store-view .page-title {
+  letter-spacing: -0.02em;
+  text-shadow: none;
+}
+.locker-view .locker-subtitle,
+.store-view .store-header-copy p { color: var(--ls-text-dim); }
+.locker-view .locker-kicker { color: var(--ls-text-dim); letter-spacing: 0.12em; }
+
+/* Panels / rows */
+.locker-view .locker-row,
+.store-view .store-collection,
+.store-view .store-cat-shelf,
+.store-view .store-new-shelf {
+  border: 1px solid var(--ls-line);
+  border-radius: var(--ls-radius);
+  background: var(--ls-tile);
+  box-shadow: none;
+}
+.locker-view .locker-row-header,
+.store-view .store-shelf-head,
+.store-view .store-cat-head {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--ls-line);
+}
+
+/* Stage (3D model) */
+.locker-view .locker-stage { background: var(--ls-well); border-color: var(--ls-line); }
+.locker-view .locker-stage::before,
+.locker-view .locker-stage::after { box-shadow: none; }
+
+/* Cards (skins, capes, cosmetics, store items) */
+.locker-view .locker-skin-card,
+.locker-view .locker-cape-card,
+.locker-view .locker-cosmetic-card,
+.locker-view .locker-upload-card,
+.store-view .store-card {
+  border: 1px solid var(--ls-line);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-tile-2);
+  box-shadow: none;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), translate 0.22s var(--ease-spring, var(--ease));
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+.locker-view .locker-skin-card:hover,
+.locker-view .locker-cape-card:hover,
+.locker-view .locker-cosmetic-card:hover,
+.locker-view .locker-upload-card:hover,
+.store-view .store-card:hover {
+  background: var(--ls-tile-hover);
+  border-color: var(--ls-line-strong);
+  box-shadow: none;
+}
+.locker-view .locker-skin-card.is-active,
+.locker-view .locker-cape-card.is-active,
+.locker-view .locker-cosmetic-card.is-active,
+.locker-view .is-worn,
+.store-view .store-card.is-worn {
+  border-color: var(--accent, var(--brand));
+  box-shadow: inset 0 0 0 1px var(--accent, var(--brand));
+}
+.locker-view .locker-upload-card { border-style: dashed; background: transparent; }
+
+/* Art wells: plain dark, no inner bevel */
+.store-view .store-card-art,
+.store-view .store-spot-thumb,
+.locker-view .locker-cosmetic-thumb,
+.locker-view .locker-skin-preview,
+.locker-view .locker-cape-texture { background: var(--ls-well); box-shadow: none; }
+.store-view .store-spot-thumb.active { box-shadow: inset 0 0 0 2px var(--accent, var(--brand)); text-shadow: none; }
+.store-view .store-card-title { letter-spacing: -0.01em; }
+.store-view .store-card-meta,
+.locker-view .locker-card-meta { color: var(--ls-text-dim); }
+
+/* Inputs / toolbar */
+.store-view .store-toolbar {
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--ls-line);
+  border-radius: var(--ls-radius);
+  background: var(--ls-tile);
+}
+.store-view .store-search,
+.locker-view .locker-search,
+.store-view .store-code-input { background: var(--ls-well); border: 1px solid var(--ls-line); box-shadow: none; }
+.store-view .store-search:focus-within,
+.locker-view .locker-search:focus-within,
+.store-view .store-code-input:focus { border-color: var(--ls-line-strong); outline: none; }
+.store-view .store-chips,
+.store-view .store-tags { gap: 6px; }
+.store-view .store-tag { background: var(--ls-tile-2); border: 1px solid var(--ls-line); box-shadow: none; }
+
+/* Badges: solid, readable, no shine */
+.store-view .store-badge,
+.store-view .store-new-badge,
+.store-view .store-anim-badge,
+.store-view .store-event-badge,
+.store-view .store-dye-badge {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid var(--ls-line-strong);
+  box-shadow: none;
+  text-shadow: none;
+}
+.rarity-badge {
+  background: color-mix(in srgb, var(--rc) 30%, #0b0b0d);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 70%, #000);
+}
+.rarity-badge b { text-shadow: none; }
+.rarity-badge.is-legendary::after,
+.rarity-badge.is-mythic::after { display: none; }
+.owned-mark { box-shadow: inset 0 0 0 1px rgba(31, 191, 99, 0.55); }
+.store-view .store-owned.is-on .store-owned-state::before { box-shadow: none; }
+.locker-view .locker-price { box-shadow: none; }
+
+/* Bundles / sets: keep the colour, drop the glow */
+.bdl-stage {
+  background: color-mix(in srgb, var(--bc) 14%, #08080a);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 32%, rgba(255, 255, 255, 0.08));
+}
+.bdl-stage-rays,
+.bdl-card-glow { display: none; }
+.bdl-stage-floor { filter: none; opacity: 0.35; }
+.bdl-stage-title h2 { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+.bdl-tile,
+.bdl-row-art,
+.bdl-card-art { background: color-mix(in srgb, var(--bc) 12%, #101012); }
+.bdl-tile { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 38%, transparent); }
+.bdl-tile:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 70%, transparent); }
+.bdl-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 26%, rgba(255, 255, 255, 0.06)); }
+.bdl-card:hover,
+.bdl-card:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 60%, transparent); }
+.bdl-card.is-active { box-shadow: inset 0 0 0 2px var(--bc); }
+.bdl-progress > i > b { background: var(--bc); }
+.bdl-upsell { background: color-mix(in srgb, var(--bc) 10%, #121214); }
+.bdl-timer { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(0, 0, 0, 0.75); }
+
+.locker-view .locker-set { background: var(--ls-tile-2); box-shadow: none; }
+.locker-view .locker-set::before { background: var(--bc); }
+.locker-view .locker-set.is-trying,
+.locker-view .locker-skin-card.locker-set-card.is-trying { border-color: var(--bc); box-shadow: inset 0 0 0 1px var(--bc); }
+.locker-view .locker-set-piece.is-owned { background: color-mix(in srgb, var(--bc) 10%, var(--ls-tile-2)); }
+.locker-view .locker-set-bar i,
+.locker-view .locker-set-owned i.is-owned { box-shadow: none; }
+.locker-view .locker-set-look { background: var(--ls-well); }
+
+/* Overlays: solid, lighter on the GPU */
+.locker-view .locker-tryon,
+.store-view .store-viewer-nav {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(10, 10, 12, 0.94);
+  border: 1px solid var(--ls-line-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.store-view .store-viewer,
+.locker-import-modal,
+.capestore-modal {
+  border: 1px solid var(--ls-line-strong);
+  background: var(--ls-tile);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+.locker-modal-overlay,
+.store-view .store-viewer-backdrop,
+.store-modal-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+/* Dye picker */
+.locker-dye,
+.store-dye { background: var(--ls-well); border: 1px solid var(--ls-line); box-shadow: none; }
+
+/* Offline: calm, clear state */
+.locker-view .locker-sync-pill.is-offline {
+  background: rgba(255, 180, 60, 0.1);
+  border: 1px solid rgba(255, 180, 60, 0.35);
+  color: #ffcf85;
+  box-shadow: none;
+}
+
+/* Skeletons: flat instead of a shiny sweep */
+.locker-view .locker-skel,
+.store-view .store-skeleton { background: var(--ls-tile-2); }
+
+/* Scroll areas: thin, quiet scrollbars */
+.locker-view ::-webkit-scrollbar,
+.store-view ::-webkit-scrollbar { width: 8px; height: 8px; }
+.locker-view ::-webkit-scrollbar-thumb,
+.store-view ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; }
+.locker-view ::-webkit-scrollbar-track,
+.store-view ::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .locker-view .locker-skin-card,
+  .locker-view .locker-cape-card,
+  .store-view .store-card { transition: none; }
+}
