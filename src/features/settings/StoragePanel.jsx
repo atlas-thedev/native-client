@@ -48,6 +48,19 @@ export default function StoragePanel({ instances = [] }) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [cacheTick, setCacheTick] = useState(0);
+  const [textures, setTextures] = useState(null);
+  const [clearing, setClearing] = useState(false);
+  const tx = (key, fallback) => { const value = t(key); return !value || value === key ? fallback : value; };
+
+  const loadTextures = useCallback(async () => {
+    try {
+      const info = await window.native?.settings?.storageInfo?.();
+      const row = Array.isArray(info) ? info.find((entry) => entry.key === 'textures') : null;
+      setTextures(row ? { bytes: row.bytes || 0, files: row.files || 0 } : null);
+    } catch { setTextures(null); }
+  }, []);
+
+  useEffect(() => { loadTextures(); }, [loadTextures, cacheTick]);
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -130,7 +143,7 @@ export default function StoragePanel({ instances = [] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, cacheTick]);
 
-  const clearCaches = () => {
+  const clearCaches = async () => {
     ['native.versionManifest', 'native.patchNotes'].forEach((key) => {
       try {
         localStorage.removeItem(key);
@@ -138,6 +151,9 @@ export default function StoragePanel({ instances = [] }) {
         /* ignore */
       }
     });
+    setClearing(true);
+    try { await window.native?.settings?.clearTextureCache?.(); } catch { /* ignore */ }
+    setClearing(false);
     setCacheTick((value) => value + 1);
   };
 
@@ -185,7 +201,7 @@ export default function StoragePanel({ instances = [] }) {
             </div>
             <div className="sp-metric">
               <span className="sp-metric-label">{t('storage.localCache')}</span>
-              <span className="sp-metric-value">{formatBytes(totals.cacheBytes, formatNumber)}</span>
+              <span className="sp-metric-value">{formatBytes(totals.cacheBytes + (textures?.bytes || 0), formatNumber)}</span>
               <span className="sp-metric-sub">{t('storage.cacheDesc')}</span>
             </div>
           </>
@@ -302,7 +318,7 @@ export default function StoragePanel({ instances = [] }) {
 
       <div className="sp-section-head">
         <h3 className="sp-section-title">{t('storage.cachedData')}</h3>
-        <button type="button" className="sp-ghost-btn danger" onClick={clearCaches}>
+        <button type="button" className="sp-ghost-btn danger" onClick={clearCaches} disabled={clearing}>
           <NativeIcon name="trash" size={13} />
           <span>{t('storage.clearCaches')}</span>
         </button>
@@ -319,6 +335,13 @@ export default function StoragePanel({ instances = [] }) {
             </div>
           );
         })}
+        {textures && (
+          <div className="sp-cache-row">
+            <span className="sp-cache-label">{tx('storage.cosmeticsCache', 'Capes & cosmetics')}</span>
+            <span className="sp-cache-key mono">{tx('storage.cosmeticsFiles', `${formatNumber(textures.files)} files, re-downloads when needed`)}</span>
+            <span className="sp-cache-size">{textures.bytes ? formatBytes(textures.bytes, formatNumber) : t('storage.cacheEmpty')}</span>
+          </div>
+        )}
       </div>
     </div>
   );

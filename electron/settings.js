@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const javaRuntime = require('./javaRuntime');
+const textureCache = require('./textureCache');
 
 const DEFAULTS = {
   onboarding: {
@@ -139,11 +140,14 @@ function getStorageInfo(userDataPath) {
     { key: 'libraries', label: 'Libraries',     dir: path.join('minecraft', 'libraries') },
     { key: 'versions',  label: 'Version Jars',  dir: path.join('minecraft', 'versions') },
   ];
-  return categories.map(({ key, label, dir }) => ({
+  const rows = categories.map(({ key, label, dir }) => ({
     key,
     label,
     bytes: getDirSize(path.join(userDataPath, dir)),
   }));
+  const textures = textureCache.stats();
+  rows.push({ key: 'textures', label: 'Cosmetics cache', bytes: textures.bytes, files: textures.files });
+  return rows;
 }
 
 function init(dependencies, ipcMain) {
@@ -162,6 +166,11 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('settings:storageInfo', () =>
     getStorageInfo(deps.app.getPath('userData'))
   );
+  // Store/Locker textures re-download on demand; owned items come back the next time they show.
+  ipcMain.handle('settings:clearTextureCache', () => {
+    const freed = textureCache.clear();
+    return { ok: true, ...freed };
+  });
 }
 
 module.exports = { init, get: load, set: save, probeJava, detectJava };

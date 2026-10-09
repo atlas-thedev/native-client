@@ -110,11 +110,36 @@ function stats() {
   } catch { return { files: 0, bytes: 0 }; }
 }
 
+/**
+ * True when the call comes from the Store's background warm-up (wardrobe.js prefetchStoreAssets).
+ * That warm-up may only use what is already on disk: assets are downloaded when the Store/Locker
+ * actually shows them, so nothing you never open or own gets downloaded.
+ */
+function isBackgroundWarmup() {
+  const limit = Error.stackTraceLimit;
+  try { Error.stackTraceLimit = 40; return /\bprefetchStoreAssets\b/.test(new Error().stack || ''); }
+  catch { return false; }
+  finally { Error.stackTraceLimit = limit; }
+}
+
+/** Removes every cached texture (Settings > Storage). Returns how much was freed. */
+function clear() {
+  const before = stats();
+  if (!root) return before;
+  try {
+    for (const name of fs.readdirSync(root)) {
+      if (name.endsWith('.png') || name.endsWith('.tmp')) fs.rmSync(path.join(root, name), { force: true });
+    }
+  } catch { /* ignore */ }
+  return before;
+}
+
 /** Cached bytes for a texture URL, else downloads (and caches) them. */
 async function fetchCached(url, { maxBytes = 32 * 1024 * 1024, timeoutMs = 25_000, fetchImpl = fetch } = {}) {
   const hash = hashFromUrl(url);
   const cached = hash ? read(hash) : null;
   if (cached) return cached;
+  if (isBackgroundWarmup()) return null;
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) return null;
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -123,4 +148,4 @@ async function fetchCached(url, { maxBytes = 32 * 1024 * 1024, timeoutMs = 25_00
   return bytes;
 }
 
-module.exports = { init, dir, read, write, fetchCached, hashFromUrl, sha, prune, stats };
+module.exports = { init, dir, read, write, fetchCached, hashFromUrl, sha, prune, stats, clear };
