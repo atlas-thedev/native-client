@@ -8,7 +8,6 @@ test('launcher follows the main website chosen on the backend', async () => {
   global.fetch = async () => ({ ok: true, json: async () => answer });
   const site = require('../electron/siteUrl');
   assert.equal(site.siteUrl(), 'https://playnative.fun');
-  assert.ok(site.isSiteHost('nativelaunch.xyz'));
   assert.ok(!site.isSiteHost('newnative.gg'));
   await site.refresh(true);
   answer = { ok: true, site: 'https://newnative.gg', sites: ['newnative.gg', 'bad host!'] };

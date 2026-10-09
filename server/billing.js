@@ -49,7 +49,7 @@ const TEBEX_IPS = new Set(['18.209.80.3', '54.87.231.232']);
 const site = () => require('./site-routes');
 const env = (name) => String(process.env[name] || '').trim();
 const SITE_URL = () => require('./domains').siteUrl();
-const WEBHOOK_URL = () => env('TEBEX_WEBHOOK_URL') || `${(env('PUBLIC_API_URL') || 'https://api.nativelaunch.xyz').replace(/\/$/, '')}/v1/billing/tebex/webhook`;
+const WEBHOOK_URL = () => env('TEBEX_WEBHOOK_URL') || `${(env('PUBLIC_API_URL') || 'https://api.playnative.fun').replace(/\/$/, '')}/v1/billing/tebex/webhook`;
 const FIELDS = { projectId: 'TEBEX_PROJECT_ID', privateKey: 'TEBEX_PRIVATE_KEY', publicToken: 'TEBEX_PUBLIC_TOKEN', webhookSecret: 'TEBEX_WEBHOOK_SECRET' };
 
 function savedSettings() {

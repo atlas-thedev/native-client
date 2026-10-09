@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_HOST="api.nativelaunch.xyz"
+API_HOST="api.playnative.fun"
 
 if ! getent ahostsv4 "$API_HOST" >/dev/null; then
   echo "$API_HOST does not resolve yet. Add its proxied DNS record, wait for propagation, and run this script again." >&2

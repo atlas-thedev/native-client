@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * The Native website address. The backend (api.nativelaunch.xyz) decides it — Admin → Domains →
+ * The Native website address. The backend (api.playnative.fun) decides it — Admin → Domains →
  * "Make main website" — so profile, store and account links follow a domain move without a
  * launcher release. Last answer is cached on disk for offline starts.
  */
@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_SITE = 'https://playnative.fun';
-const BASE_HOSTS = ['playnative.fun', 'nativelaunch.xyz'];
+const BASE_HOSTS = ['playnative.fun'];
 const REFRESH_MS = 30 * 60_000;
 
 let state = null; // { site, sites: [host], at }

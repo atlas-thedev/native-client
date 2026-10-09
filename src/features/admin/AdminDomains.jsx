@@ -7,7 +7,7 @@ const EMPTY_SETTINGS = { cloudflareToken: '', accountId: '', serverIp: '' };
 /**
  * Domain autopilot. Buy a domain, paste it here and the Native server sets up Cloudflare
  * (zone, DNS to this server, SSL, https) and Resend email for it. The backend always stays
- * on api.nativelaunch.xyz — only the website and email move to new domains.
+ * on api.playnative.fun — only the website and email move to new domains.
  */
 export default function AdminDomains({ onNotify, onAccessRevoked }) {
   const [doc, setDoc] = useState(null);
@@ -72,7 +72,7 @@ export default function AdminDomains({ onNotify, onAccessRevoked }) {
           <h3><Server size={14} />Where things live</h3>
         </div>
         <div className="admin-pay-checks">
-          {flag('Backend (never moves)', s?.backend || 'https://api.nativelaunch.xyz', true)}
+          {flag('Backend (never moves)', s?.backend || 'https://api.playnative.fun', true)}
           {flag('Main website', s?.primarySite, Boolean(s?.primarySite))}
           {flag('Email sender', s?.emailFrom, Boolean(s?.emailFrom))}
           {flag('Resend key on server', s?.resend ? 'yes' : null, s?.resend)}
@@ -153,7 +153,7 @@ export default function AdminDomains({ onNotify, onAccessRevoked }) {
           </section>
         );
       })}
-      <p className="admin-note">The website server answers any domain pointed at it, so new domains work as soon as Cloudflare is active. The backend stays on api.nativelaunch.xyz — keep that domain.</p>
+      <p className="admin-note">The website server answers any domain pointed at it, so new domains work as soon as Cloudflare is active. The backend stays on api.playnative.fun — keep that domain.</p>
     </div>
   );
 }

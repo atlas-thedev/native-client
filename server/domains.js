@@ -8,7 +8,7 @@
  *   3. email: adds the domain to Resend, writes Resend's SPF/DKIM records + DMARC into Cloudflare, asks Resend to verify,
  *   4. lets you make it the main website (checkout links, emails) or the email sender — no redeploy.
  *
- * The backend itself always stays on api.nativelaunch.xyz; nothing here touches the api record.
+ * The backend lives on api.playnative.fun; nothing here touches the api record.
  *
  *   GET    /v1/admin/domains                    settings + domains
  *   POST   /v1/admin/domains/settings           { cloudflareToken?, accountId?, serverIp? , clear?: [] }
@@ -252,7 +252,7 @@ function view() {
       resend: Boolean(resendKey()),
       primarySite: siteUrl(),
       emailFrom: senderEmail(),
-      backend: 'https://api.nativelaunch.xyz'
+      backend: 'https://api.playnative.fun'
     },
     domains: sql().prepare('SELECT * FROM domains ORDER BY created_at DESC').all().map((r) => {
       let status = null;
@@ -288,8 +288,8 @@ async function handleDomainRoutes(req, res, ctx) {
     let sites = [];
     try { sites = sql().prepare('SELECT name FROM domains WHERE website = 1').all().map((r) => r.name); } catch { /* db not ready */ }
     try { sites.push(new URL(siteUrl()).hostname); } catch {}
-    sites = [...new Set(['playnative.fun', 'nativelaunch.xyz', ...sites])];
-    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.nativelaunch.xyz', sites }, { 'Cache-Control': 'max-age=300' });
+    sites = [...new Set(['playnative.fun', ...sites])];
+    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.playnative.fun', sites }, { 'Cache-Control': 'max-age=300' });
     return true;
   }
   if (!url.pathname.startsWith('/v1/admin/domains')) return false;
@@ -328,7 +328,7 @@ async function handleDomainRoutes(req, res, ctx) {
       const body = await readJson(req);
       const domain = cleanDomain(body.domain);
       if (!DOMAIN.test(domain)) { send(res, 400, { ok: false, error: 'Type the domain like playnative.fun.' }); return true; }
-      if (domain === 'nativelaunch.xyz' || domain.endsWith('.nativelaunch.xyz')) { send(res, 400, { ok: false, error: 'nativelaunch.xyz holds the backend (api.nativelaunch.xyz); manage it by hand.' }); return true; }
+      if (domain === 'api.playnative.fun') { send(res, 400, { ok: false, error: 'api.playnative.fun is the backend; manage it by hand.' }); return true; }
       const website = body.website !== false;
       const email = body.email !== false;
       const mode = body.mode === 'redirect' ? 'redirect' : 'main';
