@@ -127,7 +127,6 @@
 
 /* Badges: solid, readable, no shine */
 .store-view .store-badge,
-.store-view .store-new-badge,
 .store-view .store-anim-badge,
 .store-view .store-event-badge,
 .store-view .store-dye-badge {
@@ -285,4 +284,14 @@
 @media (max-width: 860px) {
   .locker-view .locker-workspace { grid-template-columns: 1fr; }
   .locker-view .locker-stage { position: relative; }
+}
+
+/* New badge: solid green so fresh drops stand out (no glow). */
+.store-view .store-new-badge {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #5ee69a;
+  color: #062611;
+  border: 0;
+  box-shadow: none;
 }

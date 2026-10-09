@@ -1,5 +1,25 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/**
+ * When (almost) every catalogue item is flagged new, the store hides the New badge as noise.
+ * Keep the flag only on the latest drop (newest day, max 8) so fresh items always get it.
+ */
+function latestDropIsNew(res) {
+  try {
+    const items = res?.items;
+    if (!Array.isArray(items) || !items.length) return res;
+    const fresh = items.filter((item) => item?.isNew);
+    if (fresh.length <= items.length * 0.4) return res;
+    const dated = fresh.filter((item) => item.createdAt && !item.exclusive).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const day = dated.length ? new Date(dated[0].createdAt).toDateString() : null;
+    const keep = new Set(dated.filter((item) => new Date(item.createdAt).toDateString() === day).slice(0, 8).map((item) => item.id));
+    return { ...res, items: items.map((item) => (item?.isNew && !keep.has(item.id) ? { ...item, isNew: false } : item)) };
+  } catch {
+    return res;
+  }
+}
+
+
 // Store/Locker offline cache: the last good "what I own / wear" answer per account is kept in
 // localStorage, so the Locker still shows owned capes and cosmetics while offline (assets come
 // from the on-disk texture cache). Never used for auth errors: only when the network is the problem.
@@ -108,7 +128,7 @@ const api = {
     activateOfficialCape: (account, capeId) => ipcRenderer.invoke('wardrobe:activateOfficialCape', { account, capeId })
   },
   store: {
-    catalog: (options) => ipcRenderer.invoke('store:catalog', options),
+    catalog: (options) => ipcRenderer.invoke('store:catalog', options).then(latestDropIsNew),
     strip: (itemId) => ipcRenderer.invoke('store:strip', itemId),
     // 3D cosmetics: { model, texture, thumb } for previews; wear(account, itemId) / wear(account, null, slot)
     cosmetic: (itemId) => ipcRenderer.invoke('store:cosmetic', itemId),
