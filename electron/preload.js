@@ -146,7 +146,8 @@ const api = {
     detectJava: () => ipcRenderer.invoke('settings:detectJava'),
     dataDir: () => ipcRenderer.invoke('settings:dataDir'),
     openDataDir: () => ipcRenderer.invoke('settings:openDataDir'),
-    storageInfo: () => ipcRenderer.invoke('settings:storageInfo')
+    storageInfo: () => ipcRenderer.invoke('settings:storageInfo'),
+    clearTextureCache: () => ipcRenderer.invoke('settings:clearTextureCache')
   },
   java: {
     test: (javaPath) => ipcRenderer.invoke('java:test', javaPath),
