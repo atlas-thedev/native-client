@@ -9,7 +9,6 @@ import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
 import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
-import NetherBackdrop from './NetherBackdrop.jsx';
 import './HomeView.css';
 import './HomeSelection.css';
 
@@ -167,8 +166,11 @@ export default function HomeView({
   return (
     <div className="home-view">
       {/* Wallpaper */}
-      <div className="home-bg-layer is-nether">
-        <NetherBackdrop />
+      <div className="home-bg-layer">
+        {/* The selected version's artwork as a plain still image: no video/animation, so Home stays light. */}
+        {cluster ? (
+          <img key={getClusterArt(cluster)} className="home-bg-img" src={getClusterArt(cluster)} alt="" draggable="false" decoding="async" aria-hidden="true" />
+        ) : null}
         <div className="home-bg-overlay" />
         <div className="home-bg-fade" />
       </div>
