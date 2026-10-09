@@ -4,6 +4,7 @@
   position: fixed;
   inset: 0;
   z-index: 2500;
+  -webkit-app-region: no-drag;
   display: grid;
   place-items: center;
   padding: 32px 24px;

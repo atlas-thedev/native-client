@@ -25,6 +25,26 @@ const FIX_VERB = {
 
 const STEPS = ['Reading the game log', 'Indexing your mods', 'Matching known crash signatures', 'Preparing fixes'];
 
+/* navigator.clipboard rejects when the window lost focus (e.g. right after
+   the game closed), so fall back to a hidden textarea copy. */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    area.remove();
+    return ok;
+  }
+}
+
 function timeAgo(at) {
   const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
   if (secs < 45) return 'just now';
@@ -191,7 +211,7 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
   const copyReport = async () => {
     try {
       const text = await window.native.crash.text(record.id);
-      await navigator.clipboard.writeText(text);
+      if (!(await copyText(text))) throw new Error('Could not copy to the clipboard');
       flash('Report copied');
     } catch (err) {
       flash(cleanError(err));
@@ -202,7 +222,7 @@ export default function CrashReportModal({ open, analyzing, record, error, onClo
     setShareState('working');
     try {
       const { url } = await window.native.crash.share(record.id);
-      await navigator.clipboard.writeText(url).catch(() => {});
+      await copyText(url);
       setShareState('done');
       flash('Link copied: ' + url.replace(/^https?:\/\//, ''));
     } catch (err) {
