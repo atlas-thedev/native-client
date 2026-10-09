@@ -233,3 +233,56 @@
   .locker-view .locker-cape-card,
   .store-view .store-card { transition: none; }
 }
+
+/* ── Layout: wider, calmer workspace ─────────────────────────── */
+/* Locker: 3D stage stays pinned on the left, library scrolls on the right. */
+.locker-view .locker-workspace {
+  grid-template-columns: minmax(300px, 34%) minmax(0, 1fr);
+  gap: 16px;
+}
+.locker-view .locker-stage {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100%;
+  border-radius: var(--ls-radius);
+}
+.locker-view .locker-library { gap: 14px; scroll-behavior: smooth; }
+.locker-view .locker-row { padding: 16px; }
+.locker-view .locker-row-header h2,
+.locker-view .locker-row-header h3 { letter-spacing: -0.01em; }
+.locker-view .locker-skin-grid,
+.locker-view .locker-cape-grid {
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+.locker-view .locker-cape-hint,
+.locker-view .locker-local-note { color: var(--ls-text-dim); }
+.locker-view .locker-header-actions { gap: 8px; }
+
+/* Store: sticky toolbar, even grid, roomy shelves. */
+.store-view .store-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-bottom: 14px;
+}
+.store-view .store-sections { gap: 6px; }
+.store-view .store-grid {
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 12px;
+}
+.store-view .store-new-shelf,
+.store-view .store-collection,
+.store-view .store-cat-shelf { padding: 16px; margin-bottom: 16px; }
+.store-view .store-card { overflow: hidden; }
+.store-view .store-card-art { aspect-ratio: 1 / 1; }
+.store-view .store-empty { color: var(--ls-text-dim); padding: 40px 0; text-align: center; }
+
+@media (max-width: 1100px) {
+  .locker-view .locker-workspace { grid-template-columns: minmax(260px, 40%) minmax(0, 1fr); }
+}
+@media (max-width: 860px) {
+  .locker-view .locker-workspace { grid-template-columns: 1fr; }
+  .locker-view .locker-stage { position: relative; }
+}
