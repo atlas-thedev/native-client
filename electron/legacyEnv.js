@@ -6,3 +6,6 @@ for (const [key, value] of Object.entries(process.env)) {
   const next = `NATIVE_${key.slice('NOCTRA_'.length)}`;
   if (process.env[next] === undefined) process.env[next] = value;
 }
+
+// Hash game assets a few at a time (with a size/mtime cache) so verifying doesn't freeze the PC.
+require('./assetVerify');
