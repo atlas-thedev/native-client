@@ -352,6 +352,31 @@ const originOf = media.originOf;
 
 const textureUrl = (origin, hash) => (hash ? `${origin}/csl/textures/${hash}` : null);
 
+/** Skin texture of a premium Minecraft profile (cached: 1 h found, 5 min not found). */
+const mojangSkinCache = new Map();
+async function mojangSkin(uuid) {
+  const id = String(uuid || '').replace(/-/g, '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(id)) return null;
+  const hit = mojangSkinCache.get(id);
+  if (hit && Date.now() < hit.until) return hit.value;
+  let value = null;
+  try {
+    const r = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${id}`, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      const j = await r.json();
+      const prop = (j.properties || []).find((p) => p.name === 'textures');
+      const tex = prop ? JSON.parse(Buffer.from(prop.value, 'base64').toString('utf8')) : null;
+      const skin = tex && tex.textures && tex.textures.SKIN;
+      if (skin && skin.url) {
+        value = { url: String(skin.url).replace(/^http:\/\//, 'https://'), model: skin.metadata && skin.metadata.model === 'slim' ? 'slim' : 'classic' };
+      }
+    }
+  } catch { /* network: try again later */ }
+  if (mojangSkinCache.size > 5000) mojangSkinCache.clear();
+  mojangSkinCache.set(id, { value, until: Date.now() + (value ? 3_600_000 : 300_000) });
+  return value;
+}
+
 /** Attach the player's published skin texture so the UI never calls a third party. */
 function withSkin(entry, origin) {
   const profile = entry && entry.name ? readProfile(entry.name) : null;
@@ -1175,6 +1200,21 @@ async function handler(req, res) {
     if (url.pathname.startsWith('/v1/social/')) {
       const authHeader = req.headers.authorization || '';
       const headerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+      // Avatar for Relay: the Native skin, else the skin of the linked Microsoft (premium) account.
+      const faceMatch = req.method === 'GET' && url.pathname.match(/^\/v1\/social\/face\/([^/]+)$/);
+      if (faceMatch) {
+        const name = decodeURIComponent(faceMatch[1]).trim().slice(0, 32);
+        const profile = name ? readProfile(name) : null;
+        let skin = profile && profile.skin ? `${originOf(req)}/csl/textures/${profile.skin}` : null;
+        let model = (profile && profile.model) || null;
+        if (!skin && name) {
+          const user = db.getUserByUsername(name);
+          const link = user ? db.getMinecraftLink(user.id) : null;
+          const mojang = link ? await mojangSkin(link.uuid) : null;
+          if (mojang) { skin = mojang.url; model = model || mojang.model; }
+        }
+        return send(res, 200, { ok: true, skin, model: model || 'classic' }, { 'Cache-Control': 'public, max-age=300' });
+      }
       if (req.method === 'GET' && url.pathname === '/v1/social/stats') {
         const realCount = events.connectedUserCount();
         return send(res, 200, {

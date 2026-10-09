@@ -202,6 +202,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
   const messageStreamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const composerRef = useRef(null);
   const atBottomRef = useRef(true);
   const dragDepthRef = useRef(0);
 
@@ -363,6 +364,14 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     if (!selectedId) return null;
     return allThreads.find((thread) => thread.id === selectedId) || null;
   }, [allThreads, selectedId]);
+
+  // Opening a chat puts the cursor straight in the message box.
+  const activeChatId = activeEntity?.id || null;
+  useEffect(() => {
+    if (!activeChatId) return undefined;
+    const t = window.setTimeout(() => composerRef.current?.focus({ preventScroll: true }), 60);
+    return () => window.clearTimeout(t);
+  }, [activeChatId]);
 
   const isGroupThread = activeEntity?.kind === 'group';
 
@@ -1461,6 +1470,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
               <div className="relay-composer-container">
                 <input
+                  ref={composerRef}
                   type="text"
                   value={composerText}
                   onChange={handleComposerChange}
