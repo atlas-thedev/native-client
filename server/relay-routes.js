@@ -55,6 +55,31 @@ function setGroupTyping(groupId, userId, isTyping, participants) {
   publish(participants.filter((id) => id !== userId), 'group:typing', { groupId, userId, isTyping: Boolean(isTyping) });
 }
 
+/** What a game ticket may do here: list groups, read and send group / direct messages, read receipts, typing. */
+function gameTicketAllowed(method, segments) {
+  const [a, b, c, d] = segments;
+  if (d !== undefined) return false;
+  if (a === 'groups') {
+    if (segments.length === 1) return method === 'GET';
+    if (segments.length === 2) return method === 'GET';
+    if (c === 'messages') return method === 'GET' || method === 'POST';
+    if (c === 'read' || c === 'typing') return method === 'POST';
+    return false;
+  }
+  if (a === 'dm' && b && c === 'messages') return method === 'GET' || method === 'POST';
+  return false;
+}
+
+const gameWrites = new Map(); // userId -> recent POST timestamps
+function gameWriteAllowed(userId, now = Date.now()) {
+  const recent = (gameWrites.get(userId) || []).filter((at) => now - at < 10_000);
+  if (recent.length >= 20) { gameWrites.set(userId, recent); return false; }
+  recent.push(now);
+  gameWrites.set(userId, recent);
+  if (gameWrites.size > 5000) gameWrites.clear();
+  return true;
+}
+
 /**
  * @returns {Promise<boolean>} true when the request was handled here.
  */
@@ -77,14 +102,23 @@ async function handleRelayRoutes(req, res) {
 
   const headerToken = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   const token = headerToken || String(url.searchParams.get('token') || '').trim();
-  const authUser = token ? db.getUserBySession(token) : null;
+  const rest = url.pathname.slice('/v1/social/relay'.length).replace(/^\/+/, '');
+  let segments;
+  try { segments = rest ? rest.split('/').map(decodeURIComponent) : []; } catch { segments = []; }
+
+  let authUser = token ? db.getUserBySession(token) : null;
+  // The in-game chat (Native mod) signs in with its game-only ticket and may only read and send messages.
+  if (!authUser && token.startsWith('nmt1.') && gameTicketAllowed(req.method, segments)) {
+    authUser = require('./mod-routes').userForTicket(token);
+    if (authUser && req.method === 'POST' && !gameWriteAllowed(authUser.id)) {
+      send(res, 429, { ok: false, error: 'Slow down a little.' }, { 'Retry-After': '10' });
+      return true;
+    }
+  }
   if (!authUser) {
     send(res, 401, { ok: false, error: 'Unauthorized. Native account session required.' });
     return true;
   }
-
-  const rest = url.pathname.slice('/v1/social/relay'.length).replace(/^\/+/, '');
-  const segments = rest ? rest.split('/').map(decodeURIComponent) : [];
   const me = authUser.id;
 
   try {
@@ -334,4 +368,4 @@ async function handleRelayRoutes(req, res) {
   }
 }
 
-module.exports = { handleRelayRoutes };
+module.exports = { handleRelayRoutes, _internals: { gameTicketAllowed } };

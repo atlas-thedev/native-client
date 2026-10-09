@@ -14,6 +14,7 @@ const events = require('./social-events');
  *   GET  /v1/mod/me            who a game ticket belongs to + account status
  *   GET  /v1/mod/friends       friends (with live presence) and pending requests
  *   GET  /v1/mod/stream        Server-Sent Events: presence / friends / account changes, live
+ *                              (?relay=1 adds the Relay chat events for the in-game chat)
  *   POST /v1/mod/presence      what the player is doing in game ("Playing Minecraft 1.21.1")
  *   POST /v1/mod/presence-icon a server/world icon for Discord Rich Presence (PNG, hosted by hash)
  *   GET  /v1/presence-icons/<sha256>.png
@@ -241,7 +242,9 @@ function friendsPayload(user) {
     best: Boolean(f.isBestFriend),
     pinned: Boolean(f.pinned),
     lastSeen: f.lastSeen || null,
-    unread: Number(f.unreadCount || 0)
+    unread: Number(f.unreadCount || 0),
+    // Skin texture hash (under /csl/textures/) so the in-game chat can draw the friend's face.
+    skin: (() => { const p = readProfileFile(f.name); return p && HASH.test(p.skin || '') ? p.skin : null; })()
   }));
   let received = [];
   let sent = 0;
@@ -438,7 +441,7 @@ async function handleModRoutes(req, res, ctx) {
     if (res.flushHeaders) res.flushHeaders();
     if (req.socket?.setNoDelay) req.socket.setNoDelay(true);
     if (req.socket?.setTimeout) req.socket.setTimeout(0);
-    const unsubscribe = events.subscribeMod(user.id, res);
+    const unsubscribe = events.subscribeMod(user.id, res, { relay: url.searchParams.get('relay') === '1' });
     const activity = cleanActivity(url.searchParams.get('activity')) || 'Playing Minecraft';
     announce(user, activity, 'online');
     let closed = false;
@@ -500,6 +503,7 @@ module.exports = {
   noteRename,
   signTicket,
   verifyTicket,
+  userForTicket,
   stopStreams,
   _internals: { EPOCH, index, snapshot, entryFor }
 };

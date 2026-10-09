@@ -12,6 +12,13 @@ const clients = new Map(); // userId -> Set<ServerResponse>
 // and it only receives the event types a game overlay can use (never message text).
 const modClients = new Map(); // userId -> Set<ServerResponse>
 const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed']);
+// In-game Relay chat (mod 1.6+): a mod stream opened with ?relay=1 also receives the chat events, so the
+// overlay can show messages live. Only streams that asked for it get message text.
+const MOD_RELAY_EVENTS = new Set([
+  'message:new', 'message:updated', 'message:read', 'typing',
+  'group:message', 'group:message:updated', 'group:created', 'group:updated', 'group:removed', 'group:deleted', 'group:read', 'group:typing'
+]);
+const relayModStreams = new WeakSet();
 // The website watches too (locker / store live refresh). It is not "the launcher", so it never
 // touches presence or the online count.
 const watchClients = new Map(); // userId -> Set<ServerResponse>
@@ -44,8 +51,9 @@ function subscribe(userId, res) {
 }
 
 /** Register an SSE response for a user's game mod. Returns an unsubscribe function. */
-function subscribeMod(userId, res) {
+function subscribeMod(userId, res, { relay = false } = {}) {
   if (!userId || !res) return () => {};
+  if (relay) relayModStreams.add(res);
   if (!modClients.has(userId)) modClients.set(userId, new Set());
   modClients.get(userId).add(res);
   try {
@@ -77,10 +85,11 @@ function subscribeWatch(userId, res) {
 const isModConnected = (userId) => modClients.has(userId);
 const modConnectionCount = (userId) => (modClients.get(userId) ? modClients.get(userId).size : 0);
 
-function writeTo(map, userId, body) {
+function writeTo(map, userId, body, only = null) {
   const bucket = map.get(userId);
   if (!bucket) return;
   for (const res of bucket) {
+    if (only && !only.has(res)) continue;
     try {
       res.write(body);
     } catch {
@@ -98,6 +107,7 @@ function publish(userIds, type, payload = {}) {
     if (!userId) continue;
     writeTo(clients, userId, body);
     if (forMod) writeTo(modClients, userId, body);
+    else if (MOD_RELAY_EVENTS.has(type)) writeTo(modClients, userId, body, relayModStreams);
     if (WATCH_EVENTS.has(type)) writeTo(watchClients, userId, body);
   }
 }

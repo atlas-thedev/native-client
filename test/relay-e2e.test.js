@@ -32,9 +32,11 @@ async function api(method, route, { token, body } = {}) {
 }
 
 /** Minimal SSE client collecting parsed events. */
-async function openStream(token) {
+async function openStream(token, route = null) {
   const controller = new AbortController();
-  const res = await fetch(`${BASE}/v1/social/stream?token=${token}`, { signal: controller.signal });
+  const res = route
+    ? await fetch(BASE + route, { signal: controller.signal, headers: { Authorization: `Bearer ${token}` } })
+    : await fetch(`${BASE}/v1/social/stream?token=${token}`, { signal: controller.signal });
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/event-stream/);
   const events = [];
@@ -438,6 +440,44 @@ test('groups: create, messages, realtime, roles, members, prefs, leave, delete',
   await sB.wait((e) => e.type === 'group:deleted');
   assert.ok(!(await api('GET', G(), { token: U.b.token })).json.groups.some((g) => g.id === gid));
   sB.close(); sC.close();
+});
+
+test('in-game chat: a game ticket reads and sends Relay messages, live on the mod stream', async (t) => {
+  if (!U.a || !U.b) return t.skip('accounts missing');
+  const ticketA = (await api('POST', '/v1/auth/game-ticket', { token: U.a.token })).json.ticket;
+  const ticketB = (await api('POST', '/v1/auth/game-ticket', { token: U.b.token })).json.ticket;
+  assert.match(ticketA, /^nmt1\./);
+  const relayStream = await openStream(ticketB, '/v1/mod/stream?relay=1');
+  const plainStream = await openStream(ticketB, '/v1/mod/stream');
+  await sleep(150);
+
+  const sent = await api('POST', `/v1/social/relay/dm/${U.b.id}/messages`, { token: ticketA, body: { content: 'gg from the game' } });
+  assert.equal(sent.status, 200, JSON.stringify(sent.json));
+  const live = await relayStream.wait((e) => e.type === 'message:new' && e.payload.message?.content === 'gg from the game');
+  assert.equal(live.payload.message.senderId, U.a.id);
+  await sleep(200);
+  assert.ok(!plainStream.events.some((e) => e.type === 'message:new'), 'a stream without ?relay=1 never sees message text');
+
+  const page = await api('GET', `/v1/social/relay/dm/${U.a.id}/messages?limit=5`, { token: ticketB });
+  assert.equal(page.status, 200);
+  assert.ok(page.json.messages.some((m) => m.content === 'gg from the game'));
+
+  const groups = await api('GET', '/v1/social/relay/groups', { token: ticketA });
+  assert.equal(groups.status, 200);
+  assert.ok(Array.isArray(groups.json.groups));
+  // A ticket may chat, not manage: creating groups or touching members needs the launcher session.
+  assert.equal((await api('POST', '/v1/social/relay/groups', { token: ticketA, body: { name: 'nope', memberIds: [U.b.id] } })).status, 401);
+  const group = (await api('POST', '/v1/social/relay/groups', { token: U.a.token, body: { name: 'Game squad', memberIds: [U.b.id] } })).json.group;
+  assert.ok(group?.id);
+  assert.equal((await api('POST', `/v1/social/relay/groups/${group.id}/members/remove`, { token: ticketA, body: { memberId: U.b.id } })).status, 401);
+  const gsent = await api('POST', `/v1/social/relay/groups/${group.id}/messages`, { token: ticketA, body: { content: 'squad up' } });
+  assert.equal(gsent.status, 200, JSON.stringify(gsent.json));
+  await relayStream.wait((e) => e.type === 'group:message' && e.payload.message?.content === 'squad up');
+  const gpage = await api('GET', `/v1/social/relay/groups/${group.id}/messages`, { token: ticketB });
+  assert.ok(gpage.json.messages.some((m) => m.content === 'squad up'));
+  assert.equal((await api('GET', '/v1/social/relay/groups', { token: 'nmt1.bad.ticket' })).status, 401);
+  relayStream.close();
+  plainStream.close();
 });
 
 test('blocking and unfriending cut off messaging', async (t) => {
