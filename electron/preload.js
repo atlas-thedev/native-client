@@ -1,5 +1,38 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Store/Locker offline cache: the last good "what I own / wear" answer per account is kept in
+// localStorage, so the Locker still shows owned capes and cosmetics while offline (assets come
+// from the on-disk texture cache). Never used for auth errors: only when the network is the problem.
+const STORE_CACHE_PREFIX = 'native.storeCache.v1.';
+const storeCacheKey = (account) => `${STORE_CACHE_PREFIX}me.${String(account?.id || account?.nativeLink?.id || account?.username || 'guest')}`;
+const looksOffline = (res) => {
+  try { if (typeof navigator !== 'undefined' && navigator.onLine === false) return true; } catch {}
+  if (res?.offline) return true;
+  return /offline|network|fetch failed|timed? ?out|timeout|ENOTFOUND|ECONN|EAI_AGAIN|abort/i.test(String(res?.error || res?.message || ''));
+};
+function readStoreCache(key) {
+  try { const raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function writeStoreCache(key, value) {
+  try { window.localStorage.setItem(key, JSON.stringify({ at: Date.now(), value })); } catch { /* storage full: best-effort */ }
+}
+async function cachedStoreMe(account) {
+  const key = storeCacheKey(account);
+  const fromCache = () => {
+    const saved = readStoreCache(key);
+    return saved?.value ? { ...saved.value, ok: true, stale: true, offline: true, cachedAt: saved.at } : null;
+  };
+  try {
+    const res = await ipcRenderer.invoke('store:me', account);
+    if (res?.ok) { writeStoreCache(key, res); return res; }
+    if (looksOffline(res)) return fromCache() || res;
+    return res;
+  } catch (error) {
+    if (looksOffline(error)) { const hit = fromCache(); if (hit) return hit; }
+    throw error;
+  }
+}
+
 // Set by main.js via webPreferences.additionalArguments.
 const versionArg = process.argv.find((arg) => arg.startsWith('--app-version='));
 
@@ -82,7 +115,7 @@ const api = {
     wear: (account, itemId, slot = null, side = null) => ipcRenderer.invoke('store:wear', { account, itemId, slot, side }),
     // options.target 'premium': wear it on the connected premium (Microsoft) account in game.
     equip: (account, itemId, options = {}) => ipcRenderer.invoke('store:equip', { account, itemId, target: options?.target === 'premium' ? 'premium' : null }),
-    me: (account) => ipcRenderer.invoke('store:me', account),
+    me: (account) => cachedStoreMe(account),
     // dyeable cosmetics: dye(account, itemId, '#rrggbb' | null); dyeTexture(itemId, '#rrggbb') -> { texture } for previews
     dye: (account, itemId, color) => ipcRenderer.invoke('store:dye', { account, itemId, color }),
     dyeTexture: (itemId, color) => ipcRenderer.invoke('store:dyeTexture', { itemId, color }),
