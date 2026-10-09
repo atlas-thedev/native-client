@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Globe, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -128,7 +128,8 @@ export default function AppNavbar({
   isAdmin = false,
   runningGame = null,
   onStopGame,
-  onOpenRunningGame
+  onOpenRunningGame,
+  onOpenWebsite
 }) {
   const { t } = useI18n();
   const buildVersion = window.native?.version || packageInfo.version;
@@ -199,6 +200,18 @@ export default function AppNavbar({
               <Search size={13} strokeWidth={2.2} aria-hidden="true" />
               <span>{t('nav.searchHint')}</span>
               <kbd aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd>
+            </button>
+          )}
+          {onOpenWebsite && (
+            <button
+              type="button"
+              className="quick-tutorial-btn titlebar-website-btn"
+              onClick={onOpenWebsite}
+              title="Open playnative.fun signed in"
+              aria-label="Open the Native website signed in"
+            >
+              <Globe size={13} strokeWidth={2.2} aria-hidden="true" />
+              <span>Website</span>
             </button>
           )}
           <RunningGamePill game={runningGame} onStop={onStopGame} onOpen={onOpenRunningGame} />

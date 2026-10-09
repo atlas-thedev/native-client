@@ -617,6 +617,7 @@ export default function Shell({
           networkStatus={networkStatus}
           onOpenUpdater={openUpdater}
           onOpenSearch={hasValidAccount ? () => setSearchOpen(true) : undefined}
+          onOpenWebsite={hasValidAccount && onOpenWebsite ? () => onOpenWebsite() : undefined}
           isSearchOpen={searchOpen}
           friendsBadge={hasNative ? social.badgeTotal : 0}
           liveUserCount={social.liveUserCount}
