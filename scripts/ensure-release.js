@@ -14,6 +14,12 @@
 //   node scripts/ensure-release.js --clean   # delete duplicate drafts, keep 1
 //   node scripts/ensure-release.js --publish # flip the draft live (checks assets)
 //
+// Versions with a "-" (4.2.18-beta.1) are beta builds: their release is a GitHub
+// pre-release and never "latest", so only beta testers' launchers (beta.yml feed,
+// allowPrerelease) pick them up. Stable releases also get beta*.yml copies of their
+// latest*.yml so testers move onto a stable release that is newer than their beta.
+// This matches .github/workflows/release.yml.
+//
 // Reads GH_TOKEN from the environment, falling back to electron-builder.env.
 
 const fs = require('fs');
@@ -26,6 +32,8 @@ const owner = pkg.build?.publish?.owner || 'atlas-thedev';
 const primaryRepo = pkg.build?.publish?.repo || 'native-client';
 const targetRepos = [primaryRepo];
 const tag = `v${pkg.version}`;
+const isBeta = /-/.test(String(pkg.version));
+const FEED_PAIRS = [['latest.yml', 'beta.yml'], ['latest-mac.yml', 'beta-mac.yml'], ['latest-linux.yml', 'beta-linux.yml']];
 
 function readToken() {
   if (process.env.GH_TOKEN) return process.env.GH_TOKEN;
@@ -79,6 +87,33 @@ async function releasesForTag(repoName) {
   return found;
 }
 
+/** Stable releases: add beta*.yml copies of latest*.yml so beta testers follow a newer stable release. */
+async function addBetaFeeds(repoName, release) {
+  const names = new Set(release.assets.map(a => a.name));
+  for (const [src, dst] of FEED_PAIRS) {
+    const asset = release.assets.find(a => a.name === src);
+    if (!asset || names.has(dst)) continue;
+    const res = await fetch(asset.url, {
+      headers: { authorization: `Bearer ${token}`, accept: 'application/octet-stream', 'user-agent': 'native-release-script' },
+    });
+    if (!res.ok) throw new Error(`download ${src} -> ${res.status}`);
+    const body = Buffer.from(await res.arrayBuffer());
+    const up = await fetch(`https://uploads.github.com/repos/${owner}/${repoName}/releases/${release.id}/assets?name=${encodeURIComponent(dst)}`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: 'application/vnd.github+json',
+        'content-type': 'text/yaml',
+        'content-length': String(body.length),
+        'user-agent': 'native-release-script',
+      },
+      body,
+    });
+    if (!up.ok) throw new Error(`upload ${dst} -> ${up.status}`);
+    console.log(`added ${dst} (copy of ${src})`);
+  }
+}
+
 function describe(r) {
   const state = r.draft ? 'draft' : r.prerelease ? 'pre-release' : 'published';
   const assets = r.assets.length ? r.assets.map(a => a.name).join(', ') : 'no assets';
@@ -101,8 +136,11 @@ async function handleRepo(repoName, mode) {
       console.log(`no draft for ${tag} in ${owner}/${repoName} to publish`);
       return;
     }
-    const names = draft.assets.map(a => a.name);
-    const required = ['latest.yml'];
+    if (!isBeta) await addBetaFeeds(repoName, draft);
+    const fresh = await gh('GET', `${api}/releases/${draft.id}`);
+    const names = fresh.assets.map(a => a.name);
+    // a beta must ship the beta feed; a stable release the latest feed
+    const required = isBeta ? ['beta.yml'] : ['latest.yml'];
     const missing = required.filter(n => !names.includes(n));
     if (missing.length) {
       console.error(`error: draft ${tag} in ${repoName} is missing ${missing.join(' and ')}`);
@@ -110,8 +148,10 @@ async function handleRepo(repoName, mode) {
       console.error('publishing now would ship a release the updater cannot use');
       return;
     }
-    await gh('PATCH', `${api}/releases/${draft.id}`, { draft: false });
-    console.log(`published ${tag} (#${draft.id}) in ${owner}/${repoName}`);
+    await gh('PATCH', `${api}/releases/${draft.id}`, { draft: false, prerelease: isBeta, make_latest: isBeta ? 'false' : 'true' });
+    console.log(isBeta
+      ? `published beta ${tag} (#${draft.id}) in ${owner}/${repoName} as a pre-release: beta testers only`
+      : `published ${tag} (#${draft.id}) in ${owner}/${repoName}`);
     return;
   }
 
@@ -143,6 +183,10 @@ async function handleRepo(repoName, mode) {
     if (!r.draft) {
       console.log(`release ${tag} already published in ${owner}/${repoName} (#${r.id})`);
     } else {
+      if (r.prerelease !== isBeta) {
+        await gh('PATCH', `${api}/releases/${r.id}`, { prerelease: isBeta });
+        console.log(`marked draft ${tag} as ${isBeta ? 'pre-release (beta)' : 'stable'}`);
+      }
       console.log(`reusing existing draft in ${owner}/${repoName} ${tag} (#${r.id})`);
     }
     return;
@@ -152,9 +196,9 @@ async function handleRepo(repoName, mode) {
     tag_name: tag,
     name: tag,
     draft: true,
-    prerelease: false,
+    prerelease: isBeta,
   });
-  console.log(`created draft release ${tag} (#${created.id}) in ${owner}/${repoName}`);
+  console.log(`created draft ${isBeta ? 'beta pre-release' : 'release'} ${tag} (#${created.id}) in ${owner}/${repoName}`);
 }
 
 async function main() {

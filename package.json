@@ -24,6 +24,7 @@
     "dist": "npm run bump && vite build && electron-builder --win --linux",
     "dist:win": "npm run bump && vite build && electron-builder --win",
     "dist:win:publish": "npm run bump && npm run release:ensure && vite build && electron-builder --win --publish always",
+    "dist:win:beta:publish": "node scripts/bump-version.js beta && npm run release:ensure && vite build && electron-builder --win --publish always",
     "dist:linux": "npm run bump && vite build && electron-builder --linux",
     "dist:mac": "npm run bump && vite build && electron-builder --mac",
     "build-release": "bash scripts/build-release.sh",
