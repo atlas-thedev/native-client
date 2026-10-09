@@ -223,7 +223,9 @@ function accountPayload(user) {
     premium: link ? { linked: true, name: link.name || null, uuid: link.uuid || null } : { linked: false, name: null, uuid: null },
     type: user.auth_type || 'native',
     badges,
-    memberSince: user.created_at || null
+    memberSince: user.created_at || null,
+    // Own skin texture hash, so the in-game chat can draw the player's face next to their messages.
+    skin: (() => { const p = readProfileFile(user.username); return p && HASH.test(p.skin || '') ? p.skin : null; })()
   };
 }
 
@@ -244,7 +246,9 @@ function friendsPayload(user) {
     lastSeen: f.lastSeen || null,
     unread: Number(f.unreadCount || 0),
     // Skin texture hash (under /csl/textures/) so the in-game chat can draw the friend's face.
-    skin: (() => { const p = readProfileFile(f.name); return p && HASH.test(p.skin || '') ? p.skin : null; })()
+    skin: (() => { const p = readProfileFile(f.name); return p && HASH.test(p.skin || '') ? p.skin : null; })(),
+    // Linked Minecraft (Mojang) account: the mod falls back to that skin when there is no Native skin.
+    mcUuid: (() => { try { const l = db.getMinecraftLink(f.id); return l && l.uuid ? String(l.uuid) : null; } catch { return null; } })()
   }));
   let received = [];
   let sent = 0;

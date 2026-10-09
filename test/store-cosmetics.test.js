@@ -307,3 +307,31 @@ test('dyeable cosmetics: admin base + mask + default colour, players pick a colo
   assert.equal(off.body.item.textureUrl, edited.body.item.textureUrl);
   assert.equal((await call('POST', '/v1/store/dye', { itemId: 'dye-hat', color: '#0000ff' }, token)).status, 404);
 });
+
+test('in-game wardrobe: a game ticket reads the locker and wears owned items only', async () => {
+  const { user, token } = account('TicketWearer');
+  own(user, 'propeller-cap');
+  const ticket = (await call('POST', '/v1/auth/game-ticket', undefined, token)).body.ticket;
+  assert.match(ticket, /^nmt1\./);
+
+  const me = await call('GET', '/v1/store/me', undefined, ticket);
+  assert.equal(me.status, 200, JSON.stringify(me.body));
+  assert.ok(me.body.owned.some((entry) => entry.id === 'propeller-cap'));
+
+  let r = await call('POST', '/v1/store/equip', { itemId: 'propeller-cap' }, ticket);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.wearing, { hats: 'propeller-cap' });
+
+  // not owned: a ticket never claims or buys
+  r = await call('POST', '/v1/store/equip', { itemId: 'angel-wings' }, ticket);
+  assert.equal(r.status, 403);
+  assert.equal(db.getDb().prepare('SELECT COUNT(*) AS n FROM store_owned WHERE user_id = ? AND item_id = ?').get(user.id, 'angel-wings').n, 0);
+
+  r = await call('POST', '/v1/store/equip', { slot: 'hats' }, ticket);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.wearing, {});
+
+  // everything else in the store still needs a real session
+  assert.equal((await call('POST', '/v1/store/claim', { itemId: 'angel-wings' }, ticket)).status, 401);
+  assert.equal((await call('GET', '/v1/store/wishlist', undefined, ticket)).status, 401);
+});

@@ -722,7 +722,11 @@ async function handleStoreRoutes(req, res, ctx) {
     return true;
   }
 
-  const user = signedIn();
+  // The in-game wardrobe (Native mod) signs in with its short-lived game ticket. That ticket can only read the
+  // locker and wear / take off items the player already owns; it can never claim, buy or change anything else.
+  const ticketToken = bearerOf(req);
+  const gameTicket = ticketToken.startsWith('nmt1.') && ((req.method === 'GET' && url.pathname === '/v1/store/me') || (req.method === 'POST' && url.pathname === '/v1/store/equip'));
+  const user = gameTicket ? require('./mod-routes').userForTicket(ticketToken) : signedIn();
 
   if (req.method === 'GET' && url.pathname === '/v1/store/me') {
     if (!user) { send(res, 401, { ok: false, error: 'Sign in to see your cloaks.' }); return true; }
@@ -864,6 +868,7 @@ async function handleStoreRoutes(req, res, ctx) {
     } else {
       const item = findItem(String(body.itemId));
       if (!item) { send(res, 404, { ok: false, error: 'That store item does not exist.' }); return true; }
+      if (!owns(user.id, item.id) && gameTicket) { send(res, 403, { ok: false, error: `Add ${item.name} to your locker in the launcher first.` }); return true; }
       if (!owns(user.id, item.id)) {
         if (item.exclusive) { send(res, 403, { ok: false, error: `${item.name} can't be claimed. The Native team gives it out.` }); return true; }
         if (item.hidden) { send(res, 403, { ok: false, error: 'Add this cloak to your locker first.' }); return true; }
