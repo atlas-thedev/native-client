@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, Crown, DollarSign, Gift, LoaderCircle, Receipt, RotateCcw, Ticket, Trash2 } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
-import Dropdown from '../../components/ui/Dropdown.jsx';
 import AdminPayments from './AdminPayments.jsx';
-import { adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
+import { AdminNumber, AdminSelect, adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
 
 const money = (value, currency = 'USD') => {
   try { return new Intl.NumberFormat([], { style: 'currency', currency }).format(Number(value) || 0); }
@@ -168,9 +167,9 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
           <div className="admin-card-head"><h3><NativePlusIcon size={15} />Give Native+</h3><span>Free membership, no payment</span></div>
           <form className="admin-code-form" onSubmit={givePlus}>
             <label className="admin-field is-wide"><span>Player</span><input value={gift.username} onChange={(event) => setGift((current) => ({ ...current, username: event.target.value }))} placeholder="Native username" maxLength={32} autoComplete="off" spellCheck={false} /></label>
-            <label className="admin-field"><span>How long</span>
-              <Dropdown className="admin-dropdown" value={gift.days} onChange={(value) => setGift((current) => ({ ...current, days: value?.target ? value.target.value : value }))} options={PLUS_LENGTHS} />
-            </label>
+            <div className="admin-field"><span>How long</span>
+              <AdminSelect value={gift.days} onChange={(value) => setGift((current) => ({ ...current, days: value?.target ? value.target.value : value }))} options={PLUS_LENGTHS} />
+            </div>
             <label className="admin-field"><span>Note</span><input value={gift.note} onChange={(event) => setGift((current) => ({ ...current, note: event.target.value }))} placeholder="Giveaway winner" maxLength={120} /></label>
             <button type="submit" className="admin-btn primary" disabled={!gift.username.trim() || Boolean(busy)}>{busy === 'gift' ? <LoaderCircle size={13} className="is-spinning" /> : <Gift size={13} />}Give Native+</button>
           </form>
@@ -196,12 +195,12 @@ export default function AdminSales({ items, onNotify, onAccessRevoked }) {
         <section className="admin-card">
           <div className="admin-card-head"><h3><Ticket size={14} />Redeem codes</h3><span>For events and giveaways</span></div>
           <form className="admin-code-form" onSubmit={createCode}>
-            <label className="admin-field is-wide"><span>Cape</span>
-              <Dropdown className="admin-dropdown" value={draft.itemId} onChange={set('itemId')} placeholder={items ? 'Pick a cape' : 'Loading…'} options={capeOptions} />
-            </label>
+            <div className="admin-field is-wide"><span>Cape</span>
+              <AdminSelect value={draft.itemId} onChange={set('itemId')} placeholder={items ? 'Pick a cape' : 'Loading…'} options={capeOptions} />
+            </div>
             <label className="admin-field"><span>Code</span><input value={draft.code} onChange={(event) => setDraft((current) => ({ ...current, code: event.target.value.toUpperCase() }))} placeholder="Auto" maxLength={32} /></label>
-            <label className="admin-field"><span>Uses</span><input type="number" min={1} value={draft.maxUses} onChange={set('maxUses')} /></label>
-            <label className="admin-field"><span>Expires (days)</span><input type="number" min={0} value={draft.expiresInDays} onChange={set('expiresInDays')} placeholder="0 = never" /></label>
+            <div className="admin-field"><span>Uses</span><AdminNumber min={1} max={100000} value={draft.maxUses} onChange={(value) => setDraft((current) => ({ ...current, maxUses: String(value) }))} /></div>
+            <div className="admin-field"><span>Expires in (0 = never)</span><AdminNumber min={0} max={3650} value={draft.expiresInDays} suffix="days" onChange={(value) => setDraft((current) => ({ ...current, expiresInDays: String(value) }))} /></div>
             <label className="admin-field"><span>Note</span><input value={draft.note} onChange={set('note')} placeholder="Summer event" maxLength={120} /></label>
             <button type="submit" className="admin-btn primary" disabled={!draft.itemId || Boolean(busy)}>{busy === 'create' ? <LoaderCircle size={13} className="is-spinning" /> : <Ticket size={13} />}Create code</button>
           </form>
