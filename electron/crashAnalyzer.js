@@ -945,11 +945,16 @@ function ruleModInit(ctx) {
   });
 }
 
+const MIXIN_PROBE_RE = /Error loading class:|\[[^\]]*\/WARN\]\s*(?:\(|\[)?mixin/i;
+
 function ruleMissingClass(ctx, chain) {
   const hits = ctx.findAll(/(?:NoClassDefFoundError|ClassNotFoundException)(?::| for)?\s*'?([\w/$.]+)/, { limit: 40 });
   if (!hits.length) return;
   const seen = new Set();
   for (const { match, index } of hits) {
+    // Mixin probing optional targets ("Error loading class: X (java.lang.ClassNotFoundException…)") is a
+    // harmless warning: mods ship hooks for several game versions and only the matching ones load.
+    if (MIXIN_PROBE_RE.test(ctx.lines[index]?.text || '')) continue;
     const cls = match[1].replace(/\//g, '.');
     if (seen.has(cls) || cls.length < 4) continue;
     seen.add(cls);

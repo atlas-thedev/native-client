@@ -180,3 +180,13 @@ test('a Fabric crash report (with a "Fabric Mods:" section) is analysed, not rej
   assert.ok(r.headline);
   assert.equal(r.facts?.loader ?? 'Fabric', 'Fabric');
 });
+
+test('Mixin "Error loading class" warnings are not blamed as a version mismatch', () => {
+  const log = [
+    '[12:00:01] [main/WARN]: Error loading class: com/mojang/authlib/yggdrasil/YggdrasilMinecraftSessionService (java.lang.ClassNotFoundException: com/mojang/authlib/yggdrasil/YggdrasilMinecraftSessionService)',
+    '[12:00:01] [main/WARN]: Error loading class: net/minecraft/class_1297 (java.lang.ClassNotFoundException: net/minecraft/class_1297)',
+    '[12:00:05] [Render thread/INFO]: Backend library: LWJGL version 3.3.3'
+  ].join('\n');
+  const r = analyzeCrash({ log, exitCode: 3221225477, instance: { ...instance, version: '26.3' }, mods: [mod('native.jar', 'native', 'Native Client')] });
+  assert.ok(!r.issues.some((issue) => issue.id === 'version-mismatch'));
+});
