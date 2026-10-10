@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './RelayAvatar.css';
 import fallbackSkin from '../../assets/steve.png';
 
@@ -7,6 +7,37 @@ import fallbackSkin from '../../assets/steve.png';
 const nativeSkinCache = new Map();
 const inFlightRequests = new Map();
 const NEGATIVE_CACHE_TTL = 30_000;
+const LOOKUP_TIMEOUT = 8000;
+// a lookup that failed (timeout / network / 5xx) is tried again after these delays
+const RETRY_DELAYS = [1500, 4000, 9000];
+
+// Failed lookups are NOT cached as "no skin" (that is what left everyone as Steve);
+// they are only remembered here so the avatar knows it should try again.
+const failedLookups = new Map();
+export function lookupFailed(name) {
+  return failedLookups.has(String(name || '').toLowerCase().trim());
+}
+
+// The inbox asks for ~30 faces at once. Opening them all together made the later
+// ones wait behind the browser's per-host connection limit and hit the timeout,
+// so lookups run a few at a time and the timeout starts when a request really starts.
+const MAX_PARALLEL = 4;
+let runningLookups = 0;
+const waitingLookups = [];
+function withSlot(work) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      runningLookups += 1;
+      Promise.resolve().then(work).then(resolve, reject).finally(() => {
+        runningLookups -= 1;
+        const next = waitingLookups.shift();
+        if (next) next();
+      });
+    };
+    if (runningLookups < MAX_PARALLEL) run();
+    else waitingLookups.push(run);
+  });
+}
 
 function cachedSkin(key) {
   const cached = nativeSkinCache.get(key);
@@ -16,18 +47,20 @@ function cachedSkin(key) {
   return undefined;
 }
 
-export function resolveNativeSkin(name) {
+export function resolveNativeSkin(name, { fresh = false } = {}) {
   const key = String(name || '').toLowerCase().trim();
   if (!key || key === 'guest') return Promise.resolve(null);
 
-  const cached = cachedSkin(key);
-  if (cached !== undefined) return Promise.resolve(cached);
+  if (!fresh) {
+    const cached = cachedSkin(key);
+    if (cached !== undefined) return Promise.resolve(cached);
+  }
   if (inFlightRequests.has(key)) return inFlightRequests.get(key);
 
-  const task = (async () => {
+  const task = withSlot(async () => {
     const root = String(window.native?.wardrobeApi || 'https://api.playnative.fun').replace(/\/+$/, '');
     const ctrl = new AbortController();
-    const timer = window.setTimeout(() => ctrl.abort(), 3500);
+    const timer = window.setTimeout(() => ctrl.abort(), LOOKUP_TIMEOUT);
 
     try {
       // Native skin, else the linked Microsoft account's skin (resolved by the Native API).
@@ -35,20 +68,28 @@ export function resolveNativeSkin(name) {
         signal: ctrl.signal,
         cache: 'no-cache'
       });
+      if (res.status === 404) {
+        // a real answer: this player has no skin we can show
+        failedLookups.delete(key);
+        nativeSkinCache.set(key, { url: null, checkedAt: Date.now() });
+        return null;
+      }
       if (!res.ok) throw new Error(`Custom skin lookup failed (${res.status})`);
 
       const data = await res.json();
-      const skin = data.skin || null;
+      const skin = data?.skin || null;
+      failedLookups.delete(key);
       nativeSkinCache.set(key, { url: skin, checkedAt: Date.now() });
       return skin;
     } catch {
-      // Cache misses briefly so transient startup/network failures can self-heal.
-      nativeSkinCache.set(key, { url: null, checkedAt: Date.now() });
-      return null;
+      // Transient startup/network failure: keep any skin we already knew, and let the avatar retry.
+      failedLookups.set(key, Date.now());
+      const known = nativeSkinCache.get(key)?.url;
+      return known || null;
     } finally {
       window.clearTimeout(timer);
     }
-  })().finally(() => inFlightRequests.delete(key));
+  }).finally(() => inFlightRequests.delete(key));
 
   inFlightRequests.set(key, task);
   return task;
@@ -131,13 +172,17 @@ export default function RelayAvatar({
   // still looking this player up: a soft placeholder, not Steve
   const [pending, setPending] = useState(() => !initialSkinUrl && Boolean(key) && cachedSkin(key) === undefined);
   const [loaded, setLoaded] = useState(false);
+  const refetchedFor = useRef(null);
 
   useEffect(() => {
     let active = true;
+    let timer = 0;
     setHasError(false);
+    refetchedFor.current = null;
 
     if (initialSkinUrl) {
       setSkinUrl(initialSkinUrl);
+      setPending(false);
       if (key) nativeSkinCache.set(key, { url: initialSkinUrl, checkedAt: Date.now() });
       return () => { active = false; };
     }
@@ -145,14 +190,42 @@ export default function RelayAvatar({
     const cached = cachedSkin(key);
     setSkinUrl(cached || null);
     setPending(Boolean(key) && cached === undefined);
-    if (key && cached === undefined) {
-      resolveNativeSkin(key).then((url) => {
-        if (active) { setSkinUrl(url); setPending(false); }
-      });
-    }
+    if (!key || cached !== undefined) return () => { active = false; };
 
-    return () => { active = false; };
+    let attempt = 0;
+    const lookup = () => {
+      resolveNativeSkin(key, { fresh: attempt > 0 }).then((url) => {
+        if (!active) return;
+        // the lookup itself failed (timeout / network): try again instead of settling on Steve
+        if (!url && lookupFailed(key) && attempt < RETRY_DELAYS.length) {
+          timer = window.setTimeout(lookup, RETRY_DELAYS[attempt]);
+          attempt += 1;
+          return;
+        }
+        setSkinUrl(url);
+        setPending(false);
+      });
+    };
+    lookup();
+
+    return () => { active = false; window.clearTimeout(timer); };
   }, [initialSkinUrl, key]);
+
+  // The skin image itself failed to load (e.g. a stale texture link from the friend list):
+  // ask the Native API for a fresh one once before falling back to Steve.
+  useEffect(() => {
+    if (!hasError || !key || !skinUrl || refetchedFor.current === skinUrl) return undefined;
+    refetchedFor.current = skinUrl;
+    let active = true;
+    const broken = skinUrl;
+    nativeSkinCache.delete(key);
+    resolveNativeSkin(key, { fresh: true }).then((url) => {
+      if (!active || !url || url === broken) return;
+      setSkinUrl(url);
+      setHasError(false);
+    });
+    return () => { active = false; };
+  }, [hasError, key, skinUrl]);
 
   const resolvedSkin = skinUrl && !hasError ? skinUrl : fallbackSkin;
   const shown = !pending && (loaded || decodedSkins.has(resolvedSkin));
