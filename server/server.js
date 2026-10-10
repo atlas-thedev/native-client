@@ -15,6 +15,7 @@ const billing = require('./billing');
 const domains = require('./domains');
 const siteRoutes = require('./site-routes');
 const betaRoutes = require('./beta-routes');
+const profileRoutes = require('./profiles-routes');
 
 /**
  * Native Backend & API Server
@@ -222,6 +223,7 @@ function readProfile(username) {
 function saveProfile(profile, req, owner) {
   atomicWrite(profilePath(profile.username), JSON.stringify(profile, null, 2));
   try { modRoutes.noteProfile(profile); } catch {}
+  try { profileRoutes.noteProfile(profile); } catch {}
   try {
     const user = owner || db.getUserByUsername(profile.username);
     if (user) {
@@ -554,6 +556,14 @@ async function handler(req, res) {
     } catch (billingError) {
       console.error('[Native Billing]', billingError);
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Billing route failed.' });
+      return;
+    }
+
+    try {
+      profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(req) });
+      if (await profileRoutes.handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson })) return;
+    } catch (profileError) {
+      if (!res.headersSent) return send(res, 500, { ok: false, error: 'Profile route failed.' });
       return;
     }
 
@@ -1592,6 +1602,7 @@ function applyTimeouts(server) {
 function createServer() {
   storeRoutes.setTextureReader((hash) => (/^[a-f0-9]{64}$/.test(String(hash)) ? fs.readFileSync(path.join(texturesDir, hash)) : null));
   try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
+  try { profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(null) }); profileRoutes.start(); } catch (error) { console.warn('[Native Profiles] start failed:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }
 
