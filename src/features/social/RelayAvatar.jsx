@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
+import './RelayAvatar.css';
 import fallbackSkin from '../../assets/steve.png';
 
 // Relay avatars resolve through the Native API (Native skin, else the linked Microsoft
@@ -53,7 +54,46 @@ export function resolveNativeSkin(name) {
   return task;
 }
 
-export function SkinFaceLayer({ src, pixels, offset, onError }) {
+// Skin images already decoded once: the face can be drawn at once, without a flash.
+const decodedSkins = new Set();
+function preloadSkin(url) {
+  if (!url || decodedSkins.has(url)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = image.onerror = () => { decodedSkins.add(url); resolve(); };
+    image.src = url;
+  });
+}
+
+/**
+ * True once every face in `faces` ([{ name, skinUrl }]) is looked up and its skin image is loaded (or after
+ * `limitMs`, so a slow lookup never keeps a page on skeletons). `scope` restarts the wait (e.g. another chat).
+ */
+export function useAvatarsReady(faces, scope = '', limitMs = 2500) {
+  const key = faces.map((face) => `${String(face?.name || '').toLowerCase()}|${face?.skinUrl || ''}`).join(',');
+  const [readyScope, setReadyScope] = useState(null);
+  // already known and decoded (e.g. a chat opened before): no wait at all
+  const instant = faces.every((face) => {
+    if (!face?.name && !face?.skinUrl) return true;
+    const url = face.skinUrl || cachedSkin(String(face.name || '').toLowerCase().trim());
+    return url === null || (url !== undefined && decodedSkins.has(url));
+  });
+  useEffect(() => {
+    // once a chat is shown, new messages never bring the skeletons back
+    if (readyScope === scope) return undefined;
+    let alive = true;
+    const finish = () => { if (alive) setReadyScope(scope); };
+    const timer = window.setTimeout(finish, limitMs);
+    Promise.all(faces.map(async (face) => {
+      const url = face?.skinUrl || await resolveNativeSkin(face?.name);
+      await preloadSkin(url);
+    })).then(finish, finish);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [key, scope, readyScope]); // eslint-disable-line react-hooks/exhaustive-deps
+  return readyScope === scope || instant;
+}
+
+export function SkinFaceLayer({ src, pixels, offset, onError, onLoad }) {
   return (
     <img
       src={src}
@@ -61,6 +101,7 @@ export function SkinFaceLayer({ src, pixels, offset, onError }) {
       aria-hidden="true"
       draggable={false}
       onError={onError}
+      onLoad={onLoad}
       style={{
         position: 'absolute',
         width: pixels * 8,
@@ -87,6 +128,9 @@ export default function RelayAvatar({
   const key = String(name || '').toLowerCase().trim();
   const [skinUrl, setSkinUrl] = useState(() => initialSkinUrl || cachedSkin(key) || null);
   const [hasError, setHasError] = useState(false);
+  // still looking this player up: a soft placeholder, not Steve
+  const [pending, setPending] = useState(() => !initialSkinUrl && Boolean(key) && cachedSkin(key) === undefined);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -98,10 +142,12 @@ export default function RelayAvatar({
       return () => { active = false; };
     }
 
-    setSkinUrl(cachedSkin(key) || null);
-    if (key) {
+    const cached = cachedSkin(key);
+    setSkinUrl(cached || null);
+    setPending(Boolean(key) && cached === undefined);
+    if (key && cached === undefined) {
       resolveNativeSkin(key).then((url) => {
-        if (active) setSkinUrl(url);
+        if (active) { setSkinUrl(url); setPending(false); }
       });
     }
 
@@ -109,6 +155,8 @@ export default function RelayAvatar({
   }, [initialSkinUrl, key]);
 
   const resolvedSkin = skinUrl && !hasError ? skinUrl : fallbackSkin;
+  const shown = !pending && (loaded || decodedSkins.has(resolvedSkin));
+  useEffect(() => { setLoaded(decodedSkins.has(resolvedSkin)); }, [resolvedSkin]);
   const statusColor = (status === 'in-game' || status === 'in-menus')
     ? '#d9a6da'
     : (status === 'in-launcher' || status === 'online')
@@ -137,19 +185,25 @@ export default function RelayAvatar({
           inset: 0,
           borderRadius: 'inherit',
           overflow: 'hidden',
-          imageRendering: 'pixelated'
+          imageRendering: 'pixelated',
+          opacity: shown ? 1 : 0,
+          transition: 'opacity 0.16s ease'
         }}
       >
-        <SkinFaceLayer
-          src={resolvedSkin}
-          pixels={pixels}
-          offset={1}
-          onError={() => {
-            if (resolvedSkin !== fallbackSkin) setHasError(true);
-          }}
-        />
-        <SkinFaceLayer src={resolvedSkin} pixels={pixels} offset={5} />
+        {!pending && <>
+          <SkinFaceLayer
+            src={resolvedSkin}
+            pixels={pixels}
+            offset={1}
+            onLoad={() => { decodedSkins.add(resolvedSkin); setLoaded(true); }}
+            onError={() => {
+              if (resolvedSkin !== fallbackSkin) setHasError(true);
+            }}
+          />
+          <SkinFaceLayer src={resolvedSkin} pixels={pixels} offset={5} />
+        </>}
       </span>
+      {!shown && <span className="relay-avatar-skel" aria-hidden="true" style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', background: 'rgba(255, 255, 255, 0.06)', animation: 'relay-avatar-pulse 1.2s ease-in-out infinite' }} />}
 
       {showStatus && status && (
         <span

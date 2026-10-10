@@ -354,12 +354,6 @@ export default function HomeView({
                 >
                   <img src={itemArt} alt={title} className="version-card-bg" />
                   <div className="version-card-gradient" />
-                  {isSelected && (
-                    <span className="version-card-selected">
-                      <i aria-hidden="true" />
-                      Selected
-                    </span>
-                  )}
                   {isStarterMode && item.tags?.length > 0 && (
                     <div className="version-card-tags">
                       <span className="version-card-tag">{item.loader || 'Fabric'}</span>

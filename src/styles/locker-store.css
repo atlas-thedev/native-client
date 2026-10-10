@@ -428,3 +428,8 @@
 .locker-view .locker-tile .locker-cape-lock { top: 15px; left: 15px; }
 .locker-view .locker-cape-grid .locker-tile.locker-shop-card { padding: 7px; gap: 0; }
 .locker-view .locker-cape-grid .locker-tile.locker-shop-card:hover, .locker-view .locker-cape-grid .locker-tile.locker-shop-card:active { transform: none; }
+
+/* Cape art is a canvas like the Store's: no frame, just the cape. */
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-anim .locker-cape-canvas { border: 0; border-radius: 0; background: transparent; }
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-canvas.is-pending { opacity: 0.35; animation: locker-cape-pulse 1.4s ease-in-out infinite; background: rgba(255, 255, 255, 0.06); border-radius: 4px; }
+@keyframes locker-cape-pulse { 50% { opacity: 0.15; } }

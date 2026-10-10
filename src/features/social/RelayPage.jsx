@@ -28,7 +28,7 @@ import {
   X
 } from 'lucide-react';
 import { openProfile } from '../profile/ProfilePage.jsx';
-import RelayAvatar from './RelayAvatar.jsx';
+import RelayAvatar, { useAvatarsReady } from './RelayAvatar.jsx';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
 import useRelayGroups from './useRelayGroups.js';
 import GroupCreateModal from './GroupCreateModal.jsx';
@@ -377,6 +377,8 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
       return (b.lastStamp || 0) - (a.lastStamp || 0);
     });
   }, [formattedGroups, mergedFriends]);
+  const inboxFaces = useMemo(() => allThreads.filter((thread) => thread.kind !== 'group').slice(0, 30).map((thread) => ({ name: thread.name, skinUrl: thread.skinUrl })), [allThreads]);
+  const inboxFacesReady = useAvatarsReady(inboxFaces, 'inbox');
 
   const activeEntity = useMemo(() => {
     if (!selectedId) return null;
@@ -496,6 +498,9 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         id: String(message.id),
         senderId: message.senderId,
         senderName: isMine ? 'You' : (activeEntity.nickname || activeEntity.name),
+        // the face comes from the account name (a nickname has no skin)
+        avatarName: isMine ? null : activeEntity.name,
+        avatarSkin: isMine ? null : (activeEntity.skinUrl || null),
         content: message.content || '',
         mediaUrl: message.mediaUrl || null,
         mediaName: message.mediaName || null,
@@ -1042,8 +1047,26 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     ? relayGroups.threads?.[activeEntity?.id]
     : social?.conversations?.[activeEntity?.id];
   // Skeletons until the first page of this chat has arrived (never another chat's messages).
-  const isLoadingThread = Boolean(activeEntity) && !activeThreadState?.loaded && !(activeThreadState?.messages?.length);
+  // The faces in this chat (and the inbox) are fetched before the skeletons go, so nobody shows up as Steve first.
+  const streamFaces = useMemo(() => {
+    const out = [];
+    if (activeEntity && !isGroupThread) out.push({ name: activeEntity.name, skinUrl: activeEntity.skinUrl });
+    for (const item of renderedItems.slice(-40)) {
+      if (item.isDivider) continue;
+      out.push(item.isMine ? { name: account?.name } : { name: item.avatarName || item.senderName || item.senderId, skinUrl: item.avatarSkin });
+    }
+    return out;
+  }, [renderedItems, activeEntity?.name, activeEntity?.skinUrl, isGroupThread, account?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  const streamFacesReady = useAvatarsReady(streamFaces, activeEntity?.id || '');
+  const isLoadingThread = Boolean(activeEntity) && ((!activeThreadState?.loaded && !(activeThreadState?.messages?.length)) || !streamFacesReady);
   const isLoadingOlder = Boolean(activeThreadState?.loaded && activeThreadState?.loading && activeThreadState?.hasMore);
+  // the messages appear when the skeletons go: open at the latest one
+  useLayoutEffect(() => {
+    const node = messageStreamRef.current;
+    if (isLoadingThread || !node || !atBottomRef.current) return;
+    node.scrollTop = node.scrollHeight;
+    scrollStateRef.current = { ...scrollStateRef.current, height: node.scrollHeight, top: node.scrollTop };
+  }, [isLoadingThread]);
 
 
 
@@ -1138,7 +1161,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         </div>
 
         <div className="relay-inbox-scroll">
-          {allThreads.length === 0 && (social?.initialLoading || relayGroups.loadingGroups) ? (
+          {(allThreads.length === 0 && (social?.initialLoading || relayGroups.loadingGroups)) || !inboxFacesReady ? (
             <>
               <section className="relay-section"><div className="relay-section-header"><span>Groups</span></div><ThreadSkeletons count={2} /></section>
               <section className="relay-section"><div className="relay-section-header"><span>Direct messages</span></div><ThreadSkeletons count={4} /></section>
