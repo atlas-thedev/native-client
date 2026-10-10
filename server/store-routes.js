@@ -224,8 +224,22 @@ function publicProfile(row, profile) {
     counts: { owned: owned.length, wishlist: wish.length },
     hidden: { locker: prefs.hideLocker, wishlist: prefs.hideWishlist },
     owned: prefs.hideLocker ? [] : owned.map(({ id, acquiredAt }) => ({ id, acquiredAt })),
-    wishlist: prefs.hideWishlist ? [] : wish
+    wishlist: prefs.hideWishlist ? [] : wish,
+    // every bundle whose pieces are all in this locker (also bundles no longer in the store: the set is still theirs)
+    bundles: prefs.hideLocker ? [] : completeBundles(owned)
   };
+}
+function completeBundles(owned) {
+  const have = new Set(owned.map((entry) => entry.id));
+  return bundles.sorted(current().bundles || [])
+    .filter((bundle) => Array.isArray(bundle.itemIds) && bundle.itemIds.length > 1 && bundle.itemIds.every((id) => have.has(id) && findItem(id)))
+    .map((bundle) => ({
+      id: bundle.id, name: bundle.name, tagline: bundle.tagline || '',
+      rarity: bundles.RARITIES.includes(bundle.rarity) ? bundle.rarity : 'epic',
+      accent: bundle.accent || null, itemIds: bundle.itemIds.slice(), inStore: !bundle.hidden,
+      artPath: bundle.art ? `/v1/store/bundles/${encodeURIComponent(bundle.id)}/art?v=${bundle.art.slice(0, 12)}` : null,
+      completedAt: Math.max(...bundle.itemIds.map((id) => Number(owned.find((o) => o.id === id)?.acquiredAt) || 0)) || null
+    }));
 }
 function searchUsers(query) {
   const h = sql();
