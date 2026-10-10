@@ -104,15 +104,36 @@ function createWindow() {
 
 const instancesPath = () => path.join(app.getPath('userData'), 'instances.json');
 
-ipcMain.handle('instances:load', () => safeFile.readJson(instancesPath(), null));
+// When instances.json exists but could not be opened (locked by antivirus or a
+// sync tool), the renderer only got the fallback. Saving that would wipe the
+// user's real instances, so saves stay blocked until a read succeeds again.
+let instancesUnreadable = false;
+const loadInstances = () => {
+  const { value, status } = safeFile.readJsonDetailed(instancesPath(), null);
+  instancesUnreadable = status === 'unreadable';
+  return value;
+};
+const isPlainObject = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+
+ipcMain.handle('instances:load', () => loadInstances());
 
 ipcMain.on('instances:loadSync', (event) => {
-  event.returnValue = safeFile.readJson(instancesPath(), null);
+  event.returnValue = loadInstances();
 });
 
 ipcMain.handle('instances:save', (_event, data) => {
   // Never replace the user's instances with something that isn't a store.
-  if (!data || typeof data !== 'object') return false;
+  if (!isPlainObject(data)) return false;
+  if (instancesUnreadable) {
+    // Try again: if the file can be read now, saving is safe.
+    const { status } = safeFile.readJsonDetailed(instancesPath(), null);
+    if (status === 'unreadable') return false;
+    instancesUnreadable = false;
+  }
   safeFile.writeJsonAtomic(instancesPath(), data);
   return true;
 });
@@ -138,9 +159,11 @@ ipcMain.on('app:setPlusIcon', (_event, on) => {
   } catch {}
 });
 
+// https only: links come from news, ads and chat, and plain http can be rewritten on the way.
 ipcMain.handle('external:open', async (_event, value) => {
-  const url = new URL(String(value));
-  if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Unsupported link');
+  let url;
+  try { url = new URL(String(value)); } catch { throw new Error('Unsupported link'); }
+  if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Unsupported link');
   await shell.openExternal(url.href);
 });
 
