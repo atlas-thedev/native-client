@@ -1,0 +1,212 @@
+/* ============================================================
+   Home — sponsored card (sits above "Jump back in").
+   ============================================================ */
+
+.home-side-col {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  align-self: flex-end;
+  width: 360px;
+  margin: 0 clamp(8px, 4vw, 64px) 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.home-side-col .home-side {
+  width: auto;
+  margin: 0;
+  align-self: stretch;
+}
+
+@media (max-width: 1040px) {
+  .home-side-col { width: 320px; }
+}
+
+@media (max-width: 900px) {
+  .home-side-col { display: none; }
+}
+
+.ad-card {
+  position: relative;
+  border-radius: 18px;
+  background: rgba(14, 15, 20, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px) saturate(1.2);
+  overflow: hidden;
+  animation: ad-in 0.45s var(--ease-out, ease-out) both;
+  transition: transform 0.18s var(--ease, ease), border-color 0.18s var(--ease, ease), box-shadow 0.18s var(--ease, ease);
+}
+
+.ad-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes ad-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ad-hit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-hit:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: -2px;
+  border-radius: 18px;
+}
+
+.ad-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 12 / 5;
+  background: #1b1d27;
+  overflow: hidden;
+}
+
+.ad-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  animation: ad-fade 0.35s ease both;
+  transition: transform 0.5s var(--ease-out, ease-out);
+}
+
+.ad-card:hover .ad-img { transform: scale(1.03); }
+
+/* The player's own skin, waving, on the right of "player" banners (same spot as in the banner art). */
+.ad-player {
+  position: absolute;
+  right: 2.5%;
+  bottom: -2.8%;
+  height: 112%;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(10, 10, 60, 0.35));
+  animation: ad-fade 0.35s ease both;
+  transition: transform 0.5s var(--ease-out, ease-out);
+  transform-origin: 50% 100%;
+}
+
+.ad-card:hover .ad-player { transform: scale(1.04); }
+
+@keyframes ad-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ad-tag {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.ad-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px 12px 14px;
+}
+
+.ad-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ad-title {
+  font: 700 13.5px var(--font-sans);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-body {
+  font: 500 12px var(--font-sans);
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-cta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px 0 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #0d0e12;
+  font: 700 12.5px var(--font-sans);
+  transition: background 0.15s ease;
+}
+
+.ad-hit:hover .ad-cta { background: #e8e9ef; }
+
+.ad-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.ad-card:hover .ad-close,
+.ad-close:focus-visible { opacity: 1; }
+.ad-close:hover { background: rgba(0, 0, 0, 0.75); color: #fff; }
+
+.ad-dots {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  aspect-ratio: 12 / 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding-bottom: 8px;
+  pointer-events: none;
+}
+
+.ad-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.ad-dot.is-active { width: 16px; background: #fff; }

@@ -13,6 +13,7 @@ const updaterMod = require('./updater');
 const instanceMod = require('./instance');
 const newsMod = require('./news');
 const serverPingMod = require('./serverPing');
+const adsMod = require('./ads');
 const wardrobeMod = require('./wardrobe');
 const socialMod = require('./social');
 const relayMod = require('./relay');
@@ -181,6 +182,7 @@ updaterMod.init({ app, getWin: () => win, getSettings: () => settingsMod.get(), 
 instanceMod.init({ app }, ipcMain);
 newsMod.init({ app }, ipcMain);
 serverPingMod.init({ app }, ipcMain);
+adsMod.init({ app }, ipcMain);
 wardrobeMod.init({ app, auth: authMod }, ipcMain);
 socialMod.init({ app, getWin: () => win }, ipcMain);
 relayMod.init();

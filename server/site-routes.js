@@ -15,12 +15,16 @@
  *   POST /v1/admin/site                  { launch?, maintenance?, announcement?, beta? } partial update
  *   POST /v1/admin/site/offers           create an offer        PATCH/DELETE /v1/admin/site/offers/:id
  *   POST /v1/admin/site/servers          promote a server       PATCH/DELETE /v1/admin/site/servers/:id
+ *   GET  /v1/site/ads                    live launcher ad cards  GET /v1/site/ads/media/:file  bundled banners
+ *   POST /v1/admin/site/ads              add a launcher ad       PATCH/DELETE /v1/admin/site/ads/:id
  *   POST /v1/admin/site/prices           { price, itemIds? }  set the price of many capes at once
  *   GET  /v1/admin/polls                 every vote with full results
  *   POST /v1/admin/polls                 create (options may be Store items: { itemId })
  *   PATCH/DELETE /v1/admin/polls/:id     PATCH { status?, winnerOptionId?, resetVotes?, ... }
  */
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('./db');
 const capes = require('./capes');
 
@@ -31,6 +35,23 @@ const DEFAULT_FOUNDER_CAPES = ['toon-blaze', 'slime-pop', 'comet-night'];
 const PRELAUNCH_DEFAULT = process.env.NATIVE_PRELAUNCH != null
   ? !/^(0|false|no)$/i.test(process.env.NATIVE_PRELAUNCH)
   : !(process.env.NODE_ENV === 'test' || process.env.NATIVE_DATA_DIR);
+
+/* Launcher ad cards (Home). The first one advertises our own Discord until the admin edits the list. */
+const DEFAULT_ADS = () => [{
+  id: 'discord01',
+  title: 'Join the Native Discord',
+  body: 'Events, giveaways, sneak peeks and support.',
+  image: '/v1/site/ads/media/discord-playnative-v1.png',
+  url: 'https://discord.gg/playnative',
+  cta: 'Join',
+  tag: 'Community',
+  player: true,
+  order: 0,
+  startsAt: null,
+  endsAt: null,
+  enabled: true,
+  createdAt: 0
+}];
 
 const DEFAULTS = () => ({
   launch: {
@@ -47,7 +68,8 @@ const DEFAULTS = () => ({
   announcement: { enabled: false, text: '', href: '', cta: '' },
   beta: { open: true, closesAt: null, maxTesters: 0 },
   offers: [],
-  servers: []
+  servers: [],
+  ads: DEFAULT_ADS()
 });
 
 let ready = false;
@@ -93,6 +115,7 @@ function settings() {
       if (v == null) continue;
       if (row.key === 'offers') base.offers = Array.isArray(v) ? v : [];
       else if (row.key === 'servers') base.servers = Array.isArray(v) ? v : [];
+      else if (row.key === 'ads') base.ads = Array.isArray(v) ? v : [];
       else if (base[row.key] && typeof v === 'object') base[row.key] = { ...base[row.key], ...v };
     }
   } catch (error) { console.warn('[Native Site] settings:', error.message); }
@@ -342,12 +365,75 @@ function liveServers() {
     .map(publicServer);
 }
 
+/* ── launcher ads ──────────────────────────────────────────────────── *
+ * Small sponsored cards on the launcher's Home (Feather-style). Images are
+ * https links, or files bundled with the server under server/ads-media
+ * (served at /v1/site/ads/media/<file>). The launcher downloads each image
+ * once and reuses its copy until the link changes. */
+
+const AD_MEDIA_DIR = path.join(__dirname, 'ads-media');
+const AD_MEDIA_FILE = /^[a-z0-9][a-z0-9._-]{0,80}\.(png|jpg|jpeg|webp|gif)$/;
+const AD_MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+function adFrom(b, prev = {}) {
+  const ad = { ...prev };
+  if (b.title !== undefined || !prev.id) ad.title = clean(b.title, 60);
+  if (!ad.title || ad.title.length < 2) throw new Error('Give the ad a title.');
+  if (b.body !== undefined) ad.body = clean(b.body, 140);
+  if (b.image !== undefined || !prev.id) {
+    const image = clean(b.image, 500);
+    if (!/^https:\/\//.test(image) && !/^\/v1\/site\/ads\/media\/[a-z0-9._-]+$/.test(image)) throw new Error('The banner must be an https:// image link.');
+    ad.image = image;
+  }
+  if (b.url !== undefined || !prev.id) {
+    const link = clean(b.url, 500);
+    if (!/^https:\/\//.test(link)) throw new Error('The ad link must start with https://.');
+    ad.url = link;
+  }
+  if (b.cta !== undefined) ad.cta = clean(b.cta, 20);
+  if (b.tag !== undefined) ad.tag = clean(b.tag, 20);
+  if (b.player !== undefined || !prev.id) ad.player = Boolean(b.player);
+  if (b.order !== undefined || !prev.id) {
+    const n = Math.round(Number(b.order ?? 0));
+    ad.order = Number.isFinite(n) ? Math.max(0, Math.min(999, n)) : 0;
+  }
+  if (b.startsAt !== undefined) { const t = timeOf(b.startsAt); if (t === undefined) throw new Error('Invalid start date.'); ad.startsAt = t; }
+  if (b.endsAt !== undefined) { const t = timeOf(b.endsAt); if (t === undefined) throw new Error('Invalid end date.'); ad.endsAt = t; }
+  if (ad.startsAt && ad.endsAt && ad.endsAt <= ad.startsAt) throw new Error('The ad must end after it starts.');
+  ad.enabled = bool(b.enabled, prev.id ? prev.enabled : true);
+  return ad;
+}
+
+const adLive = (ad, now = Date.now()) =>
+  ad && ad.enabled && (!ad.startsAt || ad.startsAt <= now) && (!ad.endsAt || ad.endsAt > now);
+
+const publicAd = (ad, origin = '') => ({
+  id: ad.id,
+  title: ad.title,
+  body: ad.body || '',
+  image: String(ad.image || '').startsWith('/') ? `${origin}${ad.image}` : ad.image,
+  url: ad.url,
+  cta: ad.cta || '',
+  tag: ad.tag || '',
+  player: Boolean(ad.player),
+  order: ad.order || 0
+});
+
+function liveAds(origin = '') {
+  const now = Date.now();
+  return (settings().ads || [])
+    .filter((ad) => adLive(ad, now))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0))
+    .slice(0, 10)
+    .map((ad) => publicAd(ad, origin));
+}
+
 /* ── http ──────────────────────────────────────────────────────────── */
 
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
   || String(req.headers['x-native-token'] || '').trim();
 
-function publicConfig() {
+function publicConfig(origin = 'https://api.playnative.fun') {
   const s = settings();
   const prelaunch = isPrelaunch(s);
   return {
@@ -362,7 +448,8 @@ function publicConfig() {
     announcement: s.announcement,
     beta: { open: Boolean(s.beta.open) && (!s.beta.closesAt || Date.now() < Number(s.beta.closesAt)), closesAt: s.beta.closesAt || null },
     offers: s.offers.filter((o) => offerLive(o)).map(publicOffer),
-    servers: liveServers()
+    servers: liveServers(),
+    ads: liveAds(origin)
   };
 }
 
@@ -403,7 +490,7 @@ async function handleSiteRoutes(req, res, ctx) {
       try { body = (await ctx.readJson(req)) || {}; } catch { return fail(400, 'Invalid JSON.'); }
     }
     const allPolls = () => sql().prepare('SELECT * FROM polls ORDER BY created_at DESC').all().map((row) => pollDoc(row, textureBase, null, true));
-    const adminDoc = () => ({ ok: true, settings: settings(), config: publicConfig(), overview: overview() });
+    const adminDoc = () => ({ ok: true, settings: settings(), config: publicConfig(ctx.originOf(req)), overview: overview() });
     try {
       if (p === '/v1/admin/site' && req.method === 'GET') { send(res, 200, adminDoc(), noStore); return true; }
       if (p === '/v1/admin/site' && req.method === 'POST') {
@@ -435,6 +522,23 @@ async function handleSiteRoutes(req, res, ctx) {
       if (p === '/v1/admin/site/servers' && req.method === 'POST') {
         const sv = { id: ID(), createdAt: Date.now(), ...serverFrom(body) };
         save('servers', [...settings().servers, sv].slice(0, 50));
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
+      if (p === '/v1/admin/site/ads' && req.method === 'POST') {
+        const ad = { id: ID(), createdAt: Date.now(), ...adFrom(body) };
+        save('ads', [...(settings().ads || []), ad].slice(0, 30));
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
+      const am = p.match(/^\/v1\/admin\/site\/ads\/([a-z0-9]{6,24})$/);
+      if (am) {
+        const list = settings().ads || [];
+        const prev = list.find((ad) => ad.id === am[1]);
+        if (!prev) return fail(404, 'That ad does not exist.');
+        if (req.method === 'PATCH') save('ads', list.map((ad) => (ad.id === prev.id ? adFrom(body, prev) : ad)));
+        else if (req.method === 'DELETE') save('ads', list.filter((ad) => ad.id !== prev.id));
+        else return fail(405, 'Method not allowed.');
         send(res, 200, adminDoc(), noStore);
         return true;
       }
@@ -520,7 +624,26 @@ async function handleSiteRoutes(req, res, ctx) {
 
   if (req.method === 'GET' && p === '/v1/site/config') {
     if (!hit('site-config', ip, 240, 60_000)) { tooMany(res, 60); return true; }
-    send(res, 200, { ok: true, ...publicConfig() }, { 'Cache-Control': 'public, max-age=10', 'Access-Control-Allow-Origin': '*' });
+    send(res, 200, { ok: true, ...publicConfig(ctx.originOf(req)) }, { 'Cache-Control': 'public, max-age=10', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
+  if (req.method === 'GET' && p === '/v1/site/ads') {
+    if (!hit('site-ads', ip, 120, 60_000)) { tooMany(res, 60); return true; }
+    send(res, 200, { ok: true, ads: liveAds(ctx.originOf(req)) }, { 'Cache-Control': 'public, max-age=60' });
+    return true;
+  }
+
+  const adMedia = req.method === 'GET' && p.match(/^\/v1\/site\/ads\/media\/([^/]+)$/);
+  if (adMedia) {
+    const name = adMedia[1].toLowerCase();
+    const match = AD_MEDIA_FILE.exec(name);
+    let bytes = null;
+    if (match) { try { bytes = fs.readFileSync(path.join(AD_MEDIA_DIR, name)); } catch {} }
+    if (!bytes) { send(res, 404, { ok: false, error: 'Not found.' }); return true; }
+    // Files are versioned by name, so they never change once published.
+    res.writeHead(200, { 'Content-Type': AD_MEDIA_TYPES[match[1]], 'Content-Length': bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable' });
+    res.end(bytes);
     return true;
   }
 
@@ -579,4 +702,4 @@ async function handleSiteRoutes(req, res, ctx) {
 /** Test hook. */
 function resetCache() { cache = null; ready = false; }
 
-module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, liveServers, publicServer, founderCapes, resetCache };
+module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, liveServers, publicServer, liveAds, publicAd, adFrom, founderCapes, resetCache };

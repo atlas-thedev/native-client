@@ -87,7 +87,7 @@ async function releasesForTag(repoName) {
   return found;
 }
 
-/** Stable releases: add beta*.yml copies of latest*.yml so beta testers follow a newer stable release. */
+/** Add beta*.yml copies of latest*.yml: betas so testers see them, stable so testers follow a newer stable release. */
 async function addBetaFeeds(repoName, release) {
   const names = new Set(release.assets.map(a => a.name));
   for (const [src, dst] of FEED_PAIRS) {
@@ -136,7 +136,8 @@ async function handleRepo(repoName, mode) {
       console.log(`no draft for ${tag} in ${owner}/${repoName} to publish`);
       return;
     }
-    if (!isBeta) await addBetaFeeds(repoName, draft);
+    // electron-builder only writes latest*.yml, so betas need the beta*.yml copies too
+    await addBetaFeeds(repoName, draft);
     const fresh = await gh('GET', `${api}/releases/${draft.id}`);
     const names = fresh.assets.map(a => a.name);
     // a beta must ship the beta feed; a stable release the latest feed

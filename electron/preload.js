@@ -282,6 +282,9 @@ const api = {
   news: {
     list: (options) => ipcRenderer.invoke('news:list', options)
   },
+  ads: {
+    list: (options) => ipcRenderer.invoke('ads:list', options)
+  },
   server: {
     ping: (address) => ipcRenderer.invoke('server:ping', address),
     promoted: (options) => ipcRenderer.invoke('server:promoted', options)

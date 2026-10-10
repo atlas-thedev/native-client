@@ -8,6 +8,7 @@ import { useI18n } from '../../i18n/I18nProvider.jsx';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
+import AdCard from './AdCard.jsx';
 import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
 import './HomeView.css';
 import './HomeSelection.css';
@@ -277,8 +278,11 @@ export default function HomeView({
 
       </div>
 
-      {!isStarterMode && cluster && (
-        <HomeSidePanel instances={instances} fallbackInstance={cluster} onLaunch={onLaunch} />
+      {!isStarterMode && (
+        <div className="home-side-col">
+          <AdCard account={account} />
+          {cluster && <HomeSidePanel instances={instances} fallbackInstance={cluster} onLaunch={onLaunch} />}
+        </div>
       )}
       </div>
 

@@ -128,21 +128,22 @@ jobs:
           PRE="${{ needs.prepare.outputs.prerelease }}"
           if [[ "$PRE" == "true" ]]; then FEEDS="beta.yml beta-mac.yml beta-linux.yml"; else FEEDS="latest.yml latest-mac.yml latest-linux.yml beta.yml beta-mac.yml beta-linux.yml"; fi
           NAMES=$(gh release view "$TAG" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name')
-          # Stable builds only get latest*.yml from electron-builder. Beta testers' launchers read beta*.yml,
-          # so give them the same feeds: when a stable release is newer than their beta they move onto it.
-          if [[ "$PRE" != "true" ]]; then
-            mkdir -p feeds
-            for pair in "latest.yml:beta.yml" "latest-mac.yml:beta-mac.yml" "latest-linux.yml:beta-linux.yml"; do
-              src="${pair%%:*}"; dst="${pair##*:}"
-              if grep -qx "$src" <<<"$NAMES" && ! grep -qx "$dst" <<<"$NAMES"; then
-                gh release download "$TAG" --repo "$RELEASES_REPO" --pattern "$src" --dir feeds --clobber
-                cp "feeds/$src" "feeds/$dst"
-                gh release upload "$TAG" --repo "$RELEASES_REPO" "feeds/$dst" --clobber
-                echo "Added $dst (copy of $src)"
-              fi
-            done
-            NAMES=$(gh release view "$TAG" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name')
-          fi
+          # electron-builder only writes latest*.yml (it does not detect the beta channel from the version
+          # when publishing to GitHub). Beta testers' launchers read beta*.yml, so every release gets
+          # beta*.yml copies of its latest*.yml: betas so testers actually see them, stable releases so
+          # testers move onto a stable build that is newer than their beta. Stable users only ever look at
+          # the non-prerelease "latest" release, so latest*.yml on a pre-release is never read by them.
+          mkdir -p feeds
+          for pair in "latest.yml:beta.yml" "latest-mac.yml:beta-mac.yml" "latest-linux.yml:beta-linux.yml"; do
+            src="${pair%%:*}"; dst="${pair##*:}"
+            if grep -qx "$src" <<<"$NAMES" && ! grep -qx "$dst" <<<"$NAMES"; then
+              gh release download "$TAG" --repo "$RELEASES_REPO" --pattern "$src" --dir feeds --clobber
+              cp "feeds/$src" "feeds/$dst"
+              gh release upload "$TAG" --repo "$RELEASES_REPO" "feeds/$dst" --clobber
+              echo "Added $dst (copy of $src)"
+            fi
+          done
+          NAMES=$(gh release view "$TAG" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name')
           echo "$NAMES"
           missing=0
           for f in $FEEDS; do

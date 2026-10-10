@@ -32,6 +32,7 @@ import AdminBundles from './AdminBundles.jsx';
 import AdminWebsite from './AdminWebsite.jsx';
 import AdminOffers from './AdminOffers.jsx';
 import AdminServers from './AdminServers.jsx';
+import AdminAds from './AdminAds.jsx';
 import AdminApplications from './AdminApplications.jsx';
 import { InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
@@ -241,6 +242,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
     ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
     ['servers', 'Servers', siteDoc?.config?.servers?.length ? `${siteDoc.config.servers.length} live` : null],
+    ['ads', 'Ads', siteDoc?.config?.ads?.length ? `${siteDoc.config.ads.length} live` : null],
     ['beta', 'Beta', null]
   ];
 
@@ -285,6 +287,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         <AdminWebsite doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'offers' ? (
         <AdminOffers doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+      ) : section === 'ads' ? (
+        <AdminAds doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'servers' ? (
         <AdminServers doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'bundles' ? (
