@@ -1080,37 +1080,57 @@ function ModelArmGlyph({ model }) {
   );
 }
 
-/** Animated store cape front for a locker card: plays the strip, shows the still until it loads. */
+/**
+ * Animated store cape for a locker card, built exactly like StillCapeThumb (one 80x128 canvas with
+ * the front face cut out by drawCapeFront), so cloak cards look the same as cape cards. The still is
+ * drawn on the canvas first, then the strip takes over and plays. Only when both fail does the raw
+ * texture show.
+ */
 function AnimatedCapeThumb({ item, fallback }) {
   const ref = useRef(null);
-  const [ready, setReady] = useState(false);
+  const [state, setState] = useState('loading');
   useEffect(() => {
     let alive = true;
     let timer = null;
+    let animating = false;
+    let stillFailed = !fallback;
+    let stripFailed = false;
+    setState('loading');
+    const failed = () => { if (alive && !animating && stillFailed && stripFailed) setState('error'); };
+    // The still first (no crossOrigin: we only draw it, never read pixels back).
+    if (fallback) {
+      new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = fallback; }).then((image) => {
+        if (!alive || animating || !ref.current) return;
+        try { drawCapeFront(ref.current, image, 1, 0); setState('ready'); } catch { stillFailed = true; failed(); }
+      }).catch(() => { stillFailed = true; failed(); });
+    }
+    // Then the animation strip, on the same canvas.
     (async () => {
       try {
         const res = await window.native?.store?.strip?.(item.id);
-        if (!alive || !res?.ok) return;
+        if (!alive) return;
+        if (!res?.ok) throw new Error('no strip');
         const image = await loadStripImage(res.url);
         if (!alive || !ref.current) return;
         const frames = Math.max(1, item.frames || 1);
-        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
         let index = 0;
         const paint = () => {
           if (!alive || !ref.current) return;
-          try { drawCapeFront(ref.current, image, frames, index); } catch {}
-          setReady(true);
+          try { drawCapeFront(ref.current, image, frames, index); } catch { if (!animating) { stripFailed = true; failed(); } return; }
+          animating = true;
+          setState('ready');
           index = (index + 1) % frames;
           if (frames > 1 && !reduce) timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
         };
         paint();
-      } catch { /* keep the still */ }
+      } catch { stripFailed = true; failed(); }
     })();
     return () => { alive = false; clearTimeout(timer); };
-  }, [item.id, item.frames, item.fps]);
+  }, [item.id, item.frames, item.fps, fallback]);
   return <span className="locker-cape-anim">
-    {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
-    <canvas ref={ref} width={80} height={128} className="locker-cape-canvas" style={ready ? undefined : { display: 'none' }} aria-hidden="true"/>
+    {state === 'error' && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
+    <canvas ref={ref} width={80} height={128} className={`locker-cape-canvas${state === 'loading' ? ' is-pending' : ''}`} style={state === 'error' ? { display: 'none' } : undefined} aria-hidden="true"/>
   </span>;
 }
 
