@@ -280,7 +280,7 @@ export default function HomeView({
 
       {!isStarterMode && (
         <div className="home-side-col">
-          <AdCard account={account} />
+          <AdCard account={account} onJoinServer={(address) => cluster && onLaunch?.(cluster, { quickJoinServer: address })} />
           {cluster && <HomeSidePanel instances={instances} fallbackInstance={cluster} onLaunch={onLaunch} />}
         </div>
       )}

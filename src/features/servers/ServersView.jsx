@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Play, Search, Signal, Sparkles, Users, X } from 'lucide-react';
+import { Check, Copy, Play, RefreshCw, Search, Signal, Sparkles, Users, X } from 'lucide-react';
 import { SERVERS, SERVER_CATEGORIES } from '../../data/servers.js';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
@@ -11,7 +11,6 @@ import './ServersView.css';
    the server straight away. */
 
 const STORE_KEY = 'native.servers.status';
-const TTL = 5 * 60 * 1000;
 const BATCH = 6;
 const numberFormat = new Intl.NumberFormat();
 
@@ -49,13 +48,13 @@ function olderThan(version, min) {
 const instanceVersion = (instance) => instance?.mc_version || instance?.version || '';
 
 /** Promoted servers come from the backend (Admin → Servers) and pin to the top. */
-function usePromotedServers() {
+function usePromotedServers(refreshToken = 0) {
   const [promoted, setPromoted] = useState([]);
   useEffect(() => {
     const load = window.native?.server?.promoted;
     if (!load) return undefined;
     let cancelled = false;
-    load()
+    load({ force: refreshToken > 0 })
       .then((res) => {
         if (cancelled || !Array.isArray(res?.servers)) return;
         setPromoted(res.servers
@@ -74,23 +73,34 @@ function usePromotedServers() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshToken]);
   return promoted;
 }
 
-function useServerStatus(servers) {
+/**
+ * Server status. Opening the page shows the last known numbers and only pings servers it has
+ * never seen; everything is pinged again only when the user presses Refresh (refreshToken).
+ */
+function useServerStatus(servers, refreshToken = 0, onDone) {
   const [status, setStatus] = useState(() => readStore());
   const addresses = useMemo(() => servers.map((server) => server.address).join('|'), [servers]);
+  const lastRefresh = useRef(0);
+  const forcedPending = useRef(false);
   useEffect(() => {
     const ping = window.native?.server?.ping;
-    if (!ping) return undefined;
+    if (!ping) { onDone?.(); return undefined; }
     let cancelled = false;
     const cached = readStore();
-    const queue = servers.filter((server) => {
-      const hit = cached[server.address];
-      return !(hit && Date.now() - (hit.at || 0) < TTL);
-    });
+    if (refreshToken !== lastRefresh.current) forcedPending.current = true;
+    lastRefresh.current = refreshToken;
+    // a refresh survives the list changing under it (promoted servers arriving)
+    const forced = forcedPending.current;
+    const queue = servers.filter((server) => forced || !cached[server.address]);
+    if (!queue.length) forcedPending.current = false;
+    if (!queue.length) { onDone?.(); return undefined; }
+    let running = 0;
     const worker = async () => {
+      running += 1;
       while (queue.length && !cancelled) {
         const server = queue.shift();
         let value;
@@ -111,13 +121,15 @@ function useServerStatus(servers) {
         writeStore({ [server.address]: entry });
         if (!cancelled) setStatus((current) => ({ ...current, [server.address]: entry }));
       }
+      running -= 1;
+      if (!running && !cancelled) { forcedPending.current = false; onDone?.(); }
     };
     for (let i = 0; i < BATCH; i += 1) worker();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addresses]);
+  }, [addresses, refreshToken]);
   return status;
 }
 
@@ -203,13 +215,20 @@ export default function ServersView({ instances = [], selectedInstance = null, o
   const [pending, setPending] = useState(null);
   const copyTimer = useRef(null);
 
-  const promoted = usePromotedServers();
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const promoted = usePromotedServers(refreshToken);
   // Promoted entries win over a curated duplicate of the same address.
   const allServers = useMemo(() => {
     const taken = new Set(promoted.map((server) => server.address));
     return [...promoted, ...SERVERS.filter((server) => !taken.has(server.address))];
   }, [promoted]);
-  const status = useServerStatus(allServers);
+  const status = useServerStatus(allServers, refreshToken, () => setRefreshing(false));
+  const refresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshToken((value) => value + 1);
+  };
 
   useEffect(() => {
     if (!instanceId && selectedInstance?.id) setInstanceId(selectedInstance.id);
@@ -285,6 +304,10 @@ export default function ServersView({ instances = [], selectedInstance = null, o
             {totalPlayers > 0 ? ` \u00b7 ${numberFormat.format(totalPlayers)} players online now` : ''}
           </p>
         </div>
+        <button type="button" className={`srv-refresh${refreshing ? ' is-busy' : ''}`} onClick={refresh} disabled={refreshing} title="Ping every server again">
+          <RefreshCw size={14} />
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
         {instances.length > 0 && (
           <div className="srv-instance">
             <span>Play with</span>

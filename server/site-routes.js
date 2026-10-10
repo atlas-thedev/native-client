@@ -41,10 +41,11 @@ const DEFAULT_ADS = () => [{
   id: 'discord01',
   title: 'Join the Native Discord',
   body: 'Events, giveaways, sneak peeks and support.',
-  image: '/v1/site/ads/media/discord-playnative-v1.png',
+  image: '/v1/site/ads/media/discord-playnative-v2.png',
   url: 'https://discord.gg/playnative',
   cta: 'Join',
   tag: 'Community',
+  buttons: [{ label: 'Join', action: 'url', value: 'https://discord.gg/playnative' }],
   player: true,
   order: 0,
   startsAt: null,
@@ -375,6 +376,21 @@ const AD_MEDIA_DIR = path.join(__dirname, 'ads-media');
 const AD_MEDIA_FILE = /^[a-z0-9][a-z0-9._-]{0,80}\.(png|jpg|jpeg|webp|gif)$/;
 const AD_MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 
+/* Ad buttons: up to two, each either opens a link or joins a Minecraft server. */
+const AD_SERVER = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d{2,5})?$/i;
+function adButtons(list) {
+  if (!Array.isArray(list)) throw new Error('Invalid ad buttons.');
+  return list.slice(0, 2).map((x) => {
+    const label = clean(x && x.label, 20);
+    const action = x && x.action === 'server' ? 'server' : 'url';
+    const value = clean(x && x.value, 500);
+    if (!label) throw new Error('Every ad button needs a label.');
+    if (action === 'url' && !/^https:\/\//.test(value)) throw new Error('Button links must start with https://.');
+    if (action === 'server' && !AD_SERVER.test(value)) throw new Error('Enter a server address like play.example.net.');
+    return { label, action, value: action === 'server' ? value.toLowerCase() : value };
+  });
+}
+
 function adFrom(b, prev = {}) {
   const ad = { ...prev };
   if (b.title !== undefined || !prev.id) ad.title = clean(b.title, 60);
@@ -385,7 +401,14 @@ function adFrom(b, prev = {}) {
     if (!/^https:\/\//.test(image) && !/^\/v1\/site\/ads\/media\/[a-z0-9._-]+$/.test(image)) throw new Error('The banner must be an https:// image link.');
     ad.image = image;
   }
-  if (b.url !== undefined || !prev.id) {
+  if (b.buttons !== undefined) {
+    ad.buttons = adButtons(b.buttons);
+    const link = ad.buttons.find((x) => x.action === 'url');
+    if (link) ad.url = link.value;
+    else if (b.url === undefined && !ad.url) ad.url = 'https://playnative.fun';
+    if (ad.buttons[0] && b.cta === undefined) ad.cta = ad.buttons[0].label;
+  }
+  if (b.url !== undefined || (!prev.id && !ad.url)) {
     const link = clean(b.url, 500);
     if (!/^https:\/\//.test(link)) throw new Error('The ad link must start with https://.');
     ad.url = link;
@@ -407,14 +430,21 @@ function adFrom(b, prev = {}) {
 const adLive = (ad, now = Date.now()) =>
   ad && ad.enabled && (!ad.startsAt || ad.startsAt <= now) && (!ad.endsAt || ad.endsAt > now);
 
+/* Banners are cached forever by link, so a redrawn banner gets a new file name. */
+const AD_MEDIA_RENAMED = { '/v1/site/ads/media/discord-playnative-v1.png': '/v1/site/ads/media/discord-playnative-v2.png' };
+const adImage = (image) => AD_MEDIA_RENAMED[image] || image;
+
 const publicAd = (ad, origin = '') => ({
   id: ad.id,
   title: ad.title,
   body: ad.body || '',
-  image: String(ad.image || '').startsWith('/') ? `${origin}${ad.image}` : ad.image,
+  image: String(ad.image || '').startsWith('/') ? `${origin}${adImage(ad.image)}` : ad.image,
   url: ad.url,
   cta: ad.cta || '',
   tag: ad.tag || '',
+  buttons: Array.isArray(ad.buttons) && ad.buttons.length
+    ? ad.buttons
+    : (ad.cta ? [{ label: ad.cta, action: 'url', value: ad.url }] : []),
   player: Boolean(ad.player),
   order: ad.order || 0
 });
@@ -424,7 +454,7 @@ function liveAds(origin = '') {
   return (settings().ads || [])
     .filter((ad) => adLive(ad, now))
     .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0))
-    .slice(0, 10)
+    .slice(0, 50)
     .map((ad) => publicAd(ad, origin));
 }
 
@@ -527,7 +557,9 @@ async function handleSiteRoutes(req, res, ctx) {
       }
       if (p === '/v1/admin/site/ads' && req.method === 'POST') {
         const ad = { id: ID(), createdAt: Date.now(), ...adFrom(body) };
-        save('ads', [...(settings().ads || []), ad].slice(0, 30));
+        const list = settings().ads || [];
+        if (list.length >= 500) return fail(400, 'That is a lot of ads - remove a few old ones first.');
+        save('ads', [...list, ad]);
         send(res, 200, adminDoc(), noStore);
         return true;
       }

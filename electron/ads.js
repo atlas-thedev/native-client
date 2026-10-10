@@ -27,11 +27,22 @@ const feedFile = () => path.join(root(), 'feed.json');
 const keyOf = (url) => crypto.createHash('sha256').update(String(url)).digest('hex').slice(0, 40);
 const isHttps = (value) => /^https:\/\//i.test(String(value || ''));
 
+const SERVER_ADDR = /^[a-z0-9.-]+(:\d{2,5})?$/i;
+/** Up to two buttons: open an https link, or join a Minecraft server. */
+function buttonsOf(ad) {
+  const list = Array.isArray(ad.buttons) ? ad.buttons : (ad.cta ? [{ label: ad.cta, action: 'url', value: ad.url }] : []);
+  return list.slice(0, 2).map((b) => ({
+    label: String((b && b.label) || '').slice(0, 20),
+    action: b && b.action === 'server' ? 'server' : 'url',
+    value: String((b && b.value) || '').slice(0, 500)
+  })).filter((b) => b.label && (b.action === 'server' ? SERVER_ADDR.test(b.value) : isHttps(b.value)));
+}
+
 function sanitize(list) {
   if (!Array.isArray(list)) return [];
   return list
     .filter((ad) => ad && typeof ad.id === 'string' && isHttps(ad.image) && isHttps(ad.url))
-    .slice(0, 10)
+    .slice(0, 50)
     .map((ad) => ({
       id: ad.id.slice(0, 40),
       title: String(ad.title || '').slice(0, 60),
@@ -40,6 +51,7 @@ function sanitize(list) {
       url: ad.url,
       cta: String(ad.cta || '').slice(0, 20),
       tag: String(ad.tag || '').slice(0, 20),
+      buttons: buttonsOf(ad),
       player: ad.player === true
     }));
 }
@@ -83,7 +95,7 @@ async function ensureImage(url) {
 
 /** Removes banners that no ad uses anymore. */
 async function prune(ads) {
-  const keep = new Set(ads.map((ad) => keyOf(ad.image)));
+  const keep = new Set([...ads.map((ad) => keyOf(ad.image)), 'player']);
   let names = [];
   try { names = await fsp.readdir(mediaDir()); } catch { return; }
   await Promise.all(names
@@ -159,9 +171,47 @@ async function list({ force = false } = {}) {
   return refresh();
 }
 
+const playerFile = () => path.join(mediaDir(), 'player.png');
+
+/** The picture of the player's own skin (drawn by Home) - the in-game title screen uses it too. */
+async function savePlayer(dataUrl) {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
+  if (!match || match[1].length > 4 * 1024 * 1024) return { ok: false };
+  const bytes = Buffer.from(match[1], 'base64');
+  try { if ((await fsp.readFile(playerFile())).equals(bytes)) return { ok: true }; } catch { /* first time */ }
+  await fsp.mkdir(mediaDir(), { recursive: true });
+  const tmp = `${playerFile()}.tmp`;
+  await fsp.writeFile(tmp, bytes);
+  await fsp.rename(tmp, playerFile());
+  return { ok: true };
+}
+
+/**
+ * <game dir>/.native/ads.json for the Native mod: the same ads, pointing at the banners already on
+ * disk (and the player picture), so the title screen shows them without downloading anything.
+ */
+async function writeForGame(gameDir) {
+  if (!deps || !gameDir) return false;
+  const feed = (await readFeed()) || [];
+  const ads = [];
+  for (const ad of feed) {
+    const hit = await findCached(ad.image);
+    if (hit) ads.push({ ...ad, image: undefined, file: hit.file });
+  }
+  let player = null;
+  try { if ((await fsp.stat(playerFile())).size > 0) player = playerFile(); } catch { /* none yet */ }
+  const dir = path.join(gameDir, '.native');
+  await fsp.mkdir(dir, { recursive: true });
+  const tmp = path.join(dir, 'ads.json.tmp');
+  await fsp.writeFile(tmp, JSON.stringify({ v: 1, savedAt: Date.now(), player, ads }));
+  await fsp.rename(tmp, path.join(dir, 'ads.json'));
+  return true;
+}
+
 function init(nextDeps, ipcMain) {
   deps = nextDeps;
   ipcMain.handle('ads:list', (_event, options) => list(options || {}));
+  ipcMain.handle('ads:savePlayer', (_event, dataUrl) => savePlayer(dataUrl).catch(() => ({ ok: false })));
 }
 
-module.exports = { init, list, sanitize, keyOf };
+module.exports = { init, list, sanitize, keyOf, savePlayer, writeForGame };

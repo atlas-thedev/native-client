@@ -33,6 +33,18 @@ test('ads: banners download once, then load from disk (also offline)', async () 
     assert.equal(offline.ads.length, 1);
     assert.equal(offline.offline, true);
     assert.equal(imageHits, 1);
+    // old feeds (url + cta) become one link button
+    assert.deepEqual(ads.sanitize([{ id: 'a', image: 'https://x/a.png', url: 'https://x', cta: 'Go' }])[0].buttons, [{ label: 'Go', action: 'url', value: 'https://x' }]);
+    const both = ads.sanitize([{ id: 'b', image: 'https://x/a.png', url: 'https://x', buttons: [{ label: 'Play', action: 'server', value: 'play.example.net:25566' }, { label: 'Bad', action: 'server', value: 'rm -rf /' }] }]);
+    assert.deepEqual(both[0].buttons, [{ label: 'Play', action: 'server', value: 'play.example.net:25566' }]);
+    // the mod's copy points at the banner already on disk + the player picture
+    await ads.savePlayer(`data:image/png;base64,${png.toString('base64')}`);
+    const gameDir = path.join(dir, 'game');
+    assert.equal(await ads.writeForGame(gameDir), true);
+    const forMod = JSON.parse(fs.readFileSync(path.join(gameDir, '.native', 'ads.json'), 'utf8'));
+    assert.equal(forMod.ads.length, 1);
+    assert.ok(fs.existsSync(forMod.ads[0].file));
+    assert.ok(fs.existsSync(forMod.player));
   } finally {
     global.fetch = realFetch;
     fs.rmSync(dir, { recursive: true, force: true });

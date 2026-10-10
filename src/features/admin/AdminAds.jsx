@@ -1,8 +1,14 @@
 import React, { useRef, useState } from 'react';
-import { ExternalLink, ImagePlus, LoaderCircle, Megaphone, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, ImagePlus, LoaderCircle, Megaphone, Pause, Pencil, Play, Plus, Save, Trash2, X } from 'lucide-react';
 import { AdminSwitch, adminCall, formatDate, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
 
-const blank = () => ({ title: '', body: '', image: '', url: '', cta: 'Open', tag: '', player: false, order: 0, startsAt: null, endsAt: null, enabled: true });
+const noButton = () => ({ label: '', action: 'url', value: '' });
+const blank = () => ({ title: '', body: '', image: '', buttons: [{ label: 'Open', action: 'url', value: '' }, noButton()], tag: '', player: false, order: 0, startsAt: null, endsAt: null, enabled: true });
+const SERVER = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d{2,5})?$/i;
+const buttonsOfAd = (ad) => (Array.isArray(ad.buttons) && ad.buttons.length ? ad.buttons : ad.cta ? [{ label: ad.cta, action: 'url', value: ad.url }] : []);
+const filled = (b) => b.label.trim() || b.value.trim();
+const validButton = (b) => b.label.trim() && (b.action === 'server' ? SERVER.test(b.value.trim()) : /^https:\/\//.test(b.value.trim()));
+const describe = (b) => `${b.label}: ${b.action === 'server' ? `join ${b.value}` : b.value}`;
 
 const stateOf = (ad, now) => (!ad.enabled ? 'Paused' : ad.startsAt && ad.startsAt > now ? 'Scheduled' : ad.endsAt && ad.endsAt <= now ? 'Ended' : 'Live');
 const isHttps = (value) => /^https:\/\//.test(String(value || '').trim());
@@ -27,7 +33,21 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
   const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
   const ads = doc?.settings?.ads || [];
   const now = Date.now();
-  const ready = draft.title.trim().length >= 2 && validImage(draft.image) && isHttps(draft.url);
+  const [editing, setEditing] = useState(null);
+  const setButton = (i, key, value) => setDraft((current) => ({ ...current, buttons: current.buttons.map((b, j) => (j === i ? { ...b, [key]: value } : b)) }));
+  const buttons = draft.buttons.filter(filled);
+  const ready = draft.title.trim().length >= 2 && validImage(draft.image) && buttons.length > 0 && buttons.every(validButton);
+  const payload = () => {
+    const { buttons: _all, ...rest } = draft;
+    return { ...rest, buttons: buttons.map((b) => ({ label: b.label.trim(), action: b.action, value: b.value.trim() })) };
+  };
+  const edit = (ad) => {
+    const list = buttonsOfAd(ad).map((b) => ({ ...b }));
+    while (list.length < 2) list.push(noButton());
+    setDraft({ ...blank(), ...ad, body: ad.body || '', tag: ad.tag || '', buttons: list });
+    setEditing(ad.id);
+  };
+  const cancel = () => { setEditing(null); setDraft(blank()); };
 
   const upload = async (file) => {
     if (!file) return;
@@ -46,9 +66,10 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
   };
 
   const create = () => run('create', async () => {
-    setDoc(await adminCall('POST', '/site/ads', draft, onAccessRevoked));
-    setDraft(blank());
-  }, 'Ad added. Launchers pick it up within 10 minutes.');
+    if (editing) setDoc(await adminCall('PATCH', `/site/ads/${encodeURIComponent(editing)}`, payload(), onAccessRevoked));
+    else setDoc(await adminCall('POST', '/site/ads', payload(), onAccessRevoked));
+    cancel();
+  }, editing ? 'Ad saved.' : 'Ad added. Launchers and the in-game menu pick it up within 10 minutes.');
   const patch = (id, body, ok) => run(id, async () => setDoc(await adminCall('PATCH', `/site/ads/${encodeURIComponent(id)}`, body, onAccessRevoked)), ok);
   const remove = (id) => ask(`del:${id}`) && run(`del:${id}`, async () => setDoc(await adminCall('DELETE', `/site/ads/${encodeURIComponent(id)}`, undefined, onAccessRevoked)), 'Ad removed.');
 
@@ -58,16 +79,17 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
       <div className="admin-overview-grid admin-site-grid">
         <section className="admin-card is-wide">
           <div className="admin-card-head">
-            <h3><Plus size={14} />New ad</h3>
-            <span>Shown as a small card on the launcher’s Home</span>
+            <h3>{editing ? <Pencil size={14} /> : <Plus size={14} />}{editing ? 'Edit ad' : 'New ad'}</h3>
+            <span>Shown on the launcher’s Home and the in-game title screen</span>
             <span className="admin-head-spacer" />
+            {editing && <button type="button" className="admin-btn ghost" onClick={cancel}><X size={13} />Cancel</button>}
             <button type="button" className="admin-btn primary" disabled={!ready || Boolean(busy)} onClick={create}>
-              {busy === 'create' ? <LoaderCircle size={13} className="is-spinning" /> : <Plus size={13} />}Add ad
+              {busy === 'create' ? <LoaderCircle size={13} className="is-spinning" /> : editing ? <Save size={13} /> : <Plus size={13} />}{editing ? 'Save ad' : 'Add ad'}
             </button>
           </div>
           <div className="admin-form-grid">
             <label className="admin-field"><span>Title</span><input maxLength={60} placeholder="Join the Native Discord" value={draft.title} onChange={(event) => set('title', event.target.value)} /></label>
-            <label className="admin-field"><span>Button (optional)</span><input maxLength={20} placeholder="Join" value={draft.cta} onChange={(event) => set('cta', event.target.value)} /></label>
+            <label className="admin-field"><span>Label (optional)</span><input maxLength={20} placeholder="Partner" value={draft.tag} onChange={(event) => set('tag', event.target.value)} /></label>
             <label className="admin-field is-wide"><span>Text (optional)</span><input maxLength={140} placeholder="Events, giveaways and support." value={draft.body} onChange={(event) => set('body', event.target.value)} /></label>
             <label className="admin-field is-wide">
               <span>Banner image (https, 1200×500)</span>
@@ -79,8 +101,19 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ''; }} />
               </span>
             </label>
-            <label className="admin-field is-wide"><span>Link (https)</span><input maxLength={500} placeholder="https://discord.gg/playnative" value={draft.url} onChange={(event) => set('url', event.target.value)} /></label>
-            <label className="admin-field"><span>Label (optional)</span><input maxLength={20} placeholder="Partner" value={draft.tag} onChange={(event) => set('tag', event.target.value)} /></label>
+            {draft.buttons.map((b, i) => (
+              <label key={i} className="admin-field is-wide">
+                <span>{i === 0 ? 'Main button (also used when the banner is clicked)' : 'Second button (optional)'}</span>
+                <span style={{ display: 'flex', gap: 8 }}>
+                  <input style={{ width: 130 }} maxLength={20} placeholder={i === 0 ? 'Join' : 'Website'} value={b.label} onChange={(event) => setButton(i, 'label', event.target.value)} />
+                  <select style={{ width: 150 }} value={b.action} onChange={(event) => setButton(i, 'action', event.target.value)}>
+                    <option value="url">Open a link</option>
+                    <option value="server">Join a server</option>
+                  </select>
+                  <input style={{ flex: 1 }} maxLength={500} placeholder={b.action === 'server' ? 'play.example.net' : 'https://discord.gg/playnative'} value={b.value} onChange={(event) => setButton(i, 'value', event.target.value)} />
+                </span>
+              </label>
+            ))}
             <label className="admin-field"><span>Order</span><input type="number" min={0} max={999} value={draft.order} onChange={(event) => set('order', Number(event.target.value))} /></label>
             <label className="admin-field"><span>Starts (optional)</span><input type="datetime-local" value={toLocalInput(draft.startsAt)} onChange={(event) => set('startsAt', fromLocalInput(event.target.value))} /></label>
             <label className="admin-field"><span>Ends (optional)</span><input type="datetime-local" value={toLocalInput(draft.endsAt)} onChange={(event) => set('endsAt', fromLocalInput(event.target.value))} /></label>
@@ -104,10 +137,11 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
                     <div className="admin-code-main">
                       <strong className="is-plain">{ad.title} <span className={`admin-chip ${state === 'Live' ? 'is-live' : 'is-test'} is-inline`}>{state}</span></strong>
                       <small>
-                        #{ad.order || 0}{ad.tag ? ` · ${ad.tag}` : ''}{ad.player ? ' · player skin' : ''} · {ad.url}
+                        #{ad.order || 0}{ad.tag ? ` · ${ad.tag}` : ''}{ad.player ? ' · player skin' : ''} · {buttonsOfAd(ad).map(describe).join(' · ') || ad.url}
                         {' · '}{ad.startsAt ? `from ${formatDate(ad.startsAt)}` : 'now'} → {ad.endsAt ? formatDate(ad.endsAt) : 'no end'}
                       </small>
                     </div>
+                    <button type="button" className="admin-icon-btn" title="Edit ad" aria-label="Edit ad" onClick={() => edit(ad)}><Pencil size={13} /></button>
                     <a className="admin-icon-btn" href={ad.url} target="_blank" rel="noreferrer" title="Open link" aria-label="Open link"><ExternalLink size={13} /></a>
                     <button type="button" className="admin-btn ghost" disabled={Boolean(busy)} onClick={() => patch(ad.id, { enabled: !ad.enabled }, ad.enabled ? 'Ad paused.' : 'Ad enabled.')}>
                       {busy === ad.id ? <LoaderCircle size={13} className="is-spinning" /> : ad.enabled ? <Pause size={13} /> : <Play size={13} />}{ad.enabled ? 'Pause' : 'Enable'}

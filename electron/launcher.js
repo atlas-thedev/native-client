@@ -10,6 +10,7 @@ const { downloadFile, fetchJson, writeFileAtomic } = require('./download');
 const installRegistry = require('./installRegistry');
 const wardrobeMod = require('./wardrobe');
 const nativeMod = require('./nativeMod');
+const adsMod = require('./ads');
 const socialMod = require('./social');
 const gamePresence = require('./gamePresence');
 const playHistory = require('./playHistory');
@@ -606,6 +607,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           onState: (detail) => setState('preparing', detail)
         });
         if (modResult.warning) launcher.emit('debug', `[Native Client]: Native mod: ${modResult.warning}`);
+        // Title-screen ads: the banners the launcher already downloaded.
+        if (modResult.installed) await adsMod.writeForGame(instanceDir(instance.id)).catch(() => {});
         if (modResult.installed) {
           gameConsole.pushLauncher(`Native Client mod ${modResult.version || modResult.filename} ready${modResult.signedIn ? ' · signed in to Native' : ' · guest mode'}`);
         }
