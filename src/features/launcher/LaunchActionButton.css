@@ -15,7 +15,8 @@
      keeps the icon + label group optically centred. */
   padding: 0 24px 0 21px;
   overflow: hidden;
-  border-radius: 999px;
+  /* Home's big Launch / Install button: a rounded rectangle, a little less round than a full pill. */
+  border-radius: 14px;
   font-family: var(--font-sans);
   font-size: 14.5px;
   font-weight: 700;

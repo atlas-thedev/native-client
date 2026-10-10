@@ -4,7 +4,16 @@ import {
   ArrowRight,
   BarChart3,
   DollarSign,
+  FlaskConical,
+  Globe,
+  LayoutDashboard,
+  Megaphone,
+  Package,
+  Receipt,
   Rocket,
+  Server,
+  ShieldCheck,
+  ShoppingBag,
   Tag,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +31,6 @@ import {
   UsersRound,
   Wifi
 } from 'lucide-react';
-import Dropdown from '../../components/ui/Dropdown.jsx';
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import AdminStore, { ItemThumb } from './AdminStore.jsx';
 import AdminUserPanel from './AdminUserPanel.jsx';
@@ -34,9 +42,10 @@ import AdminOffers from './AdminOffers.jsx';
 import AdminServers from './AdminServers.jsx';
 import AdminAds from './AdminAds.jsx';
 import AdminApplications from './AdminApplications.jsx';
-import { InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
+import { AdminSegmented, AdminSelect, InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
 import './AdminView.css';
+import './AdminShell.css';
 
 function Kpi({ icon, label, value, hint, onClick }) {
   const Tag = onClick ? 'button' : 'div';
@@ -84,9 +93,9 @@ function QuickGive({ items, strips, onNotify, onDone }) {
         <div className="admin-quick-give-art">{item ? <ItemThumb item={item} strips={strips} width={45} height={72} /> : <Shirt size={18} />}</div>
         <div className="admin-quick-give-fields">
           <label className="admin-field"><span>Player</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Native username" maxLength={32} /></label>
-          <label className="admin-field"><span>Cape</span>
-            <Dropdown className="admin-dropdown" value={itemId} onChange={setItemId} placeholder={items ? 'Pick a cape' : 'Loading…'} options={(items || []).map((entry) => ({ value: entry.id, label: `${entry.name}${entry.exclusive ? ' · Exclusive' : ''}` }))} />
-          </label>
+          <div className="admin-field"><span>Cape</span>
+            <AdminSelect value={itemId} onChange={setItemId} placeholder={items ? 'Pick a cape' : 'Loading…'} options={(items || []).map((entry) => ({ value: entry.id, label: `${entry.name}${entry.exclusive ? ' · Exclusive' : ''}` }))} />
+          </div>
         </div>
       </div>
       {message && <p className={`admin-inline-note${message.ok ? ' is-ok' : ' is-error'}`}>{message.text}</p>}
@@ -94,6 +103,26 @@ function QuickGive({ items, strips, onNotify, onDone }) {
     </form>
   );
 }
+
+/** Sidebar sections: [id, label, icon, description]. */
+const NAV_GROUPS = [
+  ['General', [
+    ['overview', 'Overview', LayoutDashboard, 'Players, sales, sign-ups and database health at a glance.'],
+    ['users', 'Users', Users, 'Find a player, manage their account, capes, badges and sessions.']
+  ]],
+  ['Store', [
+    ['store', 'Store', ShoppingBag, 'Cloaks and cosmetics: create, price, hide and preview items.'],
+    ['bundles', 'Bundles', Package, 'Group Store items into bundles with their own price.'],
+    ['sales', 'Sales', Receipt, 'Orders, Native+ members and payment status.'],
+    ['offers', 'Offers', Tag, 'Time-limited discounts on Store items.']
+  ]],
+  ['Launcher & site', [
+    ['website', 'Website', Globe, 'Maintenance, pre-launch and website settings.'],
+    ['servers', 'Servers', Server, 'Partner servers pinned to the top of the Servers page.'],
+    ['ads', 'Ads', Megaphone, 'Home page ad cards and their schedule.'],
+    ['beta', 'Beta', FlaskConical, 'Beta applications and beta builds.']
+  ]]
+];
 
 export default function AdminView({ onNotify, onAccessRevoked }) {
   const [section, setSection] = useState('overview');
@@ -233,52 +262,65 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
   const maxSignup = Math.max(1, ...signupDays.map((day) => day.count));
   const maxFounder = Math.max(1, ...(siteOverview?.founderByCape || []).map((cape) => cape.count));
 
-  const tabs = [
-    ['overview', 'Overview', null],
-    ['users', 'Users', pagination.total ? formatNumber(pagination.total) : null],
-    ['store', 'Store', storeItems ? formatNumber(storeItems.length) : null],
-    ['bundles', 'Bundles', null],
-    ['sales', 'Sales', null],
-    ['website', 'Website', siteDoc?.settings?.maintenance?.enabled ? 'Maintenance' : (siteDoc?.config?.launch?.prelaunch ? 'Pre-launch' : null)],
-    ['offers', 'Offers', siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length} live` : null],
-    ['servers', 'Servers', siteDoc?.config?.servers?.length ? `${siteDoc.config.servers.length} live` : null],
-    ['ads', 'Ads', siteDoc?.config?.ads?.length ? `${siteDoc.config.ads.length} live` : null],
-    ['beta', 'Beta', null]
-  ];
+  const counts = {
+    users: pagination.total ? formatNumber(pagination.total) : null,
+    store: storeItems ? formatNumber(storeItems.length) : null,
+    website: siteDoc?.settings?.maintenance?.enabled ? 'Maint.' : (siteDoc?.config?.launch?.prelaunch ? 'Pre' : null),
+    offers: siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length}` : null,
+    servers: siteDoc?.config?.servers?.length ? `${siteDoc.config.servers.length}` : null,
+    ads: siteDoc?.config?.ads?.length ? `${siteDoc.config.ads.length}` : null
+  };
+  const current = NAV_GROUPS.flatMap(([, items]) => items).find(([id]) => id === section) || NAV_GROUPS[0][1][0];
+  const currentGroup = NAV_GROUPS.find(([, items]) => items.some(([id]) => id === section))?.[0] || 'General';
 
   return (
-    <main className="admin-view">
-      <header className="admin-header">
-        <div className="admin-heading">
-          <h1 className="admin-title page-title">Administration</h1>
-          <p className="admin-subtitle">Manage Native users, badges, Store cloaks and cosmetics, the website, offers, beta testers, and database health.</p>
+    <main className="admin-view admin-shell">
+      <aside className="admin-sidebar" aria-label="Admin sections">
+        <div className="admin-side-brand">
+          <span><ShieldCheck size={17} /></span>
+          <div>
+            <strong>Administration</strong>
+            <small><i />Admin only</small>
+          </div>
         </div>
-        <div className="admin-header-actions">
-          <span className="admin-access-label"><i />Admin only</span>
-          <button type="button" className="admin-btn ghost" onClick={refresh} disabled={refreshing}>
-            <RefreshCw size={13} className={refreshing ? 'is-spinning' : ''} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </header>
 
-      <nav className="admin-tabs" aria-label="Admin sections">
-        {tabs.map(([id, label, count]) => (
-          <button key={id} type="button" className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>
-            {label}{count && <span>{count}</span>}
-          </button>
+        {NAV_GROUPS.map(([group, items]) => (
+          <nav key={group} className="admin-side-group" aria-label={group}>
+            <span className="admin-side-label">{group}</span>
+            {items.map(([id, label, Icon]) => (
+              <button key={id} type="button" title={label} className={`admin-side-item${section === id ? ' active' : ''}`} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>
+                <Icon size={15} />
+                <span>{label}</span>
+                {counts[id] && <em>{counts[id]}</em>}
+              </button>
+            ))}
+          </nav>
         ))}
-      </nav>
+
+        <div className="admin-side-foot">
+          <button type="button" className="admin-btn ghost" onClick={refresh} disabled={refreshing} title="Refresh">
+            <RefreshCw size={13} className={refreshing ? 'is-spinning' : ''} />
+            <span>{refreshing ? 'Refreshing…' : 'Refresh data'}</span>
+          </button>
+        </div>
+      </aside>
+
+      <section className="admin-main">
+        <header className="admin-main-head">
+          <div>
+            <div className="admin-crumb"><span>Admin</span><ChevronRight size={11} /><span>{currentGroup}</span></div>
+            <h1 className="page-title">{current[1]}</h1>
+            <p>{current[3]}</p>
+          </div>
+          {section === 'beta' && (
+            <AdminSegmented value={betaView} onChange={setBetaView} ariaLabel="Beta sections" options={[['applications', 'Applications'], ['updates', 'Beta updates']]} />
+          )}
+        </header>
 
       {error && <div className="admin-error" role="alert"><span>{error}</span><button type="button" onClick={refresh}>Try again</button></div>}
 
       {section === 'beta' ? (
         <div className="admin-subview">
-          <div className="admin-filters admin-subnav" role="tablist" aria-label="Beta sections">
-            {[['applications', 'Applications'], ['updates', 'Beta updates']].map(([id, label]) => (
-              <button key={id} type="button" role="tab" aria-selected={betaView === id} className={betaView === id ? 'active' : ''} onClick={() => setBetaView(id)}>{label}</button>
-            ))}
-          </div>
           {betaView === 'applications'
             ? <div className="admin-scroll"><AdminApplications doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} /></div>
             : <AdminBeta onNotify={onNotify} onAccessRevoked={onAccessRevoked} />}
@@ -412,11 +454,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           <section className="admin-panel admin-user-list-panel">
             <div className="admin-toolbar">
               <label className="admin-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search username, email, or ID" /></label>
-              <div className="admin-filters">
-                {[['all', 'All'], ['online', 'Online'], ['admin', 'Admins']].map(([id, label]) => (
-                  <button key={id} type="button" className={userFilter === id ? 'active' : ''} onClick={() => setUserFilter(id)}>{label}</button>
-                ))}
-              </div>
+              <AdminSegmented value={userFilter} onChange={setUserFilter} ariaLabel="Filter players" options={[['all', 'All'], ['online', 'Online'], ['admin', 'Admins']]} />
             </div>
 
             <div className="admin-user-list" aria-busy={loading}>
@@ -471,6 +509,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           )}
         </div>
       )}
+      </section>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Globe, LoaderCircle, Pause, Play, Plus, Server, Trash2 } from 'lucide-react';
-import { AdminSwitch, adminCall, formatDate, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
+import { AdminDateTime, AdminNumber, AdminSwitch, adminCall, formatDate, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const blank = () => ({ name: '', address: '', description: '', tag: '', iconUrl: '', website: '', order: 0, startsAt: null, endsAt: null, enabled: true });
 
@@ -41,12 +41,12 @@ export default function AdminServers({ doc, setDoc, onNotify, onAccessRevoked })
             <label className="admin-field"><span>Name</span><input maxLength={48} placeholder="Hypixel" value={draft.name} onChange={(event) => set('name', event.target.value)} /></label>
             <label className="admin-field"><span>Address</span><input maxLength={120} placeholder="mc.hypixel.net" value={draft.address} onChange={(event) => set('address', event.target.value)} /></label>
             <label className="admin-field"><span>Badge (optional)</span><input maxLength={24} placeholder="Partner" value={draft.tag} onChange={(event) => set('tag', event.target.value)} /></label>
-            <label className="admin-field"><span>Order</span><input type="number" min={0} max={999} value={draft.order} onChange={(event) => set('order', Number(event.target.value))} /></label>
+            <div className="admin-field"><span>Order</span><AdminNumber min={0} max={999} value={draft.order} onChange={(value) => set('order', value)} /></div>
             <label className="admin-field is-wide"><span>Description (optional)</span><input maxLength={160} value={draft.description} onChange={(event) => set('description', event.target.value)} /></label>
             <label className="admin-field"><span>Icon URL (optional, https)</span><input maxLength={300} placeholder="https://…/icon.png" value={draft.iconUrl} onChange={(event) => set('iconUrl', event.target.value)} /></label>
             <label className="admin-field"><span>Website (optional, https)</span><input maxLength={300} placeholder="https://…" value={draft.website} onChange={(event) => set('website', event.target.value)} /></label>
-            <label className="admin-field"><span>Starts (optional)</span><input type="datetime-local" value={toLocalInput(draft.startsAt)} onChange={(event) => set('startsAt', fromLocalInput(event.target.value))} /></label>
-            <label className="admin-field"><span>Ends (optional)</span><input type="datetime-local" value={toLocalInput(draft.endsAt)} onChange={(event) => set('endsAt', fromLocalInput(event.target.value))} /></label>
+            <div className="admin-field"><span>Starts (optional)</span><AdminDateTime value={draft.startsAt} onChange={(value) => set('startsAt', value)} placeholder="Right away" /></div>
+            <div className="admin-field"><span>Ends (optional)</span><AdminDateTime value={draft.endsAt} onChange={(value) => set('endsAt', value)} placeholder="No end" /></div>
             <AdminSwitch on={draft.enabled} onChange={(v) => set('enabled', v)} label="Enabled" hint="Paused servers never show." />
           </div>
           {draft.address && !validAddress(draft.address) && <p className="admin-note">That address doesn’t look valid. Use <code>host</code> or <code>host:port</code>.</p>}
