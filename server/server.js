@@ -192,6 +192,17 @@ function atomicWrite(filePath, data) {
 
 const capeAllowed = (hash, profile = null, user = null) => storeRoutes.capeAllowed(hash, profile, user);
 const shownCape = (profile) => (profile?.cape && capeAllowed(profile.cape, profile) ? profile.cape : null);
+/** What a profile wears, for the public profile page's 3D model: cape (still + animation) and 3D cosmetics. */
+const lookOf = (profile, origin) => {
+  if (!profile) return null;
+  const anim = (() => { try { return storeRoutes.animationFor(profile); } catch { return null; } })();
+  return {
+    capeUrl: shownCape(profile) ? `${origin}/csl/textures/${profile.cape}` : null,
+    capeAnimation: anim ? { url: `${origin}/csl/textures/${anim.strip}`, frames: anim.frames, fps: anim.fps } : null,
+    wearing: storeRoutes.wearingOf(profile),
+    sides: profile.cosmeticSides || {}
+  };
+};
 
 function textureHash(buffer) {
   if (!buffer) return null;
@@ -560,7 +571,7 @@ async function handler(req, res) {
     }
 
     try {
-      profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(req) });
+      profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(req), lookOf: (profile) => lookOf(profile, originOf(req)) });
       if (await profileRoutes.handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson })) return;
     } catch (profileError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Profile route failed.' });
@@ -1645,7 +1656,7 @@ function applyTimeouts(server) {
 function createServer() {
   storeRoutes.setTextureReader((hash) => (/^[a-f0-9]{64}$/.test(String(hash)) ? fs.readFileSync(path.join(texturesDir, hash)) : null));
   try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
-  try { profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(null) }); profileRoutes.start(); } catch (error) { console.warn('[Native Profiles] start failed:', error.message); }
+  try { profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(null), lookOf: (profile) => lookOf(profile, originOf(null)) }); profileRoutes.start(); } catch (error) { console.warn('[Native Profiles] start failed:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }
 

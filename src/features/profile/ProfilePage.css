@@ -13,7 +13,7 @@
 
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 60; /* over the page under it, the Relay chat header (30) included */
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -49,8 +49,8 @@
 .pp-chip.is-native { border-color: rgba(155, 107, 255, 0.45); color: #c9b0ff; }
 .pp-badges { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px; }
 .pp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 5px; border: 1px solid var(--pp-line); border-radius: 999px; background: var(--pp-well); color: var(--fg-primary-hover); font-size: 11.5px; font-weight: 700; }
-.pp-badge-icon { display: grid; place-items: center; width: 20px; height: 20px; overflow: hidden; border-radius: 999px; background: var(--pp-badge); }
-.pp-badge-icon > * { width: 100%; height: 100%; }
+.pp-badge-icon { display: grid; place-items: center; width: 20px; height: 20px; overflow: visible; background: none; }
+.pp-badge-icon > * { width: 100%; height: 100%; object-fit: contain; }
 
 .pp-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
 .pp-stats { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; }

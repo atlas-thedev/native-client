@@ -392,7 +392,7 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
                 {/* 36x36px Icon */}
                 <span className="im-file-icon">
                   {row.core ? (
-                    <img src={nativeIcon} alt="Native" />
+                    <img src={nativeIcon} alt="Native" className="im-native-icon" />
                   ) : row.metadata?.iconUrl ? (
                     <img
                       src={row.metadata.iconUrl}

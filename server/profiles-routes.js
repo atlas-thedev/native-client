@@ -24,7 +24,7 @@ const HASH_RE = /^[a-f0-9]{32,64}$/;
 const LINK_TYPES = ['youtube', 'twitch', 'tiktok', 'x', 'instagram', 'discord', 'github', 'website'];
 const PAGE = 36;
 
-let hooks = { readProfile: () => null, mojangSkin: async () => null, allItems: () => [], originOf: () => '' };
+let hooks = { readProfile: () => null, mojangSkin: async () => null, allItems: () => [], originOf: () => '', lookOf: () => null };
 let ready = false;
 
 function sql() {
@@ -311,7 +311,8 @@ async function nativeProfile(user) {
     names,
     skins,
     current,
-    mojangCape
+    mojangCape,
+    look: (() => { try { return hooks.lookOf(profile); } catch { return null; } })()
   };
 }
 
