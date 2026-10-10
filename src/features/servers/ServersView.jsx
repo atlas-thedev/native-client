@@ -1,18 +1,25 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Play, RefreshCw, Search, Signal, Sparkles, Users, X } from 'lucide-react';
+import { Check, Copy, Crown, Globe, Play, RefreshCw, Search, Signal, Sparkles, Trophy, Users, X } from 'lucide-react';
 import { SERVERS, SERVER_CATEGORIES } from '../../data/servers.js';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './ServersView.css';
 
-/* Servers: a curated list of public servers with live status, plus any
-   servers the backend promotes. Play launches the chosen instance and joins
-   the server straight away. */
+/* Servers: a ranked server list (in the style of the big Minecraft server
+   lists) with live status, plus any servers the backend promotes. Play
+   launches the chosen instance and joins the server straight away. */
 
 const STORE_KEY = 'native.servers.status';
 const BATCH = 6;
 const numberFormat = new Intl.NumberFormat();
+
+const SORTS = [
+  { value: 'rank', label: 'Top ranked' },
+  { value: 'players', label: 'Most players' },
+  { value: 'ping', label: 'Lowest ping' },
+  { value: 'name', label: 'Name (A–Z)' }
+];
 
 function readStore() {
   try {
@@ -133,45 +140,57 @@ function useServerStatus(servers, refreshToken = 0, onDone) {
   return status;
 }
 
-/** One server as a single inline row — denser and easier to scan than cards. */
-function ServerRow({ server, live, onPlay, onCopy, copied }) {
+const categoryLabel = (id) => SERVER_CATEGORIES.find((c) => c.id === id)?.label || id;
+
+/** One ranked entry: rank, icon, name + tags, IP box, players bar and Play. */
+function ServerRow({ server, rank, live, onPlay, onCopy, copied }) {
   const icon = live?.favicon || server.icon || unknownIcon;
   const players = live?.players;
+  const max = live?.max;
+  const fill = players != null && max ? Math.min(100, Math.round((players / max) * 100)) : 0;
   const tags = server.promoted
     ? [server.region]
-    : [`${server.min}+`, server.region, ...server.categories.filter((id) => id !== 'featured').slice(0, 1)
-        .map((id) => SERVER_CATEGORIES.find((c) => c.id === id)?.label || id)];
+    : [server.region, ...server.categories.filter((id) => id !== 'featured' && id !== 'all').slice(0, 3).map(categoryLabel)];
+  const medal = !server.promoted && rank <= 3 ? ` is-top${rank}` : '';
 
   return (
-    <article className={`srv-row${server.promoted ? ' is-promoted' : ''}`}>
+    <article className={`srv-row${server.promoted ? ' is-promoted' : ''}${medal}`}>
+      <div className="srv-rank">
+        {server.promoted ? <Sparkles size={15} /> : rank <= 3 ? <Trophy size={15} /> : null}
+        <span>{server.promoted ? 'AD' : `#${rank}`}</span>
+      </div>
+
       <img className="srv-row-icon" src={icon} alt="" draggable="false" />
 
       <div className="srv-row-main">
         <div className="srv-row-title">
           <h3>{server.name}</h3>
-          {server.promoted && (
-            <span className="srv-badge-promoted"><Sparkles size={10} />Promoted</span>
-          )}
-          <span className={`srv-state${live ? (live.online ? ' is-online' : ' is-offline') : ''}`}>
-            <i />
-            {live ? (live.online ? 'Online' : 'Offline') : '\u2026'}
-          </span>
+          {server.promoted && <span className="srv-badge-promoted"><Sparkles size={10} />Sponsored</span>}
+          {!server.promoted && rank === 1 && <span className="srv-badge-top"><Crown size={10} />Top server</span>}
         </div>
-        <p className="srv-row-desc">{server.description}</p>
+        <p className="srv-row-desc">{server.description || 'No description yet.'}</p>
         <div className="srv-row-meta">
-          <button type="button" className="srv-address" onClick={() => onCopy(server.address)} title="Copy address">
-            <span>{server.address}</span>
-            {copied ? <Check size={11} /> : <Copy size={11} />}
-          </button>
-          {tags.filter(Boolean).map((tag) => (
-            <span className="srv-tag" key={tag}>{tag}</span>
-          ))}
+          <span className="srv-tag is-version">{server.min}+</span>
+          {tags.filter(Boolean).map((tag) => <span className="srv-tag" key={tag}>{tag}</span>)}
+          {server.website && (
+            <a className="srv-tag is-link" href={server.website} target="_blank" rel="noreferrer"><Globe size={10} />Website</a>
+          )}
         </div>
       </div>
 
+      <button type="button" className={`srv-ip${copied ? ' is-copied' : ''}`} onClick={() => onCopy(server.address)} title="Copy server IP">
+        <span className="srv-ip-label">{copied ? 'Copied!' : 'Server IP'}</span>
+        <span className="srv-ip-value">{server.address}</span>
+        {copied ? <Check size={13} /> : <Copy size={13} />}
+      </button>
+
       <div className="srv-row-stats">
-        <span><Users size={13} />{players != null ? numberFormat.format(players) : '\u2014'}</span>
-        <span><Signal size={13} />{live?.latency != null ? `${live.latency} ms` : '\u2014'}</span>
+        <span className={`srv-state${live ? (live.online ? ' is-online' : ' is-offline') : ''}`}>
+          <i />{live ? (live.online ? 'Online' : 'Offline') : 'Checking…'}
+        </span>
+        <strong><Users size={12} />{players != null ? numberFormat.format(players) : '—'}{max ? <small> / {numberFormat.format(max)}</small> : null}</strong>
+        <span className="srv-bar"><i style={{ width: `${fill}%` }} /></span>
+        <span className="srv-ping"><Signal size={11} />{live?.latency != null ? `${live.latency} ms` : '—'}</span>
       </div>
 
       <button type="button" className="srv-play" onClick={() => onPlay(server)}>
@@ -210,6 +229,8 @@ function VersionDialog({ server, instance, onCancel, onConfirm }) {
 export default function ServersView({ instances = [], selectedInstance = null, onLaunch, onNotify }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [sort, setSort] = useState('rank');
+  const [onlineOnly, setOnlineOnly] = useState(false);
   const [instanceId, setInstanceId] = useState(selectedInstance?.id || '');
   const [copied, setCopied] = useState('');
   const [pending, setPending] = useState(null);
@@ -233,6 +254,7 @@ export default function ServersView({ instances = [], selectedInstance = null, o
   useEffect(() => {
     if (!instanceId && selectedInstance?.id) setInstanceId(selectedInstance.id);
   }, [selectedInstance, instanceId]);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   const instance = instances.find((item) => item.id === instanceId) || selectedInstance || instances[0] || null;
   const instanceOptions = useMemo(
@@ -240,18 +262,12 @@ export default function ServersView({ instances = [], selectedInstance = null, o
     [instances]
   );
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const list = allServers.filter((server) => {
-      if (category !== 'all' && !server.categories.includes(category)) return false;
-      if (!needle) return true;
-      return `${server.name} ${server.address} ${server.description}`.toLowerCase().includes(needle);
-    });
-    // Promoted first, then busiest; offline servers sink.
-    return list
+  // The global ranking: online first, then busiest (promoted servers are not ranked).
+  const rankOf = useMemo(() => {
+    const ranked = allServers
+      .filter((server) => !server.promoted)
       .map((server, index) => ({ server, index }))
       .sort((a, b) => {
-        if (Boolean(a.server.promoted) !== Boolean(b.server.promoted)) return a.server.promoted ? -1 : 1;
         const la = status[a.server.address];
         const lb = status[b.server.address];
         const oa = la ? (la.online ? 0 : 1) : 0;
@@ -261,14 +277,42 @@ export default function ServersView({ instances = [], selectedInstance = null, o
         const pb = lb?.players ?? -1;
         if (pa !== pb) return pb - pa;
         return a.index - b.index;
-      })
-      .map(({ server }) => server);
-  }, [query, category, status, allServers]);
+      });
+    const map = {};
+    ranked.forEach(({ server }, index) => { map[server.address] = index + 1; });
+    return map;
+  }, [allServers, status]);
+
+  const counts = useMemo(() => {
+    const map = { all: allServers.length };
+    allServers.forEach((server) => server.categories.forEach((id) => { map[id] = (map[id] || 0) + 1; }));
+    return map;
+  }, [allServers]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const list = allServers.filter((server) => {
+      if (category !== 'all' && !server.categories.includes(category)) return false;
+      if (onlineOnly && !status[server.address]?.online) return false;
+      if (!needle) return true;
+      return `${server.name} ${server.address} ${server.description}`.toLowerCase().includes(needle);
+    });
+    const promotedFirst = (a, b) => (Boolean(a.promoted) !== Boolean(b.promoted) ? (a.promoted ? -1 : 1) : 0);
+    return [...list].sort((a, b) => {
+      const p = promotedFirst(a, b);
+      if (p) return p;
+      if (sort === 'players') return (status[b.address]?.players ?? -1) - (status[a.address]?.players ?? -1);
+      if (sort === 'ping') return (status[a.address]?.latency ?? 1e9) - (status[b.address]?.latency ?? 1e9);
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      return (rankOf[a.address] || 1e9) - (rankOf[b.address] || 1e9);
+    });
+  }, [query, category, onlineOnly, sort, status, allServers, rankOf]);
 
   const totalPlayers = useMemo(
     () => allServers.reduce((sum, server) => sum + (status[server.address]?.online ? status[server.address].players || 0 : 0), 0),
     [status, allServers]
   );
+  const onlineCount = useMemo(() => allServers.filter((server) => status[server.address]?.online).length, [status, allServers]);
 
   const copy = (address) => {
     navigator.clipboard?.writeText(address).catch(() => {});
@@ -296,70 +340,82 @@ export default function ServersView({ instances = [], selectedInstance = null, o
 
   return (
     <div className="srv-view">
-      <header className="srv-header">
-        <div>
-          <h1>Servers</h1>
-          <p className="srv-subtitle">
-            {allServers.length} popular servers
-            {totalPlayers > 0 ? ` \u00b7 ${numberFormat.format(totalPlayers)} players online now` : ''}
-          </p>
+      <section className="srv-hero">
+        <div className="srv-hero-text">
+          <span className="srv-hero-kicker"><Trophy size={12} />Server list</span>
+          <h1>Top Minecraft Servers</h1>
+          <p>Find the best servers, copy the IP or press Play to join straight from Native.</p>
         </div>
-        <button type="button" className={`srv-refresh${refreshing ? ' is-busy' : ''}`} onClick={refresh} disabled={refreshing} title="Ping every server again">
-          <RefreshCw size={14} />
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
-        {instances.length > 0 && (
-          <div className="srv-instance">
-            <span>Play with</span>
-            <Dropdown
-              className="srv-instance-dropdown"
-              value={instance?.id || ''}
-              options={instanceOptions}
-              onChange={(value) => setInstanceId(value)}
-              placeholder="Choose instance"
-            />
-          </div>
-        )}
-      </header>
-
-      <div className="srv-toolbar">
+        <div className="srv-hero-stats">
+          <div><strong>{numberFormat.format(allServers.length)}</strong><span>Servers</span></div>
+          <div><strong>{numberFormat.format(onlineCount)}</strong><span>Online</span></div>
+          <div><strong>{numberFormat.format(totalPlayers)}</strong><span>Players now</span></div>
+        </div>
         <label className="srv-search">
-          <Search size={15} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search servers" spellCheck={false} />
-          {query && (
-            <button type="button" onClick={() => setQuery('')} aria-label="Clear"><X size={14} /></button>
-          )}
+          <Search size={16} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, IP or description" spellCheck={false} />
+          {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear"><X size={14} /></button>}
         </label>
-        <div className="srv-chips">
-          {SERVER_CATEGORIES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`srv-chip${category === item.id ? ' is-active' : ''}`}
-              onClick={() => setCategory(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      </section>
 
-      {visible.length === 0 ? (
-        <div className="srv-empty">No servers match “{query}”.</div>
-      ) : (
-        <div className="srv-list">
-          {visible.map((server) => (
-            <ServerRow
-              key={server.address}
-              server={server}
-              live={status[server.address]}
-              onPlay={play}
-              onCopy={copy}
-              copied={copied === server.address}
-            />
-          ))}
-        </div>
-      )}
+      <div className="srv-layout">
+        <aside className="srv-side">
+          <div className="srv-side-block">
+            <span className="srv-side-label">Categories</span>
+            {SERVER_CATEGORIES.map((item) => (
+              <button key={item.id} type="button" className={`srv-cat${category === item.id ? ' is-active' : ''}`} onClick={() => setCategory(item.id)}>
+                <span>{item.label}</span>
+                <em>{counts[item.id] || 0}</em>
+              </button>
+            ))}
+          </div>
+
+          <div className="srv-side-block">
+            <span className="srv-side-label">Sort by</span>
+            <Dropdown className="srv-dropdown" value={sort} options={SORTS} onChange={setSort} />
+            <button type="button" role="switch" aria-checked={onlineOnly} className={`srv-toggle${onlineOnly ? ' is-on' : ''}`} onClick={() => setOnlineOnly((value) => !value)}>
+              <span>Online only</span>
+              <i aria-hidden="true"><b /></i>
+            </button>
+          </div>
+
+          {instances.length > 0 && (
+            <div className="srv-side-block">
+              <span className="srv-side-label">Play with</span>
+              <Dropdown className="srv-dropdown" value={instance?.id || ''} options={instanceOptions} onChange={(value) => setInstanceId(value)} placeholder="Choose instance" />
+            </div>
+          )}
+
+          <button type="button" className={`srv-refresh${refreshing ? ' is-busy' : ''}`} onClick={refresh} disabled={refreshing} title="Ping every server again">
+            <RefreshCw size={14} />
+            {refreshing ? 'Refreshing…' : 'Refresh status'}
+          </button>
+        </aside>
+
+        <section className="srv-main">
+          <div className="srv-list-head">
+            <span>{numberFormat.format(visible.length)} {visible.length === 1 ? 'server' : 'servers'}{category !== 'all' ? ` in ${categoryLabel(category)}` : ''}</span>
+            <span className="srv-list-cols"><span>Server IP</span><span>Players</span><span /></span>
+          </div>
+          {visible.length === 0 ? (
+            <div className="srv-empty">{query ? `No servers match “${query}”.` : 'No servers in this view.'}</div>
+          ) : (
+            <div className="srv-list">
+              {visible.map((server) => (
+                <ServerRow
+                  key={server.address}
+                  server={server}
+                  rank={rankOf[server.address] || 0}
+                  live={status[server.address]}
+                  onPlay={play}
+                  onCopy={copy}
+                  copied={copied === server.address}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {pending && instance && (
         <VersionDialog server={pending} instance={instance} onCancel={() => setPending(null)} onConfirm={() => launch(pending)} />

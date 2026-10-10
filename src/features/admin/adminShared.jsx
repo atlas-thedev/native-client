@@ -1,4 +1,6 @@
 import React from 'react';
+import { Check, ChevronLeft, ChevronRight, Calendar, Minus, Plus, X } from 'lucide-react';
+import Dropdown from '../../components/ui/Dropdown.jsx';
 
 export const formatNumber = (value) => Number(value || 0).toLocaleString();
 export const plural = (value, noun) => `${formatNumber(value)} ${noun}${Number(value) === 1 ? '' : 's'}`;
@@ -115,4 +117,166 @@ export function useConfirm() {
     return false;
   };
   return { armed, ask };
+}
+
+/* ============================================================
+   Custom admin controls. Every picker in the admin panel uses
+   these instead of the browser's native widgets.
+   ============================================================ */
+
+/** Custom dropdown, styled for the admin panel (wraps the launcher Dropdown). */
+export function AdminSelect({ className = '', ...props }) {
+  return <Dropdown className={`admin-dropdown ${className}`} {...props} />;
+}
+
+/** Custom checkbox with a label. */
+export function AdminCheckbox({ checked, onChange, label, hint, disabled }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={Boolean(checked)} disabled={disabled} className={`admin-check${checked ? ' is-on' : ''}`} onClick={() => onChange?.(!checked)}>
+      <i aria-hidden="true">{checked && <Check size={11} strokeWidth={3} />}</i>
+      {(label || hint) && <span>{label && <strong>{label}</strong>}{hint && <small>{hint}</small>}</span>}
+    </button>
+  );
+}
+
+/** Custom radio group: options = [{ value, label, hint }]. */
+export function AdminRadioGroup({ value, options = [], onChange, disabled, columns }) {
+  return (
+    <div className="admin-radio-group" role="radiogroup" style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}>
+      {options.map((option) => {
+        const on = option.value === value;
+        return (
+          <button key={String(option.value)} type="button" role="radio" aria-checked={on} disabled={disabled || option.disabled} className={`admin-radio${on ? ' is-on' : ''}`} onClick={() => !on && onChange?.(option.value)}>
+            <i aria-hidden="true" />
+            <span><strong>{option.label}</strong>{option.hint && <small>{option.hint}</small>}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Custom segmented selector: options = [[value, label], ...] or [{ value, label }]. */
+export function AdminSegmented({ value, options = [], onChange, ariaLabel }) {
+  const list = options.map((option) => (Array.isArray(option) ? { value: option[0], label: option[1] } : option));
+  return (
+    <div className="admin-segmented" role="tablist" aria-label={ariaLabel}>
+      {list.map((option) => (
+        <button key={String(option.value)} type="button" role="tab" aria-selected={option.value === value} className={option.value === value ? 'active' : ''} onClick={() => onChange?.(option.value)}>{option.label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Custom number field with − / + steppers (no native spinner). */
+export function AdminNumber({ value, onChange, min = -Infinity, max = Infinity, step = 1, disabled, suffix }) {
+  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const current = Number(value) || 0;
+  const [text, setText] = React.useState(String(current));
+  React.useEffect(() => { setText(String(Number(value) || 0)); }, [value]);
+  const commit = (raw) => {
+    const parsed = Number(raw);
+    const next = Number.isFinite(parsed) ? clamp(parsed) : current;
+    setText(String(next));
+    if (next !== current) onChange?.(next);
+  };
+  return (
+    <div className={`admin-number${disabled ? ' is-disabled' : ''}`}>
+      <button type="button" aria-label="Decrease" disabled={disabled || current <= min} onClick={() => onChange?.(clamp(current - step))}><Minus size={13} /></button>
+      <input
+        inputMode="decimal"
+        value={text}
+        disabled={disabled}
+        onChange={(event) => setText(event.target.value.replace(/[^0-9.\-]/g, ''))}
+        onBlur={(event) => commit(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit(event.currentTarget.value);
+          else if (event.key === 'ArrowUp') { event.preventDefault(); onChange?.(clamp(current + step)); }
+          else if (event.key === 'ArrowDown') { event.preventDefault(); onChange?.(clamp(current - step)); }
+        }}
+      />
+      {suffix && <em>{suffix}</em>}
+      <button type="button" aria-label="Increase" disabled={disabled || current >= max} onClick={() => onChange?.(clamp(current + step))}><Plus size={13} /></button>
+    </div>
+  );
+}
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** Custom date + time picker (value in ms, or null). Replaces <input type="datetime-local">. */
+export function AdminDateTime({ value, onChange, placeholder = 'Not set', disabled }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef(null);
+  const date = value ? new Date(value) : null;
+  const valid = date && !Number.isNaN(date.getTime());
+  const [view, setView] = React.useState(() => {
+    const base = valid ? date : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (event) => { if (!rootRef.current?.contains(event.target)) setOpen(false); };
+    const onKey = (event) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const base = valid ? date : null;
+  const hours = base ? base.getHours() : 12;
+  const minutes = base ? base.getMinutes() : 0;
+  const emit = (y, m, d, h, min) => onChange?.(new Date(y, m, d, h, min, 0, 0).getTime());
+  const pickDay = (day) => emit(view.getFullYear(), view.getMonth(), day, hours, minutes);
+  const setTime = (h, min) => {
+    const ref = base || new Date();
+    emit(ref.getFullYear(), ref.getMonth(), ref.getDate(), h, min);
+  };
+  const shift = (delta) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+
+  const offset = view.getDay();
+  const daysIn = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const cells = [...Array(offset).fill(null), ...Array.from({ length: daysIn }, (_, i) => i + 1)];
+  const today = new Date();
+  const isSame = (d, day) => d && d.getFullYear() === view.getFullYear() && d.getMonth() === view.getMonth() && d.getDate() === day;
+
+  return (
+    <div ref={rootRef} className={`admin-datetime${open ? ' is-open' : ''}`}>
+      <button type="button" className="admin-datetime-trigger" disabled={disabled} onClick={() => setOpen((state) => !state)}>
+        <Calendar size={13} />
+        <span className={valid ? '' : 'is-placeholder'}>{valid ? formatDate(value) : placeholder}</span>
+        {valid && !disabled && (
+          <i role="button" tabIndex={-1} aria-label="Clear" onClick={(event) => { event.stopPropagation(); onChange?.(null); }}><X size={12} /></i>
+        )}
+      </button>
+      {open && (
+        <div className="admin-datetime-pop" role="dialog">
+          <div className="admin-datetime-head">
+            <button type="button" onClick={() => shift(-1)} aria-label="Previous month"><ChevronLeft size={14} /></button>
+            <strong>{view.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong>
+            <button type="button" onClick={() => shift(1)} aria-label="Next month"><ChevronRight size={14} /></button>
+          </div>
+          <div className="admin-datetime-grid">
+            {WEEKDAYS.map((day) => <span key={day} className="is-weekday">{day}</span>)}
+            {cells.map((day, index) => day == null ? <span key={`e${index}`} /> : (
+              <button key={day} type="button" className={`${isSame(base, day) ? 'is-on' : ''}${isSame(today, day) ? ' is-today' : ''}`} onClick={() => pickDay(day)}>{day}</button>
+            ))}
+          </div>
+          <div className="admin-datetime-time">
+            <span>Time</span>
+            <AdminNumber min={0} max={23} value={hours} onChange={(h) => setTime(h, minutes)} />
+            <b>:</b>
+            <AdminNumber min={0} max={59} step={5} value={minutes} onChange={(m) => setTime(hours, m)} />
+            <small>{pad2(hours)}:{pad2(minutes)}</small>
+          </div>
+          <div className="admin-datetime-foot">
+            <button type="button" className="admin-btn ghost" onClick={() => { const now = new Date(); setView(new Date(now.getFullYear(), now.getMonth(), 1)); onChange?.(now.getTime()); }}>Now</button>
+            <button type="button" className="admin-btn ghost" onClick={() => onChange?.(null)}>Clear</button>
+            <button type="button" className="admin-btn primary" onClick={() => setOpen(false)}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
