@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bug, Check, Clock, Crown, Inbox, ListChecks, LoaderCircle, Search, Trash2, Users, X } from 'lucide-react';
-import { AdminSwitch, InitialAvatar, adminCall, formatDate, formatNumber, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
+import { AdminDateTime, AdminNumber, AdminSegmented, AdminSwitch, InitialAvatar, adminCall, formatDate, formatNumber, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const FILTERS = [['pending', 'To review'], ['approved', 'Accepted'], ['waitlist', 'Waitlist'], ['rejected', 'Rejected'], ['all', 'All']];
 const LABEL = { pending: 'Pending', approved: 'Accepted', waitlist: 'Waitlist', rejected: 'Rejected' };
@@ -51,6 +51,7 @@ export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevok
 
   const counts = data?.counts;
   const answers = current?.answers || {};
+  const filterOptions = FILTERS.map(([id, label]) => [id, <>{label}{counts && <em className="admin-filter-count">{counts[id]}</em>}</>]);
   return (
     <>
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
@@ -65,22 +66,18 @@ export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevok
         <div className="admin-card-head"><h3><Bug size={14} />Program settings</h3><span>Existing applications can always be reviewed</span></div>
         <div className="admin-form-grid is-three">
           <AdminSwitch on={beta.open} disabled={busy === 'settings'} onChange={(v) => saveBeta({ open: v })} label="Accept applications" hint={beta.open ? 'The form is live on the website’s /beta page.' : 'The form shows “closed”.'} />
-          <label className="admin-field"><span>Close automatically at</span>
-            <input type="datetime-local" key={`c${beta.closesAt}`} defaultValue={toLocalInput(beta.closesAt)} onBlur={(event) => { const v = fromLocalInput(event.target.value); if (v !== (beta.closesAt ?? null)) saveBeta({ closesAt: v }); }} />
-          </label>
-          <label className="admin-field"><span>Max Super Beta Testers (0 = no limit)</span>
-            <input type="number" min={0} key={`m${beta.maxTesters}`} defaultValue={beta.maxTesters || 0} onBlur={(event) => { const v = Math.max(0, Number(event.target.value) || 0); if (v !== (beta.maxTesters || 0)) saveBeta({ maxTesters: v }); }} />
-          </label>
+          <div className="admin-field"><span>Close automatically at</span>
+            <AdminDateTime value={beta.closesAt} placeholder="Never" disabled={busy === 'settings'} onChange={(v) => { if (v !== (beta.closesAt ?? null)) saveBeta({ closesAt: v }); }} />
+          </div>
+          <div className="admin-field"><span>Max Super Beta Testers (0 = no limit)</span>
+            <AdminNumber min={0} max={100000} value={beta.maxTesters || 0} disabled={busy === 'settings'} onChange={(v) => { if (v !== (beta.maxTesters || 0)) saveBeta({ maxTesters: v }); }} />
+          </div>
         </div>
       </section>
 
       <section className="admin-panel admin-apps">
         <div className="admin-toolbar">
-          <div className="admin-filters">
-            {FILTERS.map(([id, label]) => (
-              <button key={id} type="button" className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}{counts && <em className="admin-filter-count">{counts[id]}</em>}</button>
-            ))}
-          </div>
+          <AdminSegmented value={filter} onChange={setFilter} options={filterOptions} ariaLabel="Application status" />
           <label className="admin-search"><Search size={14} /><input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search name, Discord, answers…" /></label>
         </div>
         {!data ? <div className="admin-loading"><LoaderCircle size={18} className="is-spinning" /><span>Loading applications…</span></div>
