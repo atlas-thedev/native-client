@@ -746,12 +746,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // A Store item you don't own: click to try it on the model.
   const storeCard = (item, index) => {
     const trying = tryOn?.id === item.id;
-    return <button key={`shop:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-shop-card locker-pop ${item.kind === 'cosmetic' ? 'locker-cosmetic-card' : ''} ${trying ? 'is-trying' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => setTryOn(trying ? null : item)} title={trying ? 'Stop trying on' : `Try on ${item.name}`} aria-pressed={trying}>
-      {item.kind === 'cosmetic'
-        ? cosmeticShot(item)
-        : item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}
-      <span className="locker-shop-name">{item.name}</span>
-      <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
+    return <button key={`shop:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-shop-card locker-pop ${item.kind === 'cosmetic' ? 'locker-cosmetic-card' : 'locker-tile'} ${trying ? 'is-trying' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => setTryOn(trying ? null : item)} title={trying ? 'Stop trying on' : `Try on ${item.name}`} aria-pressed={trying}>
+      {item.kind === 'cosmetic' ? <>
+        {cosmeticShot(item)}
+        <span className="locker-shop-name">{item.name}</span>
+        <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
+      </> : <>
+        <span className="locker-tile-art">{item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}</span>
+        <span className="locker-tile-meta"><strong title={item.name}>{item.name}</strong><b className={`locker-tile-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</b></span>
+      </>}
       {trying && <Check size={13} className="locker-cape-check"/>}
     </button>;
   };
@@ -817,9 +820,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const capeCard = (card, index) => {
     const locked = card.kind === 'locked';
     const isCloak = card.kind === 'store' || card.kind === 'cloakNone';
-    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
-      {card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{ backgroundImage: `url(${card.textureUrl})` }}/> : <span className="locker-no-cape"><X size={20}/></span>}
-      <span>{card.name}</span>
+    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-tile locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
+      <span className="locker-tile-art">{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{ backgroundImage: `url(${card.textureUrl})` }}/> : <span className="locker-no-cape"><X size={20}/></span>}</span>
+      <span className="locker-tile-meta"><strong title={card.name}>{card.name}</strong><b className={`locker-tile-price${card.active ? ' is-on' : ''}`}>{locked ? 'Locked' : card.active ? 'Wearing' : card.kind === 'cloakNone' ? 'No cape' : card.kind === 'official' ? 'Minecraft' : 'Owned'}</b></span>
       {storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
       {card.active && <Check size={13} className="locker-cape-check"/>}
       {locked && <Lock size={11} className="locker-cape-lock"/>}

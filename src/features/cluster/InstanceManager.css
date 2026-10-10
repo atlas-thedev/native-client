@@ -1040,3 +1040,6 @@
 .im-drop-overlay strong { font: 700 15px var(--font-sans); }
 .im-drop-overlay small { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
 .im-drop-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 4px; border-radius: 50%; background: #f4f4f5; color: #0b0b0c; }
+
+/* the Native logo is drawn edge to edge: show all of it, a little inset like other mod icons */
+.im-file-icon img.im-native-icon { width: 72%; height: 72%; object-fit: contain; border-radius: 6px; }

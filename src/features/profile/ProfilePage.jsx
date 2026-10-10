@@ -211,10 +211,33 @@ export default function ProfilePage({ target, account, selfStats, onClose, onMes
     navigator.clipboard?.writeText(profile.uuid).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }).catch(() => {});
   };
 
-  const viewerAccount = useMemo(
-    () => ({ id: `profile:${displayName}`, name: displayName, type: profile?.premium ? 'microsoft' : 'native', skinUrl, model, capeUrl: (isSelf && seed?.capeUrl) || profile?.mojangCape || null }),
-    [displayName, skinUrl, model, profile?.premium, profile?.mojangCape, isSelf, seed?.capeUrl]
-  );
+  // The Native look (store cape + 3D cosmetics) comes with the profile; the locker hands over its own live one.
+  const look = profile?.look || null;
+  const wornKey = look?.wearing ? Object.entries(look.wearing).map(([slot, id]) => `${slot}:${id}`).sort().join(',') : '';
+  const [lookAssets, setLookAssets] = useState({});
+  useEffect(() => {
+    if (!wornKey) return undefined;
+    let alive = true;
+    for (const id of new Set(Object.values(look.wearing))) {
+      window.native?.store?.cosmetic?.(id).then((res) => {
+        if (alive && res?.ok) setLookAssets((current) => (current[id] ? current : { ...current, [id]: res }));
+      }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [wornKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lookCosmetics = useMemo(() => {
+    if (!look?.wearing) return null;
+    const list = Object.entries(look.wearing).map(([slot, id]) => (lookAssets[id] ? { ...lookAssets[id], side: look.sides?.[slot] || null } : null)).filter(Boolean);
+    return list.length ? list : null;
+  }, [look, lookAssets]);
+  const shownCosmetics = (isSelf && target?.cosmetics) || lookCosmetics;
+  const lookCape = look?.capeUrl || null;
+  const lookAnim = look?.capeAnimation?.url ? { stripUrl: look.capeAnimation.url, frames: look.capeAnimation.frames, fps: look.capeAnimation.fps } : null;
+
+  const viewerAccount = useMemo(() => {
+    const capeUrl = (isSelf && seed?.capeUrl) || lookCape || profile?.mojangCape || null;
+    return { id: `profile:${displayName}`, name: displayName, type: profile?.premium ? 'microsoft' : 'native', skinUrl, model, capeUrl, hasCape: Boolean(capeUrl), capeAnim: capeUrl && capeUrl === lookCape ? lookAnim : null };
+  }, [displayName, skinUrl, model, profile?.premium, profile?.mojangCape, isSelf, seed?.capeUrl, lookCape, lookAnim?.stripUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRenamed = (next) => {
     onAccountsChanged?.();
@@ -246,7 +269,7 @@ export default function ProfilePage({ target, account, selfStats, onClose, onMes
         <section className="pp-card pp-identity" aria-label="Player">
           <div className="pp-stage">
             {skinUrl || profile ? (
-              <SkinViewer3D key={skinUrl || displayName} account={viewerAccount} cosmetics={isSelf ? target?.cosmetics || null : null} width={260} height={330} animation="idle" zoom={0.78} />
+              <SkinViewer3D key={skinUrl || displayName} account={viewerAccount} cosmetics={shownCosmetics || null} width={260} height={330} animation="idle" zoom={0.78} />
             ) : (
               <RelayAvatar name={displayName} size={96} />
             )}

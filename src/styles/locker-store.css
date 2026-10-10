@@ -392,3 +392,39 @@
 .locker-view .locker-shop-card .locker-shop-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .locker-view .locker-shop-card .locker-price { position: static; margin-top: -2px; padding: 2px 8px; border-radius: 999px; box-shadow: none; font-size: 10.5px; }
 .locker-view .locker-shop-card.is-trying .locker-price { background: #fff; color: #0d0e12; }
+
+/* Cloak tiles (yours and "Try one on"): the Native Store card. One dark card, a tall art well with the cape's
+   front, then the name and the price / state under it, left aligned. No inner card. */
+.locker-view .locker-cape-grid .locker-tile {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
+  padding: 7px; border-radius: 16px; border: 1px solid var(--ls-line) !important;
+  background: #0f0f11; text-align: left;
+}
+.locker-view .locker-cape-grid .locker-tile::before { display: none; }
+.locker-view .locker-cape-grid .locker-tile:hover:not(.locked) { border-color: rgba(255, 255, 255, 0.2) !important; background: #141417; transform: none; }
+.locker-view .locker-cape-grid .locker-tile.active,
+.locker-view .locker-cape-grid .locker-tile.is-trying { border-color: rgba(255, 255, 255, 0.9) !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9); background: #0f0f11; }
+.locker-view .locker-tile .locker-tile-art {
+  position: relative; display: flex; align-items: center; justify-content: center; height: 168px; overflow: hidden;
+  border-radius: 11px; background: #141416; box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-texture,
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-anim .locker-cape-texture {
+  width: 75px; height: 120px; margin: 0; background-color: transparent; background-size: 480px 240px; background-position: -7.5px -7.5px;
+  border: 0; border-radius: 2px; opacity: 1; image-rendering: pixelated;
+}
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-anim { margin: 0; }
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-anim .locker-cape-canvas { width: 75px; height: 120px; }
+.locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-no-cape { width: 75px; height: 120px; margin: 0; display: grid; place-items: center; border: 1px dashed rgba(255, 255, 255, 0.16); border-radius: 8px; background: transparent; color: var(--fg-muted); }
+.locker-view .locker-cape-grid .locker-tile:hover .locker-tile-art .locker-cape-texture { transform: none; }
+.locker-view .locker-tile .locker-tile-meta { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 11px 8px 6px; }
+.locker-view .locker-tile .locker-tile-meta strong { display: block; min-width: 0; font: 700 13.5px/1.25 var(--font-sans); color: var(--fg-primary-hover, #fff); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.locker-view .locker-tile .locker-tile-price { font: 700 12px/1.2 var(--font-sans); color: var(--fg-secondary); font-variant-numeric: tabular-nums; }
+.locker-view .locker-tile .locker-tile-price.is-paid { color: #fff; font-weight: 800; }
+.locker-view .locker-tile .locker-tile-price.is-free { color: #86efac; }
+.locker-view .locker-tile .locker-tile-price.is-event { color: #c9b0ff; }
+.locker-view .locker-tile .locker-tile-price.is-on { color: #fff; }
+.locker-view .locker-tile .locker-cape-check { top: 15px; right: 15px; }
+.locker-view .locker-tile .locker-cape-lock { top: 15px; left: 15px; }
+.locker-view .locker-cape-grid .locker-tile.locker-shop-card { padding: 7px; gap: 0; }
+.locker-view .locker-cape-grid .locker-tile.locker-shop-card:hover, .locker-view .locker-cape-grid .locker-tile.locker-shop-card:active { transform: none; }
