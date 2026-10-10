@@ -4,7 +4,7 @@ import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3D.jsx';
 import { wornShot } from '../../lib/wornShot.jsx';
 import steveSkin from '../../assets/steve.png';
-import { AdminSwitch, adminCall, usd } from './adminShared.jsx';
+import { AdminCheckbox, AdminColor, AdminNumber, AdminSwitch, adminCall, usd } from './adminShared.jsx';
 
 const PREVIEW_ACCOUNT = { id: 'admin-import-preview', type: 'offline', name: 'Steve', skinUrl: steveSkin, model: 'default', hasCape: false, capeUrl: null };
 const SLOTS = [
@@ -64,7 +64,7 @@ export function PricingModal({ onClose, onDone, onNotify, onAccessRevoked }) {
     <Modal title="Pricing" icon={<DollarSign size={15} />} onClose={onClose}>
       <p className="admin-note">Nothing is free: event-only items are given, never sold. New uploads get an automatic price and offers discount on top.</p>
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
-      <label className="admin-field"><span>Price (USD)</span><input type="number" min={1.99} max={99.99} step={0.01} value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+      <div className="admin-field"><span>Price (USD)</span><AdminNumber min={1.99} max={99.99} step={0.5} suffix="USD" value={price} onChange={(next) => setPrice(String(next))} /></div>
       <div className="admin-row-actions">
         <button type="button" className={`admin-btn primary${armed === 'set' ? ' is-confirm' : ''}`} disabled={!valid || Boolean(busy)} onClick={() => apply('set', value, `Prices updated to ${usd(value)}.`)}>
           {busy === 'set' ? <LoaderCircle size={13} className="is-spinning" /> : <DollarSign size={13} />}{armed === 'set' ? 'Click again to confirm' : `Set everything to ${usd(value)}`}
@@ -186,7 +186,7 @@ export function ImportPackModal({ onClose, onImported, onNotify }) {
               if (!v) return null;
               return (
                 <div key={entry.id} className={`admin-import-row${selected === entry.id ? ' is-selected' : ''}`} onClick={() => setSelected(entry.id)}>
-                  <input type="checkbox" checked={v.on} onChange={(event) => setOpt(entry.id, { on: event.target.checked })} onClick={(event) => event.stopPropagation()} aria-label={`Import ${v.name}`} />
+                  <span onClick={(event) => event.stopPropagation()} title={`Import ${v.name}`}><AdminCheckbox checked={v.on} onChange={(on) => setOpt(entry.id, { on })} /></span>
                   <input className="admin-import-name" value={v.name} maxLength={40} onChange={(event) => setOpt(entry.id, { name: event.target.value })} onClick={(event) => event.stopPropagation()} />
                   <div onClick={(event) => event.stopPropagation()}><Dropdown className="admin-dropdown" value={v.slot} onChange={(slot) => setOpt(entry.id, { slot })} options={SLOTS} /></div>
                 </div>
@@ -200,12 +200,12 @@ export function ImportPackModal({ onClose, onImported, onNotify }) {
             <p className="admin-note">{preview?.info || ''}</p>
             {selected && o && (
               <div className="admin-field-row is-four">
-                <label className="admin-field"><span>Scale</span><input type="number" step={0.05} min={0.1} value={o.scale} onChange={(event) => setOpt(selected, { scale: event.target.value })} /></label>
-                <label className="admin-field"><span>Offset X</span><input type="number" step={0.5} value={o.ox} onChange={(event) => setOpt(selected, { ox: event.target.value })} /></label>
-                <label className="admin-field"><span>Offset Y</span><input type="number" step={0.5} value={o.oy} onChange={(event) => setOpt(selected, { oy: event.target.value })} /></label>
-                <label className="admin-field"><span>Offset Z</span><input type="number" step={0.5} value={o.oz} onChange={(event) => setOpt(selected, { oz: event.target.value })} /></label>
-                {preview?.dyeable && <label className="admin-field"><span>Default dye</span><input type="color" className="admin-color" value={o.dye} onChange={(event) => setOpt(selected, { dye: event.target.value })} /></label>}
-                {o.slot === 'hand' && <label className="admin-field"><span>Side</span><Dropdown className="admin-dropdown" value={o.side} onChange={(side) => setOpt(selected, { side })} options={SIDES} /></label>}
+                <div className="admin-field"><span>Scale</span><AdminNumber step={0.05} min={0.1} max={10} value={o.scale} onChange={(next) => setOpt(selected, { scale: String(next) })} /></div>
+                <div className="admin-field"><span>Offset X</span><AdminNumber step={0.5} min={-64} max={64} value={o.ox} onChange={(next) => setOpt(selected, { ox: String(next) })} /></div>
+                <div className="admin-field"><span>Offset Y</span><AdminNumber step={0.5} min={-64} max={64} value={o.oy} onChange={(next) => setOpt(selected, { oy: String(next) })} /></div>
+                <div className="admin-field"><span>Offset Z</span><AdminNumber step={0.5} min={-64} max={64} value={o.oz} onChange={(next) => setOpt(selected, { oz: String(next) })} /></div>
+                {preview?.dyeable && <div className="admin-field"><span>Default dye</span><AdminColor value={o.dye} onChange={(dye) => setOpt(selected, { dye })} /></div>}
+                {o.slot === 'hand' && <div className="admin-field"><span>Side</span><Dropdown className="admin-dropdown" value={o.side} onChange={(side) => setOpt(selected, { side })} options={SIDES} /></div>}
               </div>
             )}
           </div>
