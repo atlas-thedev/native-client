@@ -223,3 +223,25 @@
 }
 
 .ad-dot.is-active { width: 16px; background: #fff; }
+
+/* The column takes exactly the stage's height and stacks from the bottom, so the ad can never be pushed
+   up under the title bar. When the window is short the banner picture folds away (text-only ad),
+   and on very short windows the ad steps aside so "Jump back in" keeps its room. */
+.home-side-col {
+  align-self: stretch;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  min-height: 0;
+  padding-top: 14px;
+  container-type: size;
+  container-name: home-side;
+}
+.home-side-col > * { flex: none; }
+@container home-side (max-height: 600px) {
+  .ad-media { display: none; }
+  .ad-foot { padding-top: 14px; padding-right: 38px; }
+  .ad-close { top: 50%; right: 8px; translate: 0 -50%; }
+}
+@container home-side (max-height: 425px) {
+  .ad-card { display: none; }
+}
