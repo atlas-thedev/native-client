@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Globe, LoaderCircle, Megaphone, Rocket, RotateCcw, Save, Timer, Wrench } from 'lucide-react';
 import AdminPicker from './AdminPicker.jsx';
-import { AdminSwitch, adminCall, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
+import { AdminDateTime, AdminSegmented, AdminSwitch, adminCall, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const isCosmetic = (item) => item?.kind === 'cosmetic';
 const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'local time'; } })();
@@ -81,7 +81,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
       <div className="admin-overview-grid admin-site-grid">
         <section className="admin-card">
           <div className="admin-card-head"><h3><Timer size={14} />Countdown & locks</h3>{saveBtn(launchDirty, 'launch', () => post({ launch }, 'launch', 'Launch settings saved.'))}</div>
-          <label className="admin-field"><span>Launch date & time</span><input type="datetime-local" value={toLocalInput(launch.at)} onChange={(event) => setL('at', fromLocalInput(event.target.value) ?? launch.at)} /></label>
+          <div className="admin-field"><span>Launch date & time</span><AdminDateTime value={launch.at} onChange={(value) => setL('at', value ?? launch.at)} placeholder="Pick a date" /></div>
           <p className="admin-note">Your time zone ({zone}). The countdown ends here and everything unlocks automatically.</p>
           <div className="admin-beta-switches">
             <AdminSwitch on={launch.prelaunch} onChange={(v) => setL('prelaunch', v)} label="Pre-launch mode" hint="Countdown hero and launch messaging." />
@@ -96,7 +96,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
           <div className="admin-card-head"><h3><Wrench size={14} />Maintenance mode</h3>{saveBtn(maintenanceDirty, 'maintenance', () => post({ maintenance }, 'maintenance', maintenance.enabled ? 'Maintenance is ON.' : 'Maintenance settings saved.'), 'Save')}</div>
           <p className="admin-note">Covers the whole website with a maintenance screen. Admins can still browse, and the sign-in page stays open.</p>
           <AdminSwitch on={maintenance.enabled} onChange={(v) => setMaintenance((current) => ({ ...current, enabled: v }))} label="Maintenance mode" hint={maintenance.enabled ? 'Visitors see the maintenance screen.' : 'The site is open.'} />
-          <label className="admin-field"><span>Back by (optional)</span><input type="datetime-local" value={toLocalInput(maintenance.until)} onChange={(event) => setMaintenance((current) => ({ ...current, until: fromLocalInput(event.target.value) }))} /></label>
+          <div className="admin-field"><span>Back by (optional)</span><AdminDateTime value={maintenance.until} onChange={(value) => setMaintenance((current) => ({ ...current, until: value }))} placeholder="No time given" /></div>
           <label className="admin-field"><span>Message</span><textarea maxLength={280} rows={3} value={maintenance.message || ''} onChange={(event) => setMaintenance((current) => ({ ...current, message: event.target.value }))} /></label>
           {doc.settings.maintenance.enabled && (
             <button type="button" className="admin-btn danger" disabled={Boolean(busy)} onClick={() => post({ maintenance: { enabled: false } }, 'off', 'Maintenance is OFF. The site is open.')}>
@@ -130,11 +130,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
           </div>
           <p className="admin-note">Accounts created before launch pick ONE of these for free (up to 6) — cloaks or cosmetics. Change them any time; players who already picked keep theirs.</p>
           <AdminSwitch on={launch.founderPick} onChange={(v) => setL('founderPick', v)} label="Free founder gift for pre-launch accounts" />
-          <div className="admin-filters">
-            {[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']].map(([id, label]) => (
-              <button key={id} type="button" className={giftKind === id ? 'active' : ''} onClick={() => setGiftKind(id)}>{label}</button>
-            ))}
-          </div>
+          <AdminSegmented value={giftKind} onChange={setGiftKind} options={[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']]} ariaLabel="Gift type" />
           <AdminPicker items={giftable} strips={strips} value={picked} onChange={(v) => setL('founderCapes', v)} max={6} empty={giftKind === 'cosmetic' ? 'No cosmetics in the Store yet.' : 'No Store items yet.'} />
         </section>
       </div>

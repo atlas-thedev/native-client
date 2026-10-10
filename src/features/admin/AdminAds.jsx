@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { ExternalLink, ImagePlus, LoaderCircle, Megaphone, Pause, Pencil, Play, Plus, Save, Trash2, X } from 'lucide-react';
-import { AdminSwitch, adminCall, formatDate, fromLocalInput, toLocalInput, useAdminAction, useConfirm } from './adminShared.jsx';
+import { AdminDateTime, AdminNumber, AdminSelect, AdminSwitch, adminCall, formatDate, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const noButton = () => ({ label: '', action: 'url', value: '' });
 const blank = () => ({ title: '', body: '', image: '', buttons: [{ label: 'Open', action: 'url', value: '' }, noButton()], tag: '', player: false, order: 0, startsAt: null, endsAt: null, enabled: true });
 const SERVER = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d{2,5})?$/i;
+const ACTIONS = [{ value: 'url', label: 'Open a link' }, { value: 'server', label: 'Join a server' }];
 const buttonsOfAd = (ad) => (Array.isArray(ad.buttons) && ad.buttons.length ? ad.buttons : ad.cta ? [{ label: ad.cta, action: 'url', value: ad.url }] : []);
 const filled = (b) => b.label.trim() || b.value.trim();
 const validButton = (b) => b.label.trim() && (b.action === 'server' ? SERVER.test(b.value.trim()) : /^https:\/\//.test(b.value.trim()));
@@ -91,7 +92,7 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
             <label className="admin-field"><span>Title</span><input maxLength={60} placeholder="Join the Native Discord" value={draft.title} onChange={(event) => set('title', event.target.value)} /></label>
             <label className="admin-field"><span>Label (optional)</span><input maxLength={20} placeholder="Partner" value={draft.tag} onChange={(event) => set('tag', event.target.value)} /></label>
             <label className="admin-field is-wide"><span>Text (optional)</span><input maxLength={140} placeholder="Events, giveaways and support." value={draft.body} onChange={(event) => set('body', event.target.value)} /></label>
-            <label className="admin-field is-wide">
+            <div className="admin-field is-wide">
               <span>Banner image (https, 1200×500)</span>
               <span style={{ display: 'flex', gap: 8 }}>
                 <input style={{ flex: 1 }} maxLength={500} placeholder="https://…/banner.png" value={draft.image} onChange={(event) => set('image', event.target.value)} />
@@ -100,23 +101,20 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
                 </button>
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ''; }} />
               </span>
-            </label>
+            </div>
             {draft.buttons.map((b, i) => (
-              <label key={i} className="admin-field is-wide">
+              <div key={i} className="admin-field is-wide">
                 <span>{i === 0 ? 'Main button (also used when the banner is clicked)' : 'Second button (optional)'}</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <input style={{ width: 130 }} maxLength={20} placeholder={i === 0 ? 'Join' : 'Website'} value={b.label} onChange={(event) => setButton(i, 'label', event.target.value)} />
-                  <select style={{ width: 150 }} value={b.action} onChange={(event) => setButton(i, 'action', event.target.value)}>
-                    <option value="url">Open a link</option>
-                    <option value="server">Join a server</option>
-                  </select>
+                  <span className="admin-inline-select"><AdminSelect value={b.action} options={ACTIONS} onChange={(value) => setButton(i, 'action', value)} /></span>
                   <input style={{ flex: 1 }} maxLength={500} placeholder={b.action === 'server' ? 'play.example.net' : 'https://discord.gg/playnative'} value={b.value} onChange={(event) => setButton(i, 'value', event.target.value)} />
                 </span>
-              </label>
+              </div>
             ))}
-            <label className="admin-field"><span>Order</span><input type="number" min={0} max={999} value={draft.order} onChange={(event) => set('order', Number(event.target.value))} /></label>
-            <label className="admin-field"><span>Starts (optional)</span><input type="datetime-local" value={toLocalInput(draft.startsAt)} onChange={(event) => set('startsAt', fromLocalInput(event.target.value))} /></label>
-            <label className="admin-field"><span>Ends (optional)</span><input type="datetime-local" value={toLocalInput(draft.endsAt)} onChange={(event) => set('endsAt', fromLocalInput(event.target.value))} /></label>
+            <div className="admin-field"><span>Order</span><AdminNumber min={0} max={999} value={draft.order} onChange={(value) => set('order', value)} /></div>
+            <div className="admin-field"><span>Starts (optional)</span><AdminDateTime value={draft.startsAt} onChange={(value) => set('startsAt', value)} placeholder="Right away" /></div>
+            <div className="admin-field"><span>Ends (optional)</span><AdminDateTime value={draft.endsAt} onChange={(value) => set('endsAt', value)} placeholder="No end" /></div>
             <AdminSwitch on={draft.enabled} onChange={(v) => set('enabled', v)} label="Enabled" hint="Paused ads never show." />
             <AdminSwitch on={draft.player} onChange={(v) => set('player', v)} label="Show the player’s skin" hint="Draws each user’s own skin, waving, on the right of the banner. Leave that side of the art empty." />
           </div>

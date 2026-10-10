@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LoaderCircle, Pause, Play, Plus, Tag, Trash2 } from 'lucide-react';
 import AdminPicker from './AdminPicker.jsx';
-import { AdminSwitch, adminCall, formatDate, fromLocalInput, toLocalInput, usd, useAdminAction, useConfirm } from './adminShared.jsx';
+import { AdminDateTime, AdminSlider, AdminSwitch, adminCall, formatDate, usd, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const blank = () => ({ title: '', description: '', percent: 20, itemIds: [], startsAt: null, endsAt: null, banner: true, enabled: true });
 
@@ -41,11 +41,11 @@ export default function AdminOffers({ doc, setDoc, items, strips, onNotify, onAc
           </div>
           <div className="admin-form-grid">
             <label className="admin-field"><span>Title</span><input maxLength={60} placeholder="Launch week sale" value={draft.title} onChange={(event) => set('title', event.target.value)} /></label>
-            <label className="admin-field"><span>Discount · {draft.percent}% off ({usd(1.99)} → {usd(example)})</span>
-              <input className="admin-range" type="range" min={1} max={90} value={draft.percent} onChange={(event) => set('percent', Number(event.target.value))} />
-            </label>
-            <label className="admin-field"><span>Starts (optional)</span><input type="datetime-local" value={toLocalInput(draft.startsAt)} onChange={(event) => set('startsAt', fromLocalInput(event.target.value))} /></label>
-            <label className="admin-field"><span>Ends (optional)</span><input type="datetime-local" value={toLocalInput(draft.endsAt)} onChange={(event) => set('endsAt', fromLocalInput(event.target.value))} /></label>
+            <div className="admin-field"><span>Discount · {draft.percent}% off ({usd(1.99)} → {usd(example)})</span>
+              <AdminSlider min={1} max={90} value={draft.percent} onChange={(value) => set('percent', value)} ariaLabel="Discount percent" />
+            </div>
+            <div className="admin-field"><span>Starts (optional)</span><AdminDateTime value={draft.startsAt} onChange={(value) => set('startsAt', value)} placeholder="Right away" /></div>
+            <div className="admin-field"><span>Ends (optional)</span><AdminDateTime value={draft.endsAt} onChange={(value) => set('endsAt', value)} placeholder="No end" /></div>
             <label className="admin-field is-wide"><span>Description (optional)</span><input maxLength={200} value={draft.description} onChange={(event) => set('description', event.target.value)} /></label>
             <AdminSwitch on={draft.banner} onChange={(v) => set('banner', v)} label="Show in the announcement bar" hint="Shown on the website while it’s live." />
             <AdminSwitch on={draft.enabled} onChange={(v) => set('enabled', v)} label="Enabled" hint="Paused offers never apply." />

@@ -5,7 +5,7 @@ import { ItemThumb } from './AdminStore.jsx';
 import { Modal } from './AdminStoreTools.jsx';
 import { RarityBadge, RarityEmblem } from '../store/RarityBadges.jsx';
 import '../store/RarityBadges.css';
-import { AdminSwitch, adminCall, formatDate, formatNumber, fromLocalInput, toLocalInput, useConfirm, usd } from './adminShared.jsx';
+import { AdminColor, AdminDateTime, AdminNumber, AdminSegmented, AdminSlider, AdminSwitch, adminCall, formatDate, formatNumber, fromLocalInput, toLocalInput, useConfirm, usd } from './adminShared.jsx';
 
 // Same colours as the Store's bundle page.
 const RARITIES = [
@@ -269,29 +269,27 @@ function BundleEditor({ initial, isNew, items, strips, maxItems, busy, error, on
                   <RarityEmblem rarity={entry.id} size={16} />{entry.label}
                 </button>
               ))}
-              <label className="admin-bdl-accent" title="Custom colour (leave it to use the rarity colour)">
-                <input type="color" value={color} onChange={set('accent')} />
+              <div className="admin-bdl-accent" title="Custom colour (leave it to use the rarity colour)">
+                <AdminColor value={color} onChange={set('accent')} />
                 <span>{draft.accent ? draft.accent : 'Rarity colour'}</span>
-                {draft.accent && <button type="button" className="admin-icon-btn" aria-label="Use the rarity colour" onClick={(event) => { event.preventDefault(); set('accent')(''); }}><X size={11} /></button>}
-              </label>
+                {draft.accent && <button type="button" className="admin-icon-btn" aria-label="Use the rarity colour" onClick={() => set('accent')('')}><X size={11} /></button>}
+              </div>
             </div>
           </div>
 
           <div className="admin-field">
             <span>Price</span>
             <div className="admin-bdl-pricing">
-              <div className="admin-filters admin-bdl-seg" role="tablist" aria-label="Pricing">
-                {[['discount', 'Discount'], ['fixed', 'Fixed price']].map(([id, label]) => (
-                  <button key={id} type="button" role="tab" aria-selected={draft.pricing === id} className={draft.pricing === id ? 'active' : ''} onClick={() => set('pricing')(id)}>{label}</button>
-                ))}
-              </div>
+              <AdminSegmented value={draft.pricing} onChange={set('pricing')} options={[['discount', 'Discount'], ['fixed', 'Fixed price']]} ariaLabel="Pricing" />
               {draft.pricing === 'discount' ? (
-                <label className="admin-bdl-slider">
-                  <input type="range" min={0} max={90} step={5} value={draft.discount} onChange={(event) => set('discount')(Number(event.target.value))} />
+                <div className="admin-bdl-slider">
+                  <AdminSlider min={0} max={90} step={5} value={draft.discount} onChange={set('discount')} ariaLabel="Discount" />
                   <b>−{draft.discount}%</b>
-                </label>
+                </div>
               ) : (
-                <label className="admin-bdl-fixed">$<input type="number" min={0.5} max={999.99} step={0.01} value={draft.price} onChange={set('price')} placeholder={quote.worth ? quote.worth.toFixed(2) : '4.99'} /></label>
+                <div className="admin-bdl-fixed">
+                  <AdminNumber min={0} max={999.99} step={0.5} suffix="USD" value={draft.price || quote.worth || 4.99} onChange={(value) => set('price')(value > 0 ? String(value) : '')} />
+                </div>
               )}
             </div>
             {fixedTooHigh && <small className="admin-bdl-warn">That’s more than the items cost on their own ({usd(quote.worth)}).</small>}
@@ -310,8 +308,8 @@ function BundleEditor({ initial, isNew, items, strips, maxItems, busy, error, on
           </div>
 
           <div className="admin-field-row">
-            <label className="admin-field"><span>Starts</span><input type="datetime-local" value={draft.startsAt} onChange={set('startsAt')} /></label>
-            <label className="admin-field"><span>Ends</span><input type="datetime-local" value={draft.endsAt} onChange={set('endsAt')} /></label>
+            <div className="admin-field"><span>Starts</span><AdminDateTime value={fromLocalInput(draft.startsAt)} onChange={(value) => set('startsAt')(toLocalInput(value))} placeholder="Right away" /></div>
+            <div className="admin-field"><span>Ends</span><AdminDateTime value={fromLocalInput(draft.endsAt)} onChange={(value) => set('endsAt')(toLocalInput(value))} placeholder="No end" /></div>
           </div>
           <div className="admin-bdl-quick">
             {[['24 hours', 1], ['3 days', 3], ['1 week', 7], ['2 weeks', 14]].map(([label, days]) => (

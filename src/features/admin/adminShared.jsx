@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, ChevronLeft, ChevronRight, Calendar, Minus, Plus, X } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
+import './AdminControls.css';
 
 export const formatNumber = (value) => Number(value || 0).toLocaleString();
 export const plural = (value, noun) => `${formatNumber(value)} ${noun}${Number(value) === 1 ? '' : 's'}`;
@@ -119,6 +120,18 @@ export function useConfirm() {
   return { armed, ask };
 }
 
+/** Closes a popover on an outside click or Escape. */
+function useDismiss(open, setOpen, rootRef) {
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (event) => { if (!rootRef.current?.contains(event.target)) setOpen(false); };
+    const onKey = (event) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open, setOpen, rootRef]);
+}
+
 /* ============================================================
    Custom admin controls. Every picker in the admin panel uses
    these instead of the browser's native widgets.
@@ -170,7 +183,8 @@ export function AdminSegmented({ value, options = [], onChange, ariaLabel }) {
 
 /** Custom number field with − / + steppers (no native spinner). */
 export function AdminNumber({ value, onChange, min = -Infinity, max = Infinity, step = 1, disabled, suffix }) {
-  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const decimals = Math.max(2, (String(step).split('.')[1] || '').length);
+  const clamp = (n) => Number(Math.min(max, Math.max(min, n)).toFixed(decimals));
   const current = Number(value) || 0;
   const [text, setText] = React.useState(String(current));
   React.useEffect(() => { setText(String(Number(value) || 0)); }, [value]);
@@ -190,13 +204,145 @@ export function AdminNumber({ value, onChange, min = -Infinity, max = Infinity, 
         onChange={(event) => setText(event.target.value.replace(/[^0-9.\-]/g, ''))}
         onBlur={(event) => commit(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') commit(event.currentTarget.value);
+          if (event.key === 'Enter') { event.preventDefault(); commit(event.currentTarget.value); }
           else if (event.key === 'ArrowUp') { event.preventDefault(); onChange?.(clamp(current + step)); }
           else if (event.key === 'ArrowDown') { event.preventDefault(); onChange?.(clamp(current - step)); }
         }}
       />
       {suffix && <em>{suffix}</em>}
       <button type="button" aria-label="Increase" disabled={disabled || current >= max} onClick={() => onChange?.(clamp(current + step))}><Plus size={13} /></button>
+    </div>
+  );
+}
+
+/** Custom slider (replaces <input type="range">). Drag, click the track or use the arrow keys. */
+export function AdminSlider({ value, onChange, min = 0, max = 100, step = 1, disabled, ariaLabel, className = '' }) {
+  const current = Math.min(max, Math.max(min, Number(value) || 0));
+  const pct = max > min ? ((current - min) / (max - min)) * 100 : 0;
+  const snap = (raw) => {
+    const snapped = Math.round((raw - min) / step) * step + min;
+    return Math.min(max, Math.max(min, Number(snapped.toFixed(4))));
+  };
+  const fromX = (element, clientX) => {
+    const rect = element.getBoundingClientRect();
+    if (!rect.width) return current;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    return snap(min + ratio * (max - min));
+  };
+  const onPointerDown = (event) => {
+    if (disabled || event.button !== 0) return;
+    event.preventDefault();
+    const element = event.currentTarget;
+    element.focus();
+    element.setPointerCapture?.(event.pointerId);
+    let last = fromX(element, event.clientX);
+    if (last !== current) onChange?.(last);
+    const move = (moveEvent) => {
+      const next = fromX(element, moveEvent.clientX);
+      if (next !== last) { last = next; onChange?.(next); }
+    };
+    const up = () => {
+      element.removeEventListener('pointermove', move);
+      element.removeEventListener('pointerup', up);
+      element.removeEventListener('pointercancel', up);
+    };
+    element.addEventListener('pointermove', move);
+    element.addEventListener('pointerup', up);
+    element.addEventListener('pointercancel', up);
+  };
+  const onKeyDown = (event) => {
+    if (disabled) return;
+    const big = step * 10;
+    const keys = { ArrowRight: current + step, ArrowUp: current + step, ArrowLeft: current - step, ArrowDown: current - step, PageUp: current + big, PageDown: current - big, Home: min, End: max };
+    if (!(event.key in keys)) return;
+    event.preventDefault();
+    const next = snap(keys[event.key]);
+    if (next !== current) onChange?.(next);
+  };
+  return (
+    <div
+      role="slider"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={ariaLabel}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={current}
+      aria-disabled={disabled || undefined}
+      className={`admin-slider${disabled ? ' is-disabled' : ''} ${className}`.trim()}
+      style={{ '--pct': `${pct}%` }}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+    >
+      <span className="admin-slider-track"><span className="admin-slider-fill" /></span>
+      <span className="admin-slider-thumb" />
+    </div>
+  );
+}
+
+const SWATCHES = ['#3d8bff', '#a45cff', '#ffb020', '#ff3d6e', '#3ddc84', '#22d3ee', '#f97316', '#ef4444', '#eab308', '#ec4899', '#ffffff', '#71717a'];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+function hexToHue(hex) {
+  if (!HEX.test(String(hex || ''))) return 0;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const maxC = Math.max(r, g, b);
+  const d = maxC - Math.min(r, g, b);
+  if (!d) return 0;
+  let h = maxC === r ? ((g - b) / d) % 6 : maxC === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = Math.round(h * 60);
+  return h < 0 ? h + 360 : h;
+}
+
+function hueToHex(h, s = 0.85, l = 0.6) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round((l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))) * 255).toString(16).padStart(2, '0');
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/** Custom colour picker (replaces <input type="color">): swatches, a hue slider and a hex field. */
+export function AdminColor({ value, onChange, swatches = SWATCHES, disabled }) {
+  const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef(null);
+  const [text, setText] = React.useState(value || '');
+  React.useEffect(() => { setText(value || ''); }, [value]);
+  useDismiss(open, setOpen, rootRef);
+  const commit = () => {
+    if (HEX.test(text)) { if (text.toLowerCase() !== String(value || '').toLowerCase()) onChange?.(text.toLowerCase()); }
+    else setText(value || '');
+  };
+  const current = String(value || '').toLowerCase();
+  return (
+    <div ref={rootRef} className={`admin-color${open ? ' is-open' : ''}`}>
+      <button type="button" className="admin-color-trigger" disabled={disabled} aria-label="Pick a colour" onClick={() => setOpen((state) => !state)}>
+        <i style={{ background: value || 'transparent' }} />
+      </button>
+      {open && (
+        <div className="admin-color-pop" role="dialog">
+          <div className="admin-color-grid">
+            {swatches.map((swatch) => (
+              <button key={swatch} type="button" aria-label={swatch} className={swatch === current ? 'is-on' : ''} style={{ '--sw': swatch }} onClick={() => onChange?.(swatch)} />
+            ))}
+          </div>
+          <div className="admin-color-row">
+            <span>Hue</span>
+            <AdminSlider className="is-hue" min={0} max={359} value={hexToHue(value)} onChange={(h) => onChange?.(hueToHex(h))} ariaLabel="Hue" />
+          </div>
+          <label className="admin-color-hex">
+            <span>#</span>
+            <input
+              value={String(text).replace(/^#/, '')}
+              maxLength={6}
+              spellCheck={false}
+              onChange={(event) => setText(`#${event.target.value.replace(/[^0-9a-f]/gi, '')}`)}
+              onBlur={commit}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commit(); } }}
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -215,14 +361,7 @@ export function AdminDateTime({ value, onChange, placeholder = 'Not set', disabl
     return new Date(base.getFullYear(), base.getMonth(), 1);
   });
 
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (event) => { if (!rootRef.current?.contains(event.target)) setOpen(false); };
-    const onKey = (event) => { if (event.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
+  useDismiss(open, setOpen, rootRef);
 
   const base = valid ? date : null;
   const hours = base ? base.getHours() : 12;

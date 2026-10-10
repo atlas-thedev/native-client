@@ -3,7 +3,7 @@ import { Check, Copy, Crown, Gift, LoaderCircle, LogOut, Search, Shirt, ShieldCh
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import { ItemThumb } from './AdminStore.jsx';
-import { InitialAvatar, Presence, adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
+import { AdminSegmented, InitialAvatar, Presence, adminError, formatAgo, formatDate, formatNumber } from './adminShared.jsx';
 
 function Stat({ label, value, title }) {
   return <div className="admin-stat" title={title}><dt>{label}</dt><dd>{value}</dd></div>;
@@ -213,11 +213,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
         <div className="admin-attach">
           <div className="admin-attach-head">
             <span><Gift size={13} />Give an item</span>
-            <div className="admin-filters">
-              {[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']].map(([id, label]) => (
-                <button key={id} type="button" className={pickerKind === id ? 'active' : ''} onClick={() => setPickerKind(id)}>{label}</button>
-              ))}
-            </div>
+            <AdminSegmented value={pickerKind} onChange={setPickerKind} options={[['all', 'All'], ['cape', 'Cloaks'], ['cosmetic', 'Cosmetics']]} ariaLabel="Item kind" />
             <label className="admin-search is-small"><Search size={12} /><input value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder="Find a cloak or cosmetic" aria-label="Find an item to give" /></label>
           </div>
           {!items ? <p className="admin-note"><LoaderCircle size={12} className="is-spinning" /> Loading Store cloaks…</p>
