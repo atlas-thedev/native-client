@@ -179,6 +179,11 @@ function ownerCounts() {
   try {
     for (const row of sql().prepare('SELECT item_id, COUNT(*) AS n FROM store_owned GROUP BY item_id').all()) counts.set(row.item_id, Number(row.n));
   } catch {}
+  // how many players have each item on their wishlist
+  counts.wish = new Map();
+  try {
+    for (const row of sql().prepare('SELECT item_id, COUNT(*) AS n FROM store_wishlist GROUP BY item_id').all()) counts.wish.set(row.item_id, Number(row.n));
+  } catch {}
   return counts;
 }
 
@@ -430,6 +435,7 @@ function publicItem(item, textureBase, counts) {
       ...(item.dyeable && item.dyeBase ? { dyeable: true, dyeDefault: item.dyeDefault || null, dyeColors: dyeColorsOf(item), dyeUrl: `${textureBase.replace(/\/csl\/textures\/$/, '')}/v1/store/items/${encodeURIComponent(item.id)}/dye/` } : {})
     } : { kind: 'cape' }),
     owners: counts ? (counts.get(item.id) || 0) : undefined,
+    wishes: counts && counts.wish ? (counts.wish.get(item.id) || 0) : undefined,
     createdAt: Number(item.createdAt) || 0
   };
 }
