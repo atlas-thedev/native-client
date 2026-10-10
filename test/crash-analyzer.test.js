@@ -190,3 +190,20 @@ test('Mixin "Error loading class" warnings are not blamed as a version mismatch'
   const r = analyzeCrash({ log, exitCode: 3221225477, instance: { ...instance, version: '26.3' }, mods: [mod('native.jar', 'native', 'Native Client')] });
   assert.ok(!r.issues.some((issue) => issue.id === 'version-mismatch'));
 });
+
+test('native exit code is not blamed on a background network timeout', () => {
+  const log = [
+    '[10:51:02] [Render thread/INFO]: Loaded 13 mods',
+    '[10:51:10] [Download-3/ERROR]: Failed to fetch texture',
+    'java.util.concurrent.CompletionException: java.net.SocketTimeoutException: Read timed out',
+    '\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)',
+    '\tat java.base/java.lang.Thread.run(Unknown Source)',
+    'Caused by: java.net.SocketTimeoutException: Read timed out',
+    '\tat java.base/sun.nio.ch.NioSocketImpl.timedRead(Unknown Source)'
+  ].join('\n');
+  const r = analyzeCrash({ log, exitCode: 3221226505, instance, mods: [] });
+  const primary = r.issues[0];
+  assert.doesNotMatch(primary.title, /SocketTimeout/);
+  assert.doesNotMatch(primary.explanation, /Read timed out/);
+  assert.match(primary.explanation, /Stack buffer overrun/);
+});

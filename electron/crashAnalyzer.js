@@ -530,6 +530,13 @@ function vendorOf(text) {
 
 /* ------------------------------------------------------------ exit codes */
 
+/** Exceptions a worker thread logs and survives (network hiccups): never the reason a process died. */
+function isBackgroundNoise(exception) {
+  const type = String(exception?.type || '');
+  return /(?:SocketTimeout|Connect|UnknownHost|NoRouteToHost|Socket|SSL(?:Handshake)?|HttpTimeout|ClosedChannel|EOF)Exception$/.test(type)
+    || /^java\.net\./.test(type);
+}
+
 function exitMeaning(code) {
   if (code === null || code === undefined) return null;
   const n = Number(code);
@@ -1514,14 +1521,20 @@ function analyzeCrash(input = {}) {
   if (!issues.length) {
     const vendor = facts.gpuVendor;
     const nativeExit = /native|driver|overlay/i.test(meaning || '');
+    // A native exit code means the process died in native code. A network timeout or similar that some
+    // background thread logged earlier (skin downloads, a mod's HTTP call) did not cause that, so it must
+    // not become the headline ("crashed with SocketTimeoutException").
+    const cause = nativeExit && root && isBackgroundNoise(root) ? null : root;
     issues.push({
       id: 'unknown', category: nativeExit ? 'graphics' : 'game', severity: 'critical', confidence: nativeExit ? 50 : 30,
       title: facts.description && !/^Unexpected error$/i.test(facts.description)
         ? `Minecraft crashed: ${facts.description}`
-        : root ? `Minecraft crashed with ${root.type.split('.').pop()}` : 'Minecraft closed unexpectedly',
-      explanation: [meaning, root?.message ? `Error: ${root.message.slice(0, 200)}` : null,
+        : cause ? `Minecraft crashed with ${cause.type.split('.').pop()}`
+          : nativeExit ? 'Minecraft crashed in native code' : 'Minecraft closed unexpectedly',
+      explanation: [meaning, cause?.message ? `Error: ${cause.message.slice(0, 200)}` : null,
+        nativeExit ? 'Update your graphics driver and turn off overlays (Discord, MSI Afterburner/RTSS, GeForce Experience, OBS game capture). If it keeps happening, share the log.' : null,
         !meaning && !root ? 'No error was written before the game closed. Launch again. If it repeats, share the log so someone can take a look.' : null].filter(Boolean).join(' '),
-      evidence: root ? [root.index] : [], culprits: [],
+      evidence: cause ? [cause.index] : [], culprits: [],
       fixes: nativeExit && vendor ? [{ ...Fix.openUrl(DRIVER_LINKS[vendor].url, `Get the latest ${DRIVER_LINKS[vendor].name} driver`, 'Opens the official download page') }] : []
     });
     issues[0].fixes.forEach((fix) => { fix.id = fixId(fix); });
