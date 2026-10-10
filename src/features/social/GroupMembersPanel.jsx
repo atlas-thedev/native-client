@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Settings, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
-import { openProfile } from '../profile/ProfileModal.jsx';
+import { openProfile } from '../profile/ProfilePage.jsx';
 import RelayAvatar from './RelayAvatar.jsx';
 import './GroupMembersPanel.css';
 

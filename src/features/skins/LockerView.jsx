@@ -2,11 +2,12 @@ import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Shirt, Sparkles, Star, Store, Trash2, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Shirt, Star, Store, Trash2, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
+import CosmeticsIcon from '../../components/ui/CosmeticsIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
-import { openProfile } from '../profile/ProfileModal.jsx';
+import { openProfile } from '../profile/ProfilePage.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import { loadStoreCape, peekStoreCape } from '../../lib/storeCapeCache.js';
@@ -440,6 +441,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
   }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Cosmetics load a moment after they're put on: re-frame so a tall hat never gets cut off at the top.
+  const wornKey = (wornCosmetics || []).map((entry) => `${entry?.slot || ''}:${entry?.id || entry?.model?.id || ''}:${entry?.side || ''}`).join('|');
+  useEffect(() => {
+    const timers = [250, 900, 2000].map((ms) => setTimeout(() => camRef.current?.refit?.(), ms));
+    return () => timers.forEach(clearTimeout);
+  }, [wornKey, viewerTick]);
   // Mouse wheel / trackpad zoom on the stage.
   useEffect(() => {
     const el = stageRef.current;
@@ -1008,7 +1015,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><div><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><button type="button" onClick={() => zoomBy(1 / 1.25)} disabled={!zoomState.out} title="Zoom out"><ZoomOut size={16}/></button><button type="button" onClick={() => zoomBy(1.25)} disabled={!zoomState.in} title="Zoom in"><ZoomIn size={16}/></button></div><div><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <div className="locker-switch-tabs"><PixelTabs fill label="Locker sections" value={section} onChange={switchSection} items={[{ id: 'skins', label: 'Skins', icon: <Shirt size={15}/>, count: skinItems.length || null }, { id: 'cosmetics', label: 'Cosmetics', icon: <Sparkles size={15}/>, count: storeCapes.length || null }]}/></div>
+        <div className="locker-switch-tabs"><PixelTabs fill label="Locker sections" value={section} onChange={switchSection} items={[{ id: 'skins', label: 'Skins', icon: <Shirt size={15}/>, count: skinItems.length || null }, { id: 'cosmetics', label: 'Cosmetics', icon: <CosmeticsIcon size={16}/>, count: storeCapes.length || null }]}/></div>
         <div className="locker-panels">
           {leaving && leaving !== section && <div key={`out-${leaving}`} className={`locker-panel is-leaving to-${section === 'cosmetics' ? 'left' : 'right'}`} aria-hidden="true" onAnimationEnd={(event) => { if (event.target === event.currentTarget) setLeaving(null); }}>{leaving === 'skins' ? renderSkins() : renderCosmetics()}</div>}
           <div key={`in-${section}`} className={`locker-panel ${leaving ? `is-entering from-${section === 'cosmetics' ? 'right' : 'left'}` : ''}`} role="tabpanel">{section === 'skins' ? renderSkins() : renderCosmetics()}</div>

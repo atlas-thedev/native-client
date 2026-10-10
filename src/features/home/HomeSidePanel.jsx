@@ -25,7 +25,7 @@ const KNOWN_NETWORKS = {
 
 const hostOf = (address) => String(address || '').replace(/:25565$/, '');
 const rootDomain = (address) => hostOf(address).toLowerCase().split(':')[0].split('.').slice(-2).join('.');
-const serverName = (address) => KNOWN_NETWORKS[rootDomain(address)] || hostOf(address);
+export const serverName = (address) => KNOWN_NETWORKS[rootDomain(address)] || hostOf(address);
 
 function ago(timestamp) {
   if (!timestamp) return '';
@@ -109,7 +109,7 @@ function cachedServer(store, address) {
   return sibling ? { favicon: sibling[1].favicon } : null;
 }
 
-function useServerStatus(addresses) {
+export function useServerStatus(addresses) {
   const key = addresses.join('|');
   const [status, setStatus] = useState(() => {
     const store = readStore();

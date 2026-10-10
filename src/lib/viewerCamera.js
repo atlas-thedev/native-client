@@ -7,6 +7,8 @@
  *   cam.fly(SHOTS.hats); cam.zoomBy(1.2); cam.reset(); cam.dispose();
  */
 
+import { Box3 } from 'three';
+
 /** [target height, zoom] per part of the player (skinview3d units, fov 42). */
 export const SHOTS = {
   all: [-1, 0.68],
@@ -55,6 +57,34 @@ export function createCamera(viewer) {
     state.frame = requestAnimationFrame(step);
   };
 
+  /**
+   * Wide shots keep the whole player in the picture, tall hats and balloons included: the shot is moved up
+   * (and pulled back if needed) until the player's bounding box fits. Close-ups are left alone.
+   */
+  const fit = (shot) => {
+    if (!shot || shot[1] > 0.9 || !viewer?.playerObject) return shot;
+    try {
+      const T = Math.tan((viewer.fov / 360) * Math.PI);
+      const halfFor = (zoom) => 4.5 * T + 16.5 / zoom;
+      viewer.playerObject.updateWorldMatrix(true, true);
+      const box = new Box3().setFromObject(viewer.playerObject);
+      if (!Number.isFinite(box.max.y) || !Number.isFinite(box.min.y)) return shot;
+      const top = box.max.y + 2, bottom = box.min.y - 2;
+      let [y, zoom] = shot;
+      let half = halfFor(zoom);
+      if (top - bottom > half * 2) {
+        half = (top - bottom) / 2;
+        zoom = Math.max(MIN_ZOOM, 16.5 / Math.max(1, half - 4.5 * T));
+        half = halfFor(zoom);
+      }
+      if (y + half < top) y = top - half;
+      if (y - half > bottom) y = Math.max(shot[0], bottom + half);
+      return [y, zoom];
+    } catch {
+      return shot;
+    }
+  };
+
   const clampUser = (value) => Math.min(MAX_ZOOM / state.shot[1], Math.max(MIN_ZOOM / state.shot[1], value));
 
   return {
@@ -63,16 +93,23 @@ export function createCamera(viewer) {
       state.shot = shot;
       if (resetZoom) state.user = 1;
       state.user = clampUser(state.user);
-      ease(shot[0], shot[1] * state.user, duration);
+      const framed = fit(shot);
+      ease(framed[0], framed[1] * state.user, duration);
+    },
+    /** Re-frame the current shot (e.g. after a cosmetic loaded), keeping the user's zoom. */
+    refit(duration = 400) {
+      const framed = fit(state.shot);
+      ease(framed[0], framed[1] * state.user, duration);
     },
     /** Zoom in (>1) or out (<1) by a factor. */
     zoomBy(factor, { animate = true } = {}) {
       state.user = clampUser(state.user * factor);
-      ease(state.shot[0], state.shot[1] * state.user, animate ? 320 : 0);
+      const framed = fit(state.shot);
+      ease(framed[0], framed[1] * state.user, animate ? 320 : 0);
     },
     canZoomIn: () => state.shot[1] * state.user < MAX_ZOOM - 0.01,
     canZoomOut: () => state.shot[1] * state.user > MIN_ZOOM + 0.01,
-    reset() { state.user = 1; ease(state.shot[0], state.shot[1], 500); },
+    reset() { state.user = 1; const framed = fit(state.shot); ease(framed[0], framed[1], 500); },
     dispose() { state.dead = true; cancelAnimationFrame(state.frame); }
   };
 }

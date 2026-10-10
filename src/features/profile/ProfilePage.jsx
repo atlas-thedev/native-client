@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AtSign, CalendarDays, Clock3, Copy, Check, ExternalLink, Eye, Gamepad2, History, Link2, LoaderCircle,
+  AtSign, ArrowLeft, CalendarDays, Clock3, Copy, Check, ExternalLink, Eye, Gamepad2, History, Link2, LoaderCircle,
   MessageSquare, Pencil, Plus, Shirt, Trash2, UserRound, Users, X
 } from 'lucide-react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import RelayAvatar from '../social/RelayAvatar.jsx';
 import { BADGE_DEFS, getUserBadges, isPlusUser, PlusMark } from '../social/Badges.jsx';
 import { formatPlaytime } from '../instances/playtimeStats.js';
-import './ProfileModal.css';
+import { PixelButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
+import './ProfilePage.css';
 
 /** Anywhere in the app: window.dispatchEvent(new CustomEvent(OPEN_PROFILE_EVENT, { detail })) */
 export const OPEN_PROFILE_EVENT = 'native:open-profile';
@@ -43,22 +44,13 @@ const relative = (stamp) => {
   return formatDate(stamp);
 };
 
-/** A stable banner colour per player, like Discord's default banners. */
-function bannerFor(name, plus) {
-  if (plus) return 'linear-gradient(120deg, #6d3cff 0%, #b45cff 55%, #ff7ad9 100%)';
-  let hash = 0;
-  for (const ch of String(name || '').toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  const hue = hash % 360;
-  return `linear-gradient(120deg, hsl(${hue} 62% 42%) 0%, hsl(${(hue + 40) % 360} 58% 30%) 100%)`;
-}
-
 function Stat({ icon: Icon, label, value, hint }) {
   return (
-    <div className="pf-stat" title={hint || undefined}>
-      <span className="pf-stat-icon"><Icon size={15} /></span>
-      <div className="pf-stat-text">
-        <span className="pf-stat-label">{label}</span>
-        <strong className="pf-stat-value">{value ?? '—'}</strong>
+    <div className="pp-stat" title={hint || undefined}>
+      <span className="pp-stat-icon"><Icon size={15} /></span>
+      <div className="pp-stat-text">
+        <span className="pp-stat-label">{label}</span>
+        <strong className="pp-stat-value">{value ?? '—'}</strong>
       </div>
     </div>
   );
@@ -159,7 +151,7 @@ function NameEditor({ account, profile, onRenamed }) {
   );
 }
 
-export default function ProfileModal({ target, account, selfStats, onClose, onMessage, onAccountsChanged }) {
+export default function ProfilePage({ target, account, selfStats, onClose, onMessage, onAccountsChanged }) {
   const [profile, setProfile] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -193,7 +185,7 @@ export default function ProfileModal({ target, account, selfStats, onClose, onMe
   }, [name, isSelf, load]);
 
   useEffect(() => {
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
     const onKey = (event) => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -229,149 +221,137 @@ export default function ProfileModal({ target, account, selfStats, onClose, onMe
     setName(next);
   };
 
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: <UserRound size={14} /> },
+    { id: 'names', label: 'Name history', icon: <History size={14} />, count: profile?.names?.length > 1 ? profile.names.length : null },
+    { id: 'skins', label: 'Skins', icon: <Shirt size={14} />, count: profile?.skins?.length || null }
+  ];
+
   return (
-    <div className="pf-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pf-card" role="dialog" aria-modal="true" aria-label={`${displayName} profile`} tabIndex={-1} ref={dialogRef}>
-        <div className="pf-scroll">
-        <div className="pf-banner" style={{ background: bannerFor(displayName, plus) }}>
-          <button type="button" className="pf-close" onClick={onClose} aria-label="Close profile"><X size={16} /></button>
+    <div className="pp-view" role="region" aria-label={`${displayName} profile`} tabIndex={-1} ref={dialogRef}>
+      <header className="pp-header">
+        <div className="pp-header-copy">
+          <button type="button" className="pp-back" onClick={onClose}><ArrowLeft size={14} />Back</button>
+          <h1 className="pp-title page-title">{isSelf ? 'My profile' : 'Profile'}</h1>
+          <p className="pp-subtitle">{isSelf ? 'What your friends see when they open your profile.' : `@${displayName} on Native.`}</p>
         </div>
+        <div className="pp-header-actions">
+          {profile?.uuid && <PixelButton variant="ghost" icon={copied ? <Check size={15} /> : <Copy size={15} />} label={copied ? 'Copied' : 'Copy UUID'} title={profile.uuid} onClick={copyUuid} />}
+          {isSelf && profile?.native && <PixelButton variant={editing ? 'primary' : 'ghost'} icon={editing ? <Check size={15} /> : <Pencil size={15} />} label={editing ? 'Done' : 'Edit profile'} onClick={() => { setTab('overview'); setEditing((v) => !v); }} />}
+          {!isSelf && onMessage && target?.canMessage && <PixelButton icon={<MessageSquare size={15} />} label="Message" onClick={() => onMessage(target)} />}
+        </div>
+      </header>
 
-        <div className="pf-layout">
-          <aside className="pf-side">
-            <div className="pf-model">
-              {skinUrl || profile ? (
-                <SkinViewer3D key={skinUrl || displayName} account={viewerAccount} cosmetics={isSelf ? target?.cosmetics || null : null} width={190} height={260} animation="idle" zoom={0.8} />
-              ) : (
-                <RelayAvatar name={displayName} size={96} />
-              )}
+      <div className="pp-workspace">
+        <section className="pp-card pp-identity" aria-label="Player">
+          <div className="pp-stage">
+            {skinUrl || profile ? (
+              <SkinViewer3D key={skinUrl || displayName} account={viewerAccount} cosmetics={isSelf ? target?.cosmetics || null : null} width={260} height={330} animation="idle" zoom={0.78} />
+            ) : (
+              <RelayAvatar name={displayName} size={96} />
+            )}
+          </div>
+          <div className="pp-names">
+            <div className="pp-name-row">
+              <h2 title={nickname || displayName}>{nickname || displayName}</h2>
+              {plus && <PlusMark size={18} />}
             </div>
-            {profile?.uuid && (
-              <button type="button" className="pf-uuid" onClick={copyUuid} title="Copy UUID">
-                {copied ? <Check size={12} /> : <Copy size={12} />}<span>{profile.uuid}</span>
-              </button>
-            )}
-          </aside>
-
-          <section className="pf-main">
-            <header className="pf-head">
-              <div className="pf-names">
-                <div className="pf-name-row">
-                  <h2>{nickname || displayName}</h2>
-                  {plus && <PlusMark size={20} />}
-                  {isSelf && <span className="pf-chip is-self">You</span>}
-                </div>
-                <div className="pf-sub-row">
-                  <span className="pf-handle">@{displayName}</span>
-                  {accountKind && <span className={`pf-chip is-${accountKind.toLowerCase()}`}>{accountKind}</span>}
-                </div>
-              </div>
-              <div className="pf-head-actions">
-                {!isSelf && onMessage && target?.canMessage && (
-                  <button type="button" className="pf-primary-btn" onClick={() => onMessage(target)}><MessageSquare size={14} />Message</button>
-                )}
-                {isSelf && profile?.native && (
-                  <button type="button" className={`pf-ghost-btn${editing ? ' is-active' : ''}`} onClick={() => setEditing((v) => !v)}><Pencil size={13} />{editing ? 'Done' : 'Edit profile'}</button>
-                )}
-              </div>
-            </header>
-
-            {badges.length > 0 && (
-              <div className="pf-badges">
-                {badges.map((key) => (
-                  <span key={key} className="pf-badge" title={BADGE_DEFS[key].description} style={{ '--pf-badge': BADGE_DEFS[key].gradient }}>
-                    <span className="pf-badge-icon">{BADGE_DEFS[key].icon}</span>
-                    {BADGE_DEFS[key].name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <nav className="pf-tabs" role="tablist">
-              {[['overview', 'Overview', UserRound], ['names', 'Name history', History], ['skins', 'Skins', Shirt]].map(([id, label, Icon]) => (
-                <button key={id} type="button" role="tab" aria-selected={tab === id} className={`pf-tab${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>
-                  <Icon size={13} />{label}
-                  {id === 'names' && profile?.names?.length > 1 && <span className="pf-tab-count">{profile.names.length}</span>}
-                  {id === 'skins' && profile?.skins?.length > 0 && <span className="pf-tab-count">{profile.skins.length}</span>}
-                </button>
+            <div className="pp-sub-row">
+              <span className="pp-handle">@{displayName}</span>
+              {accountKind && <span className={`pp-chip is-${accountKind.toLowerCase()}`}>{accountKind}</span>}
+              {isSelf && <span className="pp-chip is-self">You</span>}
+            </div>
+          </div>
+          {badges.length > 0 && (
+            <div className="pp-badges">
+              {badges.map((key) => (
+                <span key={key} className="pp-badge" title={BADGE_DEFS[key].description} style={{ '--pp-badge': BADGE_DEFS[key].gradient }}>
+                  <span className="pp-badge-icon">{BADGE_DEFS[key].icon}</span>
+                  {BADGE_DEFS[key].name}
+                </span>
               ))}
-            </nav>
-
-            <div className="pf-body">
-              {status === 'loading' && !profile ? (
-                <div className="pf-skeleton" aria-label="Loading profile">
-                  <div className="pf-skel-grid">{Array.from({ length: 6 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 90}ms` }} />)}</div>
-                  <span className="pf-skel-line" /><span className="pf-skel-line is-short" />
-                </div>
-              ) : status === 'error' ? (
-                <div className="pf-empty">
-                  <p>{error}</p>
-                  <button type="button" className="pf-ghost-btn" onClick={() => load(name)}>Try again</button>
-                </div>
-              ) : tab === 'overview' ? (
-                editing && isSelf ? (
-                  <div className="pf-edit-stack">
-                    <NameEditor account={account} profile={profile} onRenamed={onRenamed} />
-                    <AboutEditor about={profile || {}} onCancel={() => setEditing(false)} onSaved={(about) => { setProfile((p) => ({ ...p, ...about })); setEditing(false); }} />
-                  </div>
-                ) : (
-                  <>
-                    <div className="pf-stats">
-                      <Stat icon={Clock3} label="Playtime" value={playtimeSecs != null ? formatPlaytime(playtimeSecs) : null} hint={isSelf ? 'Counted by the launcher' : 'Reported by their launcher'} />
-                      <Stat icon={Gamepad2} label="Sessions" value={sessions != null ? sessions.toLocaleString() : null} />
-                      <Stat icon={CalendarDays} label="Member since" value={formatDate(profile?.joinedAt || seed?.memberSince) || (profile?.native ? 'Early member' : '—')} />
-                      <Stat icon={History} label="Last played" value={relative(lastPlayed) || '—'} />
-                      <Stat icon={Users} label="Friends" value={profile?.native ? (profile?.friends ?? 0).toLocaleString() : '—'} />
-                      <Stat icon={Eye} label="Profile views" value={(profile?.views ?? 0).toLocaleString()} />
-                    </div>
-
-                    <div className="pf-section">
-                      <span className="pf-label">About me</span>
-                      {profile?.bio ? <p className="pf-bio">{profile.bio}</p> : <p className="pf-muted">{isSelf ? 'Add a few words about yourself with Edit profile.' : 'Nothing here yet.'}</p>}
-                    </div>
-
-                    {profile?.links?.length > 0 && (
-                      <div className="pf-section">
-                        <span className="pf-label">Links</span>
-                        <div className="pf-links">
-                          {profile.links.map((link, i) => (
-                            /^https?:/i.test(link.url) ? (
-                              <button key={i} type="button" className="pf-link" onClick={() => window.native?.openExternal?.(link.url)}><Link2 size={13} />{LINK_LABEL[link.type] || 'Link'}</button>
-                            ) : (
-                              <span key={i} className="pf-link is-static"><AtSign size={13} />{link.url}</span>
-                            )
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )
-              ) : tab === 'names' ? (
-                profile?.names?.length ? (
-                  <ol className="pf-names-list">
-                    {profile.names.map((entry, i) => (
-                      <li key={`${entry.name}-${entry.at}`} className={i === 0 ? 'is-current' : ''}>
-                        <strong>{entry.name}</strong>
-                        <span>{i === 0 ? 'Current' : formatDate(entry.at)}</span>
-                      </li>
-                    ))}
-                  </ol>
-                ) : <p className="pf-muted">No earlier names.</p>
-              ) : (
-                profile?.skins?.length ? (
-                  <div className="pf-skins">
-                    {profile.skins.map((skin) => (
-                      <div key={skin.hash} className={`pf-skin${skin.hash === profile.current?.hash ? ' is-current' : ''}`} title={`Worn ${formatDate(skin.firstSeen) || ''}`}>
-                        <RelayAvatar name={`${displayName}:${skin.hash}`} skinUrl={skin.url} size={52} />
-                        <span>{skin.hash === profile.current?.hash ? 'Current' : relative(skin.lastSeen)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="pf-muted">No skins recorded yet.</p>
-              )}
             </div>
+          )}
+        </section>
+
+        <div className="pp-main">
+          <section className="pp-card pp-stats" aria-label="Stats">
+            {status === 'loading' && !profile
+              ? Array.from({ length: 6 }, (_, i) => <span key={i} className="pp-stat is-skeleton" style={{ animationDelay: `${i * 90}ms` }} />)
+              : (
+                <>
+                  <Stat icon={Clock3} label="Playtime" value={playtimeSecs != null ? formatPlaytime(playtimeSecs) : null} hint={isSelf ? 'Counted by the launcher' : 'Reported by their launcher'} />
+                  <Stat icon={Gamepad2} label="Sessions" value={sessions != null ? sessions.toLocaleString() : null} />
+                  <Stat icon={History} label="Last played" value={relative(lastPlayed) || '—'} />
+                  <Stat icon={CalendarDays} label="Member since" value={formatDate(profile?.joinedAt || seed?.memberSince) || (profile?.native ? 'Early member' : '—')} />
+                  <Stat icon={Users} label="Friends" value={profile?.native ? (profile?.friends ?? 0).toLocaleString() : '—'} />
+                  <Stat icon={Eye} label="Profile views" value={(profile?.views ?? 0).toLocaleString()} />
+                </>
+              )}
           </section>
-        </div>
+
+          <div className="pp-tabs"><PixelTabs fill size="sm" label="Profile sections" value={tab} onChange={(id) => { setTab(id); if (id !== 'overview') setEditing(false); }} items={tabs} /></div>
+
+          <section className="pp-card pp-body">
+            {status === 'loading' && !profile ? (
+              <div className="pp-skeleton" aria-label="Loading profile"><span /><span className="is-short" /></div>
+            ) : status === 'error' ? (
+              <div className="pp-empty">
+                <p>{error}</p>
+                <PixelButton variant="ghost" label="Try again" onClick={() => load(name)} />
+              </div>
+            ) : tab === 'overview' ? (
+              editing && isSelf ? (
+                <div className="pf-edit-stack">
+                  <NameEditor account={account} profile={profile} onRenamed={onRenamed} />
+                  <AboutEditor about={profile || {}} onCancel={() => setEditing(false)} onSaved={(about) => { setProfile((p) => ({ ...p, ...about })); setEditing(false); }} />
+                </div>
+              ) : (
+                <>
+                  <div className="pp-section">
+                    <h3 className="pp-label">About me</h3>
+                    {profile?.bio ? <p className="pp-bio">{profile.bio}</p> : <p className="pp-muted">{isSelf ? 'Add a few words about yourself with Edit profile.' : 'Nothing here yet.'}</p>}
+                  </div>
+                  {profile?.links?.length > 0 && (
+                    <div className="pp-section">
+                      <h3 className="pp-label">Links</h3>
+                      <div className="pp-links">
+                        {profile.links.map((link, i) => (
+                          /^https?:/i.test(link.url) ? (
+                            <button key={i} type="button" className="pp-link" onClick={() => window.native?.openExternal?.(link.url)}><Link2 size={13} />{LINK_LABEL[link.type] || 'Link'}<ExternalLink size={11} className="pp-link-out" /></button>
+                          ) : (
+                            <span key={i} className="pp-link is-static"><AtSign size={13} />{link.url}</span>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            ) : tab === 'names' ? (
+              profile?.names?.length ? (
+                <ol className="pp-names-list">
+                  {profile.names.map((entry, i) => (
+                    <li key={`${entry.name}-${entry.at}`} className={i === 0 ? 'is-current' : ''}>
+                      <strong>{entry.name}</strong>
+                      <span>{i === 0 ? 'Current' : formatDate(entry.at)}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="pp-muted">No earlier names.</p>
+            ) : (
+              profile?.skins?.length ? (
+                <div className="pp-skins">
+                  {profile.skins.map((skin) => (
+                    <div key={skin.hash} className={`pp-skin${skin.hash === profile.current?.hash ? ' is-current' : ''}`} title={`Worn ${formatDate(skin.firstSeen) || ''}`}>
+                      <RelayAvatar name={`${displayName}:${skin.hash}`} skinUrl={skin.url} size={52} />
+                      <span>{skin.hash === profile.current?.hash ? 'Current' : relative(skin.lastSeen)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="pp-muted">No skins recorded yet.</p>
+            )}
+          </section>
         </div>
       </div>
     </div>

@@ -702,12 +702,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         return <PixelButton variant="gold" size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<NativePlusIcon size={15} />} label={compact ? 'Plus' : 'Add with Native+'} title="Included with Native+" onClick={stop(() => claim(item))} />;
       }
       if (!billing.enabled) {
-        return <PixelButton variant="locked" size={size} block={block} label={`$${nowPrice(item).toFixed(2)} · soon`} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
+        return <PixelButton variant="locked" size={size} block={block} label={compact ? 'Soon' : 'Payments soon'} title="Payments are switched on soon." onClick={(event) => event.stopPropagation()} />;
       }
       if (pending?.itemId === item.id) {
         return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : payLabel} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
-      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={onSale(item) ? `Buy $${nowPrice(item).toFixed(2)} · −${salePercent(item)}%` : `Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
+      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={compact ? 'Buy' : `Buy for $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
     if (!owned) {
       return <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label={compact ? 'Add' : 'Add to locker'} title="Add to your locker" onClick={stop(() => claim(item))} />;
@@ -857,8 +857,18 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             : <OwnedMark className="store-card-owned" />)}
         </div>
         <div className="store-card-meta">
-          <div className={`store-card-title${onSale(item) ? ' has-sale' : ''}`}><strong title={item.name}>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}${onSale(item) ? ' is-on-sale' : ''}`}>{renderPrice(item)}</span></div>
-          <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
+          <strong className="store-card-name" title={item.name}>{item.name}</strong>
+          <div className="store-card-sub">
+            <span className={`store-card-price${item.exclusive ? ' is-exclusive' : ''}${!item.paid && !item.exclusive ? ' is-free' : ''}`}>
+              {owned ? <span className="store-card-price-owned">Owned</span> : (
+                <>
+                  <b>{priceOf(item)}</b>
+                  {onSale(item) && <s>${(Number(item.price) || 0).toFixed(2)}</s>}
+                </>
+              )}
+            </span>
+            <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
+          </div>
         </div>
         <div className="store-card-action">{actionFor(item, true)}</div>
       </article>

@@ -911,3 +911,6 @@
 .locker-set-card .locker-skin-preview { position: relative; }
 .locker-set-card .locker-set-shot { position: static; height: 146px; width: auto; max-width: 100%; scale: 1; translate: none; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)); }
 .locker-set-card .locker-set-shot.is-loading { width: 40px; height: 100px; border-radius: 8px; }
+
+/* Header actions sit in one row at the bottom right, next to each other (not stacked). */
+.locker-header > .locker-header-actions { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

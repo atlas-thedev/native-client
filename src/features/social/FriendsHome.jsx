@@ -5,6 +5,7 @@ import {
   Clock,
   MessageSquare,
   MoreVertical,
+  Play,
   Search,
   Trash2,
   UserCheck,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import Badges from './Badges.jsx';
+import { PresenceInline, readActivity } from './PresenceCard.jsx';
 import './FriendsHome.css';
 
 export default function FriendsHome({
@@ -23,7 +25,8 @@ export default function FriendsHome({
   selfId,
   initialTab = 'online',
   onOpenChat,
-  onNotify
+  onNotify,
+  onJoinServer
 }) {
   const [activeTab, setActiveTab] = useState(initialTab); // 'online' | 'all' | 'pending' | 'blocked' | 'add'
   const [searchQuery, setSearchQuery] = useState('');
@@ -329,11 +332,16 @@ export default function FriendsHome({
                         <Badges user={friend} size={15} />
                       </div>
                       <span className={`native-friend-activity ${isPlaying ? 'is-playing' : ''}`}>
-                        {friend.activity || (status === 'offline' ? 'Offline' : 'In Launcher')}
+                        {isPlaying ? <PresenceInline user={friend} /> : (status === 'offline' ? 'Offline' : 'In Launcher')}
                       </span>
                     </div>
 
                     <div className="native-friend-card-actions" onClick={(e) => e.stopPropagation()}>
+                      {isPlaying && onJoinServer && readActivity(friend).kind === 'server' && (
+                        <button type="button" className="native-friend-join" onClick={() => onJoinServer(friend)} title={`Join ${friend.serverAddress}`}>
+                          <Play size={12} fill="currentColor" />Join
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="native-friend-icon-btn"

@@ -3,6 +3,7 @@ import { BadgeCheck, Ban, CalendarDays, Check, Copy, Server, UserRound, Users, T
 import RelayAvatar from './RelayAvatar.jsx';
 import Badges, { getUserBadges, isPlusUser, PlusMark } from './Badges.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
+import PresenceCard from './PresenceCard.jsx';
 import './UserProfilePanel.css';
 
 const formatMemberDate = (stamp) => {
@@ -19,6 +20,7 @@ export default function UserProfilePanel({
   isSelf = false,
   onClose,
   onOpenProfile,
+  onJoinServer,
   onUnfriend,
   onBlock,
   onClearHistory
@@ -107,22 +109,19 @@ export default function UserProfilePanel({
 
         {user.minecraft?.name && <ConnectionsBlock minecraft={user.minecraft} />}
 
-        {/* Activity */}
+        {/* Activity: rich presence (server icon, players, Join) while they play */}
         <div className="np-block">
           <span className="np-label">Activity</span>
-          <div className={`np-card np-activity ${isPlaying ? 'is-playing' : ''}`}>
-                        <div className="np-activity-text">
-              <strong>{isPlaying ? (presence?.text || 'In-game') : (isOnline ? 'In Launcher' : 'Not playing')}</strong>
-              {isPlaying && presence?.serverAddress ? (
-                <span className="np-activity-sub">
-                  <Server size={11} />
-                  {presence.serverAddress}
-                </span>
-              ) : (
-                <span className="np-activity-sub">{isPlaying ? 'Minecraft' : 'No active game'}</span>
-              )}
+          {isPlaying ? (
+            <PresenceCard user={{ ...user, status, activity: user.activity || presence?.text, serverAddress: user.serverAddress || presence?.serverAddress }} onJoin={!isSelf && onJoinServer && (user.serverAddress || presence?.serverAddress) ? onJoinServer : null} />
+          ) : (
+            <div className="np-card np-activity">
+              <div className="np-activity-text">
+                <strong>{isOnline ? 'In Launcher' : 'Not playing'}</strong>
+                <span className="np-activity-sub">{isOnline ? 'Not in a game right now' : 'No active game'}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Details */}

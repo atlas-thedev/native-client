@@ -27,7 +27,7 @@ import {
   Ban,
   X
 } from 'lucide-react';
-import { openProfile } from '../profile/ProfileModal.jsx';
+import { openProfile } from '../profile/ProfilePage.jsx';
 import RelayAvatar from './RelayAvatar.jsx';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
 import useRelayGroups from './useRelayGroups.js';
@@ -38,6 +38,7 @@ import ThreadRow from './ThreadRow.jsx';
 import { ReplyComposerBar } from './ReplyPreview.jsx';
 import Badges, { isPlusUser } from './Badges.jsx';
 import UserProfilePanel from './UserProfilePanel.jsx';
+import { activityLine } from './PresenceCard.jsx';
 import GroupMembersPanel from './GroupMembersPanel.jsx';
 import FriendsHome from './FriendsHome.jsx';
 import { EmojiPicker, GifPicker, useDismiss } from './ComposerPickers.jsx';
@@ -440,7 +441,8 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     if (status === 'in-game' || status === 'in-menus') {
       return {
         status: 'in-game',
-        text: entity.activity || (entity.serverAddress ? `Playing on ${entity.serverAddress}` : 'Playing Minecraft'),
+        text: activityLine(entity) || 'Playing Minecraft',
+        serverAddress: entity.serverAddress || null,
         color: '#d9a6da'
       };
     }
@@ -1668,6 +1670,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
             selfId={selfId}
             onOpenChat={(friendId) => handleSelectThread({ id: friendId, kind: 'dm' })}
             onNotify={onNotify}
+            onJoinServer={onJoinServer}
           />
         )}
       </main>
@@ -1696,6 +1699,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
           isGroup={isGroupThread}
           onClose={() => setShowProfilePanel(false)}
           onOpenProfile={(user) => openProfile({ name: user.name, user, self: false })}
+          onJoinServer={onJoinServer ? (user) => onJoinServer(user) : undefined}
           onUnfriend={async (id) => {
             await social?.unfriend?.(id);
             setSelectedId(null);

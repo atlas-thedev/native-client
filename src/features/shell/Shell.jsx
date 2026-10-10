@@ -11,7 +11,7 @@ import LockerView from '../skins/LockerView.jsx';
 import StoreView from '../store/StoreView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
-import ProfileModal, { OPEN_PROFILE_EVENT } from '../profile/ProfileModal.jsx';
+import ProfilePage, { OPEN_PROFILE_EVENT } from '../profile/ProfilePage.jsx';
 import { summarizeLibrary } from '../instances/playtimeStats.js';
 import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
 import FriendContextMenu from '../social/FriendContextMenu.jsx';
@@ -375,6 +375,7 @@ export default function Shell({
     window.addEventListener(OPEN_PROFILE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PROFILE_EVENT, onOpen);
   }, []);
+  useEffect(() => { setProfileTarget(null); }, [currentTab]);
   const selfStats = useMemo(() => summarizeLibrary(instancesManager.instances || []), [instancesManager.instances]);
 
   /* Playtime lives in the launcher; the profile shows it to friends too. */
@@ -584,6 +585,7 @@ export default function Shell({
 
   const handleSelectTab = (tab) => {
     if (!leaveInstancePage()) return;
+    setProfileTarget(null); // the profile page closes when you go to any page (the same one included)
     if (tab === 'relay' && currentTab !== 'relay') social?.setActiveChatFriend?.(null);
     if (tab !== 'settings') {
       setPreviousTab(currentTab === 'settings' ? 'home' : currentTab);
@@ -599,6 +601,7 @@ export default function Shell({
 
   const handleOpenSettings = (initialTab = 'launcher') => {
     if (!leaveInstancePage()) return;
+    setProfileTarget(null);
     if (currentTab !== 'settings') {
       setPreviousTab(currentTab);
     }
@@ -934,21 +937,21 @@ export default function Shell({
             account={account}
           />
         )}
+          {profileTarget && (
+            <ProfilePage
+              target={profileTarget}
+              account={profileTarget.self ? account : null}
+              selfStats={profileTarget.self ? selfStats : null}
+              onClose={() => setProfileTarget(null)}
+              onMessage={(target) => {
+                setProfileTarget(null);
+                openRelayTarget({ kind: 'dm', threadId: target.user?.id });
+              }}
+              onAccountsChanged={() => window.dispatchEvent(new Event('native:accounts-changed'))}
+            />
+          )}
       </div>
 
-      {profileTarget && (
-        <ProfileModal
-          target={profileTarget}
-          account={profileTarget.self ? account : null}
-          selfStats={profileTarget.self ? selfStats : null}
-          onClose={() => setProfileTarget(null)}
-          onMessage={(target) => {
-            setProfileTarget(null);
-            openRelayTarget({ kind: 'dm', threadId: target.user?.id });
-          }}
-          onAccountsChanged={() => window.dispatchEvent(new Event('native:accounts-changed'))}
-        />
-      )}
 
       <NotificationDrawer
         open={notificationsOpen}
