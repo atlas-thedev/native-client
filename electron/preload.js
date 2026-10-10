@@ -283,7 +283,8 @@ const api = {
     list: (options) => ipcRenderer.invoke('news:list', options)
   },
   server: {
-    ping: (address) => ipcRenderer.invoke('server:ping', address)
+    ping: (address) => ipcRenderer.invoke('server:ping', address),
+    promoted: (options) => ipcRenderer.invoke('server:promoted', options)
   },
   social: {
     getFriends: () => ipcRenderer.invoke('social:getFriends'),

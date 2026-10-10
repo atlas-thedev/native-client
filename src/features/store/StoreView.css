@@ -541,3 +541,21 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-viewer-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
 .store-viewer-stage .store-viewer-nav { bottom: 60px; }
 .store-viewer-stage .store-viewer-hint { bottom: 64px; }
+
+/* ── sale pricing ──────────────────────────────────────────────────── */
+.store-sale-badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+  background: #e5484d; color: #fff; font: 800 11px/1 var(--font-sans, inherit); letter-spacing: 0.01em;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.store-price.is-on-sale { display: inline-flex; align-items: baseline; gap: 5px; border-color: rgba(229, 72, 77, 0.5); color: var(--fg-primary-hover, #fff); }
+.store-price-was { color: var(--fg-muted); font-weight: 600; text-decoration: line-through; }
+.store-price-now { font-weight: 800; }
+.store-sale-pct { color: #ff8a8d; font-weight: 800; }
+.shop-price strong.is-on-sale { display: inline-flex; align-items: baseline; gap: 8px; }
+.shop-price strong.is-on-sale .store-price-was { font-size: 0.62em; }
+.store-offer-note { display: block; margin-top: 4px; color: #ff8a8d; font: 600 12px var(--font-sans); font-style: normal; }
+
+/* Badges never run under the wishlist heart, and wrap on narrow cards. */
+.store-card-badges { flex-wrap: wrap; max-width: calc(100% - 46px); }
+.store-card-title { gap: 6px; }

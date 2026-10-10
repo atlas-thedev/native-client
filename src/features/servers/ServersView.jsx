@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Play, Search, Signal, Users, X } from 'lucide-react';
+import { Check, Copy, Play, Search, Signal, Sparkles, Users, X } from 'lucide-react';
 import { SERVERS, SERVER_CATEGORIES } from '../../data/servers.js';
+import Dropdown from '../../components/ui/Dropdown.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './ServersView.css';
 
-/* Servers: a curated list of public servers with live status. Play launches
-   the chosen instance and joins the server straight away. */
+/* Servers: a curated list of public servers with live status, plus any
+   servers the backend promotes. Play launches the chosen instance and joins
+   the server straight away. */
 
 const STORE_KEY = 'native.servers.status';
 const TTL = 5 * 60 * 1000;
@@ -46,8 +48,39 @@ function olderThan(version, min) {
 
 const instanceVersion = (instance) => instance?.mc_version || instance?.version || '';
 
+/** Promoted servers come from the backend (Admin → Servers) and pin to the top. */
+function usePromotedServers() {
+  const [promoted, setPromoted] = useState([]);
+  useEffect(() => {
+    const load = window.native?.server?.promoted;
+    if (!load) return undefined;
+    let cancelled = false;
+    load()
+      .then((res) => {
+        if (cancelled || !Array.isArray(res?.servers)) return;
+        setPromoted(res.servers
+          .filter((entry) => entry?.address)
+          .map((entry) => ({
+            name: entry.name || entry.address,
+            address: String(entry.address).toLowerCase(),
+            description: entry.description || '',
+            categories: ['featured'],
+            min: entry.min || '1.8',
+            region: entry.tag || 'Partner',
+            icon: entry.iconUrl || null,
+            website: entry.website || '',
+            promoted: true
+          })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return promoted;
+}
+
 function useServerStatus(servers) {
   const [status, setStatus] = useState(() => readStore());
+  const addresses = useMemo(() => servers.map((server) => server.address).join('|'), [servers]);
   useEffect(() => {
     const ping = window.native?.server?.ping;
     if (!ping) return undefined;
@@ -83,47 +116,56 @@ function useServerStatus(servers) {
     return () => {
       cancelled = true;
     };
-  }, [servers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses]);
   return status;
 }
 
-function ServerCard({ server, live, onPlay, onCopy, copied }) {
+/** One server as a single inline row — denser and easier to scan than cards. */
+function ServerRow({ server, live, onPlay, onCopy, copied }) {
   const icon = live?.favicon || server.icon || unknownIcon;
   const players = live?.players;
+  const tags = server.promoted
+    ? [server.region]
+    : [`${server.min}+`, server.region, ...server.categories.filter((id) => id !== 'featured').slice(0, 1)
+        .map((id) => SERVER_CATEGORIES.find((c) => c.id === id)?.label || id)];
+
   return (
-    <article className="srv-card">
-      <div className="srv-card-top">
-        <img className="srv-icon" src={icon} alt="" draggable="false" />
-        <div className="srv-ident">
+    <article className={`srv-row${server.promoted ? ' is-promoted' : ''}`}>
+      <img className="srv-row-icon" src={icon} alt="" draggable="false" />
+
+      <div className="srv-row-main">
+        <div className="srv-row-title">
           <h3>{server.name}</h3>
+          {server.promoted && (
+            <span className="srv-badge-promoted"><Sparkles size={10} />Promoted</span>
+          )}
+          <span className={`srv-state${live ? (live.online ? ' is-online' : ' is-offline') : ''}`}>
+            <i />
+            {live ? (live.online ? 'Online' : 'Offline') : '\u2026'}
+          </span>
+        </div>
+        <p className="srv-row-desc">{server.description}</p>
+        <div className="srv-row-meta">
           <button type="button" className="srv-address" onClick={() => onCopy(server.address)} title="Copy address">
             <span>{server.address}</span>
-            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? <Check size={11} /> : <Copy size={11} />}
           </button>
+          {tags.filter(Boolean).map((tag) => (
+            <span className="srv-tag" key={tag}>{tag}</span>
+          ))}
         </div>
-        <span className={`srv-state${live ? (live.online ? ' is-online' : ' is-offline') : ''}`}>
-          <i />
-          {live ? (live.online ? 'Online' : 'Offline') : '\u2026'}
-        </span>
       </div>
-      <p className="srv-desc">{server.description}</p>
-      <div className="srv-tags">
-        <span className="srv-tag is-version">{server.min}+</span>
-        <span className="srv-tag">{server.region}</span>
-        {server.categories.filter((id) => id !== 'featured').slice(0, 2).map((id) => (
-          <span key={id} className="srv-tag">{SERVER_CATEGORIES.find((c) => c.id === id)?.label || id}</span>
-        ))}
+
+      <div className="srv-row-stats">
+        <span><Users size={13} />{players != null ? numberFormat.format(players) : '\u2014'}</span>
+        <span><Signal size={13} />{live?.latency != null ? `${live.latency} ms` : '\u2014'}</span>
       </div>
-      <div className="srv-card-foot">
-        <div className="srv-stats">
-          <span><Users size={13} />{players != null ? numberFormat.format(players) : '\u2014'}</span>
-          <span><Signal size={13} />{live?.latency != null ? `${live.latency} ms` : '\u2014'}</span>
-        </div>
-        <button type="button" className="srv-play" onClick={() => onPlay(server)}>
-          <Play size={13} fill="currentColor" />
-          Play
-        </button>
-      </div>
+
+      <button type="button" className="srv-play" onClick={() => onPlay(server)}>
+        <Play size={13} fill="currentColor" />
+        Play
+      </button>
     </article>
   );
 }
@@ -160,25 +202,37 @@ export default function ServersView({ instances = [], selectedInstance = null, o
   const [copied, setCopied] = useState('');
   const [pending, setPending] = useState(null);
   const copyTimer = useRef(null);
-  const status = useServerStatus(SERVERS);
+
+  const promoted = usePromotedServers();
+  // Promoted entries win over a curated duplicate of the same address.
+  const allServers = useMemo(() => {
+    const taken = new Set(promoted.map((server) => server.address));
+    return [...promoted, ...SERVERS.filter((server) => !taken.has(server.address))];
+  }, [promoted]);
+  const status = useServerStatus(allServers);
 
   useEffect(() => {
     if (!instanceId && selectedInstance?.id) setInstanceId(selectedInstance.id);
   }, [selectedInstance, instanceId]);
 
   const instance = instances.find((item) => item.id === instanceId) || selectedInstance || instances[0] || null;
+  const instanceOptions = useMemo(
+    () => instances.map((item) => ({ value: item.id, label: `${item.name} · ${instanceVersion(item)}` })),
+    [instances]
+  );
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const list = SERVERS.filter((server) => {
+    const list = allServers.filter((server) => {
       if (category !== 'all' && !server.categories.includes(category)) return false;
       if (!needle) return true;
       return `${server.name} ${server.address} ${server.description}`.toLowerCase().includes(needle);
     });
-    // Busiest first once live numbers arrive; offline servers sink.
+    // Promoted first, then busiest; offline servers sink.
     return list
       .map((server, index) => ({ server, index }))
       .sort((a, b) => {
+        if (Boolean(a.server.promoted) !== Boolean(b.server.promoted)) return a.server.promoted ? -1 : 1;
         const la = status[a.server.address];
         const lb = status[b.server.address];
         const oa = la ? (la.online ? 0 : 1) : 0;
@@ -190,11 +244,11 @@ export default function ServersView({ instances = [], selectedInstance = null, o
         return a.index - b.index;
       })
       .map(({ server }) => server);
-  }, [query, category, status]);
+  }, [query, category, status, allServers]);
 
   const totalPlayers = useMemo(
-    () => SERVERS.reduce((sum, server) => sum + (status[server.address]?.online ? status[server.address].players || 0 : 0), 0),
-    [status]
+    () => allServers.reduce((sum, server) => sum + (status[server.address]?.online ? status[server.address].players || 0 : 0), 0),
+    [status, allServers]
   );
 
   const copy = (address) => {
@@ -227,19 +281,21 @@ export default function ServersView({ instances = [], selectedInstance = null, o
         <div>
           <h1>Servers</h1>
           <p className="srv-subtitle">
-            {SERVERS.length} popular servers
+            {allServers.length} popular servers
             {totalPlayers > 0 ? ` \u00b7 ${numberFormat.format(totalPlayers)} players online now` : ''}
           </p>
         </div>
         {instances.length > 0 && (
-          <label className="srv-instance">
+          <div className="srv-instance">
             <span>Play with</span>
-            <select value={instance?.id || ''} onChange={(event) => setInstanceId(event.target.value)}>
-              {instances.map((item) => (
-                <option key={item.id} value={item.id}>{item.name} · {instanceVersion(item)}</option>
-              ))}
-            </select>
-          </label>
+            <Dropdown
+              className="srv-instance-dropdown"
+              value={instance?.id || ''}
+              options={instanceOptions}
+              onChange={(value) => setInstanceId(value)}
+              placeholder="Choose instance"
+            />
+          </div>
         )}
       </header>
 
@@ -268,9 +324,9 @@ export default function ServersView({ instances = [], selectedInstance = null, o
       {visible.length === 0 ? (
         <div className="srv-empty">No servers match “{query}”.</div>
       ) : (
-        <div className="srv-grid">
+        <div className="srv-list">
           {visible.map((server) => (
-            <ServerCard
+            <ServerRow
               key={server.address}
               server={server}
               live={status[server.address]}

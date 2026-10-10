@@ -14,6 +14,7 @@
  *   GET  /v1/admin/site                  settings + overview numbers
  *   POST /v1/admin/site                  { launch?, maintenance?, announcement?, beta? } partial update
  *   POST /v1/admin/site/offers           create an offer        PATCH/DELETE /v1/admin/site/offers/:id
+ *   POST /v1/admin/site/servers          promote a server       PATCH/DELETE /v1/admin/site/servers/:id
  *   POST /v1/admin/site/prices           { price, itemIds? }  set the price of many capes at once
  *   GET  /v1/admin/polls                 every vote with full results
  *   POST /v1/admin/polls                 create (options may be Store items: { itemId })
@@ -45,7 +46,8 @@ const DEFAULTS = () => ({
   maintenance: { enabled: false, message: 'We’re upgrading Native. Back very soon.', until: null },
   announcement: { enabled: false, text: '', href: '', cta: '' },
   beta: { open: true, closesAt: null, maxTesters: 0 },
-  offers: []
+  offers: [],
+  servers: []
 });
 
 let ready = false;
@@ -90,6 +92,7 @@ function settings() {
       try { v = JSON.parse(row.value); } catch {}
       if (v == null) continue;
       if (row.key === 'offers') base.offers = Array.isArray(v) ? v : [];
+      else if (row.key === 'servers') base.servers = Array.isArray(v) ? v : [];
       else if (base[row.key] && typeof v === 'object') base[row.key] = { ...base[row.key], ...v };
     }
   } catch (error) { console.warn('[Native Site] settings:', error.message); }
@@ -280,6 +283,65 @@ function offerFrom(b, prev = {}) {
   return o;
 }
 
+/* ── promoted servers ──────────────────────────────────────────────── *
+ * Partner/featured servers pinned to the top of the launcher's server
+ * browser. Shape mirrors offers: editable in admin, filtered on the way out. */
+
+const serverLive = (sv, now = Date.now()) =>
+  sv && sv.enabled && (!sv.startsAt || sv.startsAt <= now) && (!sv.endsAt || sv.endsAt > now);
+
+function serverFrom(b, prev = {}) {
+  const sv = { ...prev };
+  if (b.name !== undefined || !prev.id) sv.name = clean(b.name, 48);
+  if (!sv.name || sv.name.length < 2) throw new Error('Give the server a name.');
+  if (b.address !== undefined || !prev.id) {
+    const address = clean(b.address, 120).toLowerCase();
+    if (!/^[a-z0-9.\-_]+(:\d{1,5})?$/.test(address)) throw new Error('Enter a valid server address.');
+    sv.address = address;
+  }
+  if (b.description !== undefined) sv.description = clean(b.description, 160);
+  if (b.tag !== undefined) sv.tag = clean(b.tag, 24);
+  if (b.iconUrl !== undefined) {
+    const icon = clean(b.iconUrl, 300);
+    if (icon && !/^https:\/\//.test(icon)) throw new Error('Icon links must start with https://.');
+    sv.iconUrl = icon;
+  }
+  if (b.website !== undefined) {
+    const site = clean(b.website, 300);
+    if (site && !/^https:\/\//.test(site)) throw new Error('Website links must start with https://.');
+    sv.website = site;
+  }
+  if (b.order !== undefined || !prev.id) {
+    const n = Math.round(Number(b.order ?? 0));
+    sv.order = Number.isFinite(n) ? Math.max(0, Math.min(999, n)) : 0;
+  }
+  if (b.startsAt !== undefined) { const t = timeOf(b.startsAt); if (t === undefined) throw new Error('Invalid start date.'); sv.startsAt = t; }
+  if (b.endsAt !== undefined) { const t = timeOf(b.endsAt); if (t === undefined) throw new Error('Invalid end date.'); sv.endsAt = t; }
+  if (sv.startsAt && sv.endsAt && sv.endsAt <= sv.startsAt) throw new Error('The promotion must end after it starts.');
+  sv.enabled = bool(b.enabled, prev.id ? prev.enabled : true);
+  return sv;
+}
+
+const publicServer = (sv) => ({
+  id: sv.id,
+  name: sv.name,
+  address: sv.address,
+  description: sv.description || '',
+  tag: sv.tag || '',
+  iconUrl: sv.iconUrl || '',
+  website: sv.website || '',
+  order: sv.order || 0,
+  promoted: true
+});
+
+function liveServers() {
+  const now = Date.now();
+  return settings().servers
+    .filter((sv) => serverLive(sv, now))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name)))
+    .map(publicServer);
+}
+
 /* ── http ──────────────────────────────────────────────────────────── */
 
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
@@ -299,7 +361,8 @@ function publicConfig() {
     maintenance: s.maintenance,
     announcement: s.announcement,
     beta: { open: Boolean(s.beta.open) && (!s.beta.closesAt || Date.now() < Number(s.beta.closesAt)), closesAt: s.beta.closesAt || null },
-    offers: s.offers.filter((o) => offerLive(o)).map(publicOffer)
+    offers: s.offers.filter((o) => offerLive(o)).map(publicOffer),
+    servers: liveServers()
   };
 }
 
@@ -365,6 +428,23 @@ async function handleSiteRoutes(req, res, ctx) {
         if (!prev) return fail(404, 'That offer does not exist.');
         if (req.method === 'PATCH') save('offers', list.map((o) => (o.id === prev.id ? offerFrom(body, prev) : o)));
         else if (req.method === 'DELETE') save('offers', list.filter((o) => o.id !== prev.id));
+        else return fail(405, 'Method not allowed.');
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
+      if (p === '/v1/admin/site/servers' && req.method === 'POST') {
+        const sv = { id: ID(), createdAt: Date.now(), ...serverFrom(body) };
+        save('servers', [...settings().servers, sv].slice(0, 50));
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
+      const sm = p.match(/^\/v1\/admin\/site\/servers\/([a-f0-9]{6,24})$/);
+      if (sm) {
+        const list = settings().servers;
+        const prev = list.find((sv) => sv.id === sm[1]);
+        if (!prev) return fail(404, 'That server does not exist.');
+        if (req.method === 'PATCH') save('servers', list.map((sv) => (sv.id === prev.id ? serverFrom(body, prev) : sv)));
+        else if (req.method === 'DELETE') save('servers', list.filter((sv) => sv.id !== prev.id));
         else return fail(405, 'Method not allowed.');
         send(res, 200, adminDoc(), noStore);
         return true;
@@ -499,4 +579,4 @@ async function handleSiteRoutes(req, res, ctx) {
 /** Test hook. */
 function resetCache() { cache = null; ready = false; }
 
-module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, founderCapes, resetCache };
+module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, liveServers, publicServer, founderCapes, resetCache };

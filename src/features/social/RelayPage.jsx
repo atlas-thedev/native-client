@@ -207,7 +207,10 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
   const [previewMediaModal, setPreviewMediaModal] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [showProfilePanel, setShowProfilePanel] = useState(false);
+  // The right-hand profile panel is part of the default Relay layout, so it
+  // starts open instead of hiding behind the toolbar toggle.
+  const [showProfilePanel, setShowProfilePanel] = useState(true);
+  const [showSelfProfile, setShowSelfProfile] = useState(false);
 
   const [sending, setSending] = useState(false);
 
@@ -1036,7 +1039,20 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     { key: 'direct', label: 'Direct messages', list: directList, empty: 'No direct messages', grouped: false }
   ];
 
-  const hasProfilePanel = Boolean(activeEntity && showProfilePanel);
+  // Your own profile, rendered through the same panel the friend view uses.
+  const selfUser = useMemo(() => {
+    if (!account) return null;
+    return {
+      ...account,
+      id: selfId || account.id,
+      name: account.name || account.username || 'You',
+      nickname: account.nickname || account.displayName || account.name || 'You',
+      skinUrl: account.skinUrl || account.avatarUrl || null,
+      memberSince: account.memberSince || account.createdAt || null
+    };
+  }, [account, selfId]);
+
+  const hasProfilePanel = Boolean((activeEntity && showProfilePanel) || (showSelfProfile && selfUser));
   const liveActiveGroup = useMemo(
     () => withLivePresence(relayGroups.activeGroup, social?.friends || [], selfId, selfPresence),
     [relayGroups.activeGroup, social?.friends, selfId, selfPresence]
@@ -1060,6 +1076,16 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
               title={social?.isRealtime ? 'Realtime connected' : `Realtime ${social?.streamStatus || 'offline'}`}
               data-testid="relay-live-indicator"
             />
+            <button
+              type="button"
+              className={`relay-inbox-btn relay-self-btn ${showSelfProfile ? 'is-active' : ''}`}
+              data-testid="relay-self-profile-btn"
+              onClick={() => setShowSelfProfile((open) => !open)}
+              title={showSelfProfile ? 'Hide your profile' : 'Your profile'}
+              aria-pressed={showSelfProfile}
+            >
+              <UserSquare2 size={15} />
+            </button>
             <button
               type="button"
               className="relay-inbox-btn"
@@ -1613,7 +1639,14 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         )}
       </main>
 
-      {activeEntity && isGroupThread && showProfilePanel ? (
+      {showSelfProfile && selfUser ? (
+        <UserProfilePanel
+          user={selfUser}
+          presence={selfPresence}
+          isSelf
+          onClose={() => setShowSelfProfile(false)}
+        />
+      ) : activeEntity && isGroupThread && showProfilePanel ? (
         <GroupMembersPanel
           group={liveActiveGroup || activeEntity}
           selfId={selfId}

@@ -179,8 +179,37 @@ async function ping(address) {
   }
 }
 
-function init(_deps, ipcMain) {
-  ipcMain.handle('server:ping', (_e, address) => ping(address));
+/* ── promoted servers ───────────────────────────────────────── *
+ * Partner servers the backend pins to the top of the server browser.
+ * Cached briefly so switching tabs doesn't re-hit the API. */
+
+const PROMOTED_API = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.fun').replace(/\/+$/, '');
+const PROMOTED_TTL = 5 * 60_000;
+let promotedCache = { at: 0, servers: [] };
+
+async function promoted(force = false) {
+  const now = Date.now();
+  if (!force && promotedCache.at && now - promotedCache.at < PROMOTED_TTL) {
+    return { ok: true, servers: promotedCache.servers, cached: true };
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${PROMOTED_API}/v1/site/config`, { signal: controller.signal });
+    clearTimeout(timer);
+    const body = await res.json();
+    const servers = Array.isArray(body?.servers) ? body.servers : [];
+    promotedCache = { at: now, servers };
+    return { ok: true, servers };
+  } catch (error) {
+    // Offline or the API is down: keep showing whatever we fetched last.
+    return { ok: false, servers: promotedCache.servers, error: String(error?.message || error) };
+  }
 }
 
-module.exports = { init, ping, cleanMotd, parseAddress };
+function init(_deps, ipcMain) {
+  ipcMain.handle('server:ping', (_e, address) => ping(address));
+  ipcMain.handle('server:promoted', (_e, options) => promoted(Boolean(options?.force)));
+}
+
+module.exports = { init, ping, promoted, cleanMotd, parseAddress };

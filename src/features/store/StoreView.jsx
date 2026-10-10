@@ -27,6 +27,14 @@ export const featuredCapes = (items = []) => items
 
 /** What an item costs right now: the offer price while a sale runs, otherwise the list price. */
 const nowPrice = (item) => { const sale = Number(item?.salePrice); return Number.isFinite(sale) && sale > 0 && item?.salePrice != null ? sale : Number(item?.price) || 0; };
+/** True while a live offer actually lowers this item's price. */
+const onSale = (item) => Boolean(item?.paid) && !item?.exclusive && nowPrice(item) < (Number(item?.price) || 0);
+/** How much is off right now, rounded the way the offer was written. */
+const salePercent = (item) => {
+  const listed = Number(item?.price) || 0;
+  if (!onSale(item) || !listed) return 0;
+  return Number(item?.offer?.percent) || Math.round(((listed - nowPrice(item)) / listed) * 100);
+};
 /** 3D cosmetics (hats, glasses, back items, shoes) live in their own store sections. */
 const shotModelOf = (model) => (model === 'slim' ? 'slim' : model === 'classic' ? 'default' : 'auto-detect');
 export const isCosmetic = (item) => item?.kind === 'cosmetic';
@@ -257,8 +265,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   const ownedIds = useMemo(() => new Set(me.owned.map((entry) => entry.id)), [me.owned]);
   const wishIds = useMemo(() => new Set((me.wishlist || []).map((entry) => entry.id)), [me.wishlist]);
+  // "In my locker" and "Wishlist" are personal lists, not category browsing:
+  // they look across every section so nothing hides behind the current tab.
+  const crossSection = filter === 'owned' || filter === 'wish';
   const items = useMemo(() => {
-    const list = (catalog?.items || []).filter((item) => section === 'all' || sectionOf(item) === section);
+    const list = (catalog?.items || []).filter((item) => crossSection || section === 'all' || sectionOf(item) === section);
     const q = query.trim().toLowerCase();
     const filtered = list.filter((item) => {
       if (q && !`${item.name} ${item.description} ${(item.tags || []).join(' ')} ${item.author} ${SECTION_LABELS[sectionOf(item)] || ''}`.toLowerCase().includes(q)) return false;
@@ -277,7 +288,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       name: (a, b) => a.name.localeCompare(b.name)
     }[sort];
     return sort === 'featured' ? filtered : [...filtered].sort(by);
-  }, [catalog, query, filter, sort, ownedIds, wishIds, section]);
+  }, [catalog, query, filter, sort, ownedIds, wishIds, section, crossSection]);
 
   // when (almost) everything is new the badge and the "Just added" shelf are noise
   const movesMean = useMemo(() => { const all = catalog?.items || []; return all.filter(moves).length <= all.length * 0.4; }, [catalog]);
@@ -696,7 +707,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       if (pending?.itemId === item.id) {
         return <PixelButton variant="ghost" size={size} block={block} icon={spin} label={compact ? 'Waiting…' : payLabel} title="Waiting for your payment. Click to stop waiting." onClick={stop(() => setPending(null))} />;
       }
-      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={`Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
+      return <PixelButton size={size} block={block} disabled={locked} busy={busy === `buy:${item.id}`} busyIcon={spin} icon={<ShoppingBag size={15} />} label={onSale(item) ? `Buy $${nowPrice(item).toFixed(2)} · −${salePercent(item)}%` : `Buy $${nowPrice(item).toFixed(2)}`} onClick={stop(() => buy(item))} />;
     }
     if (!owned) {
       return <PixelButton size={size} block={block} poof disabled={locked} busy={busy === `claim:${item.id}`} busyIcon={spin} icon={<Plus size={15} strokeWidth={3} />} label={compact ? 'Add' : 'Add to locker'} title="Add to your locker" onClick={stop(() => claim(item))} />;
@@ -713,8 +724,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     free: inSection.filter((item) => !item.paid && !item.exclusive).length,
     paid: inSection.filter((item) => item.paid).length,
     new: inSection.filter((item) => item.isNew).length,
-    owned: inSection.filter((item) => ownedIds.has(item.id)).length,
-    wish: inSection.filter((item) => wishIds.has(item.id)).length
+    owned: (catalog?.items || []).filter((item) => ownedIds.has(item.id)).length,
+    wish: (catalog?.items || []).filter((item) => wishIds.has(item.id)).length
   };
   const everything = catalog?.items || [];
   const ownedTotal = everything.filter((item) => ownedIds.has(item.id)).length;
@@ -742,6 +753,14 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   /** Category shelves for the All view, in store order. */
   const shelves = shelved ? sections.filter((entry) => entry.id !== 'all' && entry.id !== 'bundles').map((entry) => ({ ...entry, items: items.filter((item) => sectionOf(item) === entry.id) })).filter((entry) => entry.items.length) : [];
   const priceOf = (item) => (item.exclusive ? 'Event' : item.paid ? `$${nowPrice(item).toFixed(2)}` : 'Free');
+  /** Price with the old one struck through while an offer is running. */
+  const renderPrice = (item) => (onSale(item) ? (
+    <>
+      <s className="store-price-was">${(Number(item.price) || 0).toFixed(2)}</s>
+      <span className="store-price-now">${nowPrice(item).toFixed(2)}</span>
+      <span className="store-sale-pct">−{salePercent(item)}%</span>
+    </>
+  ) : priceOf(item));
   const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
 
   /** "You own this": a quiet row under the price with when it was added, whether it's on, and a way to the locker. */
@@ -776,7 +795,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <div className="shop-price">
         <div>
           <small><InfinityIcon />{item.exclusive ? 'Event' : 'Lifetime'}</small>
-          <strong>{priceOf(item)}</strong>
+          <strong className={onSale(item) ? 'is-on-sale' : undefined}>{renderPrice(item)}</strong>
+          {onSale(item) && item.offer?.title && <em className="store-offer-note">{item.offer.title}</em>}
         </div>
         <span className="shop-creator"><Pencil />Creator: <b>{item.author || 'Native'}</b></span>
       </div>
@@ -821,6 +841,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
           <div className="store-card-badges">
+            {onSale(item) && <span className="store-sale-badge">−{salePercent(item)}%</span>}
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}
             {moves(item) && movesMean && <span className="store-anim-badge">Animated</span>}
@@ -836,7 +857,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             : <OwnedMark className="store-card-owned" />)}
         </div>
         <div className="store-card-meta">
-          <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}`}>{priceOf(item)}</span></div>
+          <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}${onSale(item) ? ' is-on-sale' : ''}`}>{renderPrice(item)}</span></div>
           <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
         </div>
         <div className="store-card-action">{actionFor(item, true)}</div>
@@ -980,7 +1001,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               </section>
             ))
           ) : items.length === 0 ? (
-            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? `Your locker has nothing from ${noun} yet.` : filter === 'wish' ? `Tap the heart on any item to save it here.` : `No ${noun} match that.`}</span></div>
+            <div className="store-empty"><Store size={18} /><span>{filter === 'owned' ? 'Your locker is empty. Add anything from the store.' : filter === 'wish' ? 'Tap the heart on any item to save it here.' : `No ${noun} match that.`}</span></div>
           ) : (
             <div className="store-grid" key={`grid:${filter}:${sort}`}>
               {items.map((item, index) => renderCard(item, index))}

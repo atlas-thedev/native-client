@@ -16,6 +16,7 @@ export default function UserProfilePanel({
   user,
   presence,
   isGroup = false,
+  isSelf = false,
   onClose,
   onUnfriend,
   onBlock,
@@ -30,7 +31,7 @@ export default function UserProfilePanel({
 
   useEffect(() => {
     setMutual(Array.isArray(user?.mutualFriends) ? user.mutualFriends : []);
-    if (!userId || isGroup || (typeof navigator !== 'undefined' && navigator.onLine === false)) return undefined;
+    if (!userId || isGroup || isSelf || (typeof navigator !== 'undefined' && navigator.onLine === false)) return undefined;
     let cancelled = false;
     const api = window.native?.social;
     api?.getMutualFriends?.(userId)
@@ -39,7 +40,7 @@ export default function UserProfilePanel({
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [userId, isGroup]);
+  }, [userId, isGroup, isSelf]);
 
   if (!user) return null;
 
@@ -82,6 +83,7 @@ export default function UserProfilePanel({
             {isPlusUser(user) && <PlusMark size={18} />}
           </div>
           <span className="np-handle">@{user.name}</span>
+          {isSelf && <span className="np-self-chip">This is you</span>}
 
           {badgeCount > 0 && (
             <div className="np-profile-badges">
@@ -127,7 +129,7 @@ export default function UserProfilePanel({
         </div>
 
         {/* Mutual friends */}
-        {!isGroup && (
+        {!isGroup && !isSelf && (
           <div className="np-block">
             <span className="np-label">Mutual friends{mutual.length ? ` — ${mutual.length}` : ''}</span>
             <div className="np-card np-mutual">
@@ -146,7 +148,7 @@ export default function UserProfilePanel({
         )}
 
         {/* Actions */}
-        {!isGroup && (
+        {!isGroup && !isSelf && (
           <div className="np-actions">
             {confirmClear ? (
               <div className="np-confirm">
