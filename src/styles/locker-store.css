@@ -381,3 +381,14 @@
   border-radius: 12px;
   background: radial-gradient(90% 55% at 50% 0%, rgba(255, 255, 255, 0.08), transparent 70%), #08080a;
 }
+
+/* "Try one on": the same tiles as the cloaks you own (solid card, art well, name under it, a check on the one
+   you try), with the price as a small chip under the name instead of a badge floating over the art. */
+.locker-view .locker-cape-grid .locker-shop-card { border-style: solid !important; border-color: var(--ls-line); gap: 6px; padding-bottom: 12px; }
+.locker-view .locker-cape-grid .locker-shop-card:hover { border-color: rgba(255, 255, 255, 0.28); }
+.locker-view .locker-cape-grid .locker-shop-card.is-trying { border-color: rgba(255, 255, 255, 0.9); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9); background: #0f0f11; }
+.locker-view .locker-shop-card .locker-cape-texture,
+.locker-view .locker-shop-card .locker-cosmetic-thumb { opacity: 1; }
+.locker-view .locker-shop-card .locker-shop-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.locker-view .locker-shop-card .locker-price { position: static; margin-top: -2px; padding: 2px 8px; border-radius: 999px; box-shadow: none; font-size: 10.5px; }
+.locker-view .locker-shop-card.is-trying .locker-price { background: #fff; color: #0d0e12; }
