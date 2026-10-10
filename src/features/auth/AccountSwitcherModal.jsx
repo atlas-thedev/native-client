@@ -16,7 +16,7 @@ const OFFLINE_NAME = /^[A-Za-z0-9_]{3,16}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const COMMUNITY = {
-  discord: 'https://discord.gg/m9QpHFP8e',
+  discord: 'https://discord.gg/playnative',
   youtube: 'https://www.youtube.com/@native-client'
 };
 

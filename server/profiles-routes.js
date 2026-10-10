@@ -347,11 +347,13 @@ function search(q) {
   if (!query) return { players: [], items: [] };
   const like = `${query.replace(/[%_\\]/g, '')}%`;
   const h = sql();
-  const native = h.prepare(`SELECT username, uuid, model, created_at FROM users WHERE username LIKE ? ORDER BY (lower(username) = lower(?)) DESC, length(username) ASC LIMIT 8`).all(like, query)
-    .map((r) => ({ name: r.username, uuid: r.uuid, native: true }));
+  const latest = h.prepare(`SELECT s.hash, s.url, s.source, x.model FROM pf_skin_history x JOIN pf_skins s ON s.hash = x.hash WHERE x.subject = ? ORDER BY x.last_seen DESC LIMIT 1`);
+  const look = (subject) => { const r = latest.get(subject); return r ? { skin: urlOf(r), model: r.model === 'slim' ? 'slim' : 'default' } : { skin: null, model: 'default' }; };
+  const native = h.prepare(`SELECT id, username, uuid, model, created_at FROM users WHERE username LIKE ? ORDER BY (lower(username) = lower(?)) DESC, length(username) ASC LIMIT 8`).all(like, query)
+    .map((r) => ({ name: r.username, uuid: r.uuid, native: true, ...look(`n:${r.id}`) }));
   const known = h.prepare(`SELECT uuid, name FROM pf_mojang WHERE name LIKE ? ORDER BY length(name) ASC LIMIT 6`).all(like)
     .filter((r) => !native.some((n) => n.name.toLowerCase() === r.name.toLowerCase()))
-    .map((r) => ({ name: r.name, uuid: dashed(r.uuid), native: false }));
+    .map((r) => ({ name: r.name, uuid: dashed(r.uuid), native: false, ...look(mcSubject(r.uuid)) }));
   const lower = query.toLowerCase();
   let items = [];
   try {

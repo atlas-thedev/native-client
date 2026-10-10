@@ -91,7 +91,7 @@ const RESOLUTION_PRESETS = [
   { w: 3840, h: 2160, label: '3840 × 2160', sub: '4K' }
 ];
 
-const DISCORD_URL = 'https://discord.gg/m9QpHFP8e';
+const DISCORD_URL = 'https://discord.gg/playnative';
 const YOUTUBE_URL = 'https://www.youtube.com/@native-client';
 
 /* ────────────────────────────────────────────────────────────
