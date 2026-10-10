@@ -6,6 +6,7 @@ import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3
 import { PixelTabs } from '../../components/ui/PixelControls.jsx';
 import steveSkin from '../../assets/steve.png';
 import { ImportPackModal, PricingModal } from './AdminStoreTools.jsx';
+import { AdminCheckbox, AdminColor, AdminNumber, AdminSegmented } from './adminShared.jsx';
 
 /** Store sections, in the same order as the Store. */
 export const SECTIONS = [
@@ -22,6 +23,8 @@ const MAX_DYES = 5;
 const MAX_MODEL_KB = 1024;
 const MAX_TEXTURE_MB = 2;
 const PREVIEW_ACCOUNT = { id: 'admin-preview', type: 'offline', name: 'Steve', skinUrl: steveSkin, model: 'default', hasCape: false, capeUrl: null };
+/** A form label that holds a custom control: clicking the caption must not press the control's first button. */
+const holdLabel = (event) => { if (!event.target.closest('button, input, textarea, [role]')) event.preventDefault(); };
 
 function readText(file) {
   return new Promise((resolve, reject) => {
@@ -85,8 +88,8 @@ function DyeColors({ value, onChange }) {
             : <span key={index} className="admin-dye-slot" aria-hidden="true"/>;
         }
         return (
-          <span key={index} className="admin-dye-color">
-            <input type="color" value={hex} aria-label={`Colour ${index + 1}`} title={hex} onChange={(event) => onChange(value.map((entry, j) => (j === index ? event.target.value.toLowerCase() : entry)))}/>
+          <span key={index} className="admin-dye-color" title={hex}>
+            <AdminColor value={hex} onChange={(next) => onChange(value.map((entry, j) => (j === index ? next : entry)))}/>
             <button type="button" aria-label={`Remove colour ${index + 1}`} onClick={() => onChange(value.filter((_, j) => j !== index))}><X size={9} strokeWidth={3}/></button>
           </span>
         );
@@ -454,6 +457,7 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
   const filters = [['all', 'All'], ['animated', cosmeticSection ? 'Moving' : 'Animated'], ['paid', 'Paid'], ['exclusive', 'Event'], ...(cosmeticSection ? [['dyeable', 'Dyeable']] : []), ['hidden', 'Hidden']];
   const tabs = SECTIONS.map((entry) => ({ id: entry.id, label: entry.label, count: items ? counts[entry.id] || 0 : null }));
   const fileLabel = (file, fallback) => (file ? `${file.fileName}${file.width ? ` · ${file.width}×${file.height}` : ''}` : fallback);
+  const priceLocked = draft.exclusive || draft.free;
 
   return (
     <div className="admin-store">
@@ -462,11 +466,7 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
       </div>
       <div className="admin-toolbar">
         <label className="admin-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${meta.label.toLowerCase()}, ids or tags`}/></label>
-        <div className="admin-filters">
-          {filters.map(([id, label]) => (
-            <button key={id} type="button" className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>
-          ))}
-        </div>
+        <AdminSegmented value={filter} onChange={setFilter} options={filters} ariaLabel="Filter items"/>
         <span className="admin-result-count">{totals.count} items · {totals.animated} {cosmeticSection ? 'moving' : 'animated'} · {totals.featured}/{MAX_FEATURED} featured · {totals.owners} in lockers</span>
         <button type="button" className="admin-btn ghost" onClick={() => setTool('pricing')} title="Set every price at once"><DollarSign size={13}/>Pricing</button>
         <button type="button" className="admin-btn ghost" onClick={() => setTool('import')} title="Import cosmetics from an ItemsAdder, Nexo, Oraxen, ModelEngine or HMCCosmetics pack"><PackagePlus size={13}/>Import pack</button>
@@ -556,28 +556,28 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
               <label className="is-wide"><span>Description</span><textarea rows={2} value={draft.description} maxLength={200} onChange={set('description')} placeholder={`What makes this ${meta.noun} special?`}/></label>
               <label><span>Tags</span><input value={draft.tags} onChange={set('tags')} placeholder="space, glow"/></label>
               <label><span>Author</span><input value={draft.author} maxLength={40} onChange={set('author')}/></label>
-              {!cosmeticSection && previewAnimated && <label><span>Frames</span><input type="number" min={2} max={MAX_FRAMES} value={draft.frames} disabled={!draft.texture} onChange={set('frames')}/></label>}
-              {!cosmeticSection && previewAnimated && <label><span>Speed (fps)</span><input type="number" min={1} max={MAX_FPS} value={draft.fps} onChange={set('fps')}/></label>}
-              <label><span>Price (USD)</span><input type="number" min={1.99} max={99.99} step={0.01} value={draft.exclusive || draft.free ? '' : draft.price} disabled={draft.exclusive || draft.free} onChange={set('price')} placeholder={draft.free ? 'Free' : 'Automatic'}/></label>
-              <label><span>Order</span><input type="number" value={draft.order} onChange={set('order')} placeholder="0 = first"/></label>
-              <label className="admin-check" title={featuredFull && !draft.featured ? `Up to ${MAX_FEATURED} items per section can be featured` : undefined}><input type="checkbox" checked={draft.featured} disabled={!draft.featured && featuredFull && !editingItem?.featured} onChange={set('featured')}/><span>Featured ({totals.featured}/{MAX_FEATURED})</span></label>
-              <label className="admin-check"><input type="checkbox" checked={draft.hidden} onChange={set('hidden')}/><span>Hidden (draft)</span></label>
-              <label className="admin-check"><input type="checkbox" checked={draft.free && !draft.exclusive} disabled={draft.exclusive} onChange={set('free')}/><span>Free: anyone can claim it</span></label>
-              <label className="admin-check is-wide"><input type="checkbox" checked={draft.exclusive} onChange={set('exclusive')}/><span>Event item: never sold. Give it out by hand or with redeem codes</span></label>
+              {!cosmeticSection && previewAnimated && <label onClick={holdLabel}><span>Frames</span><AdminNumber min={2} max={MAX_FRAMES} value={draft.frames} disabled={!draft.texture} onChange={set('frames')}/></label>}
+              {!cosmeticSection && previewAnimated && <label onClick={holdLabel}><span>Speed (fps)</span><AdminNumber min={1} max={MAX_FPS} value={draft.fps} suffix="fps" onChange={set('fps')}/></label>}
+              <label onClick={holdLabel}><span>Price (USD) · 0 = {draft.free ? 'free' : 'automatic'}</span><AdminNumber min={0} max={99.99} step={0.5} value={priceLocked ? 0 : draft.price} disabled={priceLocked} suffix={priceLocked ? (draft.free ? 'Free' : 'Event') : Number(draft.price) > 0 ? 'USD' : 'Auto'} onChange={(value) => set('price')(value > 0 ? String(Math.max(1.99, value)) : '')}/></label>
+              <label onClick={holdLabel}><span>Order (0 = first)</span><AdminNumber min={0} max={9999} value={draft.order} onChange={(value) => set('order')(String(value))}/></label>
+              <AdminCheckbox checked={draft.featured} disabled={!draft.featured && featuredFull && !editingItem?.featured} onChange={set('featured')} label={`Featured (${totals.featured}/${MAX_FEATURED})`} hint={featuredFull && !draft.featured ? `Up to ${MAX_FEATURED} per section` : undefined}/>
+              <AdminCheckbox checked={draft.hidden} onChange={set('hidden')} label="Hidden (draft)"/>
+              <AdminCheckbox checked={draft.free && !draft.exclusive} disabled={draft.exclusive} onChange={set('free')} label="Free: anyone can claim it"/>
+              <div className="is-wide"><AdminCheckbox checked={draft.exclusive} onChange={set('exclusive')} label="Event item: never sold. Give it out by hand or with redeem codes"/></div>
             </div>
 
             {cosmeticSection && (
               <section className="admin-dye">
-                <label className="admin-check"><input type="checkbox" checked={draft.dyeable} onChange={set('dyeable')}/><span><Palette size={13}/> Dyeable: players pick its colour in the Locker</span></label>
+                <AdminCheckbox checked={draft.dyeable} onChange={set('dyeable')} label={<><Palette size={13}/> Dyeable: players pick its colour in the Locker</>}/>
                 {draft.dyeable && <>
                   <p className="admin-note">The texture is the undyed base (white/grey where the colour goes); the colour is multiplied in, keeping the shading.</p>
-                  <div className="admin-dye-row"><span>Default</span><input type="color" value={draft.dyeDefault} onChange={(event) => set('dyeDefault')(event.target.value.toLowerCase())}/><code>{draft.dyeDefault}</code></div>
+                  <div className="admin-dye-row"><span>Default</span><AdminColor value={draft.dyeDefault} onChange={set('dyeDefault')}/><code>{draft.dyeDefault}</code></div>
                   <div className="admin-dye-row"><span>Colours</span><DyeColors value={draft.dyeColors} onChange={(value) => set('dyeColors')(value)}/></div>
                   <div className="admin-dye-row">
                     <span>Mask</span>
                     <button type="button" className="admin-store-upload" onClick={() => maskRef.current?.click()}><Upload size={13}/>{draft.dyeMask ? draft.dyeMask.fileName : editingItem?.dyeable ? 'Replace mask PNG' : 'Mask PNG (optional)'}</button>
                     <input ref={maskRef} type="file" accept="image/png" hidden onChange={(event) => { pickPng('dyeMask', 2)(event.target.files?.[0]); event.target.value = ''; }}/>
-                    {editingItem?.dyeable && !draft.dyeMask && <label className="admin-check"><input type="checkbox" checked={draft.dropMask} onChange={set('dropMask')}/><span>No mask (dye everything)</span></label>}
+                    {editingItem?.dyeable && !draft.dyeMask && <AdminCheckbox checked={draft.dropMask} onChange={set('dropMask')} label="No mask (dye everything)"/>}
                   </div>
                   {!draft.dyeColors.length && <p className="admin-note">Add at least one colour, or players won’t see a dye picker.</p>}
                 </>}
