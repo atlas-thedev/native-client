@@ -66,7 +66,9 @@ const api = {
   setPlusIcon: (on) => ipcRenderer.send('app:setPlusIcon', Boolean(on)),
   openExternal: (url) => ipcRenderer.invoke('external:open', url),
   site: { info: () => ipcRenderer.invoke('site:info') },
-  showNotification: (title, body) => ipcRenderer.invoke('app:showNotification', { title, body }),
+  showNotification: (title, body, meta = {}) => ipcRenderer.invoke('app:showNotification', { title, body, ...meta }),
+  clearNotification: (key) => ipcRenderer.invoke('app:clearNotification', key),
+  onNotificationClick: (callback) => subscribe('app:notificationClick', callback),
   onMaximizedChange: (callback) =>
     ipcRenderer.on('window:maximized', (_event, isMaximized) => callback(isMaximized)),
   instances: {
@@ -98,7 +100,15 @@ const api = {
     refreshNames:         ()        => ipcRenderer.invoke('accounts:refreshNames'),
     setActive:            (id)      => ipcRenderer.invoke('accounts:setActive', id),
     remove:               (id)      => ipcRenderer.invoke('accounts:remove', id),
-    getAvatar:            (uuid)    => ipcRenderer.invoke('accounts:getAvatar', uuid)
+    getAvatar:            (uuid)    => ipcRenderer.invoke('accounts:getAvatar', uuid),
+    // Plain Native (email) accounts only; premium/merged names live on minecraft.net.
+    renameNative:         (accountId, username) => ipcRenderer.invoke('accounts:renameNative', { accountId, username })
+  },
+  profiles: {
+    get: (name) => ipcRenderer.invoke('profiles:get', name),
+    view: (name) => ipcRenderer.invoke('profiles:view', name),
+    saveAbout: (about) => ipcRenderer.invoke('profiles:saveAbout', about),
+    reportStats: (stats) => ipcRenderer.invoke('profiles:reportStats', stats)
   },
   wardrobe: {
     get: (account) => ipcRenderer.invoke('wardrobe:get', account),

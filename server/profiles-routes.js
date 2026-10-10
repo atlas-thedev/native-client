@@ -9,6 +9,7 @@
  *   POST /v1/profiles/:name/view       count a profile view (one per visitor per day)
  *   GET  /v1/profiles/me/about         your bio + links            (signed in)
  *   POST /v1/profiles/me/about         { bio, links: [{ type, url }] } (signed in)
+ *   POST /v1/profiles/me/stats         { playtimeSecs, sessions, lastPlayed } launcher totals (signed in)
  *   GET  /v1/library/skins?sort=trending|new|popular&q=&page=   skin library
  *   GET  /v1/library/skins/:hash               one skin, who wore it, likes
  *   POST /v1/library/skins/:hash/like          { like: true|false }        (signed in)
@@ -72,6 +73,13 @@ function sql() {
         user_id TEXT PRIMARY KEY,
         bio TEXT NOT NULL DEFAULT '',
         links TEXT NOT NULL DEFAULT '[]',
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS pf_stats (
+        user_id TEXT PRIMARY KEY,
+        playtime_secs INTEGER NOT NULL DEFAULT 0,
+        sessions INTEGER NOT NULL DEFAULT 0,
+        last_played INTEGER NOT NULL DEFAULT 0,
         updated_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS pf_mojang (
@@ -241,6 +249,26 @@ function cleanAbout(body) {
   return { bio, links };
 }
 
+function badgesOf(user) {
+  try { const list = JSON.parse(user.badges || '[]'); return Array.isArray(list) ? list.filter((b) => typeof b === 'string').slice(0, 20) : []; } catch { return []; }
+}
+
+function statsOf(userId) {
+  const row = sql().prepare('SELECT playtime_secs, sessions, last_played FROM pf_stats WHERE user_id = ?').get(String(userId));
+  return { playtimeSecs: row ? Number(row.playtime_secs) : 0, sessions: row ? Number(row.sessions) : 0, lastPlayed: row ? Number(row.last_played) || 0 : 0 };
+}
+
+const MAX_PLAYTIME_SECS = 200_000 * 3600;
+/** The launcher reports its own running totals; never lower a total another device already reported. */
+function saveStats(userId, body) {
+  const clamp = (value, max) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
+  const next = { playtimeSecs: clamp(body.playtimeSecs, MAX_PLAYTIME_SECS), sessions: clamp(body.sessions, 1_000_000), lastPlayed: clamp(body.lastPlayed, now() + 86_400_000) };
+  sql().prepare(`INSERT INTO pf_stats (user_id, playtime_secs, sessions, last_played, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET playtime_secs = MAX(playtime_secs, excluded.playtime_secs), sessions = MAX(sessions, excluded.sessions),
+      last_played = MAX(last_played, excluded.last_played), updated_at = excluded.updated_at`).run(String(userId), next.playtimeSecs, next.sessions, next.lastPlayed, now());
+  return statsOf(userId);
+}
+
 function friendsOf(user) {
   try { return db.getFriendIds(user.id).length; } catch { return 0; }
 }
@@ -267,7 +295,13 @@ async function nativeProfile(user) {
   const { names, skins } = historyOf(subject);
   return {
     native: true,
+    id: user.id,
     name: user.username,
+    authType: user.auth_type || 'native',
+    // Premium and merged accounts take their name from Minecraft itself.
+    canRename: !premiumOf(user),
+    badges: badgesOf(user),
+    ...statsOf(user.id),
     uuid: uuid ? dashed(uuid) : dashed(user.uuid),
     premium: Boolean(premiumOf(user) || uuid),
     joinedAt: Number(user.created_at) || 0,
@@ -399,6 +433,14 @@ async function handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson 
       send(res, 200, { ok: true, ...about }, noStore);
       return true;
     }
+  }
+
+  if (p === '/v1/profiles/me/stats' && req.method === 'POST') {
+    const user = signedIn();
+    if (!user) { send(res, 401, { ok: false, error: 'Sign in first.' }); return true; }
+    if (!hit('pf-stats', user.id, 30, 10 * 60_000)) { tooMany(res, 600); return true; }
+    send(res, 200, { ok: true, ...saveStats(user.id, await readJson(req)) }, noStore);
+    return true;
   }
 
   const viewMatch = p.match(/^\/v1\/profiles\/([^/]+)\/view$/);

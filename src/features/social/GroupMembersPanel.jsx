@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { Settings, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
+import { openProfile } from '../profile/ProfileModal.jsx';
 import RelayAvatar from './RelayAvatar.jsx';
 import './GroupMembersPanel.css';
 
 const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', member: 'Member' };
 const ROLE_ORDER = { owner: 0, admin: 1, member: 2 };
 
-export default function GroupMembersPanel({ group, selfId, onClose, onOpenSettings, onInvite }) {
+export default function GroupMembersPanel({ group, selfId, friendIds = null, onClose, onOpenSettings, onInvite }) {
   const members = useMemo(() => [...(group?.members || [])].sort((a, b) => {
     const aOnline = a.status !== 'offline';
     const bOnline = b.status !== 'offline';
@@ -63,7 +64,16 @@ export default function GroupMembersPanel({ group, selfId, onClose, onOpenSettin
             const offline = member.status === 'offline';
             const isSelf = member.id === selfId;
             return (
-              <div className={`relay-members-panel__row${offline ? ' is-offline' : ''}`} key={member.id}>
+              <div
+                className={`relay-members-panel__row${offline ? ' is-offline' : ''}`}
+                key={member.id}
+                role="button"
+                tabIndex={0}
+                title={`View ${member.name}'s profile`}
+                style={{ cursor: 'pointer' }}
+                onClick={() => openProfile({ name: member.name, user: member, self: isSelf, canMessage: !isSelf && Boolean(friendIds?.has(member.id)) })}
+                onKeyDown={(event) => { if (event.key === 'Enter') openProfile({ name: member.name, user: member, self: isSelf }); }}
+              >
                 <RelayAvatar name={member.name} skinUrl={member.skinUrl} size={34} status={member.status} showStatus />
                 <div className="relay-members-panel__member-copy">
                   <div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BadgeCheck, Ban, CalendarDays, Check, Copy, Server, Users, Trash2, UserMinus, X } from 'lucide-react';
+import { BadgeCheck, Ban, CalendarDays, Check, Copy, Server, UserRound, Users, Trash2, UserMinus, X } from 'lucide-react';
 import RelayAvatar from './RelayAvatar.jsx';
 import Badges, { getUserBadges, isPlusUser, PlusMark } from './Badges.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -18,6 +18,7 @@ export default function UserProfilePanel({
   isGroup = false,
   isSelf = false,
   onClose,
+  onOpenProfile,
   onUnfriend,
   onBlock,
   onClearHistory
@@ -93,6 +94,13 @@ export default function UserProfilePanel({
           )}
 
           {bio ? <p className="np-bio">{bio}</p> : null}
+
+          {onOpenProfile && !isGroup && (
+            <button type="button" className="np-full-profile-btn" onClick={() => onOpenProfile(user)} data-testid="np-full-profile">
+              <UserRound size={14} />
+              <span>{isSelf ? 'Open my profile' : 'View full profile'}</span>
+            </button>
+          )}
         </div>
 
         <div className="np-divider" />

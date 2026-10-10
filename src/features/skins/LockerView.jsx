@@ -2,10 +2,11 @@ import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Shirt, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Shirt, Sparkles, Star, Store, Trash2, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
+import { openProfile } from '../profile/ProfileModal.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import { loadStoreCape, peekStoreCape } from '../../lib/storeCapeCache.js';
@@ -978,6 +979,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       ) : (
       <div className="locker-header-actions">
       {cloudAccount && (cloud === 'offline' || !online) && <span className="locker-sync-pill is-offline" role="status"><i/>Offline · showing your saved locker</span>}
+      {cloudAccount && <PixelButton variant="ghost" icon={<UserRound size={15}/>} label="My profile" title="Your profile: badges, playtime, name and skin history" onClick={() => openProfile({ name: account?.type === 'microsoft' ? (account.nativeLink?.name || account.name) : account?.name, self: true, cosmetics: wornCosmetics, user: { id: account?.type === 'microsoft' ? account.nativeLink?.userId : account?.id, name: account?.name, skinUrl: viewerAccount?.skinUrl || null, capeUrl: viewerAccount?.capeUrl || null, model: viewerAccount?.model } })}/>}
       <PixelButton variant="ghost" icon={<RefreshCw size={15} className={syncing ? 'is-spinning' : ''}/>} label={syncing ? t('locker.syncing') : t('locker.syncButton')} title={t('locker.cloudNote')} disabled={syncing} onClick={handleCloudSync}/>
       </div>
       )}

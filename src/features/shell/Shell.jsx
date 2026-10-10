@@ -11,6 +11,8 @@ import LockerView from '../skins/LockerView.jsx';
 import StoreView from '../store/StoreView.jsx';
 import RelayPage from '../social/RelayPage.jsx';
 import NotificationDrawer from '../notifications/NotificationDrawer.jsx';
+import ProfileModal, { OPEN_PROFILE_EVENT } from '../profile/ProfileModal.jsx';
+import { summarizeLibrary } from '../instances/playtimeStats.js';
 import { describeRelayEvent, shouldSurface, readNotifyPrefs } from './relayNotifications.js';
 import FriendContextMenu from '../social/FriendContextMenu.jsx';
 import NicknameModal from '../social/NicknameModal.jsx';
@@ -36,6 +38,9 @@ import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
 import '../../lib/whitePrimary.css';
+
+const BURST_GAP_MS = 4000;
+const BURST_RESET_MS = 45_000;
 
 const playRelayChime = () => {
   try {
@@ -110,6 +115,7 @@ export default function Shell({
 
   const [notifications, setNotifications] = useState([]);
   const [relayActiveThreadId, setRelayActiveThreadId] = useState(null);
+  const [relayOpenRequest, setRelayOpenRequest] = useState(null);
   const relayNotificationRef = useRef({});
 
   const openUpdater = useCallback(() => {
@@ -238,18 +244,22 @@ export default function Shell({
     if (currentTab === 'admin' && !isAdmin) setCurrentTab('home');
   }, [currentTab, isAdmin]);
 
-  const notify = useCallback((title, body) => {
-    setNotifications((prev) =>
-      [
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          title,
-          body,
-          time: new Date().toLocaleTimeString(locale)
-        },
-        ...prev
-      ].slice(0, 60)
-    );
+  /* `meta.key` groups a burst (one chat): the newest replaces the older entry. */
+  const notify = useCallback((title, body, meta = null) => {
+    setNotifications((prev) => {
+      const key = meta?.key || null;
+      const existing = key ? prev.find((item) => item.key === key) : null;
+      const entry = {
+        id: existing?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        key,
+        target: meta?.target || null,
+        count: existing ? (existing.count || 1) + 1 : 1,
+        title,
+        body,
+        time: new Date().toLocaleTimeString(locale)
+      };
+      return [entry, ...prev.filter((item) => item !== existing)].slice(0, 60);
+    });
   }, [locale]);
 
   const revokeAdminView = useCallback(() => {
@@ -279,9 +289,27 @@ export default function Shell({
   };
 
 
+  /* Bursts: the first message of a chat pings at once; more messages within a
+     few seconds update that same toast ("5 new messages") instead of stacking
+     ten toasts that Windows then plays one after another. */
+  const burstsRef = useRef(new Map());
+  const showBurst = useCallback((key) => {
+    const burst = burstsRef.current.get(key);
+    if (!burst) return;
+    burst.timer = null;
+    burst.shownAt = Date.now();
+    const { note, count } = burst;
+    const body = count > 1 ? `${count} new messages \u00b7 ${note.body}` : note.body;
+    const prefs = readNotifyPrefs();
+    if (prefs.desktop) {
+      window.native?.showNotification?.(note.title, body, { key, kind: note.kind, threadId: note.threadId });
+    }
+  }, []);
+
   useEffect(() => {
     if (!hasNative) return undefined;
-    return social.subscribe((event) => {
+    const bursts = burstsRef.current;
+    const off = social.subscribe((event) => {
       const state = relayNotificationRef.current;
       const note = describeRelayEvent(event, state);
       if (!note) return;
@@ -293,13 +321,91 @@ export default function Shell({
       const viewing = Boolean(note.threadId) && state.currentTab === 'relay' && state.activeThreadId === note.threadId && focused;
       if (!shouldSurface(note, { mutedIds, viewing })) return;
 
+      const key = `${note.kind}:${note.threadId || note.title}`;
+      const now = Date.now();
+      const target = note.threadId || note.kind === 'request' ? { kind: note.kind, threadId: note.threadId || null } : null;
+      let burst = bursts.get(key);
+      if (!burst || now - burst.lastAt > BURST_RESET_MS) {
+        if (burst?.timer) clearTimeout(burst.timer);
+        burst = { count: 0, shownAt: 0, chimeAt: 0, timer: null };
+        bursts.set(key, burst);
+      }
+      burst.count += 1;
+      burst.lastAt = now;
+      burst.note = note;
+
+      notify(note.title, burst.count > 1 ? `${burst.count} new messages \u00b7 ${note.body}` : note.body, { key, target });
       const prefs = readNotifyPrefs();
-      notify(note.title, note.body);
-      if (prefs.sound) playRelayChime();
-      // Real OS notification (Windows toast). Clicking it brings the launcher forward.
-      if (prefs.desktop) window.native?.showNotification?.(note.title, note.body);
+      if (prefs.sound && now - burst.chimeAt > BURST_GAP_MS) {
+        burst.chimeAt = now;
+        playRelayChime();
+      }
+      if (now - burst.shownAt >= BURST_GAP_MS) {
+        if (burst.timer) clearTimeout(burst.timer);
+        showBurst(key);
+      } else if (!burst.timer) {
+        burst.timer = setTimeout(() => showBurst(key), BURST_GAP_MS - (now - burst.shownAt));
+      }
     });
-  }, [hasNative, notify, social.subscribe]);
+    return () => {
+      off?.();
+      for (const burst of bursts.values()) if (burst.timer) clearTimeout(burst.timer);
+      bursts.clear();
+    };
+  }, [hasNative, notify, showBurst, social.subscribe]);
+
+  /* Opening a chat ends its burst and removes its toast. */
+  useEffect(() => {
+    if (currentTab !== 'relay' || !relayActiveThreadId) return;
+    for (const [key, burst] of burstsRef.current) {
+      if (burst.note?.threadId !== relayActiveThreadId) continue;
+      if (burst.timer) clearTimeout(burst.timer);
+      burstsRef.current.delete(key);
+      window.native?.clearNotification?.(key);
+    }
+    setNotifications((prev) => (prev.some((item) => item.target?.threadId === relayActiveThreadId)
+      ? prev.filter((item) => item.target?.threadId !== relayActiveThreadId)
+      : prev));
+  }, [currentTab, relayActiveThreadId]);
+
+  /* Profile page: opened from Relay, the Locker or anywhere via openProfile(). */
+  const [profileTarget, setProfileTarget] = useState(null);
+  useEffect(() => {
+    const onOpen = (event) => { if (event.detail?.name) setProfileTarget({ ...event.detail, nonce: Date.now() }); };
+    window.addEventListener(OPEN_PROFILE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PROFILE_EVENT, onOpen);
+  }, []);
+  const selfStats = useMemo(() => summarizeLibrary(instancesManager.instances || []), [instancesManager.instances]);
+
+  /* Playtime lives in the launcher; the profile shows it to friends too. */
+  useEffect(() => {
+    if (!hasNative || !selfStats.playtimeSecs) return undefined;
+    const timer = setTimeout(() => {
+      window.native?.profiles?.reportStats?.({
+        playtimeSecs: selfStats.playtimeSecs,
+        sessions: selfStats.sessionCount,
+        lastPlayed: selfStats.lastPlayed || 0
+      })?.catch?.(() => {});
+    }, 15_000);
+    return () => clearTimeout(timer);
+  }, [hasNative, socialAccount?.id, selfStats.playtimeSecs, selfStats.sessionCount, selfStats.lastPlayed]);
+
+  /* A toast or drawer entry was clicked: go to that chat (or friend requests). */
+  const selectTabRef = useRef(null);
+  const openRelayTarget = useCallback((target) => {
+    if (!target) return;
+    setInstanceManagerOpen(false);
+    selectTabRef.current?.('relay');
+    setRelayOpenRequest({
+      id: target.threadId || null,
+      kind: target.kind || null,
+      tab: target.threadId ? null : 'pending',
+      nonce: Date.now()
+    });
+    setNotificationsOpen(false);
+  }, []);
+
+  useEffect(() => window.native?.onNotificationClick?.((target) => openRelayTarget(target)), [openRelayTarget]);
 
   const handleLaunch = (cluster, options = {}) => {
     if (!cluster) return;
@@ -466,7 +572,18 @@ export default function Shell({
   const handleMaximize = () => window.native?.maximize();
   const handleClose = () => window.native?.close();
 
+  /* The instance page sits above every tab: switching tabs has to close it
+     (after its own unsaved-changes check), or the click seems to do nothing. */
+  const instanceGuardRef = useRef(null);
+  const leaveInstancePage = () => {
+    if (!instanceManagerOpen) return true;
+    if (instanceGuardRef.current && !instanceGuardRef.current()) return false;
+    setInstanceManagerOpen(false);
+    return true;
+  };
+
   const handleSelectTab = (tab) => {
+    if (!leaveInstancePage()) return;
     if (tab === 'relay' && currentTab !== 'relay') social?.setActiveChatFriend?.(null);
     if (tab !== 'settings') {
       setPreviousTab(currentTab === 'settings' ? 'home' : currentTab);
@@ -478,7 +595,10 @@ export default function Shell({
     setCurrentTab(tab);
   };
 
+  selectTabRef.current = handleSelectTab;
+
   const handleOpenSettings = (initialTab = 'launcher') => {
+    if (!leaveInstancePage()) return;
     if (currentTab !== 'settings') {
       setPreviousTab(currentTab);
     }
@@ -695,6 +815,7 @@ export default function Shell({
               onJoinServer={handleJoinServer}
               onNotify={notifyRelay}
               onActiveThreadChange={setRelayActiveThreadId}
+              openRequest={relayOpenRequest}
             />
           ) : (
             <NativeAccountGate
@@ -800,6 +921,7 @@ export default function Shell({
             onSelectCluster={instancesManager.select}
             initialTab={clusterDetailTab}
             onBack={() => setInstanceManagerOpen(false)}
+            guardRef={instanceGuardRef}
             onLaunch={handleLaunch}
             onKill={launcher.kill}
             launcherState={launcher}
@@ -814,11 +936,26 @@ export default function Shell({
         )}
       </div>
 
+      {profileTarget && (
+        <ProfileModal
+          target={profileTarget}
+          account={profileTarget.self ? account : null}
+          selfStats={profileTarget.self ? selfStats : null}
+          onClose={() => setProfileTarget(null)}
+          onMessage={(target) => {
+            setProfileTarget(null);
+            openRelayTarget({ kind: 'dm', threadId: target.user?.id });
+          }}
+          onAccountsChanged={() => window.dispatchEvent(new Event('native:accounts-changed'))}
+        />
+      )}
+
       <NotificationDrawer
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
         notifications={notifications}
         onClear={() => setNotifications([])}
+        onOpen={(item) => openRelayTarget(item.target)}
       />
 
       <CrashReportModal

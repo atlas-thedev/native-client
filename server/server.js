@@ -1064,6 +1064,49 @@ async function handler(req, res) {
     }
 
     /**
+     * Rename your own Native account. Only plain Native (email) accounts: a
+     * premium or merged account carries its Minecraft name, which is changed on
+     * minecraft.net and picked up on the next sign-in.
+     */
+    if (req.method === 'POST' && url.pathname === '/v1/account/username') {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const authUser = db.getUserBySession(token);
+      if (!authUser) return send(res, 401, { ok: false, error: 'Native account session required.' });
+      const authType = authUser.auth_type || 'native';
+      if (authType === 'premium' || authType === 'merged') {
+        return send(res, 403, { ok: false, premium: true, error: 'This account uses its Minecraft name. Change it on minecraft.net, then sign in again.' });
+      }
+      const body = await readJson(req);
+      let next;
+      try { next = usernameOf(body.username); } catch {
+        return send(res, 400, { ok: false, error: 'Names are 3-16 letters, numbers or underscores.' });
+      }
+      if (next === authUser.username) return send(res, 200, { ok: true, account: { id: authUser.id, name: next } });
+      const sameName = next.toLowerCase() === String(authUser.username).toLowerCase();
+      if (!sameName && !hit('rename', authUser.id, 3, 24 * 60 * 60_000)) {
+        return tooMany(res, 24 * 3600, 'You can change your name 3 times a day. Try again tomorrow.');
+      }
+      const holder = db.getUserByUsername(next);
+      if ((holder && holder.id !== authUser.id) || db.getUserByMinecraftName(next)) {
+        return send(res, 409, { ok: false, error: 'That name is already taken.' });
+      }
+      if (!sameName) {
+        try {
+          if (await isPremiumName(next)) return send(res, 409, { ok: false, premiumName: true, error: 'That name belongs to a premium Minecraft account.' });
+        } catch (err) {
+          return send(res, err.status || 503, { ok: false, error: err.message });
+        }
+      }
+      const from = authUser.username;
+      db.renameUser(authUser.id, next);
+      moveProfile(from, next);
+      try { modRoutes.noteRename([{ from, to: next }]); } catch {}
+      try { profileRoutes.noteProfile({ username: next }); } catch {}
+      announceRename(authUser.id, from, next, 'self');
+      return send(res, 200, { ok: true, account: { id: authUser.id, name: next, from } }, { 'Cache-Control': 'no-store' });
+    }
+
+    /**
      * Merge a premium account (the caller's premium session) with a Native email
      * account (its login + password). The email account survives with the
      * Minecraft name and UUID, and gets everything the premium account owned.

@@ -30,6 +30,7 @@ export default function ClusterDetailView({
   instances = [],
   onSelectCluster,
   onBack,
+  guardRef = null,
   onLaunch,
   onKill,
   launcherState,
@@ -82,6 +83,9 @@ export default function ClusterDetailView({
   closeRef.current = () => {
     if (confirmDiscard()) onBack();
   };
+  // The shell asks before switching tabs away from this page.
+  if (guardRef) guardRef.current = confirmDiscard;
+  useEffect(() => () => { if (guardRef) guardRef.current = null; }, [guardRef]);
 
   useEffect(() => {
     const previous = document.activeElement;

@@ -571,6 +571,7 @@ function init(dependencies, ipcMain) {
 
 module.exports = {
   isOnline,
+  socialFetch,
   API_ROOTS,
   init,
   setPresence,

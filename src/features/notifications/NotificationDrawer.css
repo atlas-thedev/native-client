@@ -77,3 +77,6 @@
   color: var(--fg-muted);
   margin-top: 4px;
 }
+.notif-item.is-clickable { cursor: pointer; transition: background 0.15s ease; }
+.notif-item.is-clickable:hover { background: rgba(255, 255, 255, 0.05); }
+.notif-item-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 16px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--accent, #5865f2); color: #fff; font-size: 10px; font-weight: 700; vertical-align: 1px; }

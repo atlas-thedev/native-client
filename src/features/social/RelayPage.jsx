@@ -27,6 +27,7 @@ import {
   Ban,
   X
 } from 'lucide-react';
+import { openProfile } from '../profile/ProfileModal.jsx';
 import RelayAvatar from './RelayAvatar.jsx';
 import GroupAvatarBadge from './GroupAvatarBadge.jsx';
 import useRelayGroups from './useRelayGroups.js';
@@ -165,7 +166,7 @@ export function withLivePresence(group, friends, selfId, selfPresence) {
   return changed ? { ...group, members } : group;
 }
 
-export default function RelayPage({ account, isPlus = false, social, onJoinServer, onNotify, onActiveThreadChange }) {
+export default function RelayPage({ account, isPlus = false, social, onJoinServer, onNotify, onActiveThreadChange, openRequest = null }) {
   const persisted = useMemo(() => loadPersistedState(), []);
   const selfId = social?.selfId || account?.id || null;
 
@@ -644,6 +645,29 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
       relayGroups.closeGroup();
     }
   };
+  // A notification was clicked: open that chat as soon as it is in the inbox
+  // (on a cold start the lists may still be loading).
+  const pendingOpenRef = useRef(null);
+  useEffect(() => {
+    if (openRequest?.nonce) pendingOpenRef.current = { ...openRequest, at: Date.now() };
+  }, [openRequest?.nonce]);
+  useEffect(() => {
+    const request = pendingOpenRef.current;
+    if (!request) return;
+    if (!request.id) {
+      pendingOpenRef.current = null;
+      setSelectedId(null);
+      setFriendsHomeRequest((previous) => ({ tab: request.tab || 'online', nonce: previous.nonce + 1 }));
+      return;
+    }
+    if (Date.now() - request.at > 30_000) { pendingOpenRef.current = null; return; }
+    const thread = allThreads.find((item) => item.id === request.id);
+    if (!thread) return;
+    pendingOpenRef.current = null;
+    if (thread.id === selectedId) return;
+    handleSelectThread(thread);
+  });
+
 
 
   const handleDeselectChat = useCallback(() => {
@@ -1019,19 +1043,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   const isLoadingThread = Boolean(activeEntity) && !activeThreadState?.loaded && !(activeThreadState?.messages?.length);
   const isLoadingOlder = Boolean(activeThreadState?.loaded && activeThreadState?.loading && activeThreadState?.hasMore);
 
-  if (social && social.isNative === false) {
-    return (
-      <div className="relay-page relay-page-gate">
-        <div className="relay-empty-chat">
-          <div className="relay-empty-icon"><MessageSquare size={38} strokeWidth={1.6} /></div>
-          <h3 className="relay-empty-title">Native account required</h3>
-          <p className="relay-empty-desc">
-            Sign in with your Native account to use Relay messaging, friends and presence.
-          </p>
-        </div>
-      </div>
-    );
-  }
+
 
   const sections = [
     { key: 'pinned', label: 'Pinned', list: pinnedList, empty: null, grouped: true },
@@ -1052,6 +1064,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     };
   }, [account, selfId]);
 
+  const friendIdSet = useMemo(() => new Set((social?.friends || []).map((friend) => friend.id)), [social?.friends]);
   const hasProfilePanel = Boolean((activeEntity && showProfilePanel) || (showSelfProfile && selfUser));
   const liveActiveGroup = useMemo(
     () => withLivePresence(relayGroups.activeGroup, social?.friends || [], selfId, selfPresence),
@@ -1065,6 +1078,19 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     setSettingsOpen(true);
   };
 
+  if (social && social.isNative === false) {
+    return (
+      <div className="relay-page relay-page-gate">
+        <div className="relay-empty-chat">
+          <div className="relay-empty-icon"><MessageSquare size={38} strokeWidth={1.6} /></div>
+          <h3 className="relay-empty-title">Native account required</h3>
+          <p className="relay-empty-desc">
+            Sign in with your Native account to use Relay messaging, friends and presence.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`relay-page ${hasProfilePanel ? 'has-profile-panel' : ''}`} data-testid="relay-page">
       <aside className="relay-inbox">
@@ -1156,7 +1182,14 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                       {section.list.length === 0 ? (
                         (section.key === 'groups' && relayGroups.loadingGroups) || (section.key === 'direct' && social?.initialLoading)
                           ? <ThreadSkeletons count={section.key === 'groups' ? 2 : 3} />
-                          : <div className="relay-section-empty">{section.empty}</div>
+                          : section.key === 'direct' && social?.socialError && !(social?.friends || []).length
+                            ? (
+                              <div className="relay-section-empty relay-section-error">
+                                <span>Couldn’t load your chats.</span>
+                                <button type="button" className="relay-retry-btn" onClick={() => social?.refresh?.()}>Retry</button>
+                              </div>
+                            )
+                            : <div className="relay-section-empty">{section.empty}</div>
                       ) : (
                         section.list.map((thread, index) => (
                           <ThreadRow
@@ -1645,11 +1678,13 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
           presence={selfPresence}
           isSelf
           onClose={() => setShowSelfProfile(false)}
+          onOpenProfile={(user) => openProfile({ name: user.name, user, self: true })}
         />
       ) : activeEntity && isGroupThread && showProfilePanel ? (
         <GroupMembersPanel
           group={liveActiveGroup || activeEntity}
           selfId={selfId}
+          friendIds={friendIdSet}
           onClose={() => setShowProfilePanel(false)}
           onOpenSettings={() => openGroupSettings()}
           onInvite={() => openGroupSettings('invite')}
@@ -1660,6 +1695,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
           presence={activePresence}
           isGroup={isGroupThread}
           onClose={() => setShowProfilePanel(false)}
+          onOpenProfile={(user) => openProfile({ name: user.name, user, self: false })}
           onUnfriend={async (id) => {
             await social?.unfriend?.(id);
             setSelectedId(null);

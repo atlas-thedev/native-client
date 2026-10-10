@@ -857,7 +857,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             : <OwnedMark className="store-card-owned" />)}
         </div>
         <div className="store-card-meta">
-          <div className="store-card-title"><strong>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}${onSale(item) ? ' is-on-sale' : ''}`}>{renderPrice(item)}</span></div>
+          <div className={`store-card-title${onSale(item) ? ' has-sale' : ''}`}><strong title={item.name}>{item.name}</strong><span className={`store-price${item.exclusive ? ' is-exclusive' : ''}${onSale(item) ? ' is-on-sale' : ''}`}>{renderPrice(item)}</span></div>
           <small className="store-owners" title={`${item.owners || 0} ${item.owners === 1 ? 'player owns' : 'players own'} this`}><Users size={12} />{formatCount(item.owners)}</small>
         </div>
         <div className="store-card-action">{actionFor(item, true)}</div>

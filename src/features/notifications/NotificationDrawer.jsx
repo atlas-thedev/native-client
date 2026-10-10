@@ -7,7 +7,8 @@ export default function NotificationDrawer({
   open,
   onClose,
   notifications = [],
-  onClear
+  onClear,
+  onOpen
 }) {
   const { t } = useI18n();
   if (!open) return null;
@@ -39,8 +40,15 @@ export default function NotificationDrawer({
             </div>
           ) : (
             notifications.map((n) => (
-              <div key={n.id} className="notif-item">
-                <span className="notif-item-title">{n.title}</span>
+              <div
+                key={n.id}
+                className={`notif-item${n.target && onOpen ? ' is-clickable' : ''}`}
+                role={n.target && onOpen ? 'button' : undefined}
+                tabIndex={n.target && onOpen ? 0 : undefined}
+                onClick={n.target && onOpen ? () => onOpen(n) : undefined}
+                onKeyDown={n.target && onOpen ? (event) => { if (event.key === 'Enter') onOpen(n); } : undefined}
+              >
+                <span className="notif-item-title">{n.title}{n.count > 1 && <span className="notif-item-count">{n.count}</span>}</span>
                 <p className="notif-item-body">{n.body}</p>
                 <span className="notif-item-time">{n.time}</span>
               </div>

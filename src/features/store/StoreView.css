@@ -559,3 +559,7 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 /* Badges never run under the wishlist heart, and wrap on narrow cards. */
 .store-card-badges { flex-wrap: wrap; max-width: calc(100% - 46px); }
 .store-card-title { gap: 6px; }
+/* Sale prices are wide: give the item name its own line instead of squeezing it to one letter. */
+.store-card-title strong { flex: 1 1 auto; min-width: 0; }
+.store-card-title.has-sale { flex-wrap: wrap; row-gap: 4px; }
+.store-card-title.has-sale strong { flex-basis: 100%; }

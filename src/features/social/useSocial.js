@@ -16,6 +16,7 @@ const EMPTY_THREAD = { messages: [], hasMore: false, oldestTime: null, loading: 
 const TYPING_TTL = 6000;
 const RECONCILE_INTERVAL = 20_000;
 const PER_FRIEND_PRELOAD = 40;
+const RETRY_DELAYS = [700, 1800, 4000];
 const THREAD_PAGE_SIZE = 50;
 
 const SOCIAL_CACHE_PREFIX = 'native.relay.social.';
@@ -80,6 +81,8 @@ export function useSocial(account) {
   const conversationsRef = useRef({});
   const inFlightThreadsRef = useRef(new Set());
   const cursorRef = useRef(0);
+  const conversationsReadyRef = useRef(false);
+  const refreshGenRef = useRef(0);
   const isPollingRef = useRef(false);
   const subscribersRef = useRef(new Set());
   const typingTimersRef = useRef({});
@@ -101,10 +104,12 @@ export function useSocial(account) {
   const loadFriends = useCallback(async () => {
     const api = social();
     if (!api || !isNative) return;
-    const res = await api.getFriends();
-    if (Array.isArray(res?.friends)) setFriends(res.friends);
+    let res = null;
+    try { res = await api.getFriends(); } catch { res = null; }
+    if (Array.isArray(res?.friends) && (res.ok || res.friends.length)) setFriends(res.friends);
     if (res?.ok === false && res?.error) setSocialError(res.error);
-    else setSocialError(null);
+    else if (res?.ok) setSocialError(null);
+    return Boolean(res?.ok);
   }, [isNative]);
 
   const loadStats = useCallback(async () => {
@@ -125,14 +130,18 @@ export function useSocial(account) {
   const loadRequests = useCallback(async () => {
     const api = social();
     if (!api || !isNative) return;
-    const res = await api.getRequests();
+    let res = null;
+    try { res = await api.getRequests(); } catch { res = null; }
     if (res?.requests) setRequests(res.requests);
+    return Boolean(res?.ok);
   }, [isNative]);
 
   const loadConversations = useCallback(async () => {
     const api = social();
     if (!api || !isNative) return;
-    const res = await api.getConversations(PER_FRIEND_PRELOAD);
+    let res = null;
+    try { res = await api.getConversations(PER_FRIEND_PRELOAD); } catch { res = null; }
+    if (res?.ok) conversationsReadyRef.current = true;
     if (res?.conversations) {
       setConversations((previous) => {
         const next = { ...previous };
@@ -157,13 +166,16 @@ export function useSocial(account) {
       }
       cursorRef.current = newest;
     }
+    return Boolean(res?.ok);
   }, [isNative]);
 
   const loadBlocked = useCallback(async () => {
     const api = social();
     if (!api || !isNative) return;
-    const res = await api.getBlocked?.();
+    let res = null;
+    try { res = await api.getBlocked?.(); } catch { res = null; }
     if (Array.isArray(res?.blocked)) setBlocked(res.blocked);
+    return res ? Boolean(res.ok) : true;
   }, [isNative]);
 
   /**
@@ -234,11 +246,28 @@ export function useSocial(account) {
       setInitialLoading(false);
       return;
     }
-    await Promise.all([loadFriends(), loadRequests(), loadConversations(), loadBlocked()]);
-    setInitialLoading(false);
+    // Every list loads on its own and retries on its own: the first request
+    // after sign-in or an account switch can race the session in the main
+    // process, and one failed call used to leave Direct messages empty.
+    const generation = ++refreshGenRef.current;
+    const withRetry = async (load) => {
+      for (let attempt = 0; attempt < RETRY_DELAYS.length + 1; attempt += 1) {
+        if (generation !== refreshGenRef.current) return false;
+        if (await load()) return true;
+        if (attempt < RETRY_DELAYS.length) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[attempt]));
+      }
+      return false;
+    };
+    const core = Promise.all([withRetry(loadFriends), withRetry(loadConversations)]);
+    withRetry(loadRequests);
+    withRetry(loadBlocked);
+    // Skeletons only until the first answer (or a few tries): never forever.
+    await Promise.race([core, new Promise((resolve) => setTimeout(resolve, 6000))]);
+    if (generation === refreshGenRef.current) setInitialLoading(false);
   }, [isNative, loadFriends, loadRequests, loadConversations, loadBlocked, loadStats]);
 
   useEffect(() => {
+    conversationsReadyRef.current = false;
     setInitialLoading(true);
     refresh();
   }, [refresh, account?.id]);
@@ -257,10 +286,12 @@ export function useSocial(account) {
       if (isNative) {
         loadFriends();
         loadRequests();
+        // Chats never arrived (offline at start, server hiccup): keep trying.
+        if (!conversationsReadyRef.current) loadConversations();
       }
     }, RECONCILE_INTERVAL);
     return () => clearInterval(timer);
-  }, [isNative, loadFriends, loadRequests, loadStats]);
+  }, [isNative, loadFriends, loadRequests, loadConversations, loadStats]);
 
   // Realtime -----------------------------------------------------------------
 

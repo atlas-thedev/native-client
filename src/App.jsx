@@ -305,6 +305,13 @@ export default function App() {
     window.native?.accounts?.refreshNames?.().then((res) => { if (res?.changed) refreshAccounts(); }).catch(() => {});
   }, []);
 
+  // A rename from the profile page (or anywhere else) asks for a fresh account list.
+  useEffect(() => {
+    const onChanged = () => { refreshAccounts(); };
+    window.addEventListener('native:accounts-changed', onChanged);
+    return () => window.removeEventListener('native:accounts-changed', onChanged);
+  }, []);
+
   const ensuredPremiumRef = useRef(null);
   useEffect(() => {
     if (!activeAccount || activeAccount.type !== 'microsoft' || !window.native?.accounts?.ensureNative) return undefined;

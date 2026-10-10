@@ -846,6 +846,24 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:openWebsite', async (_event, accountId) => openWebsite(accountId).catch((error) => ({ ok: false, error: String(error?.message || error) })));
   ipcMain.handle('accounts:refreshNames', async () => refreshNativeNames().catch(() => ({ ok: false, changed: false })));
 
+  // Rename a plain Native account. Premium and merged accounts are refused by
+  // the server too: their name comes from Minecraft (minecraft.net).
+  ipcMain.handle('accounts:renameNative', async (_event, payload = {}) => {
+    const account = readAccounts().accounts.find((a) => a.id === payload.accountId);
+    if (!account || account.type !== 'native') {
+      return { ok: false, premium: account?.type === 'microsoft', error: 'Change a Microsoft account name on minecraft.net.' };
+    }
+    const session = nativeSessionOf(account);
+    if (!session) return { ok: false, error: 'Sign in to your Native account again.' };
+    const username = String(payload.username || '').trim();
+    const { status, data } = await apiRequest('/v1/account/username', { body: { username }, token: session.token });
+    if (status === 200 && data?.ok && data.account?.name) {
+      applyNativeName(session.userId, data.account.name);
+      return { ok: true, name: data.account.name };
+    }
+    return { ok: false, premium: Boolean(data?.premium), error: data?.error || 'Could not change your name.' };
+  });
+
   ipcMain.handle('accounts:getAvatar', async (_event, uuid) => {
     const avatarUuid = uuid || 'MHF_Steve';
     const avatarsDir = path.join(deps.app.getPath('userData'), 'avatars');

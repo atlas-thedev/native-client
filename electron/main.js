@@ -146,8 +146,19 @@ ipcMain.handle('external:open', async (_event, value) => {
 
 // Native OS toast. The renderer's own Notification constructor is unreliable
 // inside a frameless Electron window, so Relay routes every ping through here.
+// One live toast per conversation: a new message replaces the previous toast
+// instead of queueing behind it (Windows shows queued toasts one by one, which
+// made bursts arrive late). Clicking opens that conversation.
+const liveToasts = new Map();
 ipcMain.handle('app:showNotification', (_event, payload = {}) => {
   if (!Notification.isSupported()) return { ok: false };
+  const key = String(payload.key || payload.threadId || '').slice(0, 120) || null;
+  const target = payload.threadId ? { kind: String(payload.kind || ''), threadId: String(payload.threadId) } : null;
+
+  if (key && liveToasts.has(key)) {
+    try { liveToasts.get(key).close(); } catch {}
+    liveToasts.delete(key);
+  }
 
   const notification = new Notification({
     title: String(payload.title || 'Native Relay').slice(0, 120),
@@ -156,14 +167,26 @@ ipcMain.handle('app:showNotification', (_event, payload = {}) => {
     silent: true // the chime is played by the renderer
   });
 
+  const forget = () => { if (key && liveToasts.get(key) === notification) liveToasts.delete(key); };
   notification.on('click', () => {
+    forget();
     if (!win) return;
     if (win.isMinimized()) win.restore();
     win.show();
     win.focus();
+    if (target) win.webContents.send('app:notificationClick', target);
   });
+  notification.on('close', forget);
 
+  if (key) liveToasts.set(key, notification);
   notification.show();
+  return { ok: true };
+});
+
+// The conversation was opened in the launcher: its toast is no longer news.
+ipcMain.handle('app:clearNotification', (_event, key) => {
+  const toast = liveToasts.get(String(key || ''));
+  if (toast) { try { toast.close(); } catch {} liveToasts.delete(String(key)); }
   return { ok: true };
 });
 
@@ -186,6 +209,7 @@ adsMod.init({ app }, ipcMain);
 wardrobeMod.init({ app, auth: authMod }, ipcMain);
 socialMod.init({ app, getWin: () => win }, ipcMain);
 relayMod.init();
+require('./profiles').init(ipcMain);
 adminMod.init();
 
 app.whenReady().then(() => {
