@@ -47,8 +47,31 @@ function cachedSkin(key) {
   return undefined;
 }
 
+/**
+ * The face endpoint has no skin for some players (e.g. merged Native + Minecraft accounts),
+ * while their profile does: the full profile page shows it from `profile.current.url`.
+ * Use that same source before settling on Steve.
+ */
+async function profileSkin(name) {
+  const get = window.native?.profiles?.get;
+  if (typeof get !== 'function') return null;
+  let timer = 0;
+  try {
+    const res = await Promise.race([
+      Promise.resolve(get(name)).catch(() => null),
+      new Promise((resolve) => { timer = window.setTimeout(() => resolve(null), LOOKUP_TIMEOUT); })
+    ]);
+    return (res?.ok && res.profile?.current?.url) || null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export function resolveNativeSkin(name, { fresh = false } = {}) {
-  const key = String(name || '').toLowerCase().trim();
+  const display = String(name || '').trim();
+  const key = display.toLowerCase();
   if (!key || key === 'guest') return Promise.resolve(null);
 
   if (!fresh) {
@@ -69,7 +92,7 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
         cache: 'no-cache'
       });
       if (res.status === 404) {
-        // a real answer: this player has no skin we can show
+        // a real answer: the face endpoint has no skin for this player
         failedLookups.delete(key);
         nativeSkinCache.set(key, { url: null, checkedAt: Date.now() });
         return null;
@@ -89,7 +112,17 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
     } finally {
       window.clearTimeout(timer);
     }
-  }).finally(() => inFlightRequests.delete(key));
+  })
+    .then(async (skin) => {
+      if (skin) return skin;
+      // no face from the API: the player's profile may still know their current skin
+      const fromProfile = await profileSkin(display);
+      if (!fromProfile) return null;
+      failedLookups.delete(key);
+      nativeSkinCache.set(key, { url: fromProfile, checkedAt: Date.now() });
+      return fromProfile;
+    })
+    .finally(() => inFlightRequests.delete(key));
 
   inFlightRequests.set(key, task);
   return task;
@@ -194,7 +227,7 @@ export default function RelayAvatar({
 
     let attempt = 0;
     const lookup = () => {
-      resolveNativeSkin(key, { fresh: attempt > 0 }).then((url) => {
+      resolveNativeSkin(name, { fresh: attempt > 0 }).then((url) => {
         if (!active) return;
         // the lookup itself failed (timeout / network): try again instead of settling on Steve
         if (!url && lookupFailed(key) && attempt < RETRY_DELAYS.length) {
@@ -209,7 +242,7 @@ export default function RelayAvatar({
     lookup();
 
     return () => { active = false; window.clearTimeout(timer); };
-  }, [initialSkinUrl, key]);
+  }, [initialSkinUrl, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The skin image itself failed to load (e.g. a stale texture link from the friend list):
   // ask the Native API for a fresh one once before falling back to Steve.
@@ -219,13 +252,13 @@ export default function RelayAvatar({
     let active = true;
     const broken = skinUrl;
     nativeSkinCache.delete(key);
-    resolveNativeSkin(key, { fresh: true }).then((url) => {
+    resolveNativeSkin(name, { fresh: true }).then((url) => {
       if (!active || !url || url === broken) return;
       setSkinUrl(url);
       setHasError(false);
     });
     return () => { active = false; };
-  }, [hasError, key, skinUrl]);
+  }, [hasError, key, skinUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resolvedSkin = skinUrl && !hasError ? skinUrl : fallbackSkin;
   const shown = !pending && (loaded || decodedSkins.has(resolvedSkin));
