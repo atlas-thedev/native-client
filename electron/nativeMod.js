@@ -7,7 +7,7 @@
  * "Native Client" mod (built in the private native-mod repo, downloaded from github.com/atlas-thedev/native-mod-releases). The mod shows every
  * Native player's skin and cape live, and signs the game in to the player's
  * Native account through a short-lived, game-only ticket the launcher writes to
- * `<gameDir>/.native/session.json` (mirrored to `.noctra/` for older mod builds). The account's real session token never
+ * `<gameDir>/.native/session.json`. The account's real session token never
  * reaches the game.
  *
  * Everything here is best-effort: any failure returns `{ installed: false }`
@@ -20,10 +20,11 @@ const crypto = require('node:crypto');
 
 const MOD_REPO = process.env.NATIVE_MOD_REPO || 'atlas-thedev/native-mod-releases';
 const LEGACY_MOD_REPO = 'atlas-thedev/noctra-mod';
+const GITHUB = 'https://github.com/';
 const MANIFEST_URL = process.env.NATIVE_MOD_MANIFEST ||
-  `https://github.com/${MOD_REPO}/releases/latest/download/manifest.json`;
-const DOWNLOAD_PREFIX = `https://github.com/${MOD_REPO}/releases/download/`;
-const LEGACY_DOWNLOAD_PREFIX = `https://github.com/${LEGACY_MOD_REPO}/releases/download/`;
+  GITHUB + MOD_REPO + '/releases/latest/download/manifest.json';
+const DOWNLOAD_PREFIX = GITHUB + MOD_REPO + '/releases/download/';
+const LEGACY_DOWNLOAD_PREFIX = GITHUB + LEGACY_MOD_REPO + '/releases/download/';
 const JAR_NAME = /^(?:native|noctra)-client-[0-9A-Za-z.+-]+\.jar$/;
 /** Every jar the launcher owns: the current mod and the pre-rename "noctra-client" builds. */
 const OWNED_JAR = /^(?:native|noctra)-client-.*\.jar(\.disabled)?$/i;
@@ -57,7 +58,7 @@ function validateManifest(manifest) {
   if (manifest.schema !== 1) return null;
   if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+/.test(manifest.version)) return null;
   if (typeof manifest.file !== 'string' || !JAR_NAME.test(manifest.file)) return null;
-  if (typeof manifest.url !== 'string' || (!manifest.url.startsWith(DOWNLOAD_PREFIX) && !manifest.url.startsWith(LEGACY_DOWNLOAD_PREFIX)) || !manifest.url.endsWith(`/${manifest.file}`)) return null;
+  if (typeof manifest.url !== 'string' || (!manifest.url.startsWith(DOWNLOAD_PREFIX) && !manifest.url.startsWith(LEGACY_DOWNLOAD_PREFIX)) || !manifest.url.endsWith('/' + manifest.file)) return null;
   if (typeof manifest.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(manifest.sha256)) return null;
   const size = Number(manifest.size);
   if (!Number.isFinite(size) || size <= 0 || size > MAX_JAR_BYTES) return null;
@@ -88,23 +89,35 @@ async function loadManifest({ cacheDir, fetchImpl = fetch, url = MANIFEST_URL } 
     if (cacheFile) { try { writeFileAtomic(cacheFile, JSON.stringify(manifest, null, 2)); } catch { /* cache is optional */ } }
     return manifest;
   } catch (error) {
-    if (cacheFile) {
-      try {
-        const cached = validateManifest(JSON.parse(fs.readFileSync(cacheFile, 'utf8')));
-        if (cached) return cached;
-      } catch { /* nothing cached */ }
-    }
+    const cached = readCachedManifest(cacheDir);
+    if (cached) return cached;
     throw new Error(`Could not read the Native mod manifest (${error.message}).`);
+  }
+}
+
+function readCachedManifest(cacheDir) {
+  if (!cacheDir) return null;
+  try {
+    return validateManifest(JSON.parse(fs.readFileSync(path.join(cacheDir, 'manifest.json'), 'utf8')));
+  } catch {
+    return null;
+  }
+}
+
+/** True when the file exists and matches the manifest's size and sha256. */
+function verified(file, manifest) {
+  try {
+    const data = fs.readFileSync(file);
+    return data.length === manifest.size && sha256Of(data) === manifest.sha256;
+  } catch {
+    return false;
   }
 }
 
 /** Returns the path of a verified jar in the cache, downloading it when needed. */
 async function ensureJar(manifest, { cacheDir, fetchImpl = fetch } = {}) {
   const target = path.join(cacheDir, manifest.file);
-  try {
-    const existing = fs.readFileSync(target);
-    if (existing.length === manifest.size && sha256Of(existing) === manifest.sha256) return target;
-  } catch { /* download below */ }
+  if (verified(target, manifest)) return target;
 
   const response = await fetchWithTimeout(fetchImpl, manifest.url, {}, 60_000);
   if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
@@ -114,6 +127,22 @@ async function ensureJar(manifest, { cacheDir, fetchImpl = fetch } = {}) {
   }
   writeFileAtomic(target, data);
   return target;
+}
+
+/**
+ * Offline: only a jar that still matches the last good manifest is used. Any other
+ * native-client-*.jar in the mods folder (tampered, half-written, unknown) is not trusted.
+ */
+function offlineJar(gameDir, cacheDir) {
+  const manifest = readCachedManifest(cacheDir);
+  if (!manifest) return null;
+  const modsDir = path.join(gameDir, 'mods');
+  if (verified(path.join(modsDir, manifest.file), manifest)) return manifest.file;
+  const cached = path.join(cacheDir, manifest.file);
+  if (verified(cached, manifest)) {
+    try { return installJar(cached, modsDir); } catch { return null; }
+  }
+  return null;
 }
 
 /** Puts exactly one Native mod jar into the instance's mods folder. */
@@ -155,8 +184,11 @@ async function requestTicket(roots, sessionToken, { fetchImpl = fetch } = {}) {
   return null;
 }
 
+/** The ticket is written to .native only: a second copy is just one more place to leak it from. */
+const sessionPath = (gameDir) => path.join(gameDir, '.native', 'session.json');
+/** Clearing still covers the old .noctra mirror, so a stale ticket from an older launcher is removed. */
 const handoffPaths = (gameDir) => [
-  path.join(gameDir, '.native', 'session.json'),
+  sessionPath(gameDir),
   path.join(gameDir, '.noctra', 'session.json')
 ];
 
@@ -173,9 +205,7 @@ function writeHandoff(gameDir, { ticket, api, expiresAt, account }) {
     },
     launcher: 'native-client'
   };
-  for (const p of handoffPaths(gameDir)) {
-    try { writeFileAtomic(p, JSON.stringify(body, null, 2), 0o600); } catch { /* ignore */ }
-  }
+  try { writeFileAtomic(sessionPath(gameDir), JSON.stringify(body, null, 2), 0o600); } catch { /* ignore */ }
 }
 
 /**
@@ -251,8 +281,8 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCa
     if (!supportsMinecraft(mcVersion, parseMin(manifest))) return { installed: false, reason: 'version' };
     jarPath = await ensureJar(manifest, { cacheDir, fetchImpl });
   } catch (error) {
-    // Offline: keep using a jar that is already in the instance or cache.
-    const existing = findInstalled(path.join(gameDir, 'mods'));
+    // Offline: keep using the jar only when it still matches the last good manifest.
+    const existing = offlineJar(gameDir, cacheDir);
     if (!existing) return { installed: false, warning: error.message, reason: 'unavailable' };
     clearHandoff(gameDir);
     writeLauncherInfo(gameDir, { textureCache, local, presence });
@@ -265,12 +295,6 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCa
   writeLauncherInfo(gameDir, { textureCache, local, presence });
   const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
   return { installed: true, version: manifest.version, filename, signedIn };
-}
-
-function findInstalled(modsDir) {
-  try {
-    return fs.readdirSync(modsDir).find((name) => /^native-client-.*\.jar$/i.test(name)) || null;
-  } catch { return null; }
 }
 
 async function handoff(gameDir, identity, roots, fetchImpl) {
