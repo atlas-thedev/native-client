@@ -750,9 +750,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       {item.kind === 'cosmetic'
         ? cosmeticShot(item)
         : item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}
-      <span>{item.name}</span>
-      <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{priceLabel(item)}</em>
-      {trying && <span className="locker-trying-tag" title="Trying on" aria-label="Trying on"><Check size={11} strokeWidth={3}/></span>}
+      <span className="locker-shop-name">{item.name}</span>
+      <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
+      {trying && <Check size={13} className="locker-cape-check"/>}
     </button>;
   };
   const renderShop = (tab) => {

@@ -207,3 +207,27 @@ test('native exit code is not blamed on a background network timeout', () => {
   assert.doesNotMatch(primary.explanation, /Read timed out/);
   assert.match(primary.explanation, /Stack buffer overrun/);
 });
+
+test('native exit right after a mod (jar-in-jar) started: that mod is the lead', () => {
+  const log = [
+    '[16:10:05] [main/INFO]: Loading 67 mods:',
+    '\t- entityculling 1.11.2',
+    '\t   |-- transition 1.0.25',
+    '\t   \\-- trender 1.0.17',
+    '\t- sodium 0.9.2+mc26.3',
+    '[16:10:22] [Render thread/INFO]: [STDOUT]: [TRender] Initializing Client...',
+    '[16:10:22] [Render thread/INFO]: SDL [SYSTEM]: App name: Minecraft',
+    '[16:10:23] [Render thread/INFO]: Using graphics device: Intel(R) HD Graphics 620 (Intel)',
+    '[16:10:26] [Render thread/INFO]: OpenGL Vendor: Intel',
+    '[16:10:26] [Render thread/INFO]: OpenGL Version: 3.3.0 - Build 31.0.101.2130'
+  ].join('\n');
+  const r = analyzeCrash({ log, exitCode: 3221225477, instance, mods: [mod('entityculling.jar', 'entityculling', 'Entity Culling'), mod('sodium.jar', 'sodium', 'Sodium')] });
+  assert.match(r.issues[0].title, /Entity Culling/);
+  assert.ok(r.issues[0].fixes.some((f) => f.kind === 'update-mod'));
+});
+
+test('native exit during graphics start without a mod lead suggests the driver', () => {
+  const log = '[16:10:26] [Render thread/INFO]: OpenGL Vendor: Intel\n[16:10:26] [Render thread/INFO]: OpenGL Renderer: Intel(R) HD Graphics 620';
+  const r = analyzeCrash({ log, exitCode: 3221225477, instance, mods: [] });
+  assert.equal(r.issues[0].id, 'graphics-init-crash');
+});

@@ -575,3 +575,11 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-card-price.is-exclusive b { color: #c9b0ff; }
 .store-card-price-owned { font-size: 11.5px; font-weight: 700; color: var(--fg-secondary); }
 .store-card-meta small.store-owners { flex: none; font-size: 11px; color: var(--fg-muted); font-weight: 600; }
+
+/* Card text, final word: shop.css lays the meta out as a row, which squeezed the name to "Toon Bla…"
+   and pushed the price into the owner count. Name gets its own line, price + owners share the next. */
+.store-view .store-card .store-card-meta { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 5px; }
+.store-view .store-card .store-card-name { width: 100%; }
+.store-view .store-card .store-card-sub { width: 100%; }
+.store-view .store-card .store-card-sub small { order: 0; margin-left: auto; }
+.store-view .store-card .store-card-price { flex: 1 1 auto; overflow: hidden; }

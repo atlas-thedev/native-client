@@ -1061,6 +1061,69 @@ function ruleGraphics(ctx, facts) {
   });
 }
 
+const NATIVE_EXIT_CODES = new Set([0xC0000005, 0xC0000409, 0xC0000374, 0xC00000FD]);
+
+/**
+ * The game died in native code without a JVM crash log (no hs_err file), so all we have is what it was doing
+ * last. A mod that printed its own startup line just before, or the graphics device coming up, is the best lead.
+ */
+function ruleNativeExit(ctx, facts, exitCode) {
+  if (exitCode === null || exitCode === undefined) return;
+  const n = Number(exitCode);
+  if (!NATIVE_EXIT_CODES.has(n < 0 ? n + 2 ** 32 : n)) return;
+  if (/A fatal error has been detected by the Java Runtime Environment/.test(ctx.text())) return; // ruleNativeCrash knows more
+  const lines = ctx.lines.filter((line) => line.src !== 'jvm');
+  if (!lines.length) return;
+  const tail = lines.slice(-25);
+  const tailStart = ctx.lines.indexOf(tail[0]);
+  // jar-in-jar ids from Fabric's "Loading N mods" tree: nested id -> the mod that ships it
+  const parentOf = new Map();
+  let top = null;
+  for (const line of lines.slice(0, 4000)) {
+    const t = line.text.match(/^\s*-\s+([a-z0-9_.-]+)\s+\S+/i);
+    if (t) { top = t[1]; continue; }
+    const nested = line.text.match(/^\s*[|\\]--\s+([a-z0-9_.-]+)\s/i);
+    if (nested && top) parentOf.set(nested[1].toLowerCase(), top);
+  }
+  const resolve = (tag) => {
+    const key = String(tag || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (!key || key === 'native' || key === 'stdout' || key === 'stderr') return null;
+    return ctx.mods.byId(key) || (parentOf.has(key) ? ctx.mods.byId(parentOf.get(key)) : null);
+  };
+  let culprit = null;
+  let at = -1;
+  for (let i = tail.length - 1; i >= 0 && !culprit; i -= 1) {
+    const tags = [...tail[i].text.matchAll(/\[(?:STDOUT\]:\s*\[)?([A-Za-z][\w-]{2,30})\]/g)].map((m) => m[1]);
+    for (const tag of tags.reverse()) {
+      if (/^(?:main|INFO|WARN|ERROR|DEBUG|STDOUT|STDERR|Render thread)$/i.test(tag)) continue;
+      const mod = resolve(tag);
+      if (mod && !(mod.ids || []).includes('native')) { culprit = mod; at = tailStart + i; break; }
+    }
+  }
+  const graphicsInit = tail.some((line) => /OpenGL (?:Vendor|Renderer|Version)|Using graphics (?:backend|device)|Created window using/i.test(line.text));
+  const vendor = facts.gpuVendor || vendorOf(tail.map((l) => l.text).join('\n'));
+  if (culprit) {
+    ctx.add({
+      id: 'native-exit-after-mod', category: 'mods', severity: 'critical', confidence: 66,
+      title: `${culprit.name} most likely crashed the game${graphicsInit ? ' while the graphics were starting' : ''}`,
+      explanation: `The game closed in native code right after ${culprit.name} started its own part${graphicsInit ? ' of the renderer' : ''}, and nothing else ran after it. Update it first; if it still crashes, turn it off and try again.${vendor ? ` An outdated ${DRIVER_LINKS[vendor].name} driver makes this more likely.` : ''}`,
+      evidence: [at], culprits: [culprit.file],
+      fixes: [Fix.update(culprit), Fix.disable(culprit), vendor ? Fix.openUrl(DRIVER_LINKS[vendor].url, `Get the latest ${DRIVER_LINKS[vendor].name} driver`, 'Opens the official download page') : null]
+    });
+    return;
+  }
+  if (graphicsInit) {
+    const link = vendor ? DRIVER_LINKS[vendor] : null;
+    ctx.add({
+      id: 'graphics-init-crash', category: 'graphics', severity: 'critical', confidence: 60,
+      title: 'The game crashed while starting the graphics driver',
+      explanation: `It closed right after the graphics device came up. Update your ${link ? link.name : 'graphics'} driver. If it keeps happening, try once without rendering mods (Sodium, ImmediatelyFast, Entity Culling, shaders).`,
+      evidence: [tailStart + tail.length - 1], culprits: [],
+      fixes: link ? [Fix.openUrl(link.url, `Get the latest ${link.name} driver`, 'Opens the official download page')] : []
+    });
+  }
+}
+
 function ruleNativeCrash(ctx, facts) {
   const jvm = ctx.text('jvm') || ctx.text();
   if (!/A fatal error has been detected by the Java Runtime Environment/.test(jvm)) return;
@@ -1437,7 +1500,7 @@ function analyzeCrash(input = {}) {
 
   const rules = [
     ruleManualCrash, ruleJavaVersion, ruleMemory, ruleJvmArgs, ruleFabricResolution, ruleMixin, ruleModInit,
-    (c) => ruleMissingClass(c, chain), ruleMethodMismatch, (c) => ruleGraphics(c, facts), (c) => ruleNativeCrash(c, facts),
+    (c) => ruleMissingClass(c, chain), ruleMethodMismatch, (c) => ruleGraphics(c, facts), (c) => ruleNativeCrash(c, facts), (c) => ruleNativeExit(c, facts, input.exitCode),
     ruleConfig, ruleCorruptFiles, ruleCorruptInstallMain, ruleWorld, ruleShadersPacks, ruleSystem
   ];
   for (const rule of rules) {
