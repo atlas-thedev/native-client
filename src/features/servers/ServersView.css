@@ -1,5 +1,6 @@
 /* Servers page: a ranked server list (rank, icon, name, IP box, players, Play).
-   Colours come from the launcher theme (styles/theme.css) so it matches the rest of the app. */
+   Colours come from the launcher theme (styles/theme.css), and the page frame
+   (header, toolbar, scrolling body) is the same as the Instances page. */
 .srv-view {
   --srv-tile: var(--component-bg, #08090c);
   --srv-tile-hover: var(--component-bg-hover, #0e1014);
@@ -10,42 +11,37 @@
   --srv-green: var(--success, #22c55e);
   --srv-accent: var(--accent-text, #d9a6da);
   --srv-gold: var(--color-gold, #f59e0b);
+  position: relative;
   height: 100%;
-  overflow-y: auto;
-  padding: 24px var(--page-padding, 28px) 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 30px var(--page-padding, 28px) 0;
+  overflow: hidden;
   font-family: var(--font-sans);
   color: var(--fg-primary, #d2d2d2);
-  background: var(--page, #000);
+  background: color-mix(in srgb, var(--page, #000) 30%, #000);
 }
 
-/* ---------- hero ---------- */
-.srv-hero {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px 24px;
-  padding: 26px 26px 22px;
-  margin-bottom: 18px;
-  border: 1px solid var(--srv-line);
-  border-radius: var(--radius-xl, 16px);
-  overflow: hidden;
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
-    var(--page-elevated, #050608);
-}
-.srv-hero-kicker { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: var(--radius-full, 999px); background: var(--brand-subtle, rgba(255, 255, 255, 0.06)); border: 1px solid var(--srv-line); color: var(--srv-dim); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.srv-hero h1 { margin: 10px 0 0; font-size: 30px; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em; color: var(--color-text-heading, #fff); }
-.srv-hero p { margin: 6px 0 0; font-size: 13px; color: var(--srv-dim); }
-.srv-hero-stats { display: flex; gap: 10px; align-self: start; }
-.srv-hero-stats div { display: flex; flex-direction: column; gap: 2px; min-width: 92px; padding: 10px 14px; border: 1px solid var(--srv-line); border-radius: var(--radius-lg, 12px); background: var(--srv-tile); }
-.srv-hero-stats strong { font: 800 19px var(--font-mono); letter-spacing: -0.02em; color: var(--color-text-heading, #fff); }
-.srv-hero-stats span { font-size: 11px; font-weight: 600; color: var(--srv-muted); }
-.srv-search { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 14px; border: 1px solid var(--component-border, rgba(255, 255, 255, 0.08)); border-radius: var(--radius-lg, 12px); background: var(--page-sunken, #000); color: var(--srv-muted); transition: border-color 0.15s ease; }
-.srv-search:focus-within { border-color: var(--component-border-pressed, rgba(255, 255, 255, 0.2)); }
-.srv-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--color-text-heading, #fff); font: inherit; font-size: 14px; outline: none; }
+/* ---------- header (matches .instances-header) ---------- */
+.srv-header { flex: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.srv-heading-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.srv-heading-group > .page-title.page-title { margin-bottom: 6px; }
+.srv-subtitle { margin: 0; font-size: 13px; color: var(--srv-muted); }
+.srv-header-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+
+/* ---------- toolbar (matches .instances-toolbar) ---------- */
+.srv-toolbar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.srv-search { display: flex; align-items: center; gap: 8px; width: 320px; height: 38px; padding: 0 12px 0 14px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; background: #000; color: var(--srv-muted); transition: border-color 0.14s var(--ease, ease); }
+.srv-search:hover { border-color: rgba(255, 255, 255, 0.2); }
+.srv-search:focus-within { border-color: rgba(255, 255, 255, 0.32); }
+.srv-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--fg-primary, #d2d2d2); font: inherit; font-size: 13px; outline: none; }
 .srv-search input::placeholder { color: var(--srv-muted); }
-.srv-search button { display: grid; place-items: center; padding: 3px; border: 0; border-radius: var(--radius-sm, 6px); background: none; color: var(--srv-muted); cursor: pointer; }
-.srv-search button:hover { color: var(--fg-primary-hover, #fff); background: var(--ghost-overlay-hover, rgba(255, 255, 255, 0.07)); }
+.srv-search button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.07); color: var(--srv-dim); cursor: pointer; }
+.srv-search button:hover { color: var(--fg-primary-hover, #fff); }
+
+/* ---------- scrolling body ---------- */
+.srv-body { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 4px 40px; margin: 0 -4px; scrollbar-width: thin; }
 
 /* ---------- layout ---------- */
 .srv-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
@@ -66,8 +62,10 @@
 .srv-toggle i b { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg-secondary, #9b969e); transition: transform 0.16s var(--ease-out, ease), background 0.16s; }
 .srv-toggle.is-on i { background: #fff; }
 .srv-toggle.is-on i b { transform: translateX(14px); background: #000; }
-.srv-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; border: 1px solid var(--component-border, rgba(255, 255, 255, 0.08)); border-radius: var(--radius-md, 10px); background: var(--srv-tile); color: var(--fg-primary, #d2d2d2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
-.srv-refresh:hover:not(:disabled) { border-color: var(--component-border-hover, rgba(255, 255, 255, 0.15)); color: var(--fg-primary-hover, #fff); }
+
+/* Refresh: same as the ghost buttons in other page headers */
+.srv-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; background: transparent; color: var(--fg-primary, #d2d2d2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.14s var(--ease, ease), color 0.14s var(--ease, ease); }
+.srv-refresh:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: var(--fg-primary-hover, #fff); }
 .srv-refresh:disabled { opacity: 0.75; cursor: default; }
 .srv-refresh.is-busy svg { animation: srv-spin 0.9s linear infinite; }
 @keyframes srv-spin { to { transform: rotate(360deg); } }
@@ -153,7 +151,7 @@
 @media (max-width: 980px) {
   .srv-layout { grid-template-columns: minmax(0, 1fr); }
   .srv-side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-  .srv-hero { grid-template-columns: minmax(0, 1fr); }
+  .srv-search { width: 100%; }
   .srv-row { grid-template-columns: 40px 48px minmax(0, 1fr) auto; }
   .srv-row-icon { width: 48px; height: 48px; }
   .srv-ip { display: none; }
