@@ -124,6 +124,7 @@ function noteName(subject, name, at = now()) {
 const urlOf = (r) => (r.source === 'native' ? `${hooks.originOf()}/csl/textures/${r.hash}` : r.url);
 const mojangHash = (url) => { const m = String(url || '').match(/\/texture\/([a-f0-9]{32,64})$/i); return m ? m[1].toLowerCase() : null; };
 
+const checked = new Map();
 /** Records what a Native account looks like right now (skin + name). Never throws. */
 async function syncUser(user, { mojang = true } = {}) {
   try {
@@ -134,10 +135,16 @@ async function syncUser(user, { mojang = true } = {}) {
     if (profile && profile.skin) {
       noteSkin(subject, { hash: profile.skin, source: 'native', url: `${hooks.originOf()}/csl/textures/${profile.skin}`, model: profile.model });
     } else if (mojang) {
+      // straight from Mojang (no long cache), at most once a minute per player
       const uuid = mcUuidOf(user);
-      const look = uuid ? await hooks.mojangSkin(uuid) : null;
-      const hash = look ? mojangHash(look.url) : null;
-      if (hash) noteSkin(subject, { hash, source: 'mojang', url: look.url, model: look.model === 'slim' ? 'slim' : 'default' });
+      const last = checked.get(subject) || 0;
+      if (uuid && now() - last > 60_000) {
+        checked.set(subject, now());
+        if (checked.size > 5000) checked.clear();
+        const tex = await mojangTextures(uuid).catch(() => null);
+        const hash = tex && mojangHash(tex.skin);
+        if (hash) noteSkin(subject, { hash, source: 'mojang', url: tex.skin, model: tex.model });
+      }
     }
   } catch (error) { console.warn('[Native Profiles] sync failed:', error.message); }
 }
@@ -241,7 +248,6 @@ function friendsOf(user) {
 async function nativeProfile(user) {
   await syncUser(user);
   const subject = nativeSubject(user);
-  const { names, skins } = historyOf(subject);
   const uuid = mcUuidOf(user);
   const profile = hooks.readProfile(user.username);
   let current = null;
@@ -251,9 +257,14 @@ async function nativeProfile(user) {
     const tex = await mojangTextures(uuid).catch(() => null);
     if (tex) {
       mojangCape = tex.cape;
-      if (!current && tex.skin) current = { url: tex.skin, hash: mojangHash(tex.skin), model: tex.model };
+      if (!current && tex.skin) {
+        current = { url: tex.skin, hash: mojangHash(tex.skin), model: tex.model };
+        // the skin shown is always in the history too, the moment it changes
+        if (current.hash) noteSkin(subject, { hash: current.hash, source: 'mojang', url: tex.skin, model: tex.model });
+      }
     }
   }
+  const { names, skins } = historyOf(subject);
   return {
     native: true,
     name: user.username,
