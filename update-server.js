@@ -58,7 +58,7 @@ const server = http.createServer((req, res) => {
   try {
     decoded = decodeURIComponent(urlPath);
   } catch {
-    // "%E0%A4%A" and friends used to throw and kill the whole server.
+    // A malformed escape ("%E0%A4%A") used to throw and kill the whole server.
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     return res.end('Bad request');
   }
@@ -93,14 +93,14 @@ const server = http.createServer((req, res) => {
     };
 
     if (range === 'unsatisfiable') {
-      res.writeHead(416, { 'Content-Range': `bytes */${total}`, 'Accept-Ranges': 'bytes' });
+      res.writeHead(416, { 'Content-Range': 'bytes */' + total, 'Accept-Ranges': 'bytes' });
       return res.end();
     }
     if (range) {
       const { start, end } = range;
       res.writeHead(206, {
         'Content-Type': contentType,
-        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Content-Range': 'bytes ' + start + '-' + end + '/' + total,
         'Accept-Ranges': 'bytes',
         'Content-Length': end - start + 1,
       });
@@ -117,6 +117,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Update server running at http://${HOST}:${PORT}`);
-  console.log(`Serving files from: ${SERVE_DIR}`);
+  console.log('Update server running at http://' + HOST + ':' + PORT);
+  console.log('Serving files from: ' + SERVE_DIR);
 });
