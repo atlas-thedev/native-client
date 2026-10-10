@@ -743,18 +743,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const cosmeticShot = (item) => (cosAssets[item.id]
     ? <WornShot item={item} asset={dyedAsset(item.id)} skinUrl={shotSkin} model={shotModel} prepare={prepareSkinSource} fallback={cosAssets[item.id].thumb} className="locker-cosmetic-thumb" />
     : <span className="locker-cosmetic-thumb is-loading"/>);
+  // The cape art every cape and cloak card uses: the cape texture's front, animated cloaks play their strip in the same spot.
+  const capeArt = (item, url) => (item?.animated ? <AnimatedCapeThumb item={item} fallback={url}/> : url ? <span className="locker-cape-texture" style={{ backgroundImage: `url(${url})` }}/> : <span className="locker-no-cape"><X size={20}/></span>);
   // A Store item you don't own: click to try it on the model.
   const storeCard = (item, index) => {
     const trying = tryOn?.id === item.id;
-    return <button key={`shop:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-shop-card locker-pop ${item.kind === 'cosmetic' ? 'locker-cosmetic-card' : 'locker-tile'} ${trying ? 'is-trying' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => setTryOn(trying ? null : item)} title={trying ? 'Stop trying on' : `Try on ${item.name}`} aria-pressed={trying}>
-      {item.kind === 'cosmetic' ? <>
-        {cosmeticShot(item)}
-        <span className="locker-shop-name">{item.name}</span>
-        <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
-      </> : <>
-        <span className="locker-tile-art">{item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <StillCapeThumb url={item.stillUrl}/>}</span>
-        <span className="locker-tile-meta"><strong title={item.name}>{item.name}</strong><b className={`locker-tile-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</b></span>
-      </>}
+    return <button key={`shop:${item.id}`} type="button" style={{ '--i': index }} className={`locker-cape-card locker-shop-card locker-pop ${item.kind === 'cosmetic' ? 'locker-cosmetic-card' : ''} ${trying ? 'is-trying' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => setTryOn(trying ? null : item)} title={trying ? 'Stop trying on' : `Try on ${item.name}`} aria-pressed={trying}>
+      {item.kind === 'cosmetic' ? cosmeticShot(item) : capeArt(item, item.stillUrl)}
+      <span className="locker-shop-name">{item.name}</span>
+      <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
       {trying && <Check size={13} className="locker-cape-check"/>}
     </button>;
   };
@@ -817,12 +814,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
   const pickSkin = (skin) => (officialMode ? applyPremiumSkin(skin) : applySkin(skin));
 
+  // One card for capes and cloaks: the original cape card (art well, cape front, name under it).
   const capeCard = (card, index) => {
     const locked = card.kind === 'locked';
     const isCloak = card.kind === 'store' || card.kind === 'cloakNone';
-    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-tile locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
-      <span className="locker-tile-art">{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <StillCapeThumb url={card.textureUrl}/> : <span className="locker-no-cape"><X size={20}/></span>}</span>
-      <span className="locker-tile-meta"><strong title={card.name}>{card.name}</strong><b className={`locker-tile-price${card.active ? ' is-on' : ''}`}>{locked ? 'Locked' : card.active ? 'Wearing' : card.kind === 'cloakNone' ? 'No cape' : card.kind === 'official' ? 'Minecraft' : 'Owned'}</b></span>
+    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
+      {capeArt(card.animated ? card.storeItem : null, card.textureUrl)}
+      <span>{card.name}</span>
       {storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
       {card.active && <Check size={13} className="locker-cape-check"/>}
       {locked && <Lock size={11} className="locker-cape-lock"/>}
@@ -1081,35 +1079,20 @@ function ModelArmGlyph({ model }) {
 }
 
 /**
- * Animated store cape for a locker card, built exactly like StillCapeThumb (one 80x128 canvas with
- * the front face cut out by drawCapeFront), so cloak cards look the same as cape cards. The still is
- * drawn on the canvas first, then the strip takes over and plays. Only when both fail does the raw
- * texture show.
+ * Animated store cape for a cape card: the still texture shows exactly like a normal cape card
+ * (same crop, same size) until the strip has loaded, then the strip's front face plays in the same spot.
  */
 function AnimatedCapeThumb({ item, fallback }) {
   const ref = useRef(null);
-  const [state, setState] = useState('loading');
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     let alive = true;
     let timer = null;
-    let animating = false;
-    let stillFailed = !fallback;
-    let stripFailed = false;
-    setState('loading');
-    const failed = () => { if (alive && !animating && stillFailed && stripFailed) setState('error'); };
-    // The still first (no crossOrigin: we only draw it, never read pixels back).
-    if (fallback) {
-      new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = fallback; }).then((image) => {
-        if (!alive || animating || !ref.current) return;
-        try { drawCapeFront(ref.current, image, 1, 0); setState('ready'); } catch { stillFailed = true; failed(); }
-      }).catch(() => { stillFailed = true; failed(); });
-    }
-    // Then the animation strip, on the same canvas.
+    setReady(false);
     (async () => {
       try {
         const res = await window.native?.store?.strip?.(item.id);
-        if (!alive) return;
-        if (!res?.ok) throw new Error('no strip');
+        if (!alive || !res?.ok) return;
         const image = await loadStripImage(res.url);
         if (!alive || !ref.current) return;
         const frames = Math.max(1, item.frames || 1);
@@ -1117,39 +1100,18 @@ function AnimatedCapeThumb({ item, fallback }) {
         let index = 0;
         const paint = () => {
           if (!alive || !ref.current) return;
-          try { drawCapeFront(ref.current, image, frames, index); } catch { if (!animating) { stripFailed = true; failed(); } return; }
-          animating = true;
-          setState('ready');
+          try { drawCapeFront(ref.current, image, frames, index); } catch { return; }
+          setReady(true);
           index = (index + 1) % frames;
           if (frames > 1 && !reduce) timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
         };
         paint();
-      } catch { stripFailed = true; failed(); }
+      } catch { /* keep the still */ }
     })();
     return () => { alive = false; clearTimeout(timer); };
-  }, [item.id, item.frames, item.fps, fallback]);
+  }, [item.id, item.frames, item.fps]);
   return <span className="locker-cape-anim">
-    {state === 'error' && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
-    <canvas ref={ref} width={80} height={128} className={`locker-cape-canvas${state === 'loading' ? ' is-pending' : ''}`} style={state === 'error' ? { display: 'none' } : undefined} aria-hidden="true"/>
-  </span>;
-}
-
-// A still cape drawn the way the Store draws it: the front face cut out by its real size (HD and Native ratios too).
-function StillCapeThumb({ url }) {
-  const ref = useRef(null);
-  const [state, setState] = useState('loading');
-  useEffect(() => {
-    let alive = true;
-    setState('loading');
-    // No crossOrigin: we only draw it, never read pixels back, so hosts without CORS still work.
-    new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = url; }).then((image) => {
-      if (!alive || !ref.current) return;
-      try { drawCapeFront(ref.current, image, 1, 0); setState('ready'); } catch { setState('error'); }
-    }).catch(() => { if (alive) setState('error'); });
-    return () => { alive = false; };
-  }, [url]);
-  return <span className="locker-cape-anim">
-    {state === 'error' && <span className="locker-cape-texture" style={{ backgroundImage: `url(${url})` }}/>}
-    <canvas ref={ref} width={80} height={128} className={`locker-cape-canvas${state === 'loading' ? ' is-pending' : ''}`} style={state === 'error' ? { display: 'none' } : undefined} aria-hidden="true"/>
+    {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
+    <canvas ref={ref} width={80} height={128} className="locker-cape-canvas" style={ready ? undefined : { display: 'none' }} aria-hidden="true"/>
   </span>;
 }
