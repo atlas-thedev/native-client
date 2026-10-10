@@ -752,7 +752,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <span className="locker-shop-name">{item.name}</span>
         <em className={`locker-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</em>
       </> : <>
-        <span className="locker-tile-art">{item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <span className="locker-cape-texture" style={{ backgroundImage: `url(${item.stillUrl})` }}/>}</span>
+        <span className="locker-tile-art">{item.animated ? <AnimatedCapeThumb item={item} fallback={item.stillUrl}/> : <StillCapeThumb url={item.stillUrl}/>}</span>
         <span className="locker-tile-meta"><strong title={item.name}>{item.name}</strong><b className={`locker-tile-price ${item.exclusive ? 'is-event' : item.paid ? 'is-paid' : 'is-free'}`}>{trying ? 'Trying on' : priceLabel(item)}</b></span>
       </>}
       {trying && <Check size={13} className="locker-cape-check"/>}
@@ -821,7 +821,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const locked = card.kind === 'locked';
     const isCloak = card.kind === 'store' || card.kind === 'cloakNone';
     return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-tile locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
-      <span className="locker-tile-art">{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <span className="locker-cape-texture" style={{ backgroundImage: `url(${card.textureUrl})` }}/> : <span className="locker-no-cape"><X size={20}/></span>}</span>
+      <span className="locker-tile-art">{card.animated && card.storeItem ? <AnimatedCapeThumb item={card.storeItem} fallback={card.textureUrl}/> : card.textureUrl ? <StillCapeThumb url={card.textureUrl}/> : <span className="locker-no-cape"><X size={20}/></span>}</span>
       <span className="locker-tile-meta"><strong title={card.name}>{card.name}</strong><b className={`locker-tile-price${card.active ? ' is-on' : ''}`}>{locked ? 'Locked' : card.active ? 'Wearing' : card.kind === 'cloakNone' ? 'No cape' : card.kind === 'official' ? 'Minecraft' : 'Owned'}</b></span>
       {storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
       {card.active && <Check size={13} className="locker-cape-check"/>}
@@ -1110,6 +1110,26 @@ function AnimatedCapeThumb({ item, fallback }) {
   }, [item.id, item.frames, item.fps]);
   return <span className="locker-cape-anim">
     {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}
-    <canvas ref={ref} width={40} height={64} className="locker-cape-canvas" style={ready ? undefined : { display: 'none' }} aria-hidden="true"/>
+    <canvas ref={ref} width={80} height={128} className="locker-cape-canvas" style={ready ? undefined : { display: 'none' }} aria-hidden="true"/>
+  </span>;
+}
+
+// A still cape drawn the way the Store draws it: the front face cut out by its real size (HD and Native ratios too).
+function StillCapeThumb({ url }) {
+  const ref = useRef(null);
+  const [state, setState] = useState('loading');
+  useEffect(() => {
+    let alive = true;
+    setState('loading');
+    // No crossOrigin: we only draw it, never read pixels back, so hosts without CORS still work.
+    new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = url; }).then((image) => {
+      if (!alive || !ref.current) return;
+      try { drawCapeFront(ref.current, image, 1, 0); setState('ready'); } catch { setState('error'); }
+    }).catch(() => { if (alive) setState('error'); });
+    return () => { alive = false; };
+  }, [url]);
+  return <span className="locker-cape-anim">
+    {state === 'error' && <span className="locker-cape-texture" style={{ backgroundImage: `url(${url})` }}/>}
+    <canvas ref={ref} width={80} height={128} className={`locker-cape-canvas${state === 'loading' ? ' is-pending' : ''}`} style={state === 'error' ? { display: 'none' } : undefined} aria-hidden="true"/>
   </span>;
 }

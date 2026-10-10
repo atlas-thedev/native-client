@@ -1,0 +1,2 @@
+@keyframes relay-avatar-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .relay-avatar-skel { animation: none !important; } }

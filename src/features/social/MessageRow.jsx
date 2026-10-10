@@ -111,7 +111,7 @@ export function MessageRow({
             {msg.createdAt ? clock(msg.createdAt) : msg.time}
           </span>
         ) : (
-          <RelayAvatar name={authorName} size={38} className="rm-avatar" />
+          <RelayAvatar name={isMine ? selfName : (msg.avatarName || authorName)} skinUrl={isMine ? null : (msg.avatarSkin || null)} size={38} className="rm-avatar" />
         )}
       </div>
 
