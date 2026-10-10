@@ -2,10 +2,9 @@ import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Folder, HardDrive, Lock, Palette, Pause, Play, Plus, RefreshCw, RotateCcw, Search, Shirt, Sparkles, Star, Store, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { createCamera, SHOTS } from '../../lib/viewerCamera.js';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
-import LockerSwitch from './LockerSwitch.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
@@ -965,7 +964,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); switchSection('skins'); processFile(event.dataTransfer?.files?.[0]); }}>
     <header className="locker-header">
       <div>
-        <h1 className="locker-title page-title">{t('locker.title') || 'LOCKER'}</h1>
+        <h1 className="locker-title page-title">{t('locker.title') || 'Locker'}</h1>
         <p className="locker-subtitle">{t('locker.subtitle')}</p>
       </div>
       {localOnly ? (
@@ -979,17 +978,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       ) : (
       <div className="locker-header-actions">
       {cloudAccount && (cloud === 'offline' || !online) && <span className="locker-sync-pill is-offline" role="status"><i/>Offline · showing your saved locker</span>}
-      <button
-        type="button"
-        className="locker-sync-btn"
-        onClick={handleCloudSync}
-        disabled={syncing}
-        title={t('locker.cloudNote')}
-        aria-label={syncing ? t('locker.syncing') : t('locker.syncButton')}
-      >
-        <RefreshCw size={13} className={syncing ? 'is-spinning' : ''}/>
-        <span>{syncing ? t('locker.syncing') : t('locker.syncButton')}</span>
-      </button>
+      <PixelButton variant="ghost" icon={<RefreshCw size={15} className={syncing ? 'is-spinning' : ''}/>} label={syncing ? t('locker.syncing') : t('locker.syncButton')} title={t('locker.cloudNote')} disabled={syncing} onClick={handleCloudSync}/>
       </div>
       )}
     </header>
@@ -1017,7 +1006,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         <div className="locker-stage-actions"><div><button type="button" onClick={handleResetView} title="Reset view"><RotateCcw size={16}/></button><button type="button" onClick={() => zoomBy(1 / 1.25)} disabled={!zoomState.out} title="Zoom out"><ZoomOut size={16}/></button><button type="button" onClick={() => zoomBy(1.25)} disabled={!zoomState.in} title="Zoom in"><ZoomIn size={16}/></button></div><div><button type="button" onClick={() => setPaused((value) => !value)} title={paused ? 'Play preview' : 'Pause preview'}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button></div></div>
       </section>
       <main className="locker-library">
-        <LockerSwitch value={section} onChange={switchSection} skinUrl={officialSkin?.url || wardrobe?.active?.skinUrl || null} capeUrl={wornCapeUrl} counts={{ skins: skinItems.length, cosmetics: storeCapes.length }}/>
+        <div className="locker-switch-tabs"><PixelTabs fill label="Locker sections" value={section} onChange={switchSection} items={[{ id: 'skins', label: 'Skins', icon: <Shirt size={15}/>, count: skinItems.length || null }, { id: 'cosmetics', label: 'Cosmetics', icon: <Sparkles size={15}/>, count: storeCapes.length || null }]}/></div>
         <div className="locker-panels">
           {leaving && leaving !== section && <div key={`out-${leaving}`} className={`locker-panel is-leaving to-${section === 'cosmetics' ? 'left' : 'right'}`} aria-hidden="true" onAnimationEnd={(event) => { if (event.target === event.currentTarget) setLeaving(null); }}>{leaving === 'skins' ? renderSkins() : renderCosmetics()}</div>}
           <div key={`in-${section}`} className={`locker-panel ${leaving ? `is-entering from-${section === 'cosmetics' ? 'right' : 'left'}` : ''}`} role="tabpanel">{section === 'skins' ? renderSkins() : renderCosmetics()}</div>

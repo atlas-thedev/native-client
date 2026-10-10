@@ -19,37 +19,6 @@ const PER_FRIEND_PRELOAD = 40;
 const THREAD_PAGE_SIZE = 50;
 
 const SOCIAL_CACHE_PREFIX = 'native.relay.social.';
-const CACHE_THREAD_MESSAGES = 20;
-const CACHE_MAX_THREADS = 40;
-
-function readSocialCache(selfId) {
-  if (!selfId) return null;
-  try {
-    const value = JSON.parse(localStorage.getItem(SOCIAL_CACHE_PREFIX + selfId) || 'null');
-    return value && Array.isArray(value.friends) ? value : null;
-  } catch { return null; }
-}
-
-function writeSocialCache(selfId, friends, conversations) {
-  if (!selfId) return;
-  try {
-    const trimmed = {};
-    Object.entries(conversations || {})
-      .filter(([, thread]) => thread?.messages?.length)
-      .sort((a, b) => (b[1].messages.at(-1)?.createdAt || 0) - (a[1].messages.at(-1)?.createdAt || 0))
-      .slice(0, CACHE_MAX_THREADS)
-      .forEach(([id, thread]) => {
-        trimmed[id] = {
-          messages: thread.messages.filter((m) => !String(m.id).startsWith('optimistic-')).slice(-CACHE_THREAD_MESSAGES),
-          hasMore: true,
-          oldestTime: thread.messages[0]?.createdAt ?? null,
-          loading: false,
-          loaded: true
-        };
-      });
-    localStorage.setItem(SOCIAL_CACHE_PREFIX + selfId, JSON.stringify({ friends, conversations: trimmed, at: Date.now() }));
-  } catch { /* quota */ }
-}
 
 function sortMessages(list) {
   return [...list].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -87,15 +56,16 @@ export function useSocial(account) {
   const isNative = Boolean(account?.type === 'native' && (account?.token || account?.sessionToken || account?.linkedPremium));
   const selfId = account?.id || null;
 
-  const initialCache = useMemo(() => (isNative ? readSocialCache(selfId) : null), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [friends, setFriends] = useState(() => initialCache?.friends || []);
+  // No saved copies: an old snapshot showed stale chats (and blocked the real
+  // fetch). The inbox shows skeletons until the server answers instead.
+  const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState({ received: [], sent: [] });
-  const [conversations, setConversations] = useState(() => initialCache?.conversations || {});
+  const [conversations, setConversations] = useState({});
   const [blocked, setBlocked] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [typingBy, setTypingBy] = useState({});
   const [streamStatus, setStreamStatus] = useState('connecting');
-  const [initialLoading, setInitialLoading] = useState(() => !initialCache);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [socialError, setSocialError] = useState(null);
   const [liveUserCount, setLiveUserCount] = useState(null);
 
@@ -249,11 +219,11 @@ export function useSocial(account) {
   }, []);
 
   // Keep a saved copy so the inbox opens instantly next time, and works offline.
+  // Drop the old on-disk snapshot (it is never read any more).
   useEffect(() => {
-    if (!isNative || !selfId || initialLoading) return undefined;
-    const timer = setTimeout(() => writeSocialCache(selfId, friends, conversations), 1500);
-    return () => clearTimeout(timer);
-  }, [isNative, selfId, initialLoading, friends, conversations]);
+    if (!selfId) return;
+    try { localStorage.removeItem(SOCIAL_CACHE_PREFIX + selfId); } catch { /* ignore */ }
+  }, [selfId]);
 
   const refresh = useCallback(async () => {
     loadStats();
@@ -269,13 +239,7 @@ export function useSocial(account) {
   }, [isNative, loadFriends, loadRequests, loadConversations, loadBlocked, loadStats]);
 
   useEffect(() => {
-    // A saved copy means there is nothing to wait for: refresh quietly behind it.
-    const saved = isNative ? readSocialCache(selfId) : null;
-    if (saved) {
-      setFriends((current) => (current.length ? current : saved.friends));
-      setConversations((current) => (Object.keys(current).length ? current : saved.conversations || {}));
-    }
-    setInitialLoading(!saved);
+    setInitialLoading(true);
     refresh();
   }, [refresh, account?.id]);
 

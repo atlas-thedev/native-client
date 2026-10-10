@@ -1,8 +1,7 @@
 /* ============================================================
-   Native pixel controls: the Locker switch look, for every button.
-   A pixel-textured slab sits on a darker base and presses down into
-   it; labels use the app's clean sans font. Tabs slide a slab
-   between items with squash & stretch and a tiny pixel poof.
+   Native controls for the Locker and the Store. Flat, like the in-game
+   Native menu: white primary buttons, dark ghost buttons, one white
+   pill that slides between tabs.
    ============================================================ */
 
 :root {
@@ -16,27 +15,26 @@
 
 /* ---- button ---- */
 .pxb {
-  --pxb-face: color-mix(in srgb, var(--accent-text) 82%, #000);
-  --pxb-base: color-mix(in srgb, var(--accent-text) 38%, #000);
-  --pxb-ink: #121214;
-  --pxb-depth: 4px;
-  --pxb-h: 40px;
+  --pxb-face: #f4f4f5;
+  --pxb-ink: #0b0b0c;
+  --pxb-line: transparent;
+  --pxb-hover: #ffffff;
+  --pxb-h: 38px;
   --pxb-pad: 16px;
   --pxb-radius: 10px;
-  --px-shadow: rgba(255, 255, 255, 0.38);
   position: relative;
   display: inline-flex;
   flex: none;
   box-sizing: border-box;
-  height: calc(var(--pxb-h) + var(--pxb-depth));
-  min-width: calc(var(--pxb-h) + 0px);
-  padding: 0 0 var(--pxb-depth);
+  height: var(--pxb-h);
+  min-width: var(--pxb-h);
+  padding: 0;
   margin: 0;
   border: 0;
   border-radius: var(--pxb-radius);
-  background: var(--pxb-base);
+  background: transparent;
   color: var(--pxb-ink);
-  font: 700 12px var(--font-sans);
+  font: 600 12px var(--font-sans);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -49,96 +47,46 @@
   flex: 1 1 auto;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 8px;
   box-sizing: border-box;
   height: var(--pxb-h);
   min-width: 0;
   padding: 0 var(--pxb-pad);
   border-radius: var(--pxb-radius);
-  background-color: var(--pxb-face);
-  background-image: var(--px-texture);
-  background-size: 48px 48px;
-  image-rendering: pixelated;
-  box-shadow:
-    inset 0 3px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.22),
-    inset 3px 0 0 rgba(255, 255, 255, 0.08),
-    inset -3px 0 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(0);
-  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.16s ease, background-color 0.16s ease;
+  background: var(--pxb-face);
+  box-shadow: inset 0 0 0 1px var(--pxb-line);
+  transition: background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 .pxb-face > svg:not(.px-text) { flex: none; width: 15px; height: 15px; }
-.pxb:hover:not(:disabled) .pxb-face { transform: translateY(-2px); filter: brightness(1.07); }
+.pxb:hover:not(:disabled) .pxb-face { background: var(--pxb-hover); }
 .pxb:active:not(:disabled) .pxb-face,
-.pxb.is-pressed .pxb-face { transform: translateY(calc(var(--pxb-depth) - 1px)); filter: brightness(0.96); transition-duration: 0.06s; }
+.pxb.is-pressed .pxb-face { transform: scale(0.97); transition-duration: 0.06s; }
 .pxb:focus-visible { outline: 2px solid var(--fg-secondary, #aaa); outline-offset: 3px; }
 .pxb:disabled { cursor: default; }
-.pxb:disabled .pxb-face { filter: grayscale(0.6) brightness(0.7); }
-.pxb.is-busy .pxb-face { filter: brightness(0.92); }
-.pxb.is-pop .pxb-face { animation: pxb-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
-@keyframes pxb-pop {
-  0% { scale: 0.9 1.08; }
-  45% { scale: 1.06 0.94; }
-  75% { scale: 0.99 1.01; }
-  100% { scale: 1 1; }
-}
+.pxb:disabled .pxb-face { opacity: 0.5; }
+.pxb.is-busy .pxb-face { opacity: 0.85; }
+.pxb.is-pop .pxb-face { animation: pxb-pop 0.3s ease; }
+@keyframes pxb-pop { 0% { transform: scale(1); } 40% { transform: scale(0.96); } 100% { transform: scale(1); } }
 
-/* lucide icons inherit the ink */
-:root .pxb .pxb-face > svg:not(.px-text),
-:root .pxb .pxb-face > svg:not(.px-text) * { color: var(--pxb-ink) !important; stroke: currentColor; }
-:root .pxb .pxb-face > svg.px-icon, :root .pxb .pxb-face > svg.px-icon * { stroke: none !important; fill: currentColor; }
-
-/* dark slab: the Locker's well colour */
-.pxb.is-ghost {
-  --pxb-face: #18181b;
-  --pxb-base: #050506;
-  --pxb-ink: #d6d6da;
-  --px-shadow: rgba(0, 0, 0, 0.7);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07);
-}
-.pxb.is-ghost .pxb-face {
-  background-color: var(--pxb-face);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.07),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
+/* ghost: secondary */
+.pxb.is-ghost { --pxb-face: #18181b; --pxb-hover: #222226; --pxb-ink: #e4e4e7; --pxb-line: rgba(255, 255, 255, 0.08); }
 .pxb.is-ghost:hover:not(:disabled) { --pxb-ink: #fff; }
-.pxb.is-ghost:hover:not(:disabled) .pxb-face { filter: none; background-color: #222226; }
-
 /* gold: Native+ */
-.pxb.is-gold {
-  --pxb-face: #f2c66f;
-  --pxb-base: #7d5a1c;
-  --pxb-ink: #2a1c04;
-  --px-shadow: rgba(255, 244, 214, 0.55);
-}
+.pxb.is-gold { --pxb-face: #f2c66f; --pxb-hover: #f6d38a; --pxb-ink: #2a1c04; }
 /* red: remove / delete */
-.pxb.is-danger {
-  --pxb-face: #1b1213;
-  --pxb-base: #070303;
-  --pxb-ink: #ff9a9a;
-  --px-shadow: rgba(0, 0, 0, 0.7);
-  box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.14);
-}
-.pxb.is-danger .pxb-face { box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.05), inset 0 -2px 0 rgba(0, 0, 0, 0.45); }
-.pxb.is-danger:hover:not(:disabled) .pxb-face { filter: none; background-color: #2a1517; }
-/* locked / not for sale: a dashed, flat slab that can't be pressed */
-.pxb.is-locked { --pxb-base: transparent; --pxb-ink: #9a9aa0; --pxb-depth: 0px; cursor: default; }
-.pxb.is-locked .pxb-face {
-  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 6px, transparent 6px 12px);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.09);
-  image-rendering: auto;
-}
-.pxb.is-locked:hover .pxb-face, .pxb.is-locked:active .pxb-face { transform: none; filter: none; }
+.pxb.is-danger { --pxb-face: #1b1213; --pxb-hover: #2a1517; --pxb-ink: #ff9a9a; --pxb-line: rgba(255, 120, 120, 0.16); }
+/* locked / not for sale: flat, dashed, can't be pressed */
+.pxb.is-locked { --pxb-ink: #9a9aa0; cursor: default; }
+.pxb.is-locked .pxb-face { background: transparent; box-shadow: none; outline: 1px dashed rgba(255, 255, 255, 0.16); outline-offset: -1px; }
+.pxb.is-locked:hover .pxb-face, .pxb.is-locked:active .pxb-face { background: transparent; transform: none; }
 .pxb.is-locked.is-exclusive { --pxb-ink: #ffd68c; }
-.pxb.is-locked.is-exclusive .pxb-face { box-shadow: inset 0 0 0 2px rgba(255, 214, 140, 0.28); }
+.pxb.is-locked.is-exclusive .pxb-face { outline-color: rgba(255, 214, 140, 0.32); }
 
 /* sizes */
-.pxb.is-sm { --pxb-h: 32px; --pxb-pad: 12px; --pxb-depth: 3px; --pxb-radius: 8px; }
-.pxb.is-sm .pxb-face { gap: 7px; }
+.pxb.is-sm { --pxb-h: 30px; --pxb-pad: 12px; --pxb-radius: 8px; }
+.pxb.is-sm .pxb-face { gap: 6px; }
 .pxb.is-sm .pxb-face > svg:not(.px-text) { width: 13px; height: 13px; }
-.pxb.is-lg { --pxb-h: 46px; --pxb-pad: 22px; --pxb-depth: 5px; --pxb-radius: 12px; }
+.pxb.is-lg { --pxb-h: 44px; --pxb-pad: 22px; --pxb-radius: 12px; }
 .pxb.is-block { display: flex; width: 100%; }
 .pxb.is-icon .pxb-face { padding: 0; width: var(--pxb-h); }
 .pxb.is-icon { min-width: 0; }
@@ -148,23 +96,22 @@
 
 /* ---- tabs (segmented, sliding slab) ---- */
 .pxt {
-  --pxt-pad: 5px;
-  --pxt-h: 52px;
-  --pxt-slab: color-mix(in srgb, var(--accent-text) 82%, #000);
+  --pxt-pad: 4px;
+  --pxt-h: 40px;
+  --pxt-slab: #f4f4f5;
   position: relative;
   display: flex;
   gap: var(--pxt-pad);
   box-sizing: border-box;
   padding: var(--pxt-pad);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  background: #0b0b0c;
-  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: #0f0f11;
   isolation: isolate;
   user-select: none;
   overflow: hidden;
 }
-.pxt.is-sm { --pxt-pad: 4px; --pxt-h: 34px; border-radius: 12px; }
+.pxt.is-sm { --pxt-pad: 4px; --pxt-h: 32px; border-radius: 11px; }
 .pxt.is-sm .pxt-count { height: 16px; min-width: 18px; font-size: 10px; line-height: 16px; }
 .pxt.is-fill > .pxt-tab { flex: 1 1 0; }
 .pxt-slab {
@@ -174,28 +121,17 @@
   left: 0;
   height: var(--pxt-h);
   width: var(--pxt-w, 0px);
-  border-radius: 10px;
+  border-radius: 8px;
   background-color: var(--pxt-slab);
-  background-image: var(--px-texture);
-  background-size: 48px 48px;
-  image-rendering: pixelated;
-  box-shadow:
-    inset 0 3px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -4px 0 rgba(0, 0, 0, 0.28),
-    inset 3px 0 0 rgba(255, 255, 255, 0.08),
-    inset -3px 0 0 rgba(0, 0, 0, 0.12),
-    0 2px 0 rgba(0, 0, 0, 0.5);
   transform: translateX(var(--pxt-x, 0px));
-  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.32s cubic-bezier(0.34, 1.3, 0.64, 1), background-color 0.3s ease;
+  transition: transform 0.28s cubic-bezier(0.3, 0.8, 0.3, 1), width 0.28s cubic-bezier(0.3, 0.8, 0.3, 1), background-color 0.2s ease;
   will-change: transform;
   pointer-events: none;
 }
 /* coloured tabs: a hint of the tab's colour on hover */
 .pxt.is-colored .pxt-tab.is-active { color: #141216; }
-.pxt.is-sm .pxt-slab { border-radius: 8px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(0, 0, 0, 0.28), 0 2px 0 rgba(0, 0, 0, 0.5); }
+.pxt.is-sm .pxt-slab { border-radius: 7px; }
 .pxt-slab.is-hidden { opacity: 0; }
-.pxt-slab.is-moving { animation: pxt-stretch 0.46s cubic-bezier(0.3, 0.7, 0.4, 1); }
-.pxt-slab.is-nudge { animation: pxt-nudge 0.32s ease; }
 @keyframes pxt-stretch {
   0% { scale: 1 1; }
   18% { scale: 0.94 1.06; }
@@ -216,10 +152,10 @@
   min-width: 0;
   padding: 0 16px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
-  color: #6f6f74;
-  font: 700 12px var(--font-sans);
+  color: #8b8b92;
+  font: 600 12px var(--font-sans);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -227,11 +163,8 @@
 .pxt-tab:focus-visible { outline: 2px solid var(--fg-secondary, #aaa); outline-offset: 2px; }
 .pxt-tab-inner { display: inline-flex; align-items: center; gap: 10px; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .pxt.is-sm .pxt-tab-inner { gap: 7px; }
-.pxt-tab:not(.is-active):hover { color: #a3a3a9; }
-.pxt-tab:not(.is-active):hover .pxt-tab-inner { transform: translateY(-2px); }
-.pxt-tab:not(.is-active):active .pxt-tab-inner { transform: translateY(1px) scale(0.97); }
+.pxt-tab:not(.is-active):hover { color: #d4d4d8; background: rgba(255, 255, 255, 0.04); }
 .pxt-tab.is-active { --px-shadow: rgba(255, 255, 255, 0.38); color: #121214; }
-.pxt-tab.is-active .pxt-tab-inner { animation: pxt-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes pxt-pop {
   0% { transform: scale(0.84) rotate(-3deg); }
   55% { transform: scale(1.08) rotate(1.5deg); }
@@ -285,3 +218,7 @@
 .pxb.is-sm .px-label { font-size: 12.5px; }
 .pxb.is-lg .px-label { font-size: 15px; }
 .pxt.is-sm .px-label { font-size: 13px; }
+
+/* flat look: no pixel poof */
+.px-burst { display: none; }
+.px-label { font-weight: 600; }

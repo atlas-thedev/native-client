@@ -1,3 +1,4 @@
+import { nativeSupport } from '../../lib/nativeSupport.js';
 import React, { useEffect, useMemo, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { RELEASE_LINES, getClusterArt } from '../../data/versionsData.js';
@@ -186,6 +187,7 @@ export default function CreateInstanceModal({
     : null;
 
   const presetUsable = !preset || PRESET_LOADERS.includes(loader);
+  const native = nativeSupport(loader, version);
   const canSubmit = presetUsable && Boolean(trimmedName) && Boolean(version) && availability.available;
 
   const submit = () => {
@@ -356,6 +358,19 @@ export default function CreateInstanceModal({
                   <NativeIcon name="alert" size={13} />
                   {availability.reasonKey ? t(availability.reasonKey, availability.reasonVars) : availability.reason}
                 </p>
+              )}
+              {version && !native.ok && (
+                <div className="ci-native-warn" role="note">
+                  <NativeIcon name="alert" size={14} />
+                  <div>
+                    <strong>Unsupported client</strong>
+                    <span>
+                      Native Client doesn’t run on {native.loader ? loader : `Minecraft ${version}`}
+                      {native.loader && native.version ? ` ${version}` : ''}, so Native cosmetics, the Native menu and HUD mods won’t work in this instance.
+                      {' '}Pick Fabric on 1.16 or newer to get them.
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
 

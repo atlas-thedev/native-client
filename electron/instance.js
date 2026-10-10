@@ -804,6 +804,85 @@ function recentWorlds(limit = 8) {
     });
 }
 
+
+/* ── add local files (drag & drop / "Add local") ───────────────── */
+
+// Which files each instance folder takes. Folders are copied as they are
+// (unpacked resource / shader packs, world folders with a level.dat).
+const CONTENT_RULES = {
+  mods: { exts: ['.jar'], dirs: false, label: 'mods', filter: { name: 'Mods', extensions: ['jar'] } },
+  resourcepacks: { exts: ['.zip'], dirs: true, label: 'resource packs', filter: { name: 'Resource packs', extensions: ['zip'] } },
+  shaderpacks: { exts: ['.zip'], dirs: true, label: 'shader packs', filter: { name: 'Shader packs', extensions: ['zip'] } },
+  saves: { exts: ['.zip'], dirs: true, world: true, label: 'worlds', filter: { name: 'Worlds (.zip)', extensions: ['zip'] } }
+};
+const MAX_ADD_FILES = 200;
+
+function freeName(dir, name) {
+  if (!fs.existsSync(path.join(dir, name))) return name;
+  const ext = path.extname(name);
+  const stem = ext && !fs.statSync(path.join(dir, name)).isDirectory() ? name.slice(0, -ext.length) : name;
+  const tail = stem === name ? '' : ext;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${stem} (${n})${tail}`;
+    if (!fs.existsSync(path.join(dir, candidate))) return candidate;
+  }
+  throw new Error('Too many copies with that name');
+}
+
+/** A world .zip: its level.dat sits at the root or one folder deep. */
+function extractWorldZip(file, savesDir) {
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(file);
+  const entries = zip.getEntries();
+  const level = entries.find((entry) => !entry.isDirectory && /^(?:[^/]+\/)?level\.dat$/.test(entry.entryName.replace(/\\/g, '/')));
+  if (!level) throw new Error('No Minecraft world in this zip');
+  const prefix = level.entryName.replace(/\\/g, '/').replace(/level\.dat$/, '');
+  const name = freeName(savesDir, (prefix.replace(/\/$/, '') || path.basename(file, path.extname(file))).replace(/[<>:"/\\|?*]/g, '_'));
+  const target = resolveInside(savesDir, name);
+  for (const entry of entries) {
+    const entryName = entry.entryName.replace(/\\/g, '/');
+    if (entry.isDirectory || !entryName.startsWith(prefix)) continue;
+    const out = resolveInside(target, entryName.slice(prefix.length));
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, entry.getData());
+  }
+  return name;
+}
+
+function addContentFiles(instanceId, subpath, paths) {
+  const rules = CONTENT_RULES[subpath];
+  if (!rules) throw new Error('Files can’t be added there');
+  const list = (Array.isArray(paths) ? paths : []).filter((value) => typeof value === 'string' && value).slice(0, MAX_ADD_FILES);
+  const dir = resolveInside(instanceDir(instanceId), subpath);
+  fs.mkdirSync(dir, { recursive: true });
+  const added = [];
+  const skipped = [];
+  for (const source of list) {
+    const base = path.basename(source);
+    try {
+      const stat = fs.statSync(source);
+      if (path.resolve(path.dirname(source)) === path.resolve(dir)) { skipped.push({ name: base, reason: 'already here' }); continue; }
+      if (stat.isDirectory()) {
+        if (!rules.dirs) { skipped.push({ name: base, reason: `not ${rules.exts.join('/')}` }); continue; }
+        if (rules.world && !fs.existsSync(path.join(source, 'level.dat'))) { skipped.push({ name: base, reason: 'not a world folder' }); continue; }
+        const name = freeName(dir, base);
+        fs.cpSync(source, path.join(dir, name), { recursive: true });
+        added.push(name);
+        continue;
+      }
+      const ext = path.extname(base).toLowerCase();
+      if (!rules.exts.includes(ext)) { skipped.push({ name: base, reason: `not a ${rules.exts.join('/')} file` }); continue; }
+      if (rules.world) { added.push(extractWorldZip(source, dir)); continue; }
+      if (fs.existsSync(path.join(dir, base)) || fs.existsSync(path.join(dir, `${base}.disabled`))) { skipped.push({ name: base, reason: 'already added' }); continue; }
+      fs.copyFileSync(source, path.join(dir, base));
+      added.push(base);
+    } catch (error) {
+      skipped.push({ name: base, reason: error.message || 'couldn’t copy it' });
+    }
+  }
+  return { added, skipped };
+}
+
 /* ── init ───────────────────────────────────────────────────── */
 
 function init(dependencies, ipcMain) {
@@ -821,6 +900,20 @@ function init(dependencies, ipcMain) {
   });
 
   ipcMain.handle('instance:worldList', (_e, instanceId) => worldList(instanceId));
+
+  ipcMain.handle('instance:addFiles', (_e, instanceId, subpath, paths) => addContentFiles(instanceId, subpath, paths));
+  ipcMain.handle('instance:pickFiles', async (event, instanceId, subpath) => {
+    const rules = CONTENT_RULES[subpath];
+    if (!rules) throw new Error('Files can’t be added there');
+    const { BrowserWindow, dialog } = require('electron');
+    const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+      title: `Add ${rules.label}`,
+      properties: ['openFile', 'multiSelections'],
+      filters: [rules.filter]
+    });
+    if (result.canceled || !result.filePaths?.length) return { added: [], skipped: [], canceled: true };
+    return addContentFiles(instanceId, subpath, result.filePaths);
+  });
 
   ipcMain.handle('instance:screenshotList', (_e, instanceId) => screenshotList(instanceId));
   ipcMain.handle('instance:screenshotData', (_e, instanceId, filename, options) =>
@@ -870,6 +963,7 @@ module.exports = {
   installedVersions,
   cleanServerAddress,
   parseServerConnections,
+  addContentFiles,
   screenshotList,
   screenshotData,
   deleteScreenshot,

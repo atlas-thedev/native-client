@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
-import { Lock, Package, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Lock, Package, Plus, RotateCcw, Search, Trash2, Upload } from 'lucide-react';
 import nativeIcon from '../../assets/native-icon.png';
 import { isNativeCoreMod, nativeModVersion } from './coreMods.js';
 import customSkinLoaderIcon from '../../assets/mod-icons/customskinloader.png';
@@ -14,6 +14,24 @@ const formatSize = (bytes) => {
 };
 
 const ENRICHED_TYPES = new Set(['mods', 'shaders', 'textures']);
+
+/* Content types you can add from your own files (drag & drop or "Add local"). */
+const LOCAL_TYPES = {
+  mods: { hint: '.jar files' },
+  shaders: { hint: '.zip shader packs' },
+  textures: { hint: '.zip resource packs' },
+  worlds: { hint: 'world folders or .zip' }
+};
+
+function addedText(result, noun) {
+  const added = result?.added?.length || 0;
+  const skipped = result?.skipped || [];
+  const one = noun.replace(/s$/, '').replace(/ packs$/, ' pack');
+  const parts = [];
+  if (added) parts.push(`Added ${added === 1 ? `“${result.added[0]}”` : `${added} ${noun}`}.`);
+  if (skipped.length) parts.push(skipped.length === 1 ? `Skipped “${skipped[0].name}”: ${skipped[0].reason}.` : `Skipped ${skipped.length} files (${skipped[0].reason}).`);
+  return { text: parts.join(' ') || `Nothing to add. Drop ${one} files here.`, tone: added ? 'ok' : 'warn' };
+}
 
 const config = {
   mods: { folder: 'mods', title: '3rd Party Mods', noun: 'mods', browse: 'mod' },
@@ -53,6 +71,10 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const canAddLocal = Boolean(LOCAL_TYPES[type] && window.native?.instance?.addFiles);
+  const [dragging, setDragging] = useState(false);
+  const [notice, setNotice] = useState(null); // { text, tone }
+  const dragDepth = React.useRef(0);
   const bump = useCallback(() => setRevision((value) => value + 1), []);
   const health = useContentHealth({ cluster, type, revision, onChanged: bump });
 
@@ -170,6 +192,44 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   };
 
   const openFolder = () => action(() => window.native.instance.openFolder(cluster.id, folder));
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const addResult = (result) => {
+    if (!result || result.canceled) return;
+    setNotice(addedText(result, noun));
+    if (result.added?.length) setRevision((value) => value + 1);
+  };
+  const addLocal = async (event) => {
+    event?.stopPropagation?.();
+    if (!canAddLocal || busy) return;
+    setBusy(true);
+    try { addResult(await window.native.instance.pickFiles(cluster.id, folder)); }
+    catch (err) { setNotice({ text: err.message || 'Couldn’t add those files.', tone: 'warn' }); }
+    finally { setBusy(false); }
+  };
+  const hasFiles = (event) => Array.from(event.dataTransfer?.types || []).includes('Files');
+  const dropHandlers = canAddLocal ? {
+    onDragEnter: (event) => { if (!hasFiles(event)) return; event.preventDefault(); dragDepth.current += 1; setDragging(true); },
+    onDragOver: (event) => { if (!hasFiles(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; },
+    onDragLeave: (event) => { if (!hasFiles(event)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); },
+    onDrop: async (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      const paths = Array.from(event.dataTransfer.files || []).map((file) => window.native.instance.pathForFile?.(file) || file.path || '').filter(Boolean);
+      if (!paths.length) { setNotice({ text: 'Couldn’t read those files. Try “Add local” instead.', tone: 'warn' }); return; }
+      setBusy(true);
+      try { addResult(await window.native.instance.addFiles(cluster.id, folder, paths)); }
+      catch (err) { setNotice({ text: err.message || 'Couldn’t add those files.', tone: 'warn' }); }
+      finally { setBusy(false); }
+    }
+  } : {};
   const browseContent = () => onBrowse(browse);
   const addContent = canBrowse ? browseContent : openFolder;
 
@@ -232,7 +292,14 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
   }
 
   return (
-    <div className="im-content">
+    <div className={`im-content${dragging ? ' is-dropping' : ''}`} {...dropHandlers}>
+      {dragging && (
+        <div className="im-drop-overlay" aria-hidden="true">
+          <span className="im-drop-icon"><Upload size={22} /></span>
+          <strong>Drop to add to {cluster.name}</strong>
+          <small>{LOCAL_TYPES[type]?.hint}</small>
+        </div>
+      )}
       <div className="im-count" aria-live="polite">
         {loading
           ? `Fetching ${noun}…`
@@ -266,18 +333,32 @@ export default function InstanceContentTab({ cluster, type, query, filtered, onB
             </h3>
             <p className="im-upload-banner-subtitle">
               {localOnly
-                ? `Local ${noun} for this Minecraft instance. Click to manage in folder.`
+                ? `Local ${noun} for this Minecraft instance. Click to open the folder${canAddLocal ? ', or drop them here' : ''}.`
                 : canBrowse
-                  ? `Browse Modrinth and install ${noun} straight into this instance.`
+                  ? `Browse Modrinth${canAddLocal ? `, or drop your own ${LOCAL_TYPES[type].hint} here` : ` and install ${noun} straight into this instance`}.`
                   : `Drag & drop files here, or open the folder to add ${noun}.`}
             </p>
           </div>
-          {canBrowse && (
-            <span className="im-upload-banner-cta">
-              <Search size={13} /> Browse
-            </span>
-          )}
+          <div className="im-upload-banner-actions">
+            {canAddLocal && (
+              <button type="button" className="im-local-btn" onClick={addLocal} disabled={busy} title={`Add ${LOCAL_TYPES[type].hint} from your PC`}>
+                <Upload size={13} /> Add local
+              </button>
+            )}
+            {canBrowse && (
+              <span className="im-upload-banner-cta">
+                <Search size={13} /> Browse
+              </span>
+            )}
+          </div>
         </div>
+
+        {notice && (
+          <div className={`im-notice is-${notice.tone}`} role="status">
+            <span>{notice.text}</span>
+            <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
+          </div>
+        )}
 
         {!loading && rows.length > 0 && <ContentHealth health={health} noun={noun} />}
 

@@ -295,3 +295,89 @@
   border: 0;
   box-shadow: none;
 }
+
+/* ---------- One look for the Locker and the Store ----------
+   Same header, same tabs, same tiles: a dark card, a glowing art well on
+   top (like the in-game Native cosmetics), the name under it, a white
+   ring on what you wear. */
+.store-view .store-header { align-items: flex-end; }
+.store-view .store-header::before,
+.store-view .store-header::after { display: none; }
+.store-view .store-header .store-subtitle { max-width: 640px; margin: 0; font-size: 13px; line-height: 1.55; color: var(--ls-text-dim); }
+
+.store-view .store-grid,
+.locker-view .locker-cape-grid,
+.locker-view .locker-skin-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+
+.locker-view .locker-cape-card,
+.locker-view .locker-cosmetic-card,
+.locker-view .locker-skin-card,
+.store-view .store-card {
+  border-radius: 14px;
+  background: #0f0f11;
+  border: 1px solid var(--ls-line);
+}
+.store-view .store-card-art,
+.locker-view .locker-skin-preview {
+  background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.07), transparent 62%), #08080a;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.store-view .store-card-art { height: 168px; }
+/* locker tiles: the art fills the top of the card, the name sits under it */
+.locker-view .locker-cape-grid .locker-cape-card {
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 0;
+  padding: 6px 6px 10px;
+  color: var(--fg-primary);
+  font: 600 12px var(--font-sans);
+}
+.locker-view .locker-cape-grid .locker-cape-card { position: relative; isolation: isolate; }
+.locker-view .locker-cape-grid .locker-cape-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 6px; left: 6px; right: 6px;
+  height: 132px;
+  border-radius: 10px;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.07), transparent 62%), #08080a;
+}
+.locker-view .locker-cape-grid .locker-cape-card > .locker-cape-texture {
+  width: 56px; height: 88px; margin: 22px auto 16px;
+  background-size: 356px 178px; background-position: -5px -5px;
+  border: 0; border-radius: 3px;
+}
+.locker-view .locker-cape-grid .locker-cape-card > .locker-cape-anim { margin: 22px auto 16px; }
+.locker-view .locker-cape-grid .locker-cape-card > .locker-cape-anim .locker-cape-canvas { width: 56px; height: 90px; }
+.locker-view .locker-cape-grid .locker-cape-card > .locker-cape-anim .locker-cape-texture { width: 56px; height: 88px; background-size: 356px 178px; background-position: -5px -5px; border: 0; }
+.locker-view .locker-cape-grid .locker-cape-card > .locker-no-cape {
+  width: 56px; height: 88px; margin: 22px auto 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.16); border-radius: 8px; background: transparent;
+}
+.locker-view .locker-cape-grid .locker-cosmetic-card .locker-cosmetic-thumb {
+  max-width: none;
+  width: 100%;
+  height: 132px;
+  aspect-ratio: auto;
+  border-radius: 10px;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.07), transparent 62%), #08080a;
+}
+.locker-view .locker-skin-card.is-active,
+.locker-view .locker-cape-card.is-active,
+.locker-view .locker-cape-card.active,
+.locker-view .locker-cosmetic-card.is-active,
+.locker-view .locker-cosmetic-card.active,
+.locker-view .is-worn,
+.store-view .store-card.is-worn,
+.store-view .store-card.active {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+.locker-view .locker-cape-check { top: 12px; right: 12px; color: #fff; }
+.locker-view .locker-switch-tabs { margin-bottom: 12px; }
+.locker-view .locker-switch-tabs .pxt { --pxt-h: 40px; }
+.locker-view .locker-stage-model {
+  border-radius: 12px;
+  background: radial-gradient(90% 55% at 50% 0%, rgba(255, 255, 255, 0.08), transparent 70%), #08080a;
+}

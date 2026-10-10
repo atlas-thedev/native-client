@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './HomeSidePanel.css';
@@ -7,6 +8,7 @@ import './HomeSidePanel.css';
    floating over the Home wallpaper as a frosted glass card. */
 
 const LIMIT = 5;
+const SKIP_KEY = 'native.home.skipInstanceSwitchNote';
 const numberFormat = new Intl.NumberFormat();
 
 const KNOWN_NETWORKS = {
@@ -248,6 +250,22 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
   );
 
   const loaded = servers !== null && worlds !== null;
+  // Playing a world or server from another instance: say which instance will start first.
+  const [confirm, setConfirm] = useState(null); // { instance, title, kind, options }
+  const selectedId = fallbackInstance ? String(fallbackInstance.id) : null;
+  const play = (instance, title, kind, options) => {
+    if (selectedId && String(instance.id) !== selectedId && localStorage.getItem(SKIP_KEY) !== '1') {
+      setConfirm({ instance, title, kind, options, skip: false });
+      return;
+    }
+    onLaunch?.(instance, options);
+  };
+  useEffect(() => {
+    if (!confirm) return undefined;
+    const onKey = (event) => { if (event.key === 'Escape') setConfirm(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirm]);
 
   // One timeline: servers and worlds interleaved by when you last played them.
   const recent = useMemo(
@@ -281,7 +299,7 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
                 key={`s:${entry.address}`}
                 icon={<Thumb src={live?.favicon} text={serverName(entry.address)} />}
                 title={serverName(entry.address)}
-                subtitle={['Server', ago(entry.connectedAt)].filter(Boolean).join(' · ')}
+                subtitle={['Server', instance.name, ago(entry.connectedAt)].filter(Boolean).join(' · ')}
                 meta={
                   live?.online === undefined ? (
                     <span className="jb-skel" />
@@ -298,7 +316,7 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
                   )
                 }
                 playLabel={`Join ${hostOf(entry.address)} with ${instance.name}`}
-                onPlay={() => onLaunch?.(instance, { quickJoinServer: entry.address })}
+                onPlay={() => play(instance, serverName(entry.address), 'server', { quickJoinServer: entry.address })}
               />
             );
           }
@@ -311,11 +329,44 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
               subtitle={['World', instance.name || entry.instanceName, ago(entry.playedAt)].filter(Boolean).join(' · ')}
               meta={<span className="jb-version">{instance.mc_version || instance.version}</span>}
               playLabel={`Play ${entry.name} in ${instance.name}`}
-              onPlay={() => onLaunch?.(instance, { quickJoinWorld: entry.folder })}
+              onPlay={() => play(instance, entry.name, 'world', { quickJoinWorld: entry.folder })}
             />
           );
         })}
       </ul>
+      {confirm && createPortal(
+        <div className="jb-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirm(null); }}>
+          <div className="jb-confirm" role="alertdialog" aria-modal="true" aria-labelledby="jb-confirm-title">
+            <h3 id="jb-confirm-title">Launch {confirm.instance.name}?</h3>
+            <p>
+              {confirm.kind === 'world' ? <>The world <b>{confirm.title}</b> is saved in </> : <>You last played <b>{confirm.title}</b> on </>}
+              <b>{confirm.instance.name}</b>{confirm.instance.mc_version || confirm.instance.version ? ` (${confirm.instance.mc_version || confirm.instance.version}${confirm.instance.loader || confirm.instance.mc_loader ? ` ${confirm.instance.loader || confirm.instance.mc_loader}` : ''})` : ''}.
+              {' '}You have <b>{fallbackInstance?.name}</b> selected, so we’ll launch <b>{confirm.instance.name}</b> instead.
+            </p>
+            <label className="jb-confirm-skip">
+              <input type="checkbox" checked={confirm.skip} onChange={(event) => setConfirm((value) => ({ ...value, skip: event.target.checked }))} />
+              Don’t ask again
+            </label>
+            <div className="jb-confirm-actions">
+              <button type="button" className="jb-confirm-btn" onClick={() => setConfirm(null)}>Cancel</button>
+              <button
+                type="button"
+                className="jb-confirm-btn is-primary"
+                autoFocus
+                onClick={() => {
+                  if (confirm.skip) { try { localStorage.setItem(SKIP_KEY, '1'); } catch {} }
+                  const { instance, options } = confirm;
+                  setConfirm(null);
+                  onLaunch?.(instance, options);
+                }}
+              >
+                Launch {confirm.instance.name}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </aside>
   );
 }
