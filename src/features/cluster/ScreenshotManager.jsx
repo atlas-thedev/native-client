@@ -392,7 +392,15 @@ export default function ScreenshotManager({ cluster, query = '', sortAlphabetica
             ))}
           </div>
         ) : (
-          <div className="sm-empty"><ImageIcon size={30}/><strong>{shots.length ? 'No screenshots match' : 'No screenshots yet'}</strong><span>{shots.length ? 'Try another search.' : 'Press F2 in Minecraft and your captures will appear here.'}</span><button onClick={openFolder}><FolderOpen size={14}/> Open screenshots folder</button></div>
+          <div className="im-empty">
+            {shots.length ? 'No matches. Try another search or clear the filter.' : 'No screenshots found yet.'}
+            {!shots.length && <span className="sm-empty-hint">Press F2 in Minecraft and your captures will appear here.</span>}
+            {!shots.length && (
+              <div className="im-empty-actions">
+                <button type="button" className="im-empty-action-btn" onClick={openFolder}>Open screenshots folder</button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
