@@ -931,3 +931,14 @@
 
 /* Lift the player a little in the stage (padding, so it never jumps while loading). */
 .locker-stage-model { padding-bottom: 64px; }
+
+
+/* Darker stage. */
+.locker-stage-model {
+  background-color: #000;
+  background-image:
+    radial-gradient(ellipse 22% 3.5% at 50% calc(100% - 94px), rgba(255, 255, 255, 0.07), transparent 70%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  border-color: rgba(255, 255, 255, 0.06);
+}
