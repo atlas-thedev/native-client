@@ -998,7 +998,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     <div className="locker-workspace">
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>
         <div className="locker-stage-heading"><h2>{t('locker.currentSkin')}</h2></div>
-        <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={330} height={430} animation={paused ? null : 'idle'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
+        <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={330} height={430} animation={paused ? null : 'pose'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
         {trySetBundle && !tryOn && section === 'cosmetics' && <div key={`tryset:${trySetBundle.id}`} className="locker-tryon is-set" role="status" style={{ '--bc': bundleColor(trySetBundle) }}>
           <div className="locker-tryon-text"><span>Previewing set</span><strong>{trySetBundle.name}</strong></div>
           <div className="locker-tryon-actions">

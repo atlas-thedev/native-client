@@ -351,6 +351,8 @@ function SkinViewerCanvas({
     const viewer = viewerRef.current;
     const lib = libRef.current;
     if (!viewer || !lib || !ready) return;
+    // The 'pose' stance turns and lifts the whole player; undo that for every other animation.
+    if (viewer.playerObject && animation !== 'pose') { viewer.playerObject.rotation.y = 0; viewer.playerObject.position.y = 0; }
 
     if (!animation || animation === 'none') {
       viewer.animation = null;

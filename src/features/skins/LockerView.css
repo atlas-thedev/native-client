@@ -914,3 +914,16 @@
 
 /* Header actions sit in one row at the bottom right, next to each other (not stacked). */
 .locker-header > .locker-header-actions { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+
+/* Preview stage like the website's: black floor with faint grid lines and a soft shadow under the player. */
+.locker-stage-model {
+  background-color: #050505;
+  background-image:
+    radial-gradient(ellipse 22% 3.5% at 50% calc(100% - 30px), rgba(255, 255, 255, 0.1), transparent 70%),
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 100% 100%, 48px 48px, 48px 48px;
+  background-position: center, center bottom, center bottom;
+  border: 1px solid var(--lk-line);
+}
