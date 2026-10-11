@@ -240,7 +240,6 @@ export default function AppNavbar({
           {isPlus && <span className="native-rail-plus" aria-hidden="true">+</span>}
         </button>
 
-        <span className="rail-section">Play</span>
         <nav className="rail-group rail-core-group" aria-label="Launcher">
           {CORE_NAV_ITEMS.map(({ id, labelKey, icon }) => {
             return (
@@ -256,7 +255,7 @@ export default function AppNavbar({
           })}
         </nav>
 
-        <span className="rail-section">You</span>
+        <span className="rail-divider" aria-hidden="true" />
 
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
           {/* Offline accounts have no Native account: no Relay or Store, only a local Locker. */}
