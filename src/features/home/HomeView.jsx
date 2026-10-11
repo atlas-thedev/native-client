@@ -9,6 +9,7 @@ import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import useIsInstalled from '../instances/useIsInstalled.js';
 import HomeSidePanel from './HomeSidePanel.jsx';
 import AdCard from './AdCard.jsx';
+import HomeMascot from './HomeMascot.jsx';
 import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
 import './HomeView.css';
 import './HomeSelection.css';
@@ -178,6 +179,7 @@ export default function HomeView({
 
       <div className="home-stage">
       <div className="home-stage-main">
+      {cluster && <HomeMascot account={account} />}
       {/* Greeting */}
       <div className="home-topbar">
         <div className="home-greeting">
@@ -240,9 +242,9 @@ export default function HomeView({
         ) : cluster ? (
           <>
             <h1 className="home-cluster-title">
-              {versionOf(cluster)} {loadersOf(cluster)}
+              {cluster.name || `${versionOf(cluster)} ${loadersOf(cluster)}`}
             </h1>
-            <p className="home-cluster-subtitle">{cluster.name || 'Minecraft'}</p>
+            <p className="home-cluster-subtitle">{versionOf(cluster)} · {loadersOf(cluster)}</p>
 
             <div className="home-actions-row">
               <LaunchActionButton

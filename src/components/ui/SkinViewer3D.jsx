@@ -373,6 +373,18 @@ function SkinViewerCanvas({
       if (animation === 'fly' && lib.FlyingAnimation) return new lib.FlyingAnimation();
       if (animation === 'idle' && lib.IdleAnimation) return new lib.IdleAnimation();
       if (animation === 'walk' && lib.WalkingAnimation) return new lib.WalkingAnimation();
+      if (animation === 'wave' && lib.FunctionAnimation) {
+        // Friendly "hi": right arm up and waving, head tilted, a tiny happy bounce.
+        return new lib.FunctionAnimation((player, t) => {
+          const s = player.skin;
+          s.rightArm.rotation.set(0, 0, -Math.PI * 0.8 + Math.sin(t * 7) * 0.3);
+          s.leftArm.rotation.set(Math.sin(t * 1.6) * 0.05, 0, Math.PI * 0.04 + Math.cos(t * 1.6) * 0.03);
+          s.head.rotation.set(0.05 + Math.sin(t * 1.6) * 0.03, -0.18, 0.14 + Math.sin(t * 3.5) * 0.05);
+          s.leftLeg.rotation.set(0, 0, 0);
+          s.rightLeg.rotation.set(0, 0, 0);
+          player.position.y = Math.abs(Math.sin(t * 3.5)) * 0.45;
+        });
+      }
       return null;
     };
 
