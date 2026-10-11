@@ -4,8 +4,8 @@
 .home-mascot {
   position: absolute;
   z-index: 1;
-  left: 72%;
-  top: 50%;
+  left: 78%;
+  top: 60%;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
