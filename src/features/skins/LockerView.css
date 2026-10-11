@@ -942,3 +942,143 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   border-color: rgba(255, 255, 255, 0.06);
 }
+
+
+/* ==========================================================================
+   Locker v2 remake: flat black stage, no glows, website-style grid,
+   floating controls, cleaner panels. Overrides everything above.
+   ========================================================================== */
+.locker-view { gap: 18px; }
+.locker-header { padding-bottom: 4px; border-bottom: 0; }
+.locker-title { font-size: 34px; letter-spacing: 0.01em; text-transform: uppercase; }
+.locker-subtitle { color: rgba(255, 255, 255, 0.45); font-size: 13px; }
+
+.locker-workspace { gap: 16px; align-items: stretch; }
+
+/* Stage */
+.locker-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 22px;
+  background: #000 !important;
+  box-shadow: none !important;
+}
+.locker-stage::before,
+.locker-stage::after,
+.locker-stage-model::before,
+.locker-stage-model::after { content: none !important; display: none !important; }
+.locker-stage-heading {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  z-index: 3;
+  margin: 0;
+  pointer-events: none;
+}
+.locker-stage-heading h2 {
+  margin: 0;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+.locker-stage-model {
+  position: relative;
+  flex: 1;
+  min-height: 540px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 64px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background-color: #000 !important;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px) !important;
+  background-size: 48px 48px !important;
+  background-position: center center !important;
+  box-shadow: none !important;
+}
+/* soft fade of the grid at the edges (no glow, just black) */
+.locker-stage-model {
+  -webkit-mask-image: none;
+}
+.locker-stage-model > canvas,
+.locker-stage-model .skin-viewer-3d,
+.locker-stage-model > div:first-child { transform: none !important; }
+
+/* Floating control pill */
+.locker-stage-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 4;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.locker-stage-actions > div {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(14, 14, 14, 0.92);
+  backdrop-filter: blur(10px);
+}
+.locker-stage-actions button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.15s, color 0.15s;
+}
+.locker-stage-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.locker-stage-actions button:disabled { opacity: 0.3; }
+
+/* Try-on banner sits at the top of the stage */
+.locker-tryon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  background: rgba(14, 14, 14, 0.94) !important;
+  box-shadow: none !important;
+}
+
+/* Right side panels */
+.locker-panel,
+.locker-side,
+.locker-subpanel {
+  border-radius: 22px;
+}
+.locker-panel,
+.locker-side {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #0a0a0a;
+  box-shadow: none;
+}
+
+/* Item cards: flat, no glow */
+.locker-set,
+.locker-set-piece,
+.locker-set-piece.is-owned,
+.locker-set-look {
+  background: #0d0d0d !important;
+  box-shadow: none !important;
+}
+.locker-set::before { display: none !important; }
+.locker-set { border: 1px solid rgba(255, 255, 255, 0.08); border-top: 2px solid var(--bc); }
