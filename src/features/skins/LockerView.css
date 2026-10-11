@@ -1082,3 +1082,30 @@
 }
 .locker-set::before { display: none !important; }
 .locker-set { border: 1px solid rgba(255, 255, 255, 0.08); border-top: 2px solid var(--bc); }
+
+
+/* Right side dark too: panels, cards and tabs match the black stage. */
+.locker-view {
+  --lk-bg: #000;
+  --lk-tile: #080808;
+  --lk-tile-hover: #101010;
+}
+.locker-switch-tabs .pxt,
+.locker-panel .pxt { background: #050505 !important; border-color: rgba(255, 255, 255, 0.07) !important; }
+.locker-switch-tabs .pxt-slab,
+.locker-panel .pxt-slab { background: #161616 !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important; }
+.locker-switch-tabs .pxt-tab.is-active,
+.locker-panel .pxt-tab.is-active { color: #fff !important; }
+.locker-panel,
+.locker-row,
+.locker-library > section,
+.locker-subpanel { background: #050505 !important; border-color: rgba(255, 255, 255, 0.07) !important; box-shadow: none !important; }
+.locker-skin-card,
+.locker-cape-card,
+.locker-upload-card { background: #0a0a0a !important; border-color: rgba(255, 255, 255, 0.07) !important; box-shadow: none !important; }
+.locker-skin-card:hover,
+.locker-cape-card:hover { background: #111 !important; border-color: rgba(255, 255, 255, 0.14) !important; }
+.locker-skin-preview { background: transparent !important; }
+.locker-upload-card { border-style: dashed !important; }
+.locker-panel input[type="search"],
+.locker-row input[type="search"] { background: #000 !important; border-color: rgba(255, 255, 255, 0.08) !important; }
