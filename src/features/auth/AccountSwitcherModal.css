@@ -1493,3 +1493,54 @@
   .account-login-content, .native-auth-container { padding: 22px 22px 20px; }
   .account-login-title { margin: 12px 0 16px; font-size: 28px; }
 }
+
+
+/* Login v3: wider card, everything centred, cleaner buttons. */
+.account-login-content,
+.native-auth-container {
+  width: min(460px, 100%);
+  padding: 38px 36px 30px;
+  border-radius: 26px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #0a0a0a;
+}
+.native-auth-container.native-connect { width: min(500px, 100%); }
+.account-login-content { align-items: stretch; }
+.account-login-logo { align-self: center; height: 44px !important; }
+.account-login-title { text-align: center; margin: 16px 0 26px; font-size: 32px; }
+
+.account-login-actions { gap: 12px; }
+.account-login-microsoft,
+.account-login-native,
+.account-login-offline {
+  width: 100%;
+  height: 52px;
+  border-radius: 16px;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 18px;
+  font-size: 14.5px;
+}
+.account-login-microsoft { background: #fff; color: #0a0a0a; border: 1px solid #fff; box-shadow: 0 8px 24px rgba(255, 255, 255, 0.08); }
+.account-login-microsoft:hover:not(:disabled) { background: #f1f1f1; }
+.account-login-native { background: #141414; border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; }
+.account-login-native:hover { background: #1b1b1b; border-color: rgba(255, 255, 255, 0.28); }
+.account-login-microsoft .account-login-btn-lead { color: rgba(10, 10, 10, 0.6); font-weight: 500; }
+.account-login-native .account-login-btn-lead { color: rgba(255, 255, 255, 0.55); font-weight: 500; }
+.account-login-microsoft .account-login-btn-brand,
+.account-login-native .account-login-btn-brand { font-weight: 700; }
+.account-login-offline { height: 46px; border: 1px solid rgba(255, 255, 255, 0.1); background: transparent; color: rgba(255, 255, 255, 0.8); }
+.account-login-offline:hover { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.2); }
+.account-login-offline small { color: rgba(255, 255, 255, 0.4); }
+
+.account-login-divider { margin: 4px 0; }
+.account-login-saved { margin-top: 10px; padding-top: 18px; }
+.account-login-home { align-self: center; margin-top: 6px; border-radius: 12px; padding: 8px 14px; }
+.account-login-home:hover { background: rgba(255, 255, 255, 0.05); }
+.account-login-social { justify-content: center; margin-top: 22px; }
+.account-login-content footer { justify-content: center; }
+
+.native-auth-header { text-align: center; align-items: center; }
+.native-auth-clean-logo { margin: 0 auto 14px; }
+.native-auth-primary-btn { height: 52px; border-radius: 16px; background: #fff; }
+.native-form-input { height: 50px; border-radius: 14px; }
