@@ -71,6 +71,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [dyes, setDyes] = useState({}); // itemId -> '#rrggbb' the player picked
   const [dyeTex, setDyeTex] = useState({}); // `${itemId}|${hex}` -> dyed texture (data URL)
   const dyeRequested = useRef(new Set());
+  const activeSlotForDye = useRef(null);
   const [cosAssets, setCosAssets] = useState({});
   const cosRequested = useRef(new Set());
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
@@ -302,16 +303,22 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Dyeable cosmetics: the colour shown for an item (being picked, saved, or its own) and its dyed texture.
   const catalogById = useMemo(() => new Map(catalogItems.map((item) => [item.id, item])), [catalogItems]);
   const dyeOf = (id) => dyes[id] || null;
-  const loadDye = (id, color) => {
+  const loadDye = (id, color, quiet = false) => {
     const key = `${id}|${color}`;
     if (dyeRequested.current.has(key)) return;
     dyeRequested.current.add(key);
     window.native?.store?.dyeTexture?.(id, color).then((res) => {
       if (res?.ok && res.texture) { setDyeTex((current) => ({ ...current, [key]: res.texture })); return; }
       dyeRequested.current.delete(key);
+      if (quiet) return;
       onNotify?.(t('locker.title'), res?.error || 'Couldn’t load that colour. Try again.');
-    }).catch((error) => { dyeRequested.current.delete(key); onNotify?.(t('locker.title'), error?.message || 'Couldn’t load that colour. Try again.'); });
+    }).catch((error) => { dyeRequested.current.delete(key); if (!quiet) onNotify?.(t('locker.title'), error?.message || 'Couldn’t load that colour. Try again.'); });
   };
+  // Warm every swatch of the dye panel so picking a colour shows it straight away.
+  const dyePanelId = useMemo(() => {
+    const slot = activeSlotForDye.current;
+    return slot && wearing?.[slot] ? wearing[slot] : null;
+  }, [wearing, dyes]); // eslint-disable-line react-hooks/exhaustive-deps
   const dyedAsset = (id) => {
     const asset = cosAssets[id];
     const item = catalogById.get(id);
@@ -322,6 +329,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   useEffect(() => {
     for (const id of new Set([...Object.values(wearing || {}), ...Object.keys(dyes)])) { const color = dyeOf(id); if (color && catalogById.get(id)?.dyeable && color !== catalogById.get(id)?.dyeDefault) loadDye(id, color); }
   }, [wearing, dyes, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Preload the dyed textures for every worn dyeable item's quick colours (cached on disk by the launcher).
+    for (const id of new Set(Object.values(wearing || {}))) {
+      const item = catalogById.get(id);
+      if (!item?.dyeable) continue;
+      for (const hex of item.dyeColors || []) if (hex !== item.dyeDefault) loadDye(id, hex, true);
+    }
+  }, [wearing, catalogById, dyePanelId]); // eslint-disable-line react-hooks/exhaustive-deps
   // What the player wears, with the item being tried on swapped into its slot.
   const wornCosmetics = useMemo(() => {
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
@@ -861,6 +876,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       </div>
     </div>;
     const dyeItem = tab.slot && !localOnly && wearing?.[tab.slot] ? catalogById.get(wearing[tab.slot]) : null;
+    if (dyeItem?.dyeable) activeSlotForDye.current = tab.slot;
     const dyePanel = dyeItem?.dyeable ? (() => {
       const current = dyeOf(dyeItem.id) || dyeItem.dyeDefault || '#ffffff';
       const own = dyeItem.dyeDefault || null;
