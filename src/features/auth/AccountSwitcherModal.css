@@ -1295,3 +1295,201 @@
 .acc-card:focus-within .acc-card-end > .acc-card-go, .acc-card:focus-within .acc-card-end > .acc-card-state,
 .acc-card.is-confirming .acc-card-end > .acc-card-go, .acc-card.is-confirming .acc-card-end > .acc-card-state { visibility: hidden; }
 :root[data-motion='reduced'] .acc-card-tools { transition: none; transform: none; }
+
+
+/* =====================================================================
+   Login v2: login, register, verify, forgot, merge, offline.
+   Black canvas, faint grid, a big NATIVE wordmark on the art side,
+   and every step in the same quiet card.
+   ===================================================================== */
+.account-login-screen,
+.account-login-frame { background: #000; }
+
+.account-login-layout { grid-template-columns: minmax(420px, 46%) 1fr; }
+
+.account-login-panel {
+  background-color: #000;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center;
+  padding: 56px 32px 32px;
+}
+
+.account-login-content,
+.native-auth-container {
+  width: min(380px, 100%);
+  padding: 30px 28px 26px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  background: rgba(10, 10, 10, 0.92);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+.account-login-content { align-items: stretch; }
+.account-login-logo { align-self: flex-start; height: 34px !important; width: auto; }
+
+.account-login-title {
+  margin: 18px 0 22px;
+  text-align: left;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+.account-login-title strong { font-weight: 800; color: rgba(255, 255, 255, 0.45); }
+
+.account-login-actions { gap: 10px; }
+
+.account-login-microsoft,
+.account-login-native {
+  height: 48px;
+  border-radius: 14px;
+  justify-content: flex-start;
+  padding: 0 16px;
+  gap: 10px;
+  transition: transform 0.15s, background-color 0.15s, border-color 0.15s;
+}
+.account-login-microsoft { background: #f2f2f2; color: #0a0a0a; }
+.account-login-native { background: #111; border: 1px solid rgba(255, 255, 255, 0.12); }
+.account-login-native:hover { background: #181818; border-color: rgba(255, 255, 255, 0.22); }
+.account-login-microsoft:hover:not(:disabled),
+.account-login-native:hover { transform: translateY(-1px); }
+
+.account-login-offline {
+  height: 44px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: transparent;
+}
+.account-login-offline:hover { border-style: solid; background: rgba(255, 255, 255, 0.03); }
+
+.account-login-divider span {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.account-login-saved { margin-top: 8px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.account-login-saved-head span {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.account-login-social { margin-top: 20px; justify-content: flex-start; }
+.account-login-social-btn { border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); background: transparent; }
+.account-login-content footer { justify-content: flex-start; margin-top: 14px; }
+
+/* Steps: login, register, verify, forgot, reset, offline, merge */
+.native-auth-top { margin-bottom: 20px; }
+.native-auth-back-btn { height: 32px; border-radius: 10px; border-color: rgba(255, 255, 255, 0.12); }
+.native-auth-back-btn:hover { background: rgba(255, 255, 255, 0.05); }
+
+.native-auth-header { text-align: left; align-items: flex-start; margin-bottom: 20px; }
+.native-auth-clean-logo { height: 30px !important; width: auto; margin: 0 0 14px; }
+.native-auth-title {
+  font-size: 28px;
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+.native-auth-sub { margin-top: 8px; font-size: 13.5px; line-height: 1.5; color: rgba(255, 255, 255, 0.55); }
+
+.native-auth-form { gap: 14px; }
+.native-form-label {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.native-form-input {
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0d0d0d;
+  font-size: 14.5px;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+.native-form-input:hover { border-color: rgba(255, 255, 255, 0.2); }
+.native-form-input:focus { border-color: rgba(255, 255, 255, 0.55); background: #111; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06); }
+
+.native-auth-primary-btn {
+  height: 48px;
+  border-radius: 14px;
+  background: #f2f2f2;
+  color: #0a0a0a;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: transform 0.15s, filter 0.15s;
+}
+.native-auth-primary-btn:hover:not(:disabled) { transform: translateY(-1px); filter: none; background: #fff; }
+
+.native-link-btn, .native-auth-switch-link { color: rgba(255, 255, 255, 0.85); text-underline-offset: 3px; }
+.native-auth-switch-link { margin-top: 6px; }
+
+.account-login-error {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  background: rgba(255, 60, 60, 0.08);
+}
+
+/* Merge (Microsoft + Native) */
+.native-auth-container.native-connect { width: min(420px, 100%); }
+.native-connect-body { gap: 14px; }
+.native-connect-node {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0d0d0d;
+}
+.native-connect-node.is-native { border-color: rgba(255, 255, 255, 0.28); }
+.native-connect-wire { opacity: 0.5; }
+.native-connect-choice { border-radius: 14px !important; }
+
+/* Art side: the cavern, darkened, with a big NATIVE wordmark and grid lines. */
+.account-login-art { border-left: 1px solid rgba(255, 255, 255, 0.07); background: #000; }
+.account-login-art img { opacity: 0.55; filter: saturate(0.8); transform: scale(1.04); }
+.account-login-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-color: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.account-login-art::after {
+  content: 'NATIVE';
+  position: absolute;
+  z-index: 2;
+  left: 28px;
+  right: 28px;
+  bottom: 18px;
+  font-family: var(--font-display, var(--font-sans));
+  font-size: clamp(64px, 11vw, 190px);
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+  color: #fff;
+  pointer-events: none;
+}
+
+@media (max-width: 980px) {
+  .account-login-layout { grid-template-columns: 1fr; }
+  .account-login-art { display: none; }
+}
+@media (max-height: 740px) {
+  .account-login-panel { padding: 44px 24px 18px; }
+  .account-login-content, .native-auth-container { padding: 22px 22px 20px; }
+  .account-login-title { margin: 12px 0 16px; font-size: 28px; }
+}

@@ -381,13 +381,14 @@ function SkinViewerCanvas({
         return new lib.FunctionAnimation((player, t) => {
           const s = player.skin;
           const b = Math.sin(t * 1.6);
-          player.rotation.y = -0.55;
+          player.rotation.y = -0.45;
           player.position.y = 0;
-          s.head.rotation.set(0.1 + b * 0.02, 0.38, 0.05);
-          s.rightArm.rotation.set(-0.18 + b * 0.03, 0, -0.2 - b * 0.02);
-          s.leftArm.rotation.set(0.22 - b * 0.03, 0, 0.17 + b * 0.02);
-          s.rightLeg.rotation.set(0.3, 0, -0.04);
-          s.leftLeg.rotation.set(-0.24, 0, 0.06);
+          s.head.rotation.set(0.06 + b * 0.02, 0.3, -0.1);
+          s.body.rotation.set(0, 0, 0.03);
+          s.rightArm.rotation.set(-0.35 + b * 0.03, 0, -0.42 - b * 0.02);
+          s.leftArm.rotation.set(0.12 - b * 0.03, 0, 0.1 + b * 0.02);
+          s.rightLeg.rotation.set(0.18, 0, -0.1);
+          s.leftLeg.rotation.set(-0.16, 0, 0.12);
         });
       }
       return null;
