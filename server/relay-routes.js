@@ -67,6 +67,9 @@ function gameTicketAllowed(method, segments) {
     return false;
   }
   if (a === 'dm' && b && c === 'messages') return method === 'GET' || method === 'POST';
+  // In-game message actions: react / edit / delete (own messages, enforced by the handlers).
+  if (a === 'messages' && b && segments.length === 3) return method === 'POST' && (c === 'react' || c === 'edit' || c === 'delete');
+  if (a === 'dm-messages' && b && segments.length === 3) return method === 'POST' && (c === 'edit' || c === 'delete');
   if (a === 'gifs' && segments.length === 1) return method === 'GET';
   if (a === 'upload' && segments.length === 1) return method === 'POST';
   return false;
