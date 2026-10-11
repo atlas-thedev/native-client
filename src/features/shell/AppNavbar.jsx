@@ -40,7 +40,8 @@ function RailButton({ icon: Icon, active, onClick, label, badge = 0, status = nu
     >
       {children || (
         <>
-          {Icon ? <Icon size={21} strokeWidth={1.9} aria-hidden="true" /> : null}
+          {Icon ? <Icon size={19} strokeWidth={1.9} aria-hidden="true" /> : null}
+          <span className="rail-label">{label}</span>
         </>
       )}
       {badge > 0 && <em className="rail-badge">{badge > 99 ? '99+' : badge}</em>}
@@ -234,10 +235,12 @@ export default function AppNavbar({
           data-tooltip={isPlus ? 'Native+' : 'Native Client'}
           data-tour="brand"
         >
-          <Logo height={28} variant="mark" />
+          <Logo height={24} variant="mark" />
+          <span className="rail-brand-text">Native{isPlus && <em>+</em>}</span>
           {isPlus && <span className="native-rail-plus" aria-hidden="true">+</span>}
         </button>
 
+        <span className="rail-section">Play</span>
         <nav className="rail-group rail-core-group" aria-label="Launcher">
           {CORE_NAV_ITEMS.map(({ id, labelKey, icon }) => {
             return (
@@ -253,7 +256,7 @@ export default function AppNavbar({
           })}
         </nav>
 
-        <span className="rail-divider" aria-hidden="true" />
+        <span className="rail-section">You</span>
 
         <nav className="rail-group rail-personal-group" aria-label="Personal tools">
           {/* Offline accounts have no Native account: no Relay or Store, only a local Locker. */}
@@ -319,6 +322,10 @@ export default function AppNavbar({
             ) : (
               <span className="rail-avatar-fallback"><User size={18} strokeWidth={1.9} aria-hidden="true" /></span>
             )}
+            <span className="rail-account-meta">
+              <b>{account?.name || t('account.accounts')}</b>
+              <small>{account?.isMicrosoft ? 'Microsoft' : isOffline ? 'Offline' : isNative ? (isPlus ? 'Native+' : 'Native account') : t('account.accounts')}</small>
+            </span>
           </RailButton>
         </div>
       </aside>

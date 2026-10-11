@@ -529,3 +529,90 @@
 }
 .native-rail-logo.is-plus .native-mark { transform: translate(-2px, 2px); }
 .native-wordmark-plus { margin-left: 1px; font-style: normal; font-weight: 900; color: #f2b632; }
+
+/* ---------- modern sidebar (v5) ----------
+   Wide, labelled sidebar: brand on top, sections with small captions,
+   soft pill for the active page, account card pinned at the bottom. */
+.native-rail {
+  align-items: stretch;
+  gap: 2px;
+  padding: 14px 12px 12px;
+  background: #050505;
+}
+.native-rail-logo {
+  width: 100%;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+  margin-bottom: 14px;
+}
+.native-rail-logo::after, .native-rail-plus { display: none !important; }
+.rail-brand-text {
+  font: 800 17px/1 var(--font-sans);
+  letter-spacing: -0.03em;
+  color: var(--fg-primary-hover);
+}
+.rail-brand-text em { font-style: normal; color: var(--color-gold); margin-left: 1px; }
+.rail-section {
+  display: block;
+  padding: 14px 12px 6px;
+  font: 600 10.5px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  opacity: 0.7;
+}
+.native-rail > .rail-section:first-of-type { padding-top: 2px; }
+.rail-group { align-items: stretch; gap: 2px; }
+.rail-btn {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font: 600 13.5px/1 var(--font-sans);
+  text-align: left;
+}
+.rail-btn > svg { width: 19px; height: 19px; flex: none; }
+.rail-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rail-btn.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: transparent;
+  color: #fff;
+}
+.rail-btn.is-active:not(.rail-account-btn)::before {
+  left: -12px;
+  height: 18px;
+}
+/* Labels are visible now, so the hover tooltips are no longer needed. */
+.native-rail .rail-btn::after,
+.native-rail .native-rail-logo::after { display: none !important; }
+.rail-badge, .rail-lock-badge {
+  position: static;
+  margin-left: auto;
+  border-color: transparent;
+}
+.rail-status { right: 12px; bottom: auto; top: 50%; transform: translateY(-50%); }
+.rail-divider { width: auto; margin: 10px 12px; }
+.rail-foot { gap: 2px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.rail-btn.rail-account-btn {
+  height: 56px;
+  margin-top: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.03);
+}
+.rail-btn.rail-account-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.rail-account-meta { display: grid; gap: 4px; min-width: 0; }
+.rail-account-meta b {
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font: 700 13.5px/1.1 var(--font-sans); color: var(--fg-primary-hover);
+}
+.rail-account-meta small { font: 500 11.5px/1 var(--font-sans); color: var(--fg-muted); }
+.rail-account-btn .rail-status { top: 12px; right: 12px; transform: none; }

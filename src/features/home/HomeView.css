@@ -745,3 +745,57 @@
 /* the animated layer sits on the still poster and fades in once decoded */
 .home-bg-img.home-bg-nether.is-anim { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; animation: none; }
 .home-bg-img.home-bg-nether.is-anim.is-ready { opacity: 1; }
+
+/* ---------- modern home (v5) ----------
+   Bigger, calmer hero type, pill actions, softer cards and a cleaner
+   instance rail. Same black theme, no gradients or glows. */
+.home-cluster-title {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+.home-cluster-subtitle {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--fg-muted);
+}
+.home-actions-row { gap: 10px; margin-top: 22px; }
+.home-actions-row .cluster-settings-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.home-actions-row .cluster-settings-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--hairline-strong); }
+.home-recents-container {
+  border-top: 1px solid var(--hairline);
+  padding-top: 18px;
+}
+.recents-head { align-items: baseline; gap: 12px; }
+.recents-title {
+  font: 600 11px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-secondary);
+}
+.recents-hint { font-size: 12.5px; color: var(--fg-muted); }
+.recents-counter { margin-left: auto; font: 600 11.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--fg-muted); }
+.version-card {
+  border-radius: 16px;
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  transition: transform 0.25s var(--ease), border-color 0.2s var(--ease);
+}
+.version-card:hover { transform: translateY(-2px); border-color: var(--hairline-strong); }
+.version-card.active { border-color: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.version-card-name { font-weight: 700; letter-spacing: -0.01em; }
+.version-card-sub { opacity: 0.75; }
+.recents-rail-btn, .other-versions-tile {
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.03);
+}
+.recents-rail-btn:hover:not(:disabled), .other-versions-tile:hover { background: rgba(255, 255, 255, 0.07); }
+.home-side-col > * { border-radius: 16px; }
