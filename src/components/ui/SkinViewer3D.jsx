@@ -373,16 +373,19 @@ function SkinViewerCanvas({
       if (animation === 'fly' && lib.FlyingAnimation) return new lib.FlyingAnimation();
       if (animation === 'idle' && lib.IdleAnimation) return new lib.IdleAnimation();
       if (animation === 'walk' && lib.WalkingAnimation) return new lib.WalkingAnimation();
-      if (animation === 'wave' && lib.FunctionAnimation) {
-        // Friendly "hi": right arm up and waving, head tilted, a tiny happy bounce.
+      if (animation === 'pose' && lib.FunctionAnimation) {
+        // Relaxed 3/4 "hero" stance: body turned, one leg forward, arms loose,
+        // head looking back at the camera. Only a soft breathing sway moves.
         return new lib.FunctionAnimation((player, t) => {
           const s = player.skin;
-          s.rightArm.rotation.set(0, 0, -Math.PI * 0.8 + Math.sin(t * 7) * 0.3);
-          s.leftArm.rotation.set(Math.sin(t * 1.6) * 0.05, 0, Math.PI * 0.04 + Math.cos(t * 1.6) * 0.03);
-          s.head.rotation.set(0.05 + Math.sin(t * 1.6) * 0.03, -0.18, 0.14 + Math.sin(t * 3.5) * 0.05);
-          s.leftLeg.rotation.set(0, 0, 0);
-          s.rightLeg.rotation.set(0, 0, 0);
-          player.position.y = Math.abs(Math.sin(t * 3.5)) * 0.45;
+          const b = Math.sin(t * 1.6);
+          player.rotation.y = -0.55;
+          player.position.y = 0;
+          s.head.rotation.set(0.1 + b * 0.02, 0.38, 0.05);
+          s.rightArm.rotation.set(-0.18 + b * 0.03, 0, -0.2 - b * 0.02);
+          s.leftArm.rotation.set(0.22 - b * 0.03, 0, 0.17 + b * 0.02);
+          s.rightLeg.rotation.set(0.3, 0, -0.04);
+          s.leftLeg.rotation.set(-0.24, 0, 0.06);
         });
       }
       return null;

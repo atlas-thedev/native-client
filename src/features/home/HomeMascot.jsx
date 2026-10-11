@@ -55,8 +55,7 @@ export default function HomeMascot({ account }) {
 
   return (
     <div className="home-mascot" aria-hidden="true">
-      <div className="home-mascot-bubble">Hi{name ? `, ${name}` : ''}! <span className="home-mascot-wave">👋</span></div>
-      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={280} height={380} animation="wave" zoom={0.8} />
+      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={300} height={400} animation="pose" zoom={0.8} />
       <div className="home-mascot-shadow" />
     </div>
   );
