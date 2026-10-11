@@ -7,7 +7,7 @@ import fallbackSkin from '../../assets/steve.png';
 const nativeSkinCache = new Map();
 const inFlightRequests = new Map();
 const NEGATIVE_CACHE_TTL = 30_000;
-const LOOKUP_TIMEOUT = 8000;
+const LOOKUP_TIMEOUT = 5000;
 // a lookup that failed (timeout / network / 5xx) is tried again after these delays
 const RETRY_DELAYS = [1500, 4000, 9000];
 
@@ -21,7 +21,7 @@ export function lookupFailed(name) {
 // The inbox asks for ~30 faces at once. Opening them all together made the later
 // ones wait behind the browser's per-host connection limit and hit the timeout,
 // so lookups run a few at a time and the timeout starts when a request really starts.
-const MAX_PARALLEL = 4;
+const MAX_PARALLEL = 8;
 let runningLookups = 0;
 const waitingLookups = [];
 function withSlot(work) {
@@ -38,6 +38,37 @@ function withSlot(work) {
     else waitingLookups.push(run);
   });
 }
+
+/*
+ * Skins found before are kept on disk (localStorage), so after a restart Relay shows every known face at once
+ * instead of waiting on the network. Each remembered face is refreshed quietly once per session.
+ */
+const DISK_KEY = 'native.relayFaces.v1';
+const DISK_LIMIT = 300;
+const refreshedThisSession = new Set();
+let diskTimer = 0;
+function loadDisk() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DISK_KEY) || '{}') || {};
+    for (const [key, entry] of Object.entries(saved)) {
+      if (entry && typeof entry.url === 'string' && entry.url) nativeSkinCache.set(key, { url: entry.url, checkedAt: Number(entry.at) || 0, fromDisk: true });
+    }
+  } catch { /* storage blocked */ }
+}
+function saveDisk() {
+  window.clearTimeout(diskTimer);
+  diskTimer = window.setTimeout(() => {
+    try {
+      const rows = [...nativeSkinCache.entries()]
+        .filter(([, entry]) => entry?.url && entry.url.length < 4000)
+        .sort((a, b) => (b[1].checkedAt || 0) - (a[1].checkedAt || 0))
+        .slice(0, DISK_LIMIT);
+      localStorage.setItem(DISK_KEY, JSON.stringify(Object.fromEntries(rows.map(([key, entry]) => [key, { url: entry.url, at: entry.checkedAt }]))));
+    } catch { /* storage full or blocked */ }
+  }, 400);
+}
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') loadDisk();
+const rememberSkin = (key, url) => { nativeSkinCache.set(key, { url, checkedAt: Date.now() }); if (url) saveDisk(); };
 
 function cachedSkin(key) {
   const cached = nativeSkinCache.get(key);
@@ -76,7 +107,13 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
 
   if (!fresh) {
     const cached = cachedSkin(key);
-    if (cached !== undefined) return Promise.resolve(cached);
+    if (cached !== undefined) {
+      if (nativeSkinCache.get(key)?.fromDisk && !refreshedThisSession.has(key)) {
+        refreshedThisSession.add(key);
+        window.setTimeout(() => { resolveNativeSkin(display, { fresh: true }).catch(() => {}); }, 1500);
+      }
+      return Promise.resolve(cached);
+    }
   }
   if (inFlightRequests.has(key)) return inFlightRequests.get(key);
 
@@ -102,7 +139,7 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
       const data = await res.json();
       const skin = data?.skin || null;
       failedLookups.delete(key);
-      nativeSkinCache.set(key, { url: skin, checkedAt: Date.now() });
+      rememberSkin(key, skin);
       return skin;
     } catch {
       // Transient startup/network failure: keep any skin we already knew, and let the avatar retry.
@@ -119,7 +156,7 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
       const fromProfile = await profileSkin(display);
       if (!fromProfile) return null;
       failedLookups.delete(key);
-      nativeSkinCache.set(key, { url: fromProfile, checkedAt: Date.now() });
+      rememberSkin(key, fromProfile);
       return fromProfile;
     })
     .finally(() => inFlightRequests.delete(key));
@@ -143,7 +180,7 @@ function preloadSkin(url) {
  * True once every face in `faces` ([{ name, skinUrl }]) is looked up and its skin image is loaded (or after
  * `limitMs`, so a slow lookup never keeps a page on skeletons). `scope` restarts the wait (e.g. another chat).
  */
-export function useAvatarsReady(faces, scope = '', limitMs = 2500) {
+export function useAvatarsReady(faces, scope = '', limitMs = 900) {
   const key = faces.map((face) => `${String(face?.name || '').toLowerCase()}|${face?.skinUrl || ''}`).join(',');
   const [readyScope, setReadyScope] = useState(null);
   // already known and decoded (e.g. a chat opened before): no wait at all
@@ -216,7 +253,7 @@ export default function RelayAvatar({
     if (initialSkinUrl) {
       setSkinUrl(initialSkinUrl);
       setPending(false);
-      if (key) nativeSkinCache.set(key, { url: initialSkinUrl, checkedAt: Date.now() });
+      if (key) rememberSkin(key, initialSkinUrl);
       return () => { active = false; };
     }
 
