@@ -1109,3 +1109,18 @@
 .locker-upload-card { border-style: dashed !important; }
 .locker-panel input[type="search"],
 .locker-row input[type="search"] { background: #000 !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+
+
+/* Tab counts stay readable on the dark active tab. */
+.locker-view .pxt-count { background: rgba(255, 255, 255, 0.1) !important; color: rgba(255, 255, 255, 0.75) !important; }
+.locker-view .pxt-tab.is-active .pxt-count { background: rgba(255, 255, 255, 0.18) !important; color: #fff !important; }
+
+/* Cape tiles: the art box is exactly the cape size and sits dead centre in its well. */
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well { display: grid !important; place-items: center !important; padding: 0 !important; }
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-anim,
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-texture,
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-no-cape {
+  width: 64px !important; height: 102px !important; margin: 0 auto !important; justify-self: center; align-self: center;
+}
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-anim { display: grid !important; place-items: center !important; position: relative; }
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-anim > * { grid-area: 1 / 1; margin: 0 !important; }
