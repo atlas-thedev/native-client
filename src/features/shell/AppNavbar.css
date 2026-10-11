@@ -529,3 +529,24 @@
 }
 .native-rail-logo.is-plus .native-mark { transform: translate(-2px, 2px); }
 .native-wordmark-plus { margin-left: 1px; font-style: normal; font-weight: 900; color: #f2b632; }
+
+
+/* ---------- modern sidebar (v5) ----------
+   Icon-only rail, refreshed: softer pill for the active page,
+   rounded hit targets, quieter dividers. Labels stay in tooltips. */
+.native-rail { gap: 4px; padding: 14px 0 12px; background: #050505; }
+.rail-label, .rail-section, .rail-brand-text, .rail-account-meta { display: none !important; }
+.native-rail-logo { margin-bottom: 14px; border-radius: 14px; }
+.rail-group { gap: 6px; }
+.rail-btn { width: 46px; height: 46px; border-radius: 14px; }
+.rail-btn > svg { width: 20px; height: 20px; }
+.rail-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.rail-btn.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: transparent;
+  color: #fff;
+}
+.rail-btn.is-active:not(.rail-account-btn)::before { left: -13px; height: 20px; }
+.native-rail > .rail-divider { width: 24px; margin: 10px 0; opacity: 0.7; }
+.rail-foot { gap: 6px; padding-top: 12px; border-top: 1px solid var(--hairline); width: 46px; }
+.rail-btn.rail-account-btn { margin-top: 6px; border-radius: 14px; }
