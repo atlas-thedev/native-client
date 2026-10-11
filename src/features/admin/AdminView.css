@@ -727,3 +727,13 @@ button.admin-vote-image { background: none; padding: 0; font: inherit; }
 .admin-vote-result.is-winner .admin-vote-thumb, .admin-vote-result.is-winner > img { border-color: rgba(250, 204, 21, 0.6); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.25); }
 .admin-vote-result.is-winner p span { color: #fde68a; }
 .admin-vote-result-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+
+/* Halloween mode card */
+.admin-halloween { transition: border-color 0.3s, background 0.3s, box-shadow 0.3s; }
+.admin-halloween.is-on {
+  border-color: rgba(255, 122, 24, 0.55);
+  background: linear-gradient(135deg, rgba(255, 122, 24, 0.14), rgba(139, 92, 246, 0.14));
+  box-shadow: 0 0 28px rgba(255, 122, 24, 0.15);
+}
+.admin-halloween.is-on h3 svg { color: #ff7a18; }

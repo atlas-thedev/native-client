@@ -1109,3 +1109,8 @@
 .locker-upload-card { border-style: dashed !important; }
 .locker-panel input[type="search"],
 .locker-row input[type="search"] { background: #000 !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+
+
+/* Tab counts stay readable on the dark active tab. */
+.locker-view .pxt-count { background: rgba(255, 255, 255, 0.1) !important; color: rgba(255, 255, 255, 0.75) !important; }
+.locker-view .pxt-tab.is-active .pxt-count { background: rgba(255, 255, 255, 0.18) !important; color: #fff !important; }

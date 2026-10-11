@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Globe, LoaderCircle, Megaphone, Rocket, RotateCcw, Save, Timer, Wrench } from 'lucide-react';
+import { Ghost, Globe, LoaderCircle, Megaphone, Rocket, RotateCcw, Save, Timer, Wrench } from 'lucide-react';
 import AdminPicker from './AdminPicker.jsx';
 import { AdminDateTime, AdminSegmented, AdminSwitch, adminCall, useAdminAction, useConfirm } from './adminShared.jsx';
 
@@ -38,6 +38,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
 
   const post = (body, key, ok) => run(key, async () => setDoc(await adminCall('POST', '/site', body, onAccessRevoked)), ok);
   const live = doc.config?.launch || {};
+  const halloween = Boolean(doc.settings?.theme?.halloween);
   const launchDirty = JSON.stringify(launch) !== JSON.stringify(doc.settings.launch);
   const maintenanceDirty = JSON.stringify(maintenance) !== JSON.stringify(doc.settings.maintenance);
   const bannerDirty = JSON.stringify(banner) !== JSON.stringify(doc.settings.announcement);
@@ -57,6 +58,15 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
   return (
     <div className="admin-scroll">
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
+
+      <section className={`admin-card admin-halloween${halloween ? ' is-on' : ''}`}>
+        <div className="admin-card-head">
+          <h3><Ghost size={14} />Halloween mode</h3>
+          <span className={`admin-chip ${halloween ? 'is-live' : 'is-test'}`}>{halloween ? 'On' : 'Off'}</span>
+        </div>
+        <p className="admin-note">Turns the whole website into a Halloween theme: orange and purple colours, bats that dodge the cursor, a ghost that follows it, a spider you can drop, pumpkins that burst into candy, and fog.</p>
+        <AdminSwitch on={halloween} onChange={(v) => post({ theme: { halloween: v } }, 'halloween', v ? 'Halloween mode is on' : 'Halloween mode is off')} label="Halloween mode" hint={halloween ? 'The website shows the Halloween theme (live within about 15 seconds).' : 'The website looks normal.'} />
+      </section>
 
       <section className={`admin-card admin-launch-hero${live.prelaunch ? ' is-pre' : ' is-live'}`}>
         <div className="admin-card-head">
