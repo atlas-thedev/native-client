@@ -55,7 +55,7 @@ export default function HomeMascot({ account }) {
 
   return (
     <div className="home-mascot" aria-hidden="true">
-      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={360} height={470} animation="pose" zoom={0.86} />
+      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={560} height={470} animation="pose" zoom={0.86} />
       <div className="home-mascot-shadow" />
     </div>
   );
