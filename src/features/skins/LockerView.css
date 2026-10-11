@@ -929,7 +929,5 @@
 }
 
 
-/* Lift the player a little in the stage. */
-.locker-stage-model > canvas,
-.locker-stage-model .skin-viewer-3d,
-.locker-stage-model > div:first-child { transform: translateY(-34px); }
+/* Lift the player a little in the stage (padding, so it never jumps while loading). */
+.locker-stage-model { padding-bottom: 64px; }

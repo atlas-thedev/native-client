@@ -1,4 +1,5 @@
 import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
+import { dyeTextures } from '../../lib/dyeCache.js';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -68,8 +69,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // 3D cosmetics: what's worn per slot ({ hats: id, ... }) and each owned cosmetic's model/texture/thumb
   const [wearing, setWearing] = useState({});
   const [sides, setSides] = useState({});
-  const [dyes, setDyes] = useState({}); // itemId -> '#rrggbb' the player picked
-  const [dyeTex, setDyeTex] = useState({}); // `${itemId}|${hex}` -> dyed texture (data URL)
+  const dyesKey = `native.locker.dyes.${account?.id || 'guest'}`;
+  const [dyes, setDyes] = useState(() => { try { return JSON.parse(localStorage.getItem(dyesKey) || '{}') || {}; } catch { return {}; } }); // itemId -> '#rrggbb' the player picked
+  useEffect(() => { try { localStorage.setItem(dyesKey, JSON.stringify(dyes || {})); } catch { /* storage full */ } }, [dyes, dyesKey]);
+  const [dyeTex, setDyeTex] = useState(() => Object.fromEntries(dyeTextures)); // `${itemId}|${hex}` -> dyed texture (data URL)
   const dyeRequested = useRef(new Set());
   const activeSlotForDye = useRef(null);
   const [cosAssets, setCosAssets] = useState({});
@@ -308,8 +311,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     if (dyeRequested.current.has(key)) return;
     dyeRequested.current.add(key);
     window.native?.store?.dyeTexture?.(id, color).then((res) => {
-      if (res?.ok && res.texture) { setDyeTex((current) => ({ ...current, [key]: res.texture })); return; }
+      if (res?.ok && res.texture) { dyeTextures.set(key, res.texture); setDyeTex((current) => ({ ...current, [key]: res.texture })); return; }
       dyeRequested.current.delete(key);
+      setDyeTex((current) => (key in current ? current : { ...current, [key]: null }));
       if (quiet) return;
       onNotify?.(t('locker.title'), res?.error || 'Couldn’t load that colour. Try again.');
     }).catch((error) => { dyeRequested.current.delete(key); if (!quiet) onNotify?.(t('locker.title'), error?.message || 'Couldn’t load that colour. Try again.'); });
@@ -319,6 +323,11 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const slot = activeSlotForDye.current;
     return slot && wearing?.[slot] ? wearing[slot] : null;
   }, [wearing, dyes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dyePending = (id) => {
+    const item = catalogById.get(id);
+    const color = dyeOf(id);
+    return Boolean(color && item?.dyeable && color !== item.dyeDefault && !(`${id}|${color}` in dyeTex));
+  };
   const dyedAsset = (id) => {
     const asset = cosAssets[id];
     const item = catalogById.get(id);
@@ -346,7 +355,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (trySetPieces.some((item) => item.kind !== 'cosmetic')) delete slots.back;
       for (const item of trySetPieces) if (item.kind === 'cosmetic') slots[item.slot] = item.id;
     }
-    return Object.entries(slots).map(([slot, id]) => (cosAssets[id] ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
+    return Object.entries(slots).map(([slot, id]) => (cosAssets[id] && !dyePending(id) ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
   }, [wearing, cosAssets, showCosmetics, tryOn, trySet, catalogBundles, sides, dyes, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
   const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
