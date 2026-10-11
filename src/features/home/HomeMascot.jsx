@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
+import { dyeTextures, cosmeticAssets } from '../../lib/dyeCache.js';
 import './HomeMascot.css';
 
 // Last known look per account, so Home still shows the full outfit offline.
@@ -13,8 +14,9 @@ const writeCache = (account, look) => { try { localStorage.setItem(cacheKey(acco
  */
 export default function HomeMascot({ account }) {
   const [look, setLook] = useState(() => readCache(account));
-  const [assets, setAssets] = useState({});
-  const [dyed, setDyed] = useState({});
+  const [assets, setAssets] = useState(() => Object.fromEntries(cosmeticAssets));
+  const [dyed, setDyed] = useState(() => Object.fromEntries(dyeTextures));
+  const [dyeFailed, setDyeFailed] = useState({});
 
   // Home remounts every time it is opened, so a dye or swap in the locker shows up straight away.
   useEffect(() => {
@@ -51,7 +53,9 @@ export default function HomeMascot({ account }) {
     for (const id of wornIds) {
       if (assets[id]) continue;
       Promise.resolve(window.native?.store?.cosmetic?.(id)).then((res) => {
-        if (alive && res?.ok) setAssets((current) => (current[id] ? current : { ...current, [id]: res }));
+        if (!res?.ok) return;
+        cosmeticAssets.set(id, res);
+        if (alive) setAssets((current) => (current[id] ? current : { ...current, [id]: res }));
       }).catch(() => {});
     }
     return () => { alive = false; };
@@ -65,8 +69,11 @@ export default function HomeMascot({ account }) {
       const key = `${id}|${color}`;
       if (!color || dyed[key]) continue;
       Promise.resolve(window.native?.store?.dyeTexture?.(id, color)).then((res) => {
-        if (alive && res?.ok && res.texture) setDyed((current) => ({ ...current, [key]: res.texture }));
-      }).catch(() => {});
+        if (res?.ok && res.texture) {
+          dyeTextures.set(key, res.texture);
+          if (alive) setDyed((current) => ({ ...current, [key]: res.texture }));
+        } else if (alive) setDyeFailed((current) => ({ ...current, [key]: true }));
+      }).catch(() => { if (alive) setDyeFailed((current) => ({ ...current, [key]: true })); });
     }
     return () => { alive = false; };
   }, [dyeKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -78,10 +85,11 @@ export default function HomeMascot({ account }) {
       if (!asset) return null;
       const color = look.dyes?.[id];
       const texture = color && dyed[`${id}|${color}`];
+      if (color && !texture && !dyeFailed[`${id}|${color}`]) return null;
       return { ...asset, ...(texture ? { texture } : {}), side: look.sides?.[slot] || null };
     }).filter(Boolean);
     return list.length ? list : null;
-  }, [look, assets, dyed]);
+  }, [look, assets, dyed, dyeFailed]);
 
   const viewerAccount = useMemo(() => {
     if (!account) return null;
