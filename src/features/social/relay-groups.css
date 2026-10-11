@@ -785,3 +785,46 @@
 .relay-reply-bar__label { font-size: 12px; color: var(--fg-muted); }
 .relay-reply-bar__label strong { color: var(--fg-secondary); font-weight: 600; }
 .relay-reply-bar__text { font-size: 12.5px; }
+
+/* Chats / Groups tabs in the inbox (matches the in-game Relay) */
+.relay-inbox-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.relay-inbox-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.relay-inbox-tab:hover { color: var(--fg-primary, #fff); background: rgba(255, 255, 255, 0.04); }
+.relay-inbox-tab.is-active { color: var(--fg-primary, #fff); background: rgba(255, 255, 255, 0.1); }
+.relay-inbox-tab:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.35); outline-offset: 1px; }
+.relay-inbox-tab-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 99px;
+  background: var(--accent-text, #d9a6da);
+  color: var(--accent-ink, #111);
+  font-size: 10px;
+  font-weight: 700;
+}
+.relay-section-cta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

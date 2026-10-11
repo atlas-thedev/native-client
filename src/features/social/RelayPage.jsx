@@ -203,6 +203,8 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   const [composerText, setComposerText] = useState('');
   const [stagedFile, setStagedFile] = useState(null);
   const [collapsed, setCollapsed] = useState({ pinned: false, groups: false, direct: false });
+  // Chats / Groups tabs, like the in-game Relay.
+  const [inboxTab, setInboxTab] = useState(() => (persisted?.inboxTab === 'groups' ? 'groups' : 'chats'));
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -236,9 +238,9 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
   useEffect(() => {
     try {
-      localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify({ lastSelectedId: selectedId, mutedIds, pinnedIds }));
+      localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify({ lastSelectedId: selectedId, mutedIds, pinnedIds, inboxTab }));
     } catch {}
-  }, [selectedId, mutedIds, pinnedIds]);
+  }, [selectedId, mutedIds, pinnedIds, inboxTab]);
 
   useEffect(() => {
     if (!previewMediaModal) return undefined;
@@ -395,6 +397,12 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
   const isGroupThread = activeEntity?.kind === 'group';
 
+  // Opening a chat from elsewhere (notification, profile) shows it in the right tab.
+  useEffect(() => {
+    if (!activeEntity?.kind) return;
+    setInboxTab(activeEntity.kind === 'group' ? 'groups' : 'chats');
+  }, [activeEntity?.id, activeEntity?.kind]);
+
   useEffect(() => {
     if (selectedId && !allThreads.some((thread) => thread.id === selectedId)) {
       setSelectedId(null);
@@ -468,7 +476,10 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
     });
   }, [inboxQuery]);
 
-  const pinnedList = filterList(allThreads.filter((thread) => thread.pinned));
+  const onGroupsTab = inboxTab === 'groups';
+  const pinnedList = filterList(allThreads.filter((thread) => thread.pinned && (thread.kind === 'group') === onGroupsTab));
+  const unreadChats = mergedFriends.reduce((sum, friend) => sum + (friend.muted ? 0 : friend.unread || 0), 0);
+  const unreadGroups = formattedGroups.reduce((sum, group) => sum + (group.unread || 0), 0);
   const groupList = filterList(formattedGroups.filter((group) => !group.pinned));
   const directList = filterList(mergedFriends
     .filter((friend) => !friend.pinned)
@@ -1070,10 +1081,18 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
 
 
 
-  const sections = [
-    { key: 'pinned', label: 'Pinned', list: pinnedList, empty: null, grouped: true },
-    { key: 'groups', label: 'Groups', list: groupList, empty: 'No matching groups', grouped: true },
-    { key: 'direct', label: 'Direct messages', list: directList, empty: 'No direct messages', grouped: false }
+  const sections = onGroupsTab
+    ? [
+      { key: 'pinned', label: 'Pinned', list: pinnedList, empty: null, grouped: true },
+      { key: 'groups', label: 'Groups', list: groupList, empty: inboxQuery ? 'No matching groups' : 'No groups yet', grouped: true }
+    ]
+    : [
+      { key: 'pinned', label: 'Pinned', list: pinnedList, empty: null, grouped: true },
+      { key: 'direct', label: 'Direct messages', list: directList, empty: inboxQuery ? 'No matching chats' : 'No direct messages', grouped: false }
+    ];
+  const inboxTabs = [
+    { key: 'chats', label: 'Chats', unread: unreadChats },
+    { key: 'groups', label: 'Groups', unread: unreadGroups }
   ];
 
   // Your own profile, rendered through the same panel the friend view uses.
@@ -1158,13 +1177,28 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
               data-testid="relay-inbox-search"
             />
           </div>
+          <div className="relay-inbox-tabs" role="tablist" aria-label="Conversations">
+            {inboxTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={inboxTab === tab.key}
+                className={`relay-inbox-tab ${inboxTab === tab.key ? 'is-active' : ''}`}
+                data-testid={`relay-tab-${tab.key}`}
+                onClick={() => setInboxTab(tab.key)}
+              >
+                <span>{tab.label}</span>
+                {tab.unread > 0 && <span className="relay-inbox-tab-badge">{tab.unread > 99 ? '99+' : tab.unread}</span>}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="relay-inbox-scroll">
           {(allThreads.length === 0 && (social?.initialLoading || relayGroups.loadingGroups)) || !inboxFacesReady ? (
             <>
-              <section className="relay-section"><div className="relay-section-header"><span>Groups</span></div><ThreadSkeletons count={2} /></section>
-              <section className="relay-section"><div className="relay-section-header"><span>Direct messages</span></div><ThreadSkeletons count={4} /></section>
+              <section className="relay-section"><div className="relay-section-header"><span>{onGroupsTab ? 'Groups' : 'Direct messages'}</span></div><ThreadSkeletons count={onGroupsTab ? 3 : 5} /></section>
             </>
           ) : allThreads.length === 0 ? (
             <div className="relay-empty-inbox">
@@ -1188,7 +1222,6 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
           ) : (
             sections.map((section) => {
               if (section.key === 'pinned' && section.list.length === 0) return null;
-              if (section.key === 'groups' && formattedGroups.length === 0 && !relayGroups.loadingGroups) return null;
               const isCollapsed = collapsed[section.key];
               return (
                 <section className="relay-section" key={section.key}>
@@ -1214,7 +1247,14 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                                 <button type="button" className="relay-retry-btn" onClick={() => social?.refresh?.()}>Retry</button>
                               </div>
                             )
-                            : <div className="relay-section-empty">{section.empty}</div>
+                            : section.key === 'groups' && formattedGroups.length === 0 && !inboxQuery
+                              ? (
+                                <div className="relay-section-empty relay-section-cta">
+                                  <span>{section.empty}</span>
+                                  <button type="button" className="relay-retry-btn" onClick={() => setCreateOpen(true)}>Create group</button>
+                                </div>
+                              )
+                              : <div className="relay-section-empty">{section.empty}</div>
                       ) : (
                         section.list.map((thread, index) => (
                           <ThreadRow
