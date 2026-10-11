@@ -818,9 +818,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const capeCard = (card, index) => {
     const locked = card.kind === 'locked';
     const isCloak = card.kind === 'store' || card.kind === 'cloakNone';
-    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
-      {capeArt(card.animated ? card.storeItem : null, card.textureUrl)}
-      <span>{card.name}</span>
+    const none = card.kind === 'none' || card.kind === 'cloakNone';
+    const status = locked ? 'Not owned' : card.active ? (none ? 'Selected' : 'Wearing') : none ? 'Show no cape' : card.animated ? 'Animated' : 'Click to wear';
+    return <button key={card.key} type="button" style={{ '--i': index }} className={`locker-cape-card locker-cape-tile locker-pop ${card.active ? 'active' : ''} ${locked ? 'locked' : ''}`.replace(/\s+/g, ' ').trim()} onClick={() => handleCapeCardClick(card)} disabled={locked || (!isCloak && showOfficialCards && official.busy)} title={locked ? t('locker.officialHint') : card.name}>
+      <span className="locker-tile-well">{capeArt(card.animated ? card.storeItem : null, card.textureUrl)}</span>
+      <span className="locker-tile-name">{card.name}</span>
+      <small className="locker-tile-status">{status}</small>
       {storeBusy && ((card.storeItem?.id || 'off') === storeBusy) && <RefreshCw size={12} className="locker-cape-check is-spinning"/>}
       {card.active && <Check size={13} className="locker-cape-check"/>}
       {locked && <Lock size={11} className="locker-cape-lock"/>}

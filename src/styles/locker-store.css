@@ -433,3 +433,42 @@
 .locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-anim .locker-cape-canvas { border: 0; border-radius: 0; background: transparent; }
 .locker-view .locker-cape-grid .locker-tile .locker-tile-art .locker-cape-canvas.is-pending { opacity: 0.35; animation: locker-cape-pulse 1.4s ease-in-out infinite; background: rgba(255, 255, 255, 0.06); border-radius: 4px; }
 @keyframes locker-cape-pulse { 50% { opacity: 0.15; } }
+
+/* Cape & cloak tiles: centred art in its own well, name and state centred under it, no dead space. */
+.locker-view .locker-cape-grid .locker-cape-card.locker-cape-tile {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  gap: 0; padding: 7px 7px 12px; text-align: center;
+}
+.locker-view .locker-cape-grid .locker-cape-card.locker-cape-tile::before { display: none; }
+.locker-view .locker-cape-tile .locker-tile-well {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 150px; border-radius: 10px; overflow: hidden;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.07), transparent 62%), #08080a;
+}
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-texture,
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-anim .locker-cape-texture {
+  width: 64px; height: 102px; margin: 0;
+  background-color: transparent; background-size: 410px 205px; background-position: -6.4px -6.4px;
+  border: 0; border-radius: 2px; image-rendering: pixelated;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+}
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-anim { margin: 0; display: grid; place-items: center; }
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-anim .locker-cape-canvas {
+  width: 64px; height: 102px; border: 0; border-radius: 0; background: transparent; image-rendering: pixelated;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+}
+.locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-no-cape {
+  width: 64px; height: 102px; margin: 0; display: grid; place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.16); border-radius: 8px; background: transparent; color: var(--fg-muted);
+}
+.locker-view .locker-cape-tile:hover:not(.locked) .locker-tile-well .locker-cape-texture,
+.locker-view .locker-cape-tile:hover:not(.locked) .locker-tile-well .locker-cape-canvas { transform: translateY(-2px); transition: transform 0.18s var(--ease, ease); }
+.locker-view .locker-cape-tile .locker-tile-name {
+  display: block; min-width: 0; margin-top: 11px; padding: 0 4px;
+  font: 700 13px/1.25 var(--font-sans); color: var(--fg-primary-hover, #fff);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.locker-view .locker-cape-tile .locker-tile-status { display: block; margin-top: 3px; font: 600 11px/1.2 var(--font-sans); color: var(--fg-muted); }
+.locker-view .locker-cape-tile.active .locker-tile-status { color: #fff; }
+.locker-view .locker-cape-tile .locker-cape-check { top: 14px; right: 14px; }
+.locker-view .locker-cape-tile .locker-cape-lock { top: 14px; left: 14px; }

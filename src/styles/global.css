@@ -123,6 +123,7 @@ select {
 /* ---- 1. No dead space under the navbar on any page ---- */
 
 :root .instances-view,
+:root .srv-view,
 :root .clusters-view,
 :root .browse-view,
 :root .stats-view,
