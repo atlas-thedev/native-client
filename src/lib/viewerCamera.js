@@ -11,7 +11,7 @@ import { Box3 } from 'three';
 
 /** [target height, zoom] per part of the player (skinview3d units, fov 42). */
 export const SHOTS = {
-  all: [-1, 0.68],
+  all: [2, 0.76],
   hats: [10, 1.05],
   glasses: [9, 1.2],
   back: [3, 0.66],
