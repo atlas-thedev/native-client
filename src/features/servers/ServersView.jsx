@@ -201,6 +201,38 @@ function ServerRow({ server, rank, live, onPlay, onCopy, copied }) {
   );
 }
 
+/** One of the top three: a bigger card with the live count front and centre. */
+function SpotCard({ server, rank, live, onPlay, onCopy, copied }) {
+  const icon = live?.favicon || server.icon || unknownIcon;
+  const players = live?.players;
+  return (
+    <article className={`srv-spot is-top${rank}`}>
+      <div className="srv-spot-top">
+        <img className="srv-spot-icon" src={icon} alt="" draggable="false" />
+        <span className="srv-spot-rank"><Trophy size={13} />#{rank}</span>
+      </div>
+      <h3>{server.name}</h3>
+      <p>{server.description || 'No description yet.'}</p>
+      <div className="srv-spot-stats">
+        <span className={`srv-state${live ? (live.online ? ' is-online' : ' is-offline') : ''}`}><i />{live ? (live.online ? 'Online' : 'Offline') : 'Checking…'}</span>
+        <strong><Users size={12} />{players != null ? numberFormat.format(players) : '—'}</strong>
+        <span className="srv-tag is-version">{server.min}+</span>
+      </div>
+      <div className="srv-spot-actions">
+        <button type="button" className={`srv-ip${copied ? ' is-copied' : ''}`} onClick={() => onCopy(server.address)} title="Copy server IP">
+          <span className="srv-ip-label">{copied ? 'Copied!' : 'Server IP'}</span>
+          <span className="srv-ip-value">{server.address}</span>
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+        </button>
+        <button type="button" className="srv-play" onClick={() => onPlay(server)}>
+          <Play size={13} fill="currentColor" />
+          Play
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function VersionDialog({ server, instance, onCancel, onConfirm }) {
   useEffect(() => {
     const onKey = (event) => event.key === 'Escape' && onCancel();
@@ -338,6 +370,12 @@ export default function ServersView({ instances = [], selectedInstance = null, o
     launch(server);
   };
 
+  const spotlight = category === 'all' && !query.trim() && !onlineOnly && sort === 'rank'
+    ? visible.filter((server) => !server.promoted).slice(0, 3)
+    : [];
+  const spotIds = new Set(spotlight.map((server) => server.address));
+  const listed = visible.filter((server) => !spotIds.has(server.address));
+
   return (
     <div className="srv-view">
       {/* Same header as the other pages (Instances, Locker...): title + subtitle on the left, actions on the right. */}
@@ -349,9 +387,15 @@ export default function ServersView({ instances = [], selectedInstance = null, o
           </p>
         </div>
         <div className="srv-header-actions">
+          {instances.length > 0 && (
+            <div className="srv-playwith" title="The instance Play launches">
+              <span className="srv-playwith-label">Play with</span>
+              <Dropdown className="srv-dropdown srv-playwith-dd" value={instance?.id || ''} options={instanceOptions} onChange={(value) => setInstanceId(value)} placeholder="Choose instance" />
+            </div>
+          )}
           <button type="button" className={`srv-refresh${refreshing ? ' is-busy' : ''}`} onClick={refresh} disabled={refreshing} title="Ping every server again">
             <RefreshCw size={14} />
-            {refreshing ? 'Refreshing…' : 'Refresh status'}
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </header>
@@ -362,62 +406,63 @@ export default function ServersView({ instances = [], selectedInstance = null, o
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, IP or description" spellCheck={false} />
           {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear"><X size={14} /></button>}
         </label>
+        <div className="srv-toolbar-right">
+          <button type="button" role="switch" aria-checked={onlineOnly} className={`srv-toggle${onlineOnly ? ' is-on' : ''}`} onClick={() => setOnlineOnly((value) => !value)}>
+            <span>Online only</span>
+            <i aria-hidden="true"><b /></i>
+          </button>
+          <Dropdown className="srv-dropdown srv-sort-dd" value={sort} options={SORTS} onChange={setSort} />
+        </div>
+      </div>
+
+      <div className="srv-cats" role="tablist" aria-label="Categories">
+        {SERVER_CATEGORIES.map((item) => (
+          <button key={item.id} type="button" role="tab" aria-selected={category === item.id} className={`srv-cat${category === item.id ? ' is-active' : ''}`} onClick={() => setCategory(item.id)}>
+            <span>{item.label}</span>
+            <em>{counts[item.id] || 0}</em>
+          </button>
+        ))}
       </div>
 
       <div className="srv-body">
-        <div className="srv-layout">
-          <aside className="srv-side">
-            <div className="srv-side-block">
-              <span className="srv-side-label">Categories</span>
-              {SERVER_CATEGORIES.map((item) => (
-                <button key={item.id} type="button" className={`srv-cat${category === item.id ? ' is-active' : ''}`} onClick={() => setCategory(item.id)}>
-                  <span>{item.label}</span>
-                  <em>{counts[item.id] || 0}</em>
-                </button>
+        {spotlight.length > 0 && (
+          <section className="srv-spotlight" aria-label="Top servers">
+            {spotlight.map((server) => (
+              <SpotCard
+                key={server.address}
+                server={server}
+                rank={rankOf[server.address] || 0}
+                live={status[server.address]}
+                onPlay={play}
+                onCopy={copy}
+                copied={copied === server.address}
+              />
+            ))}
+          </section>
+        )}
+        <section className="srv-main">
+          <div className="srv-list-head">
+            <span>{numberFormat.format(visible.length)} {visible.length === 1 ? 'server' : 'servers'}{category !== 'all' ? ` in ${categoryLabel(category)}` : ''}</span>
+            {instance && <span className="srv-list-hint">Play launches <b>{instance.name}</b> and joins straight away</span>}
+          </div>
+          {visible.length === 0 ? (
+            <div className="srv-empty">{query ? `No servers match “${query}”.` : 'No servers in this view.'}</div>
+          ) : (
+            <div className="srv-list">
+              {listed.map((server) => (
+                <ServerRow
+                  key={server.address}
+                  server={server}
+                  rank={rankOf[server.address] || 0}
+                  live={status[server.address]}
+                  onPlay={play}
+                  onCopy={copy}
+                  copied={copied === server.address}
+                />
               ))}
             </div>
-
-            <div className="srv-side-block">
-              <span className="srv-side-label">Sort by</span>
-              <Dropdown className="srv-dropdown" value={sort} options={SORTS} onChange={setSort} />
-              <button type="button" role="switch" aria-checked={onlineOnly} className={`srv-toggle${onlineOnly ? ' is-on' : ''}`} onClick={() => setOnlineOnly((value) => !value)}>
-                <span>Online only</span>
-                <i aria-hidden="true"><b /></i>
-              </button>
-            </div>
-
-            {instances.length > 0 && (
-              <div className="srv-side-block">
-                <span className="srv-side-label">Play with</span>
-                <Dropdown className="srv-dropdown" value={instance?.id || ''} options={instanceOptions} onChange={(value) => setInstanceId(value)} placeholder="Choose instance" />
-              </div>
-            )}
-          </aside>
-
-          <section className="srv-main">
-            <div className="srv-list-head">
-              <span>{numberFormat.format(visible.length)} {visible.length === 1 ? 'server' : 'servers'}{category !== 'all' ? ` in ${categoryLabel(category)}` : ''}</span>
-              <span className="srv-list-cols"><span>Server IP</span><span>Players</span><span /></span>
-            </div>
-            {visible.length === 0 ? (
-              <div className="srv-empty">{query ? `No servers match “${query}”.` : 'No servers in this view.'}</div>
-            ) : (
-              <div className="srv-list">
-                {visible.map((server) => (
-                  <ServerRow
-                    key={server.address}
-                    server={server}
-                    rank={rankOf[server.address] || 0}
-                    live={status[server.address]}
-                    onPlay={play}
-                    onCopy={copy}
-                    copied={copied === server.address}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+          )}
+        </section>
       </div>
 
       {pending && instance && (
