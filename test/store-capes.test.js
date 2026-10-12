@@ -385,6 +385,7 @@ test('mod friends + live stream: presence and requests reach the game', async ()
   assert.equal(list.body.friends[0].online, true);
   assert.equal(list.body.friends[0].activity, 'Playing Minecraft 1.20.1');
   assert.equal(list.body.online, 1);
+  assert.equal(list.body.friends[0].lastMessageAt, 0); // no chat yet; the in-game list orders by this
 
   // Leaving the game flips them offline for their friends, again live.
   streamB.destroy();
