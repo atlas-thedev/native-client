@@ -63,10 +63,11 @@ function gameTicketAllowed(method, segments) {
     if (segments.length === 1) return method === 'GET';
     if (segments.length === 2) return method === 'GET';
     if (c === 'messages') return method === 'GET' || method === 'POST';
-    if (c === 'read' || c === 'typing') return method === 'POST';
+    if (c === 'read' || c === 'typing' || c === 'prefs') return method === 'POST';
     return false;
   }
   if (a === 'dm' && b && c === 'messages') return method === 'GET' || method === 'POST';
+  if (a === 'dm' && b && (c === 'typing' || c === 'prefs')) return method === 'POST';
   // In-game message actions: react / edit / delete (own messages, enforced by the handlers).
   if (a === 'messages' && b && segments.length === 3) return method === 'POST' && (c === 'react' || c === 'edit' || c === 'delete');
   if (a === 'dm-messages' && b && segments.length === 3) return method === 'POST' && (c === 'edit' || c === 'delete');
@@ -384,6 +385,23 @@ async function handleRelayRoutes(req, res) {
         send(res, 200, { ok: true, message });
         return true;
       }
+    }
+
+    // ── Direct chat settings: typing indicator, pin, nickname ───────────────
+    if (segments[0] === 'dm' && segments.length === 3 && req.method === 'POST' && (segments[2] === 'typing' || segments[2] === 'prefs')) {
+      const friendId = segments[1];
+      const body = await readJson(req);
+      if (segments[2] === 'typing') {
+        events.setTyping(me, friendId, Boolean(body.isTyping));
+      } else {
+        const next = {};
+        if (typeof body.pinned === 'boolean') next.pinned = body.pinned;
+        if (typeof body.nickname === 'string') next.nickname = body.nickname;
+        db.updateFriendAttributes(me, friendId, next);
+        publish([me], 'friends:changed', { actorId: me, friendId });
+      }
+      send(res, 200, { ok: true });
+      return true;
     }
 
     // ── Direct message edit / delete ─────────────────────────────────────
