@@ -18,6 +18,14 @@ test('in-game tickets may edit and delete direct messages only', () => {
   assert.equal(allowed('POST', 'dm-messages/m1/react'), false);
 });
 
+test('in-game tickets may send typing and pin / nickname settings for chats', () => {
+  assert.equal(allowed('POST', 'dm/f1/typing'), true);
+  assert.equal(allowed('POST', 'dm/f1/prefs'), true);
+  assert.equal(allowed('GET', 'dm/f1/prefs'), false);
+  assert.equal(allowed('POST', 'groups/g1/prefs'), true);
+  assert.equal(allowed('POST', 'dm/f1/block'), false);
+});
+
 test('existing in-game routes are unchanged', () => {
   assert.equal(allowed('POST', 'groups/g1/messages'), true);
   assert.equal(allowed('DELETE', 'groups/g1'), false);
