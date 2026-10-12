@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, BookOpen, Boxes, Compass, LifeBuoy, PlayCircle, Rocket, Search, UsersRound, X
+  ArrowLeft, ArrowRight, BookOpen, Boxes, Compass, LifeBuoy, Rocket, Search, UsersRound, X
 } from 'lucide-react';
-import GuideVideo from './GuideVideo.jsx';
-import { GUIDES, GUIDE_CATEGORIES, formatDuration, guideById, useGuideVideos } from './guides.js';
+import { GUIDES, GUIDE_CATEGORIES, guideById } from './guides.js';
 import './GuidesView.css';
 
 const CATEGORY_ICON = { start: Rocket, play: Boxes, content: Compass, account: UsersRound, help: LifeBuoy };
@@ -18,7 +17,6 @@ export function matchGuide(guide, query) {
 }
 
 export default function GuidesView({ initialGuideId = null, onAction }) {
-  const videos = useGuideVideos();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [openId, setOpenId] = useState(initialGuideId);
@@ -27,7 +25,6 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
   useEffect(() => { if (initialGuideId) setOpenId(initialGuideId); }, [initialGuideId]);
   useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); }, [openId]);
 
-  const featured = GUIDES.find((guide) => guide.featured);
   const visible = useMemo(
     () => GUIDES.filter((guide) => (category === 'all' || guide.category === category) && matchGuide(guide, query)),
     [category, query]
@@ -39,8 +36,6 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
       {open ? (
         <GuideDetail
           guide={open}
-          video={open.video ? videos[open.video] : null}
-          videos={videos}
           onBack={() => setOpenId(null)}
           onOpen={setOpenId}
           onAction={onAction}
@@ -51,7 +46,7 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
             <div className="guides-head-text">
               <span className="guides-eyebrow"><BookOpen size={13} aria-hidden="true" /> How to</span>
               <h1>Learn Native in minutes</h1>
-              <p>Short answers and screen-recorded videos for everything in the launcher.</p>
+              <p>Short, step-by-step answers for everything in the launcher.</p>
             </div>
             <label className="guides-search">
               <Search size={15} aria-hidden="true" />
@@ -67,27 +62,6 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
               )}
             </label>
           </header>
-
-          {featured && !query && category === 'all' && (
-            <section className="guides-hero" aria-label="Featured video">
-              <GuideVideo video={videos[featured.video]} title={featured.title} />
-              <div className="guides-hero-text">
-                <span className="guides-pill"><PlayCircle size={12} aria-hidden="true" /> Full walkthrough</span>
-                <h2>{featured.title}</h2>
-                <p>{featured.summary}</p>
-                <div className="guides-hero-actions">
-                  <button type="button" className="guides-primary" onClick={() => setOpenId(featured.id)}>
-                    Open guide <ArrowRight size={14} aria-hidden="true" />
-                  </button>
-                  {featured.action && (
-                    <button type="button" className="guides-ghost" onClick={() => onAction?.(featured.action)}>
-                      {featured.action.label}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
 
           <nav className="guides-cats" aria-label="Guide categories">
             <button type="button" className={category === 'all' ? 'is-active' : ''} onClick={() => setCategory('all')}>All</button>
@@ -112,7 +86,6 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
                 <GuideCard
                   key={guide.id}
                   guide={guide}
-                  video={guide.video ? videos[guide.video] : null}
                   index={index}
                   onOpen={() => setOpenId(guide.id)}
                 />
@@ -125,23 +98,12 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
   );
 }
 
-function GuideCard({ guide, video, index, onOpen }) {
+function GuideCard({ guide, index, onOpen }) {
   const Icon = CATEGORY_ICON[guide.category] || BookOpen;
-  const length = formatDuration(video?.duration);
   return (
-    <button type="button" className={`guide-card${video ? ' has-thumb' : ''}`} style={{ '--i': index }} onClick={onOpen}>
-      {video && (
-        <span className="guide-card-thumb" aria-hidden="true">
-          {video.poster && <img src={video.poster} alt="" loading="lazy" draggable={false} onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
-        </span>
-      )}
+    <button type="button" className="guide-card" style={{ '--i': index }} onClick={onOpen}>
       <span className="guide-card-top">
         <span className="guide-card-icon"><Icon size={15} aria-hidden="true" /></span>
-        {video && (
-          <span className="guide-card-video">
-            <PlayCircle size={12} aria-hidden="true" /> {length || 'Video'}
-          </span>
-        )}
       </span>
       <strong>{guide.title}</strong>
       <span className="guide-card-summary">{guide.summary}</span>
@@ -150,7 +112,7 @@ function GuideCard({ guide, video, index, onOpen }) {
   );
 }
 
-function GuideDetail({ guide, video, videos, onBack, onOpen, onAction }) {
+function GuideDetail({ guide, onBack, onOpen, onAction }) {
   const related = GUIDES.filter((item) => item.category === guide.category && item.id !== guide.id).slice(0, 3);
   const category = GUIDE_CATEGORIES.find((item) => item.id === guide.category);
   return (
@@ -164,9 +126,7 @@ function GuideDetail({ guide, video, videos, onBack, onOpen, onAction }) {
         <p>{guide.summary}</p>
       </header>
 
-      <div className={`guide-detail-body${video ? ' has-video' : ''}`}>
-        {video && <GuideVideo key={video.src} video={video} title={guide.title} />}
-
+      <div className={`guide-detail-body`}>
         <section className="guide-steps" aria-label="Steps">
           <ol>
             {guide.steps.map((step, index) => (
@@ -192,7 +152,7 @@ function GuideDetail({ guide, video, videos, onBack, onOpen, onAction }) {
           <h2>Related</h2>
           <div className="guides-grid is-related">
             {related.map((item, index) => (
-              <GuideCard key={item.id} guide={item} video={item.video ? videos[item.video] : null} index={index} onOpen={() => onOpen(item.id)} />
+              <GuideCard key={item.id} guide={item} index={index} onOpen={() => onOpen(item.id)} />
             ))}
           </div>
         </section>
