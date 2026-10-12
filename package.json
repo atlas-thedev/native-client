@@ -2,7 +2,7 @@
   "name": "native-client",
   "productName": "Native Client",
   "desktopName": "Native Client",
-  "version": "4.3.0",
+  "version": "5.0.0",
   "description": "Native Client — a Minecraft launcher",
   "homepage": "https://playnative.fun",
   "author": {
