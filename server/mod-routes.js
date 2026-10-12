@@ -244,6 +244,8 @@ function friendsPayload(user) {
     best: Boolean(f.isBestFriend),
     pinned: Boolean(f.pinned),
     lastSeen: f.lastSeen || null,
+    // When the newest message in this chat was sent: the in-game list shows the latest chat first.
+    lastMessageAt: Number(f.lastMessageTime || 0),
     unread: Number(f.unreadCount || 0),
     // Skin texture hash (under /csl/textures/) so the in-game chat can draw the friend's face.
     skin: (() => { const p = readProfileFile(f.name); return p && HASH.test(p.skin || '') ? p.skin : null; })(),
