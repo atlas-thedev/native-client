@@ -86,20 +86,32 @@ function SkinViewerCanvas({
   const [ready, setReady] = useState(false);
   const [selfHealed, setSelfHealed] = useState(null);
 
-  // Self-heal local skins from wardrobe if account arrived without skinUrl
+  // Self-heal skins when the account arrived without a skinUrl: local accounts
+  // use their wardrobe skin, Microsoft accounts the real Mojang texture (the
+  // mc-heads fallback can keep serving Steve after a skin change).
   useEffect(() => {
-    if (account?.skinUrl || !isLocalIdentity(account) || !window.native?.wardrobe?.avatar) {
+    const microsoft = account?.type === 'microsoft' || account?.isMicrosoft === true;
+    const lookup = !account?.skinUrl && (
+      isLocalIdentity(account)
+        ? window.native?.wardrobe?.avatar
+        : microsoft && window.native?.wardrobe?.officialSkin
+    );
+    if (!lookup) {
       setSelfHealed(null);
       return undefined;
     }
     let cancelled = false;
-    window.native.wardrobe.avatar(account).then((res) => {
-      if (!cancelled && res?.skinUrl) {
-        setSelfHealed({ skinUrl: res.skinUrl, capeUrl: res.capeUrl, model: res.model });
-      }
+    const ask = isLocalIdentity(account) ? window.native.wardrobe.avatar : window.native.wardrobe.officialSkin;
+    const local = isLocalIdentity(account);
+    setSelfHealed(null);
+    Promise.resolve(ask(account)).then((res) => {
+      if (cancelled || !res?.skinUrl) return;
+      setSelfHealed(local
+        ? { skinUrl: res.skinUrl, capeUrl: res.capeUrl, model: res.model }
+        : { skinUrl: res.skinUrl, model: res.model });
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [account?.id, account?.skinUrl]);
+  }, [account?.id, account?.uuid, account?.type, account?.skinUrl]);
 
   // A wardrobe lookup is only a fallback for an undecorated account. Once the
   // parent supplies a newly selected skin, it must win immediately even if an
