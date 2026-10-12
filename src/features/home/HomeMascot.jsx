@@ -25,18 +25,26 @@ export default function HomeMascot({ account }) {
     setLook(cached);
     let alive = true;
     (async () => {
-      const [me, prof] = await Promise.all([
+      const profileName = account.type === 'microsoft' ? (account.nativeLink?.name || account.name) : account.name;
+      const [me, prof, ward] = await Promise.all([
         Promise.resolve(window.native?.store?.me?.(account)).catch(() => null),
-        account.name ? Promise.resolve(window.native?.profiles?.get?.(account.name)).catch(() => null) : null
+        profileName ? Promise.resolve(window.native?.profiles?.get?.(profileName)).catch(() => null) : null,
+        Promise.resolve(window.native?.wardrobe?.get?.(account)).catch(() => null)
       ]);
       if (!alive) return;
       const p = prof?.ok ? (prof.profile?.look || {}) : null;
       const m = me?.ok ? me : null;
-      if (!m && !p) return; // offline: keep the cached look
+      // The Native skin: what is active in the Locker, else the one on the Native profile.
+      const current = prof?.ok ? prof.profile?.current : null;
+      const skinUrl = ward?.active?.skinUrl || current?.url || null;
+      const skinModel = ward?.active?.skinUrl ? ward.active.model : (current?.model || null);
+      if (!m && !p && !skinUrl) return; // offline: keep the cached look
       const next = {
-        wearing: (m ? m.wearing : p.wearing) || {},
-        sides: (m ? m.sides : p.sides) || {},
-        dyes: (m ? m.dyes : p.dyes) || {},
+        skinUrl: skinUrl || cached?.skinUrl || null,
+        skinModel: (skinUrl ? skinModel : cached?.skinModel) || null,
+        wearing: (m ? m.wearing : p?.wearing) || cached?.wearing || {},
+        sides: (m ? m.sides : p?.sides) || cached?.sides || {},
+        dyes: (m ? m.dyes : p?.dyes) || cached?.dyes || {},
         capeUrl: p ? (p.capeUrl || null) : (cached?.capeUrl || null),
         capeAnimation: p ? (p.capeAnimation || null) : (cached?.capeAnimation || null)
       };
@@ -98,7 +106,8 @@ export default function HomeMascot({ account }) {
     const capeAnim = lookCape && look?.capeAnimation?.url
       ? { stripUrl: look.capeAnimation.url, frames: look.capeAnimation.frames, fps: look.capeAnimation.fps }
       : null;
-    return { ...account, capeUrl, hasCape: Boolean(capeUrl), capeAnim };
+    const skin = look?.skinUrl ? { skinUrl: look.skinUrl, model: look.skinModel === 'slim' ? 'slim' : 'classic' } : {};
+    return { ...account, ...skin, capeUrl, hasCape: Boolean(capeUrl), capeAnim };
   }, [account, look]);
 
   if (!viewerAccount) return null;
