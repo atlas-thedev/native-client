@@ -61,9 +61,7 @@ test('quick search is wired to the title bar, Ctrl+K and the How to page', () =>
   assert.match(css, /-webkit-app-region: no-drag/);
 });
 
-test('guides only stream media from the Native guides host', { skip: !esbuild && 'esbuild missing' }, () => {
-  const src = read('src/features/guides/guides.js');
-  assert.match(src, /SAFE_MEDIA = \/\^https:\\\/\\\/api\\\.playnative\\\.fun\\\/guides\\\//);
+test('every guide has a unique id and steps', { skip: !esbuild && 'esbuild missing' }, () => {
   const guides = load('src/features/guides/guides.js');
   const ids = new Set();
   for (const guide of guides.GUIDES) {

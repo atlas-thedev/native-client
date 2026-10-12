@@ -1,14 +1,4 @@
-import { useEffect, useState } from 'react';
-
-/**
- * How-to guides. Each guide answers one question with short steps, an
- * optional "do it now" action, and (for most) a screen-recorded video that
- * is hosted on the Native API server, so videos can be re-recorded without a
- * launcher update. The manifest overrides the built-in URLs when available.
- */
-
-export const GUIDE_MEDIA_ROOT = 'https://api.playnative.fun/guides';
-const MANIFEST_URL = `${GUIDE_MEDIA_ROOT}/manifest.json`;
+/** How-to guides. Each guide answers one question with short steps and an optional "do it now" action. */
 
 export const GUIDE_CATEGORIES = [
   { id: 'start', label: 'Getting started' },
@@ -24,9 +14,7 @@ export const GUIDES = [
     category: 'start',
     title: 'How does Native work?',
     summary: 'A full walkthrough of the launcher: instances, versions, Discover, launching, Locker, Relay, accounts and settings.',
-    video: 'full-tour',
-    featured: true,
-    tags: ['tour', 'overview', 'walkthrough', 'start', 'basics', 'video'],
+    tags: ['tour', 'overview', 'walkthrough', 'start', 'basics'],
     steps: [
       { title: 'Sign in', body: 'Use a Microsoft account for official servers, or a Native account for offline play and cloud features.' },
       { title: 'Create an instance', body: 'An instance is one Minecraft install with its own version, mod loader, mods and worlds.' },
@@ -39,7 +27,6 @@ export const GUIDES = [
     category: 'play',
     title: 'How do I make an instance?',
     summary: 'Create a separate Minecraft install with the version and mod loader you want.',
-    video: 'create-instance',
     tags: ['instance', 'new', 'create', 'profile', 'version', 'fabric', 'forge', 'neoforge', 'quilt', 'vanilla'],
     steps: [
       { title: 'Open Instances', body: 'Click Instances in the sidebar, then New instance. You can also press Create & Play on Home.' },
@@ -55,7 +42,6 @@ export const GUIDES = [
     category: 'play',
     title: 'How do I launch and play?',
     summary: 'Start Minecraft from Home, follow the first download, and stop the game from the title bar.',
-    video: 'launch-game',
     tags: ['launch', 'play', 'start', 'run', 'download', 'stop', 'home'],
     steps: [
       { title: 'Go Home', body: 'Home shows your selected instance. Use the picker to choose another one.' },
@@ -69,7 +55,6 @@ export const GUIDES = [
     category: 'content',
     title: 'How do I install mods?',
     summary: 'Find a mod in Discover and install it into an instance, dependencies included.',
-    video: 'install-mods',
     tags: ['mods', 'install', 'discover', 'modrinth', 'sodium', 'optifine', 'download', 'add'],
     steps: [
       { title: 'Use a modded instance', body: 'Mods need a loader. Create or pick an instance that uses Fabric, NeoForge, Forge or Quilt.' },
@@ -84,7 +69,6 @@ export const GUIDES = [
     category: 'content',
     title: 'How do I install a modpack?',
     summary: 'Modpacks become their own instance with every mod and setting in place.',
-    video: 'install-mods',
     tags: ['modpack', 'pack', 'install', 'mrpack', 'discover'],
     steps: [
       { title: 'Open Discover', body: 'Switch the content type to Modpacks.' },
@@ -124,7 +108,6 @@ export const GUIDES = [
     category: 'account',
     title: 'How do I change my skin, cloak and cape?',
     summary: 'Upload skins, pick Native cloaks (and your Minecraft capes) and preview them in 3D in the Locker.',
-    video: 'locker',
     tags: ['skin', 'cape', 'cloak', 'locker', 'wardrobe', 'avatar', '3d', 'slim', 'classic'],
     steps: [
       { title: 'Open Locker', body: 'Click Locker in the sidebar. Offline accounts get a local Locker only you see.' },
@@ -138,7 +121,6 @@ export const GUIDES = [
     category: 'account',
     title: 'How do I add friends and chat?',
     summary: 'Relay is Native’s chat: friends, groups, presence and one-click server joining.',
-    video: 'relay',
     tags: ['friends', 'chat', 'relay', 'message', 'group', 'dm', 'add friend', 'social'],
     steps: [
       { title: 'Open Relay', body: 'Click Relay in the sidebar. You need a Native or premium (Microsoft) account.' },
@@ -152,7 +134,6 @@ export const GUIDES = [
     category: 'account',
     title: 'How do I join a friend’s server?',
     summary: 'See which server a friend is on and join with one click.',
-    video: 'relay',
     tags: ['join', 'server', 'friend', 'multiplayer', 'presence'],
     steps: [
       { title: 'Check presence', body: 'Friends who are playing show what they are doing, like "In-game: Hypixel".' },
@@ -165,7 +146,6 @@ export const GUIDES = [
     category: 'help',
     title: 'How do I give Minecraft more RAM?',
     summary: 'Set memory for every instance in Settings, or for one instance in its own settings.',
-    video: 'settings-memory',
     tags: ['ram', 'memory', 'lag', 'performance', 'settings', 'allocate', 'gb'],
     steps: [
       { title: 'Open Settings', body: 'Go to Settings → Game & Display.' },
@@ -179,7 +159,6 @@ export const GUIDES = [
     category: 'start',
     title: 'How do I find anything quickly?',
     summary: 'Quick search finds pages, instances, mods, friends, settings and guides from anywhere.',
-    video: 'quick-search',
     tags: ['search', 'quick search', 'ctrl k', 'find', 'command', 'shortcut'],
     steps: [
       { title: 'Open it', body: 'Click Search in the title bar or press Ctrl + K.' },
@@ -237,88 +216,6 @@ export const GUIDES = [
     action: { label: 'Release notes', kind: 'settings', tab: 'changelog' }
   }
 ];
-
-/** Built-in video locations; the hosted manifest can override any of them. */
-export function defaultVideo(id) {
-  return {
-    id,
-    src: `${GUIDE_MEDIA_ROOT}/${id}.mp4`,
-    poster: `${GUIDE_MEDIA_ROOT}/${id}.jpg`,
-    duration: null,
-    chapters: []
-  };
-}
-
-let manifestPromise = null;
-
-export function loadGuideManifest() {
-  if (!manifestPromise) {
-    manifestPromise = fetch(MANIFEST_URL, { cache: 'no-cache', signal: AbortSignal.timeout(8000) })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((json) => (json && typeof json === 'object' && json.videos ? json : null))
-      .catch(() => null)
-      .then((json) => {
-        if (!json) manifestPromise = null; // try again next time
-        return json;
-      });
-  }
-  return manifestPromise;
-}
-
-const SAFE_MEDIA = /^https:\/\/api\.playnative\.fun\/guides\/[A-Za-z0-9._-]+\.(?:mp4|webm|jpg|png|webp|vtt)$/;
-
-function cleanVideo(id, entry) {
-  const base = defaultVideo(id);
-  if (!entry || typeof entry !== 'object') return base;
-  return {
-    ...base,
-    src: SAFE_MEDIA.test(entry.src || '') ? entry.src : base.src,
-    poster: SAFE_MEDIA.test(entry.poster || '') ? entry.poster : base.poster,
-    captions: SAFE_MEDIA.test(entry.captions || '') ? entry.captions : null,
-    duration: Number.isFinite(Number(entry.duration)) ? Number(entry.duration) : null,
-    start: Number.isFinite(Number(entry.start)) && Number(entry.start) > 0 ? Number(entry.start) : 0,
-    title: typeof entry.title === 'string' ? entry.title.slice(0, 120) : null,
-    chapters: Array.isArray(entry.chapters)
-      ? entry.chapters
-        .filter((chapter) => Number.isFinite(Number(chapter?.t)) && typeof chapter?.label === 'string')
-        .map((chapter) => ({ t: Number(chapter.t), label: chapter.label.slice(0, 80) }))
-        .slice(0, 40)
-      : []
-  };
-}
-
-/** { [videoId]: video } with manifest data merged in once it loads. */
-export function useGuideVideos() {
-  const [manifest, setManifest] = useState(null);
-  // 'loading' until the hosted manifest answers; built-in defaults are only used
-  // if it fails, so the player never flashes an outdated poster or video first.
-  const [state, setState] = useState('loading');
-  useEffect(() => {
-    let cancelled = false;
-    loadGuideManifest().then((json) => {
-      if (cancelled) return;
-      if (json) setManifest(json);
-      setState(json ? 'ready' : 'failed');
-    });
-    return () => { cancelled = true; };
-  }, []);
-  const videos = {};
-  for (const guide of GUIDES) {
-    if (guide.video && !videos[guide.video]) {
-      videos[guide.video] = state === 'loading'
-        ? { id: guide.video, pending: true, src: null, poster: null, duration: null, chapters: [] }
-        : cleanVideo(guide.video, manifest?.videos?.[guide.video]);
-    }
-  }
-  return videos;
-}
-
-export function formatDuration(seconds) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  const minutes = Math.floor(seconds / 60);
-  const rest = Math.round(seconds % 60);
-  return `${minutes}:${String(rest).padStart(2, '0')}`;
-}
 
 export function guideById(id) {
   return GUIDES.find((guide) => guide.id === id) || null;
