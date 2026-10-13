@@ -8,7 +8,7 @@
  *   3. email: adds the domain to Resend, writes Resend's SPF/DKIM records + DMARC into Cloudflare, asks Resend to verify,
  *   4. lets you make it the main website (checkout links, emails) or the email sender — no redeploy.
  *
- * The backend lives on api.playnative.fun; nothing here touches the api record.
+ * The backend lives on api.playnative.net; nothing here touches the api record.
  *
  *   GET    /v1/admin/domains                    settings + domains
  *   POST   /v1/admin/domains/settings           { cloudflareToken?, accountId?, serverIp? , clear?: [] }
@@ -70,13 +70,13 @@ function config() {
 /* ── used by the rest of the server ─────────────────────────────── */
 
 /** Main website origin (https://…): admin choice → env → default. */
-function siteUrl(fallback = 'https://playnative.fun') {
+function siteUrl(fallback = 'https://playnative.net') {
   let chosen = '';
   try { chosen = config().primarySite; } catch { /* db not ready */ }
   return (chosen || env('NATIVE_SITE_URL') || env('PUBLIC_SITE_URL') || fallback).replace(/\/$/, '');
 }
 /** Sender address for system email: admin choice → env → default. */
-function senderEmail(fallback = 'noreply@playnative.fun') {
+function senderEmail(fallback = 'noreply@playnative.net') {
   let chosen = '';
   try { chosen = config().emailFrom; } catch { /* db not ready */ }
   return chosen || env('NATIVE_SECURITY_EMAIL') || fallback;
@@ -252,7 +252,7 @@ function view() {
       resend: Boolean(resendKey()),
       primarySite: siteUrl(),
       emailFrom: senderEmail(),
-      backend: 'https://api.playnative.fun'
+      backend: 'https://api.playnative.net'
     },
     domains: sql().prepare('SELECT * FROM domains ORDER BY created_at DESC').all().map((r) => {
       let status = null;
@@ -288,8 +288,8 @@ async function handleDomainRoutes(req, res, ctx) {
     let sites = [];
     try { sites = sql().prepare('SELECT name FROM domains WHERE website = 1').all().map((r) => r.name); } catch { /* db not ready */ }
     try { sites.push(new URL(siteUrl()).hostname); } catch {}
-    sites = [...new Set(['playnative.fun', ...sites])];
-    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.playnative.fun', sites }, { 'Cache-Control': 'max-age=300' });
+    sites = [...new Set(['playnative.net', ...sites])];
+    ctx.send(res, 200, { ok: true, site: siteUrl(), email: senderEmail(), api: 'https://api.playnative.net', sites }, { 'Cache-Control': 'max-age=300' });
     return true;
   }
   if (!url.pathname.startsWith('/v1/admin/domains')) return false;
@@ -327,8 +327,8 @@ async function handleDomainRoutes(req, res, ctx) {
     if (req.method === 'POST' && !parts.length) {
       const body = await readJson(req);
       const domain = cleanDomain(body.domain);
-      if (!DOMAIN.test(domain)) { send(res, 400, { ok: false, error: 'Type the domain like playnative.fun.' }); return true; }
-      if (domain === 'api.playnative.fun') { send(res, 400, { ok: false, error: 'api.playnative.fun is the backend; manage it by hand.' }); return true; }
+      if (!DOMAIN.test(domain)) { send(res, 400, { ok: false, error: 'Type the domain like playnative.net.' }); return true; }
+      if (domain === 'api.playnative.net') { send(res, 400, { ok: false, error: 'api.playnative.net is the backend; manage it by hand.' }); return true; }
       const website = body.website !== false;
       const email = body.email !== false;
       const mode = body.mode === 'redirect' ? 'redirect' : 'main';

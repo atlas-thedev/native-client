@@ -183,7 +183,7 @@ async function ping(address) {
  * Partner servers the backend pins to the top of the server browser.
  * Cached briefly so switching tabs doesn't re-hit the API. */
 
-const PROMOTED_API = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.fun').replace(/\/+$/, '');
+const PROMOTED_API = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.net').replace(/\/+$/, '');
 const PROMOTED_TTL = 5 * 60_000;
 let promotedCache = { at: 0, servers: [] };
 

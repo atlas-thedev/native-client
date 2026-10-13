@@ -58,8 +58,8 @@ const versionArg = process.argv.find((arg) => arg.startsWith('--app-version='));
 
 const api = {
   version: versionArg ? versionArg.slice('--app-version='.length) : null,
-  apiUrl: 'https://api.playnative.fun',
-  wardrobeApi: 'https://api.playnative.fun',
+  apiUrl: 'https://api.playnative.net',
+  wardrobeApi: 'https://api.playnative.net',
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),

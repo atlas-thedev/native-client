@@ -211,7 +211,7 @@ export default function AppNavbar({
               type="button"
               className="quick-tutorial-btn titlebar-website-btn"
               onClick={onOpenWebsite}
-              title="Open playnative.fun signed in"
+              title="Open playnative.net signed in"
               aria-label="Open the Native website signed in"
             >
               <Globe size={13} strokeWidth={2.2} aria-hidden="true" />

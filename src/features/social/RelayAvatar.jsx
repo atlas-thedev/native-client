@@ -118,7 +118,7 @@ export function resolveNativeSkin(name, { fresh = false } = {}) {
   if (inFlightRequests.has(key)) return inFlightRequests.get(key);
 
   const task = withSlot(async () => {
-    const root = String(window.native?.wardrobeApi || 'https://api.playnative.fun').replace(/\/+$/, '');
+    const root = String(window.native?.wardrobeApi || 'https://api.playnative.net').replace(/\/+$/, '');
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => ctrl.abort(), LOOKUP_TIMEOUT);
 

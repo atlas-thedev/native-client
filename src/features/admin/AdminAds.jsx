@@ -14,7 +14,7 @@ const describe = (b) => `${b.label}: ${b.action === 'server' ? `join ${b.value}`
 const stateOf = (ad, now) => (!ad.enabled ? 'Paused' : ad.startsAt && ad.startsAt > now ? 'Scheduled' : ad.endsAt && ad.endsAt <= now ? 'Ended' : 'Live');
 const isHttps = (value) => /^https:\/\//.test(String(value || '').trim());
 const validImage = (value) => isHttps(value) || /^\/v1\/site\/ads\/media\/[a-z0-9._-]+$/.test(String(value || ''));
-const API = 'https://api.playnative.fun';
+const API = 'https://api.playnative.net';
 const preview = (image) => (String(image || '').startsWith('/') ? `${API}${image}` : image);
 
 const readFile = (file) => new Promise((resolve, reject) => {

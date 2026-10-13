@@ -12,7 +12,7 @@ const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 
-const API = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.fun').replace(/\/+$/, '');
+const API = String(process.env.NATIVE_WARDROBE_API || 'https://api.playnative.net').replace(/\/+$/, '');
 const FEED_TTL = 10 * 60_000;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
