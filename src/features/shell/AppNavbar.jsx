@@ -141,11 +141,12 @@ export default function AppNavbar({
   const settingsStatus = updateStatus?.type === 'available' || updateStatus?.type === 'downloaded' ? 'brand' : null;
   return (
     <>
-      <header className="native-titlebar">
+      <header className="native-titlebar" onDoubleClick={(event) => {
+        if (!event.target.closest('button, a, input, [role="button"], .titlebar-actions')) onMaximize?.();
+      }}>
         <div className="native-build">
           <span className="native-wordmark"><Logo height={11} variant="mark" /> Native Client{isPlus && <em className="native-wordmark-plus">+</em>}</span>
-          <i />
-          <span>Build <b>{buildVersion}</b></span>
+          <span className="native-build-version" title={`Native Client ${buildVersion}`}>v{buildVersion}</span>
           {Number.isFinite(liveUserCount) && (
             <>
               <i />
@@ -195,6 +196,7 @@ export default function AppNavbar({
               onClick={onOpenSearch}
               aria-label={`${t('nav.search')} (${isMac ? '⌘' : 'Ctrl'}+K)`}
               aria-haspopup="dialog"
+              aria-expanded={isSearchOpen}
               aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
               title={`${t('nav.search')} · ${isMac ? '⌘' : 'Ctrl'}+K`}
               data-tour="search"
@@ -219,9 +221,9 @@ export default function AppNavbar({
           <RunningGamePill game={runningGame} onStop={onStopGame} onOpen={onOpenRunningGame} />
           <DownloadManagerButton />
           <div className="window-controls-group">
-            <button className="window-ctrl-btn" onClick={onMinimize} aria-label={t('window.minimize')}><Minus size={14} /></button>
-            <button className="window-ctrl-btn" onClick={onMaximize} aria-label={t(isMaximized ? 'window.restore' : 'window.maximize')}><NativeIcon name={isMaximized ? 'restore' : 'maximize'} size={12} /></button>
-            <button className="window-ctrl-btn close" onClick={onClose} aria-label={t('common.close')}><X size={15} /></button>
+            <button type="button" className="window-ctrl-btn" onClick={onMinimize} title={t('window.minimize')} aria-label={t('window.minimize')}><Minus size={14} /></button>
+            <button type="button" className="window-ctrl-btn" onClick={onMaximize} title={t(isMaximized ? 'window.restore' : 'window.maximize')} aria-label={t(isMaximized ? 'window.restore' : 'window.maximize')}><NativeIcon name={isMaximized ? 'restore' : 'maximize'} size={12} /></button>
+            <button type="button" className="window-ctrl-btn close" onClick={onClose} title={t('common.close')} aria-label={t('common.close')}><X size={15} /></button>
           </div>
         </div>
       </header>

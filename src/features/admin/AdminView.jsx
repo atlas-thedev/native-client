@@ -155,13 +155,15 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
   }, [onAccessRevoked]);
   const loadBilling = useCallback(async () => {
     const result = await window.native?.admin?.billingOverview?.();
-    if (result?.ok !== false) setBilling(result);
-  }, []);
+    if (!result?.ok) throw adminError(result, 'Could not load billing overview.', onAccessRevoked);
+    setBilling(result);
+  }, [onAccessRevoked]);
 
   const loadStoreItems = useCallback(async () => {
     const result = await window.native?.admin?.storeItems?.();
-    if (result?.ok) setStoreItems(result.items || []);
-  }, []);
+    if (!result?.ok) throw adminError(result, 'Could not load Store items.', onAccessRevoked);
+    setStoreItems(result.items || []);
+  }, [onAccessRevoked]);
 
   const loadUsers = useCallback(async (requestedPage = page, requestedQuery = query) => {
     const result = await window.native?.admin?.listUsers?.({ query: requestedQuery, page: requestedPage, pageSize: 50 });
@@ -196,9 +198,9 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
 
   useEffect(() => {
     loadOverview().catch((reason) => setError(reason?.message || 'Could not load admin overview.'));
-    loadStoreItems().catch(() => {});
-    loadSite().catch(() => {});
-    loadBilling().catch(() => {});
+    loadStoreItems().catch((reason) => setError(reason.message));
+    loadSite().catch((reason) => setError(reason.message));
+    loadBilling().catch((reason) => setError(reason.message));
   }, [loadOverview, loadStoreItems, loadSite, loadBilling]);
 
   // Animated previews for the cape pickers (fetched once per item).
@@ -220,7 +222,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     if (refreshing) return;
     setRefreshing(true);
     setError('');
-    try { await Promise.all([loadOverview(), loadUsers(), loadStoreItems(), loadSite().catch(() => {}), loadBilling().catch(() => {})]); }
+    try { await Promise.all([loadOverview(), loadUsers(), loadStoreItems(), loadSite(), loadBilling()]); }
     catch (reason) { setError(reason?.message || 'Could not refresh the control room.'); }
     finally { setRefreshing(false); }
   };

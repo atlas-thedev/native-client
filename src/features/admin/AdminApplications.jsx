@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bug, Check, Clock, Crown, Inbox, ListChecks, LoaderCircle, Search, Trash2, Users, X } from 'lucide-react';
 import { AdminDateTime, AdminNumber, AdminSegmented, AdminSwitch, InitialAvatar, adminCall, formatDate, formatNumber, useAdminAction, useConfirm } from './adminShared.jsx';
 
@@ -17,14 +17,24 @@ export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevok
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState('');
 
+  const loadSequence = useRef(0);
   const load = useCallback(async () => {
-    const result = await adminCall('GET', `/beta?status=${filter}&q=${encodeURIComponent(q)}`, undefined, onAccessRevoked);
+    const sequence = ++loadSequence.current;
+    setError('');
+    let result;
+    try {
+      result = await adminCall('GET', `/beta?status=${filter}&q=${encodeURIComponent(q)}`, undefined, onAccessRevoked);
+    } catch (reason) {
+      if (sequence !== loadSequence.current) return;
+      throw reason;
+    }
+    if (sequence !== loadSequence.current) return;
     setData(result);
     setSelected((current) => (current && result.applications?.some((app) => app.id === current) ? current : result.applications?.[0]?.id ?? null));
-  }, [filter, q, onAccessRevoked]);
+  }, [filter, q, onAccessRevoked, setError]);
   useEffect(() => {
     const timer = setTimeout(() => { load().catch((reason) => setError(reason.message)); }, q ? 250 : 0);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); loadSequence.current += 1; };
   }, [load, q, setError]);
 
   const current = useMemo(() => data?.applications?.find((app) => app.id === selected) || null, [data, selected]);

@@ -144,7 +144,7 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
                     <button type="button" className="admin-btn ghost" disabled={Boolean(busy)} onClick={() => patch(ad.id, { enabled: !ad.enabled }, ad.enabled ? 'Ad paused.' : 'Ad enabled.')}>
                       {busy === ad.id ? <LoaderCircle size={13} className="is-spinning" /> : ad.enabled ? <Pause size={13} /> : <Play size={13} />}{ad.enabled ? 'Pause' : 'Enable'}
                     </button>
-                    <button type="button" className={`admin-icon-btn${armed === `del:${ad.id}` ? ' is-danger' : ''}`} title={armed === `del:${ad.id}` ? 'Click again to delete' : 'Remove ad'} aria-label="Remove ad" onClick={() => remove(ad.id)}>
+                    <button type="button" className={`admin-icon-btn${armed === `del:${ad.id}` ? ' is-danger' : ''}`} title={armed === `del:${ad.id}` ? 'Click again to delete' : 'Remove ad'} aria-label="Remove ad" disabled={Boolean(busy)} onClick={() => remove(ad.id)}>
                       {busy === `del:${ad.id}` ? <LoaderCircle size={13} className="is-spinning" /> : <Trash2 size={13} />}
                     </button>
                   </div>

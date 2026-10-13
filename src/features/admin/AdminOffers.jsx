@@ -70,7 +70,7 @@ export default function AdminOffers({ doc, setDoc, items, strips, onNotify, onAc
                     <button type="button" className="admin-btn ghost" disabled={Boolean(busy)} onClick={() => patch(offer.id, { enabled: !offer.enabled }, offer.enabled ? 'Offer paused.' : 'Offer enabled.')}>
                       {busy === offer.id ? <LoaderCircle size={13} className="is-spinning" /> : offer.enabled ? <Pause size={13} /> : <Play size={13} />}{offer.enabled ? 'Pause' : 'Enable'}
                     </button>
-                    <button type="button" className={`admin-icon-btn${armed === `del:${offer.id}` ? ' is-danger' : ''}`} title={armed === `del:${offer.id}` ? 'Click again to delete' : 'Delete offer'} aria-label="Delete offer" onClick={() => remove(offer.id)}>
+                    <button type="button" className={`admin-icon-btn${armed === `del:${offer.id}` ? ' is-danger' : ''}`} title={armed === `del:${offer.id}` ? 'Click again to delete' : 'Delete offer'} aria-label="Delete offer" disabled={Boolean(busy)} onClick={() => remove(offer.id)}>
                       {busy === `del:${offer.id}` ? <LoaderCircle size={13} className="is-spinning" /> : <Trash2 size={13} />}
                     </button>
                   </div>

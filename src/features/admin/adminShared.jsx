@@ -46,7 +46,7 @@ export function Presence({ status }) {
 
 /** Re-throws admin errors and tells the shell when the session lost its admin role. */
 export function adminError(result, fallback, onAccessRevoked) {
-  if (/administrator|session|required/i.test(result?.error || '')) onAccessRevoked?.();
+  if (result?.status === 401 || result?.status === 403 || /administrator access required|native account session required|sign in to a native account/i.test(result?.error || '')) onAccessRevoked?.();
   return new Error(result?.error || fallback);
 }
 
@@ -61,7 +61,10 @@ export async function adminCall(method, path, body, onAccessRevoked) {
 export function useAdminAction(onNotify, title = 'Admin') {
   const [busy, setBusy] = React.useState('');
   const [error, setError] = React.useState('');
+  const pending = React.useRef(false);
   const run = React.useCallback(async (key, fn, ok) => {
+    if (pending.current) return undefined;
+    pending.current = true;
     setBusy(key);
     setError('');
     try {
@@ -72,6 +75,7 @@ export function useAdminAction(onNotify, title = 'Admin') {
       setError(reason?.message || 'Something went wrong.');
       return undefined;
     } finally {
+      pending.current = false;
       setBusy('');
     }
   }, [onNotify, title]);
