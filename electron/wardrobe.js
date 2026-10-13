@@ -1743,7 +1743,7 @@ function configureSkinLoader(cslDir, model) {
     elytra: 'LocalSkin/elytras/{USERNAME}.png'
   };
   const isOurApi = (site) => String(site?.type || '').toLowerCase() === 'customskinapi' &&
-    (site?.name === CSL_SITE_NAME || site?.name === 'Native Client Wardrobe' || /playnative\.fun\/csl\/?$/i.test(String(site?.root || '')) || String(site?.root || '') === root);
+    (site?.name === CSL_SITE_NAME || site?.name === 'Native Client Wardrobe' || /playnative\.net\/csl\/?$/i.test(String(site?.root || '')) || String(site?.root || '') === root);
 
   let config = null;
   try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
