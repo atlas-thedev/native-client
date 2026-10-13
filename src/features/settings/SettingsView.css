@@ -592,3 +592,18 @@
 }
 .sv .native-code-input:focus { border-color: rgba(255, 255, 255, 0.36); }
 .sv .native-code-input::placeholder { color: var(--fg-muted); }
+
+/* ── Controls in the instances-page style: pill nav, accent-text toggles and buttons ── */
+.sv-nav-btn { border-radius: var(--radius-full, 999px); padding: 0 14px; }
+.sv-nav-btn.is-active { background: var(--st-raise); }
+.sv-nav-btn.is-active::before { display: none; }
+.sv-nav-btn.is-active svg { color: var(--fg-primary-hover); }
+.sv-section-body { border: 1px solid var(--st-line); border-radius: var(--radius-xl, 14px); background: var(--st-tile); }
+.sv-row:hover { background: var(--st-raise); }
+.sv-toggle.is-on { background: var(--accent-text, #fff); border-color: var(--accent-text, #fff); }
+.sv-toggle.is-on .sv-toggle-thumb { background: var(--page, #000); }
+.sv-btn { border-radius: var(--radius-full, 999px); }
+.sv-search input { border-radius: var(--radius-full, 999px); }
+.sv-search input:focus { border-color: rgba(255, 255, 255, 0.28); }
+.sv-stat { border: 1px solid var(--st-line); background: var(--st-well); }
+.sv-stat.is-link:hover { border-color: var(--st-line-strong); background: var(--st-tile-hover); }

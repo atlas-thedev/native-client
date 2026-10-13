@@ -1544,3 +1544,27 @@
 .native-auth-clean-logo { margin: 0 auto 14px; }
 .native-auth-primary-btn { height: 52px; border-radius: 16px; background: #fff; }
 .native-form-input { height: 50px; border-radius: 14px; }
+
+/* ---------- the sign-in column in the instances-page style: one hairline tile, pill controls ---------- */
+.account-login-content {
+  width: min(360px, 100%);
+  padding: 30px 26px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-xl, 18px);
+  background: color-mix(in srgb, var(--component-bg) 45%, #000);
+}
+.account-login-microsoft,
+.account-login-native { height: 46px; border-radius: var(--radius-full, 999px); }
+.account-login-microsoft { background: var(--accent-text, #fff); border-color: var(--accent-text, #fff); }
+.account-login-microsoft:hover:not(:disabled) { background: var(--accent-text, #fff); filter: brightness(1.08); }
+.account-login-offline,
+.account-login-home { border-radius: var(--radius-full, 999px); }
+.account-login-item { border-radius: var(--radius-lg, 14px); }
+.native-form-input { height: 44px; border-radius: var(--radius-full, 999px); padding-inline: 18px; background: #000; border: 1px solid rgba(255, 255, 255, 0.12); transition: border-color 0.14s var(--ease); }
+.native-form-input:focus { border-color: rgba(255, 255, 255, 0.28); outline: none; box-shadow: none; }
+.native-form-input.has-toggle { padding-right: 44px; }
+.native-input-toggle { border-radius: var(--radius-full, 999px); }
+.native-auth-primary-btn { height: 44px; border-radius: var(--radius-full, 999px); background: var(--accent-text, #fff); border: 1px solid var(--accent-text, #fff); color: var(--page, #000); }
+.native-auth-primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.native-auth-back-btn { border-radius: var(--radius-full, 999px); }
+.account-login-error { border-radius: var(--radius-lg, 14px); }
