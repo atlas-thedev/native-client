@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './HomeSidePanel.css';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 
 /* "Jump back in" — the last servers and singleplayer worlds you played,
    floating over the Home wallpaper as a frosted glass card. */
@@ -288,6 +289,7 @@ export default function HomeSidePanel({ instances = [], fallbackInstance = null,
 
   return (
     <aside className="home-side" aria-label="Jump back in">
+      <Honeycomb className="is-soft" testId="home-side-honeycomb-bg" />
       <h2 className="jb-title">Jump back in</h2>
       <ul className="jb-list">
         {recent.map(({ kind, entry }) => {

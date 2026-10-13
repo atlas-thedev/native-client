@@ -4,7 +4,7 @@ import { getClusterArt } from '../../data/versionsData.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { formatLaunchProgress } from '../launcher/useLauncher.js';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
-import HoneycombBackground from './HoneycombBackground.jsx';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import fabricIcon from '../../assets/icons/fabric.png';
 import forgeIcon from '../../assets/icons/forge.jpg';
 import vanillaIcon from '../../assets/icons/vanilla.png';
@@ -255,7 +255,7 @@ export default function InstancesView({
 
   return (
     <div className="instances-view">
-      <HoneycombBackground />
+      <Honeycomb glow testId="instances-honeycomb-bg" />
       <header className="instances-header">
         <div className="instances-heading-group">
           <h1 className="instances-title page-title">{t('nav.instances')}</h1>

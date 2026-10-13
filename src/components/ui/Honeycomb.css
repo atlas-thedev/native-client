@@ -1,0 +1,80 @@
+/* Honeycomb: shared animated background (instances page, home side panel).
+   One static hex tile (painted once) and a soft white sweep seen only through the hex lines (mask).
+   The sweep moves with transform alone, so it runs on the compositor: no layout, no repaint per frame. */
+
+.honeycomb {
+  --hex-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23fff' stroke-width='1'/%3E%3Cpath d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E");
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.honeycomb-grid,
+.honeycomb-light {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: var(--hex-tile), linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 100%);
+  mask-image: var(--hex-tile), linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 55%, transparent 100%);
+  -webkit-mask-size: 56px 100px, 100% 100%;
+  mask-size: 56px 100px, 100% 100%;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.honeycomb-grid { background: rgba(255, 255, 255, 0.04); }
+
+.honeycomb-sweep {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  transform: translate3d(-110%, 0, 0) skewX(-18deg);
+  will-change: transform;
+  animation: honeycomb-sweep-move 11s linear infinite;
+}
+
+.honeycomb.is-paused .honeycomb-sweep { animation-play-state: paused; }
+
+@keyframes honeycomb-sweep-move {
+  from { transform: translate3d(-110%, 0, 0) skewX(-18deg); }
+  to { transform: translate3d(380%, 0, 0) skewX(-18deg); }
+}
+
+/* mouse glow: a soft white blob, seen only through the hex lines, moved by transform */
+.honeycomb-glow {
+  position: absolute;
+  top: -130px;
+  left: -130px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.12) 40%, transparent 70%);
+  opacity: 0;
+  will-change: transform, opacity;
+  transition: opacity 0.35s ease;
+}
+
+.honeycomb-glow.is-on { opacity: 1; }
+
+/* home side panel: a little bigger than the panel and fading out at every edge, so it melts into the wallpaper */
+.honeycomb.is-soft { inset: -28px -28px -20px -28px; }
+.honeycomb.is-soft .honeycomb-grid,
+.honeycomb.is-soft .honeycomb-light {
+  -webkit-mask-image: var(--hex-tile), radial-gradient(closest-side, #000 35%, transparent 100%);
+  mask-image: var(--hex-tile), radial-gradient(closest-side, #000 35%, transparent 100%);
+}
+
+.honeycomb.is-soft .honeycomb-grid { background: rgba(255, 255, 255, 0.06); }
+
+html[data-background-motion="off"] .honeycomb-light,
+html[data-reduced-motion="true"] .honeycomb-light,
+html[data-motion="reduced"] .honeycomb-light { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .honeycomb-light { display: none; }
+}
