@@ -14,7 +14,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 20px;
+  padding-left: 16px;
+  gap: 16px;
   background: var(--page-sunken);
   border-bottom: 1px solid var(--hairline);
   -webkit-app-region: drag;
@@ -25,7 +26,10 @@
 }
 
 .native-build {
-  min-width: 0;
+  flex: 1;
+  min-width: 80px;
+  overflow: hidden;
+  white-space: nowrap;
   height: 100%;
   display: flex;
   align-items: center;
@@ -260,15 +264,18 @@
 }
 
 .window-ctrl-btn {
-  width: 24px;
+  width: var(--titlebar-btn-width, 44px);
+  flex: none;
   height: 100%;
+  cursor: pointer;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
   display: grid;
   place-items: center;
   color: var(--fg-secondary);
 }
 
 .window-ctrl-btn:last-child {
-  margin-right: 11px;
+  margin-right: 0;
 }
 
 .window-ctrl-btn:hover {
@@ -278,6 +285,7 @@
 
 .window-ctrl-btn.close:hover {
   background: var(--danger);
+  color: var(--fg-on-danger);
 }
 
 /* ---------- rail ----------
@@ -544,7 +552,7 @@
 .rail-btn.is-active {
   background: rgba(255, 255, 255, 0.1);
   border-color: transparent;
-  color: #fff;
+  color: var(--fg-on-danger);
 }
 .rail-btn.is-active:not(.rail-account-btn)::before { left: -13px; height: 20px; }
 .native-rail > .rail-divider { width: 24px; margin: 10px 0; opacity: 0.7; }
@@ -570,4 +578,28 @@
   .rail-btn { width: 38px; height: 38px; }
   .rail-btn > svg { width: 18px; height: 18px; }
   .native-rail-logo { width: 38px; height: 38px; margin-bottom: 4px; }
+}
+
+/* Compact identity, quiet build badge and predictable window targets. */
+.native-wordmark { flex: none; color: var(--fg-primary); }
+.native-wordmark .native-mark { filter: none; opacity: 1; }
+.native-build-version { padding: 3px 6px; border: 1px solid var(--hairline); border-radius: 5px; font-size: 9px; font-variant-numeric: tabular-nums; }
+.native-build > i { flex: none; }
+.window-controls-group { margin-left: 7px; border-left: 1px solid var(--hairline); }
+.window-ctrl-btn:focus-visible { outline: 2px solid var(--brand-border); outline-offset: -4px; }
+@media (max-width: 1350px) {
+  .native-titlebar .titlebar-search { width: 34px; padding: 0; justify-content: center; }
+  .native-titlebar .titlebar-search > span, .native-titlebar .titlebar-search kbd { display: none; }
+  .native-titlebar .quick-tutorial-btn span { display: none; }
+  .native-titlebar .quick-tutorial-btn { width: 28px; padding: 0; }
+  .native-titlebar .native-live-users { font-size: 0; gap: 3px; }
+  .native-titlebar .native-live-users b { font-size: 10px; }
+}
+@media (max-width: 860px) {
+  .native-titlebar { padding-left: 10px; gap: 8px; }
+  .native-build { gap: 6px; }
+  .native-build-version, .native-build > i { display: none; }
+  .native-titlebar .native-update-pill > span, .native-titlebar .native-update-pill > b, .native-titlebar .native-net-pill > span { display: none; }
+  .native-titlebar .native-update-pill, .native-titlebar .native-net-pill { flex: none; }
+  .native-titlebar .running-game-name { max-width: 70px; }
 }

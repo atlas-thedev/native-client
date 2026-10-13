@@ -12,7 +12,7 @@
  *   POST /v1/polls/:id/vote              { optionId }  vote (you may change it while the vote is open)
  * Admin (session with is_admin)
  *   GET  /v1/admin/site                  settings + overview numbers
- *   POST /v1/admin/site                  { launch?, maintenance?, announcement?, beta? } partial update
+ *   POST /v1/admin/site                  { launch?, maintenance?, announcement?, beta?, theme? } partial update
  *   POST /v1/admin/site/offers           create an offer        PATCH/DELETE /v1/admin/site/offers/:id
  *   POST /v1/admin/site/servers          promote a server       PATCH/DELETE /v1/admin/site/servers/:id
  *   GET  /v1/site/ads                    live launcher ad cards  GET /v1/site/ads/media/:file  bundled banners
@@ -68,6 +68,7 @@ const DEFAULTS = () => ({
   maintenance: { enabled: false, message: 'We’re upgrading Native. Back very soon.', until: null },
   announcement: { enabled: false, text: '', href: '', cta: '' },
   beta: { open: true, closesAt: null, maxTesters: 0 },
+  theme: { halloween: false },
   offers: [],
   servers: [],
   ads: DEFAULT_ADS()
@@ -248,6 +249,11 @@ const timeOf = (v) => {
   return Number.isFinite(n) ? n : undefined;
 };
 const bool = (v, fallback) => (v === undefined ? fallback : Boolean(v));
+
+function applyTheme(prev, b) {
+  if (b.halloween !== undefined && typeof b.halloween !== 'boolean') throw new Error('Halloween mode must be true or false.');
+  return { ...prev, ...(b.halloween !== undefined ? { halloween: b.halloween } : {}) };
+}
 
 function applyLaunch(prev, b) {
   const next = { ...prev };
@@ -474,6 +480,7 @@ function publicConfig(origin = 'https://api.playnative.fun') {
       founderPick: Boolean(s.launch.founderPick), founderCapes: founderCapes().map((it) => it.id),
       headline: s.launch.headline, subline: s.launch.subline
     },
+    theme: { halloween: Boolean(s.theme.halloween) },
     maintenance: s.maintenance,
     announcement: s.announcement,
     beta: { open: Boolean(s.beta.open) && (!s.beta.closesAt || Date.now() < Number(s.beta.closesAt)), closesAt: s.beta.closesAt || null },
@@ -525,10 +532,15 @@ async function handleSiteRoutes(req, res, ctx) {
       if (p === '/v1/admin/site' && req.method === 'GET') { send(res, 200, adminDoc(), noStore); return true; }
       if (p === '/v1/admin/site' && req.method === 'POST') {
         const s = settings();
-        if (body.launch) save('launch', applyLaunch(s.launch, body.launch));
-        if (body.maintenance) save('maintenance', applyMaintenance(s.maintenance, body.maintenance));
-        if (body.announcement) save('announcement', applyAnnouncement(s.announcement, body.announcement));
-        if (body.beta) save('beta', applyBeta(s.beta, body.beta));
+        // Validate every section before writing: a bad link must not partially save a launch/theme change.
+        const validators = { launch: applyLaunch, maintenance: applyMaintenance, announcement: applyAnnouncement, beta: applyBeta, theme: applyTheme };
+        const updates = [];
+        for (const [key, apply] of Object.entries(validators)) {
+          if (body[key] === undefined) continue;
+          if (!body[key] || typeof body[key] !== 'object' || Array.isArray(body[key])) throw new Error(`Invalid ${key} settings.`);
+          updates.push([key, apply(s[key], body[key])]);
+        }
+        db.transaction(() => { for (const [key, value] of updates) save(key, value); });
         send(res, 200, adminDoc(), noStore);
         return true;
       }

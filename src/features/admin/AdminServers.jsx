@@ -75,7 +75,7 @@ export default function AdminServers({ doc, setDoc, onNotify, onAccessRevoked })
                     <button type="button" className="admin-btn ghost" disabled={Boolean(busy)} onClick={() => patch(server.id, { enabled: !server.enabled }, server.enabled ? 'Server paused.' : 'Server enabled.')}>
                       {busy === server.id ? <LoaderCircle size={13} className="is-spinning" /> : server.enabled ? <Pause size={13} /> : <Play size={13} />}{server.enabled ? 'Pause' : 'Enable'}
                     </button>
-                    <button type="button" className={`admin-icon-btn${armed === `del:${server.id}` ? ' is-danger' : ''}`} title={armed === `del:${server.id}` ? 'Click again to delete' : 'Remove server'} aria-label="Remove server" onClick={() => remove(server.id)}>
+                    <button type="button" className={`admin-icon-btn${armed === `del:${server.id}` ? ' is-danger' : ''}`} title={armed === `del:${server.id}` ? 'Click again to delete' : 'Remove server'} aria-label="Remove server" disabled={Boolean(busy)} onClick={() => remove(server.id)}>
                       {busy === `del:${server.id}` ? <LoaderCircle size={13} className="is-spinning" /> : <Trash2 size={13} />}
                     </button>
                   </div>

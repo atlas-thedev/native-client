@@ -48,6 +48,24 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   assert.deepEqual(r.body.config.launch.founderCapes, ids);
   assert.equal((await call('GET', '/v1/admin/site', undefined, user)).status, 403);
 
+  // Halloween must survive storage reload and reach the public website config.
+  assert.deepEqual(r.body.settings.theme, { halloween: false });
+  r = await call('POST', '/v1/admin/site', { theme: { halloween: true } }, admin);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.settings.theme.halloween, true);
+  assert.equal(r.body.config.theme.halloween, true);
+  require('../server/site-routes').resetCache();
+  assert.equal((await json('/v1/site/config')).body.theme.halloween, true);
+  r = await call('POST', '/v1/admin/site', { theme: { halloween: 'false' } }, admin);
+  assert.equal(r.status, 400, 'reject truthy strings instead of silently enabling Halloween');
+  assert.equal((await call('POST', '/v1/admin/site', { theme: { halloween: false } }, user)).status, 403);
+  r = await call('POST', '/v1/admin/site', { theme: { halloween: false }, announcement: { href: 'javascript:alert(1)' } }, admin);
+  assert.equal(r.status, 400);
+  assert.equal((await json('/v1/site/config')).body.theme.halloween, true, 'invalid multi-section requests must not partially persist');
+  r = await call('POST', '/v1/admin/site', { theme: { halloween: false } }, admin);
+  assert.equal(r.body.config.theme.halloween, false);
+  assert.deepEqual(r.body.settings.launch.founderCapes, ids, 'theme changes preserve other settings');
+
   // every cape costs 1.99
   r = await call('POST', '/v1/admin/site/prices', { price: 1.99 }, admin);
   assert.equal(r.status, 200);

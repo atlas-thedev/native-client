@@ -737,3 +737,7 @@ button.admin-vote-image { background: none; padding: 0; font: inherit; }
   box-shadow: 0 0 28px rgba(255, 122, 24, 0.15);
 }
 .admin-halloween.is-on h3 svg { color: #ff7a18; }
+
+/* Group settings without browser fieldset chrome; disable snapshot edits during saves. */
+.admin-settings-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.admin-settings-fields > .admin-card { margin-bottom: 16px; }

@@ -28,7 +28,7 @@ async function adminFetch(pathname, { method = 'GET', body = null, timeout = 15_
       try { payload = text ? JSON.parse(text) : {}; } catch { payload = { ok: false, error: text }; }
       if (!response.ok) {
         lastError = payload.error || `Admin request failed (${response.status}).`;
-        if (response.status < 500) return { ok: false, isAdmin: false, error: lastError };
+        if (response.status < 500) return { ok: false, status: response.status, ...(response.status === 401 || response.status === 403 ? { isAdmin: false } : {}), error: lastError };
         continue;
       }
       return payload;

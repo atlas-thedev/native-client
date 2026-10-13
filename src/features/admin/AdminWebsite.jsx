@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Ghost, Globe, LoaderCircle, Megaphone, Rocket, RotateCcw, Save, Timer, Wrench } from 'lucide-react';
 import AdminPicker from './AdminPicker.jsx';
+import { mergeAdminDraft } from './adminState.mjs';
 import { AdminDateTime, AdminSegmented, AdminSwitch, adminCall, useAdminAction, useConfirm } from './adminShared.jsx';
 
 const isCosmetic = (item) => item?.kind === 'cosmetic';
@@ -26,11 +27,21 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
   const [launch, setLaunch] = useState(doc?.settings?.launch || null);
   const [maintenance, setMaintenance] = useState(doc?.settings?.maintenance || null);
   const [banner, setBanner] = useState(doc?.settings?.announcement || null);
+  const saved = useRef(doc?.settings);
   useEffect(() => {
-    setLaunch(doc?.settings?.launch || null);
-    setMaintenance(doc?.settings?.maintenance || null);
-    setBanner(doc?.settings?.announcement || null);
-  }, [doc]);
+    const next = doc?.settings;
+    // Capture the old baseline before React executes functional state updates.
+    const previous = saved.current;
+    const syncSection = (key, setter) => {
+      const old = previous?.[key];
+      const fresh = next?.[key];
+      setter((draft) => mergeAdminDraft(draft, old, fresh));
+    };
+    syncSection('launch', setLaunch);
+    syncSection('maintenance', setMaintenance);
+    syncSection('announcement', setBanner);
+    saved.current = next;
+  }, [doc?.settings]);
 
   if (!doc || !launch || !maintenance || !banner) {
     return <div className="admin-scroll">{error && <div className="admin-error" role="alert"><span>{error}</span></div>}<div className="admin-loading"><LoaderCircle size={18} className="is-spinning" /><span>Loading website settings…</span></div></div>;
@@ -59,13 +70,14 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
     <div className="admin-scroll">
       {error && <div className="admin-error" role="alert"><span>{error}</span></div>}
 
+      <fieldset disabled={Boolean(busy)} className="admin-settings-fields">
       <section className={`admin-card admin-halloween${halloween ? ' is-on' : ''}`}>
         <div className="admin-card-head">
           <h3><Ghost size={14} />Halloween mode</h3>
           <span className={`admin-chip ${halloween ? 'is-live' : 'is-test'}`}>{halloween ? 'On' : 'Off'}</span>
         </div>
         <p className="admin-note">Turns the whole website into a Halloween theme: orange and purple colours, bats that dodge the cursor, a ghost that follows it, a spider you can drop, pumpkins that burst into candy, and fog.</p>
-        <AdminSwitch on={halloween} onChange={(v) => post({ theme: { halloween: v } }, 'halloween', v ? 'Halloween mode is on' : 'Halloween mode is off')} label="Halloween mode" hint={halloween ? 'The website shows the Halloween theme (live within about 15 seconds).' : 'The website looks normal.'} />
+        <AdminSwitch disabled={Boolean(busy)} on={halloween} onChange={(v) => post({ theme: { halloween: v } }, 'halloween', v ? 'Halloween mode is on' : 'Halloween mode is off')} label="Halloween mode" hint={halloween ? 'The website shows the Halloween theme (live within about 15 seconds).' : 'The website looks normal.'} />
       </section>
 
       <section className={`admin-card admin-launch-hero${live.prelaunch ? ' is-pre' : ' is-live'}`}>
@@ -144,6 +156,7 @@ export default function AdminWebsite({ doc, setDoc, items, strips, onNotify, onA
           <AdminPicker items={giftable} strips={strips} value={picked} onChange={(v) => setL('founderCapes', v)} max={6} empty={giftKind === 'cosmetic' ? 'No cosmetics in the Store yet.' : 'No Store items yet.'} />
         </section>
       </div>
+      </fieldset>
     </div>
   );
 }
