@@ -33,13 +33,13 @@ test('domain autopilot is admin-only, guards input, and drives site/email choice
     assert.equal(bad.status, 400);
     const noToken = await call('POST', '/v1/admin/domains', { domain: 'example.com', website: true }, bossSession.token);
     assert.equal(noToken.status, 400);
-    const backend = await call('POST', '/v1/admin/domains', { domain: 'api.playnative.fun', website: true }, bossSession.token);
+    const backend = await call('POST', '/v1/admin/domains', { domain: 'api.playnative.net', website: true }, bossSession.token);
     assert.equal(backend.status, 400);
     const primary = await (await call('GET', '/v1/domains/primary')).json();
-    assert.equal(primary.api, 'https://api.playnative.fun');
-    assert.ok(primary.sites.includes('playnative.fun'));
-    assert.equal(domains.siteUrl(), 'https://playnative.fun');
-    assert.equal(domains.senderEmail(), 'noreply@playnative.fun');
+    assert.equal(primary.api, 'https://api.playnative.net');
+    assert.ok(primary.sites.includes('playnative.net'));
+    assert.equal(domains.siteUrl(), 'https://playnative.net');
+    assert.equal(domains.senderEmail(), 'noreply@playnative.net');
     assert.equal(domains.cleanDomain('https://WWW.Example.com/path'), 'example.com');
   } finally {
     server.close();

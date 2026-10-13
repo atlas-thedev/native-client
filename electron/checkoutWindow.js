@@ -3,7 +3,7 @@
 /**
  * In-launcher checkout: shows the Tebex payment page (pay.tebex.io) or the Native billing page in a
  * locked-down child window instead of the system browser. No preload, no Node, sandboxed, its own
- * in-memory session. Tebex sends buyers to playnative.fun/checkout?done=1 when they've paid; we
+ * in-memory session. Tebex sends buyers to playnative.net/checkout?done=1 when they've paid; we
  * catch that redirect and close the window.
  */
 const { BrowserWindow, session } = require('electron');

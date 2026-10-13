@@ -1,15 +1,15 @@
 'use strict';
 
 /**
- * The Native website address. The backend (api.playnative.fun) decides it — Admin → Domains →
+ * The Native website address. The backend (api.playnative.net) decides it — Admin → Domains →
  * "Make main website" — so profile, store and account links follow a domain move without a
  * launcher release. Last answer is cached on disk for offline starts.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_SITE = 'https://playnative.fun';
-const BASE_HOSTS = ['playnative.fun'];
+const DEFAULT_SITE = 'https://playnative.net';
+const BASE_HOSTS = ['playnative.net'];
 const REFRESH_MS = 30 * 60_000;
 
 let state = null; // { site, sites: [host], at }
@@ -24,7 +24,7 @@ function load() {
   try {
     const file = cacheFile();
     const saved = file && JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (saved && valid(saved.site)) state = { site: saved.site, sites: cleanHosts(saved.sites), at: Number(saved.at) || 0 };
+    if (saved?.schema === 2 && valid(saved.site)) state = { site: saved.site, sites: cleanHosts(saved.sites), at: Number(saved.at) || 0 };
   } catch { /* first run */ }
   return state;
 }
@@ -48,7 +48,7 @@ async function refresh(force = false) {
         const data = await res.json();
         if (!res.ok || !data?.ok || !valid(data.site)) continue;
         state = { site: data.site.replace(/\/$/, ''), sites: cleanHosts(data.sites), at: Date.now() };
-        try { const file = cacheFile(); if (file) fs.writeFileSync(file, JSON.stringify(state)); } catch {}
+        try { const file = cacheFile(); if (file) fs.writeFileSync(file, JSON.stringify({ schema: 2, ...state })); } catch {}
         break;
       } catch { /* next root / keep cache */ }
     }
@@ -57,7 +57,7 @@ async function refresh(force = false) {
   return inflight;
 }
 
-/** Current main website origin, e.g. https://playnative.fun (cached; refreshes in the background). */
+/** Current main website origin, e.g. https://playnative.net (cached; refreshes in the background). */
 function siteUrl() {
   const s = load();
   refresh().catch(() => {});

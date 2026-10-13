@@ -19,7 +19,7 @@ const MAX_LINES = 20000;
 const MAX_LINE_CHARS = 4000;
 const MAX_SESSIONS = 6;
 const FLUSH_MS = 120;
-const HEADERS = { 'User-Agent': 'NativeClient (https://playnative.fun)' };
+const HEADERS = { 'User-Agent': 'NativeClient (https://playnative.net)' };
 
 let deps = null;
 const sessions = new Map(); // instanceId -> session

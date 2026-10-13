@@ -4,10 +4,10 @@
   "desktopName": "Native Client",
   "version": "6.0.4",
   "description": "Native Client — a Minecraft launcher",
-  "homepage": "https://playnative.fun",
+  "homepage": "https://playnative.net",
   "author": {
     "name": "Native Client",
-    "email": "support@playnative.fun"
+    "email": "support@playnative.net"
   },
   "main": "electron/main.js",
   "scripts": {

@@ -411,7 +411,7 @@ function adFrom(b, prev = {}) {
     ad.buttons = adButtons(b.buttons);
     const link = ad.buttons.find((x) => x.action === 'url');
     if (link) ad.url = link.value;
-    else if (b.url === undefined && !ad.url) ad.url = 'https://playnative.fun';
+    else if (b.url === undefined && !ad.url) ad.url = 'https://playnative.net';
     if (ad.buttons[0] && b.cta === undefined) ad.cta = ad.buttons[0].label;
   }
   if (b.url !== undefined || (!prev.id && !ad.url)) {
@@ -469,7 +469,7 @@ function liveAds(origin = '') {
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
   || String(req.headers['x-native-token'] || '').trim();
 
-function publicConfig(origin = 'https://api.playnative.fun') {
+function publicConfig(origin = 'https://api.playnative.net') {
   const s = settings();
   const prelaunch = isPrelaunch(s);
   return {
