@@ -893,20 +893,20 @@
   flex-direction: column;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  background: #090a0e;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.18s var(--ease-out), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: transform 0.18s var(--ease-out), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.18s var(--ease);
   position: relative;
   outline: none;
 }
 
 .browse-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.045);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #11131a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 .browse-card:focus-visible {
@@ -938,7 +938,7 @@
   height: 48px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  background: #13151c;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -1903,7 +1903,7 @@
   padding: 16px 16px 14px;
   border-radius: 14px;
   border: 1px solid var(--hairline);
-  background: rgba(255, 255, 255, 0.025);
+  background: #090a0e;
 }
 
 .browse-sidebar-heading {
@@ -2318,13 +2318,13 @@ button.browse-sidebar-chip:hover {
   padding: 13px 16px;
   border-radius: 14px;
   border: 1px solid var(--hairline);
-  background: rgba(255, 255, 255, 0.022);
+  background: #090a0e;
   transition: border-color 0.16s var(--ease), background 0.16s var(--ease),
     transform 0.16s var(--ease-out);
 }
 
 .browse-version-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: #11131a;
   border-color: var(--hairline-strong);
 }
 
@@ -2931,8 +2931,8 @@ button.browse-sidebar-chip:hover {
   min-height: 196px;
   padding: 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #090a0e;
   animation: browse-sk-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--sk-i, 0) * 28ms);
 }
