@@ -11,7 +11,12 @@ const SLOTS = [
   { slot: 17, range: 'Minecraft 1.17 – 1.20.4' },
   { slot: 8, range: 'Minecraft 1.16.5 and older' }
 ];
-const fits = (slot, major) => (slot === 8 ? major === 8 : major >= slot);
+const fits = (slot, major) => {
+  if (slot === 8) return major === 8;
+  if (slot === 17) return major === 17 || major === 16;
+  if (slot === 21) return major === 21;
+  return major === slot;
+};
 
 async function patchSettings(patch) {
   const api = window.native?.settings;

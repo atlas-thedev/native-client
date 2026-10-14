@@ -97,6 +97,7 @@ test('renderer JVM presets match the main process', async () => {
 
 test('auto Java picks a native, 64-bit runtime closest to the requirement', () => {
   const { pickRuntime } = require('../electron/java')._internals;
+  const { acceptable } = require('../electron/java');
   const host = jr.hostArch();
   const other = host === 'x64' ? 'arm64' : 'x64';
   const list = [
@@ -104,11 +105,25 @@ test('auto Java picks a native, 64-bit runtime closest to the requirement', () =
     { path: 'b', major: 17, arch: host, bits: 64, source: 'Program Files' },
     { path: 'c', major: 17, arch: other, bits: 64, source: 'Drive D:' },
     { path: 'd', major: 8, arch: 'x86', bits: 32, source: 'Program Files' },
-    { path: 'e', major: 8, arch: host, bits: 64, source: 'Minecraft Launcher' }
+    { path: 'e', major: 8, arch: host, bits: 64, source: 'Minecraft Launcher' },
+    { path: 'f', major: 21, arch: host, bits: 64, source: 'Adoptium' }
   ];
   assert.equal(pickRuntime(list, 17).path, 'b');
-  assert.equal(pickRuntime(list, 21).path, 'a');
+  assert.equal(pickRuntime(list, 21).path, 'f');
   assert.equal(pickRuntime(list, 8).path, 'e');
+  assert.equal(pickRuntime(list, 25).path, 'a');
+  // Slot 21 must NOT auto-pick Java 25 when Java 21 is absent (should return null to trigger Temurin 21 download)
+  assert.equal(pickRuntime(list.filter((x) => x.path !== 'f'), 21), null);
+
+  assert.equal(acceptable(8, 8), true);
+  assert.equal(acceptable(8, 17), false);
+  assert.equal(acceptable(17, 17), true);
+  assert.equal(acceptable(17, 16), true);
+  assert.equal(acceptable(17, 21), false);
+  assert.equal(acceptable(21, 21), true);
+  assert.equal(acceptable(21, 25), false);
+  assert.equal(acceptable(25, 25), true);
+  assert.equal(acceptable(25, 21), false);
 });
 
 test('scan finds at least the Java this machine has on PATH (when present)', async () => {

@@ -36,9 +36,20 @@ function slotFor(major) {
   return SLOTS[SLOTS.length - 1];
 }
 
-/** Old MC (Java 8 era) breaks on modern JVMs; modern MC runs on anything >= requirement. */
+/**
+ * Check whether a detected or configured Java major version is acceptable for a slot.
+ * Minecraft versions target specific LTS Java releases and will break or crash
+ * natively on mismatched major versions:
+ *   - Slot 8  (<= 1.16.5): exactly Java 8
+ *   - Slot 17 (1.17 – 1.20.4): Java 17 (or Java 16 for 1.17)
+ *   - Slot 21 (1.20.5 – 1.21.x): exactly Java 21
+ *   - Slot 25 (26.1+): exactly Java 25
+ */
 function acceptable(slot, major) {
-  return slot === 8 ? major === 8 : major >= slot;
+  if (slot === 8) return major === 8;
+  if (slot === 17) return major === 17 || major === 16;
+  if (slot === 21) return major === 21;
+  return major === slot;
 }
 
 let manifestCache = null;
@@ -236,7 +247,7 @@ function pickRuntime(list, slot) {
     .sort((a, b) =>
       Number(b.arch === host) - Number(a.arch === host)
       || Number(b.bits !== 32) - Number(a.bits !== 32)
-      || (a.major - slot) - (b.major - slot)
+      || Math.abs(a.major - slot) - Math.abs(b.major - slot)
       || Number(b.source === 'Native') - Number(a.source === 'Native'))[0] || null;
 }
 
