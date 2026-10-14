@@ -22,6 +22,7 @@
   padding: 30px var(--page-padding) 28px;
   color: var(--fg-primary);
   background: var(--lk-bg);
+  isolation: isolate;
 }
 
 .is-spinning { animation: locker-spin 1s linear infinite; }

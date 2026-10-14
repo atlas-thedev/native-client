@@ -1,4 +1,4 @@
-/* Honeycomb: shared animated background (instances page, home side panel).
+/* Honeycomb: shared animated background (instances, discover, locker, store, home side panel).
    One static hex tile (painted once) and a soft white sweep seen only through the hex lines (mask).
    The sweep moves with transform alone, so it runs on the compositor: no layout, no repaint per frame. */
 

@@ -12,6 +12,7 @@ import Dropdown from '../../components/ui/Dropdown.jsx';
 import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Globe, Infinity as InfinityIcon, Loader2, AppWindow, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
 import { SHOTS, createCamera } from '../../lib/viewerCamera.js';
@@ -877,6 +878,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   return (
     <div className="store-view">
+      <Honeycomb glow testId="store-honeycomb-bg" />
       <header className="store-header">
         <div className="store-header-copy">
           <h1 className="store-title page-title">Store</h1>

@@ -16,6 +16,7 @@
   font-family: var(--font-sans);
   position: relative;
   user-select: none;
+  isolation: isolate;
 }
 
 /* ============================================================

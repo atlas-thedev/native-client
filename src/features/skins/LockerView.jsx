@@ -14,6 +14,7 @@ import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import { loadStoreCape, peekStoreCape } from '../../lib/storeCapeCache.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './LockerView.css';
 import './LockerLocal.css';
@@ -999,6 +1000,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
 
   return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); switchSection('skins'); processFile(event.dataTransfer?.files?.[0]); }}>
+    <Honeycomb glow testId="locker-honeycomb-bg" />
     <header className="locker-header">
       <div>
         <h1 className="locker-title page-title">{t('locker.title') || 'Locker'}</h1>

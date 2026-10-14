@@ -11,6 +11,7 @@ import ProjectDetail from './ProjectDetail.jsx';
 import DependencyPrompt from './DependencyPrompt.jsx';
 import ModpackVersionPrompt from './ModpackVersionPrompt.jsx';
 import InstancePickerModal from '../../clusters/InstancePickerModal.jsx';
+import Honeycomb from '../../../components/ui/Honeycomb.jsx';
 import { useI18n } from '../../../i18n/I18nProvider.jsx';
 
 export default function BrowsePage({
@@ -211,6 +212,7 @@ export default function BrowsePage({
 
   return (
     <div className="browse-page-root">
+      <Honeycomb glow testId="discover-honeycomb-bg" />
       {/* Top Header */}
       <BrowseHeader
         pageTitle={pageTitle}
