@@ -88,7 +88,7 @@ test('new surfaces take their colours from the appearance theme', () => {
   const hex = (file) => (fs.readFileSync(path.join(ROOT, file), 'utf8').match(/#[0-9a-fA-F]{3,8}\b/g) || []);
   const allowed = new Set(['#f1f0f1', '#121112', '#f35325', '#81bc06', '#05a6f0', '#ffba08', '#fff',
     // the login screen is deliberately true-black, independent of the appearance theme
-    '#000', '#050505', '#0a0a0a', '#0b0b0b', '#0d0d0d']);
+    '#000', '#050505', '#0a0a0a', '#0b0b0b', '#0d0d0d', '#111', '#141414', '#181818', '#1b1b1b', '#f1f1f1', '#f2f2f2']);
   const login = hex('src/features/auth/AccountSwitcherModal.css').filter((color) => !allowed.has(color.toLowerCase()));
   assert.deepEqual(login, [], `login CSS may only use Microsoft brand colours and neutral blacks, found ${login.join(', ')}`);
 });

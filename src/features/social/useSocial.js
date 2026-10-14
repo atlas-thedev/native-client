@@ -106,7 +106,11 @@ export function useSocial(account) {
     if (!api || !isNative) return;
     let res = null;
     try { res = await api.getFriends(); } catch { res = null; }
-    if (Array.isArray(res?.friends) && (res.ok || res.friends.length)) setFriends(res.friends);
+    if (Array.isArray(res?.friends) && (res.ok || res.friends.length)) {
+      setFriends(res.friends.map((friend) => (
+        friend.id === activeChatIdRef.current ? { ...friend, unreadCount: 0 } : friend
+      )));
+    }
     if (res?.ok === false && res?.error) setSocialError(res.error);
     else if (res?.ok) setSocialError(null);
     return Boolean(res?.ok);
@@ -496,8 +500,8 @@ export function useSocial(account) {
       item.id === friendId ? { ...item, unreadCount: 0 } : item
     )));
     social()?.markRead?.(friendId);
-    // Make sure the opened thread actually has its history in memory.
-    loadThread(friendId);
+    // Make sure the opened thread actually has its history in memory and marks read on backend.
+    loadThread(friendId, { force: true, markRead: true });
   }, [loadThread]);
 
   const loadOlder = useCallback(async (friendId = activeChatIdRef.current) => {

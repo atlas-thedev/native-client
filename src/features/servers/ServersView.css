@@ -12,6 +12,7 @@
   --srv-accent: var(--accent-text, #d9a6da);
   --srv-gold: var(--color-gold, #f59e0b);
   position: relative;
+  isolation: isolate;
   height: 100%;
   display: flex;
   flex-direction: column;

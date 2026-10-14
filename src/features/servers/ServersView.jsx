@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Check, Copy, Crown, Globe, Play, RefreshCw, Search, Signal, Sparkles, Trophy, Users, X } from 'lucide-react';
 import { SERVERS, SERVER_CATEGORIES } from '../../data/servers.js';
 import Dropdown from '../../components/ui/Dropdown.jsx';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import unknownIcon from '../../assets/placeholders/unknown-icon.svg';
 import './ServersView.css';
 
@@ -378,6 +379,7 @@ export default function ServersView({ instances = [], selectedInstance = null, o
 
   return (
     <div className="srv-view">
+      <Honeycomb glow testId="servers-honeycomb-bg" />
       {/* Same header as the other pages (Instances, Locker...): title + subtitle on the left, actions on the right. */}
       <header className="srv-header">
         <div className="srv-heading-group">

@@ -107,7 +107,9 @@ export function useRelayGroups({ selfId, selfName } = {}) {
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
     if (result?.ok) {
-      const list = result.groups || [];
+      const list = (result.groups || []).map((group) => (
+        group.id === activeGroupRef.current ? { ...group, unreadCount: 0 } : group
+      ));
       setGroups(list);
       setGroupError(null);
       setLoadingGroups(false);
@@ -225,8 +227,11 @@ export function useRelayGroups({ selfId, selfName } = {}) {
     setActiveGroupId(groupId);
     setReplyTarget(null);
     if (groupId) {
+      setGroups((previous) => previous.map((item) => (
+        item.id === groupId ? { ...item, unreadCount: 0 } : item
+      )));
       relay()?.markGroupRead?.(groupId);
-      loadThread(groupId);
+      loadThread(groupId, { force: true });
     }
   }, [loadThread]);
 
@@ -271,7 +276,7 @@ export function useRelayGroups({ selfId, selfName } = {}) {
               isSystem: Boolean(message.isSystem),
               createdAt: message.createdAt
             },
-            unreadCount: isActive || mine || message.isSystem ? item.unreadCount : (item.unreadCount || 0) + 1
+            unreadCount: isActive ? 0 : (mine || message.isSystem ? item.unreadCount || 0 : (item.unreadCount || 0) + 1)
           };
         }));
         if (groupId === activeGroupRef.current && message.senderId !== selfId) {

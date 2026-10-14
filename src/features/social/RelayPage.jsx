@@ -331,10 +331,10 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         lastPending,
         lastFailed,
         isTyping: Boolean(social?.typingBy?.[friend.id]),
-        unread: muted ? 0 : (friend.unreadCount || 0)
+        unread: muted ? 0 : (friend.id === selectedId || friend.id === social?.activeChatId ? 0 : (friend.unreadCount || 0))
       };
     });
-  }, [social?.friends, social?.conversations, social?.typingBy, selfId, mutedIds, pinnedIds, clock]);
+  }, [social?.friends, social?.conversations, social?.typingBy, social?.activeChatId, selectedId, selfId, mutedIds, pinnedIds, clock]);
 
   const formattedGroups = useMemo(() => {
     return (relayGroups.groups || []).map((group) => {
@@ -364,10 +364,10 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
         lastStamp: group.lastMessage?.createdAt || group.createdAt || 0,
         lastTime: formatTime(group.lastMessage?.createdAt || group.createdAt),
         lastMessage: snippet,
-        unread: muted ? 0 : (group.unreadCount || 0)
+        unread: muted ? 0 : (group.id === selectedId || group.id === relayGroups.activeGroupId ? 0 : (group.unreadCount || 0))
       };
     });
-  }, [relayGroups.groups, selfId, mutedIds, pinnedIds]);
+  }, [relayGroups.groups, relayGroups.activeGroupId, selectedId, selfId, mutedIds, pinnedIds]);
 
   const allThreads = useMemo(() => {
     const dms = [...mergedFriends].sort((a, b) => (b.lastStamp || 0) - (a.lastStamp || 0));
@@ -410,20 +410,20 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   }, [selectedId, allThreads]);
 
   useEffect(() => {
-    if (activeEntity?.kind === 'group' && relayGroups.activeGroupId !== activeEntity.id) {
+    if (activeEntity?.kind === 'group') {
       relayGroups.openGroup(activeEntity.id);
     }
-  }, [activeEntity?.id, activeEntity?.kind, relayGroups]);
+  }, [activeEntity?.id, activeEntity?.kind]);
 
   const setActiveChatFriend = social?.setActiveChatFriend;
   useEffect(() => {
     if (!setActiveChatFriend) return;
     if (activeEntity && activeEntity.kind !== 'group') {
-      if (social?.activeChatId !== activeEntity.id) setActiveChatFriend(activeEntity);
+      setActiveChatFriend(activeEntity);
     } else if (social?.activeChatId) {
       setActiveChatFriend(null);
     }
-  }, [activeEntity, social?.activeChatId, setActiveChatFriend]);
+  }, [activeEntity?.id, activeEntity?.kind, setActiveChatFriend]);
 
   const loadThread = social?.loadThread;
   useEffect(() => {
