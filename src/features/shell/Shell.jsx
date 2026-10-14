@@ -983,9 +983,7 @@ export default function Shell({
         open={!hasValidAccount || accountSwitcherOpen}
         firstRun={!hasValidAccount}
         onClose={() => {
-          if (hasValidAccount) {
-            setAccountSwitcherOpen(false);
-          }
+          setAccountSwitcherOpen(false);
         }}
         accounts={accounts}
         activeId={activeId}

@@ -774,7 +774,11 @@ function init(dependencies, ipcMain) {
         model: res.account.model || 'classic',
         token: res.token
       };
-      data.accounts = data.accounts.filter(a => a.id !== account.id && a.email !== account.email);
+      data.accounts = data.accounts.filter(a => (
+        a.id !== account.id &&
+        (!account.email || a.email !== account.email) &&
+        !(a.type === 'offline' && String(a.name || '').toLowerCase() === String(account.name || '').toLowerCase())
+      ));
       data.accounts.push(account);
       data.activeId = account.id;
       saveAccounts(data);
@@ -796,7 +800,11 @@ function init(dependencies, ipcMain) {
         model: res.account.model || 'classic',
         token: res.token
       };
-      data.accounts = data.accounts.filter(a => a.id !== account.id && a.email !== account.email);
+      data.accounts = data.accounts.filter(a => (
+        a.id !== account.id &&
+        (!account.email || a.email !== account.email) &&
+        !(a.type === 'offline' && String(a.name || '').toLowerCase() === String(account.name || '').toLowerCase())
+      ));
       data.accounts.push(account);
       data.activeId = account.id;
       saveAccounts(data);

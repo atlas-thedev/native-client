@@ -161,6 +161,7 @@ export default function AccountSwitcherModal({
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
   const otpRefs = useRef([]);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (open) preloadAccountAvatars(accounts, 128);
@@ -305,6 +306,7 @@ export default function AccountSwitcherModal({
 
   const handleLoginSubmit = async (e) => {
     e?.preventDefault?.();
+    if (submittingRef.current || busy) return;
     const login = loginInput.trim();
     const password = passwordInput;
     if (!login || !password) {
@@ -312,6 +314,7 @@ export default function AccountSwitcherModal({
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -319,16 +322,22 @@ export default function AccountSwitcherModal({
       if (res && !res.ok) {
         throw new Error(res.error || t('error.saveSetup'));
       }
+      setView('main');
+      setError('');
+      setLoginInput('');
+      setPasswordInput('');
       onClose?.();
     } catch (err) {
       setError(err?.message || t('error.saveSetup'));
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
 
   const handleRegisterSendCode = async (e) => {
     e?.preventDefault?.();
+    if (submittingRef.current || busy) return;
     const username = regUsername.trim();
     const email = regEmail.trim().toLowerCase();
     const password = regPassword;
@@ -346,6 +355,7 @@ export default function AccountSwitcherModal({
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -360,12 +370,14 @@ export default function AccountSwitcherModal({
     } catch (err) {
       setError(err?.message || 'Could not send verification code.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (countdown > 0 || busy) return;
+    if (countdown > 0 || busy || submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -380,18 +392,21 @@ export default function AccountSwitcherModal({
     } catch (err) {
       setError(err?.message || 'Could not resend code.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
 
   const handleVerifySubmit = async (e) => {
     e?.preventDefault?.();
+    if (submittingRef.current || busy) return;
     const code = otpDigits.join('').trim();
     if (code.length !== 6) {
       setError(t('account.invalidCode'));
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -405,10 +420,17 @@ export default function AccountSwitcherModal({
       if (res && !res.ok) {
         throw new Error(res.error || 'Verification failed. Please check the code.');
       }
+      setView('main');
+      setError('');
+      setRegUsername('');
+      setRegEmail('');
+      setRegPassword('');
+      setOtpDigits(['', '', '', '', '', '']);
       onClose?.();
     } catch (err) {
       setError(err?.message || 'Verification failed.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
@@ -423,12 +445,14 @@ export default function AccountSwitcherModal({
 
   const handleForgotSubmit = async (e) => {
     e?.preventDefault?.();
+    if (submittingRef.current || busy) return;
     const email = resetEmail.trim().toLowerCase();
     if (!EMAIL_REGEX.test(email)) {
       setError('Please enter a valid email address.');
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -445,12 +469,14 @@ export default function AccountSwitcherModal({
     } catch (err) {
       setError(err?.message || 'Could not send a reset code.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
 
   const handleResendResetCode = async () => {
-    if (countdown > 0 || busy) return;
+    if (countdown > 0 || busy || submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -460,12 +486,14 @@ export default function AccountSwitcherModal({
     } catch (err) {
       setError(err?.message || 'Could not resend the code.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
 
   const handleResetSubmit = async (e) => {
     e?.preventDefault?.();
+    if (submittingRef.current || busy) return;
     const email = resetEmail.trim().toLowerCase();
     const code = otpDigits.join('').trim();
     if (code.length !== 6) {
@@ -481,6 +509,7 @@ export default function AccountSwitcherModal({
       return;
     }
 
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -496,10 +525,17 @@ export default function AccountSwitcherModal({
         setError('Password updated. Please sign in with your new password.');
         return;
       }
+      setView('main');
+      setError('');
+      setResetEmail('');
+      setResetPassword('');
+      setResetConfirm('');
+      setOtpDigits(['', '', '', '', '', '']);
       onClose?.();
     } catch (err) {
       setError(err?.message || 'Could not reset the password.');
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
