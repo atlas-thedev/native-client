@@ -140,11 +140,26 @@ jobs:
       - name: Build UI
         run: npx vite build
 
+      # Until SignPath secrets exist, Windows builds are released unsigned (same as before).
+      - name: Check SignPath setup
+        id: sp
+        env:
+          SP_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SP_ORG: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          if [[ -n "$SP_TOKEN" && -n "$SP_ORG" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"; echo "appdir=signed/win-unpacked" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::SignPath secrets not set - Windows build will be UNSIGNED."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "appdir=release/win-unpacked" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Package app (unsigned)
         run: npx electron-builder --win --x64 --dir --publish never
 
       - name: Upload unsigned app
         id: upload-unsigned-app
+        if: steps.sp.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: win-unpacked-unsigned
@@ -152,6 +167,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign app executable (SignPath)
+        if: steps.sp.outputs.enabled == 'true'
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -164,11 +180,12 @@ jobs:
           wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed/win-unpacked
 
-      - name: Build installer and portable zip from the signed app
-        run: npx electron-builder --win --x64 --prepackaged signed/win-unpacked --publish never
+      - name: Build installer and portable zip from the app
+        run: npx electron-builder --win --x64 --prepackaged ${{ steps.sp.outputs.appdir }} --publish never
 
       - name: Upload unsigned installer
         id: upload-unsigned-installer
+        if: steps.sp.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: installer-unsigned
@@ -176,6 +193,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign installer (SignPath)
+        if: steps.sp.outputs.enabled == 'true'
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -189,6 +207,7 @@ jobs:
           output-artifact-directory: signed/installer
 
       - name: Swap in signed installer and refresh update metadata
+        if: steps.sp.outputs.enabled == 'true'
         run: node scripts/finalize-signed-installer.js signed/installer release
 
       - name: Upload to the release
