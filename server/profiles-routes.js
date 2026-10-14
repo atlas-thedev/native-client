@@ -17,6 +17,7 @@
  */
 const crypto = require('crypto');
 const db = require('./db');
+const { skinPixelHash } = require('./skin-model');
 
 const NAME_RE = /^[A-Za-z0-9_]{1,16}$/;
 const NATIVE_NAME_RE = /^[A-Za-z0-9_.\- ]{1,32}$/;
@@ -24,8 +25,18 @@ const HASH_RE = /^[a-f0-9]{32,64}$/;
 const LINK_TYPES = ['youtube', 'twitch', 'tiktok', 'x', 'instagram', 'discord', 'github', 'website'];
 const PAGE = 36;
 
-let hooks = { readProfile: () => null, mojangSkin: async () => null, allItems: () => [], originOf: () => '', lookOf: () => null };
+let hooks = { readProfile: () => null, mojangSkin: async () => null, allItems: () => [], originOf: () => '', lookOf: () => null, readTexture: () => null };
 let ready = false;
+
+function resolveSkinHash(hash) {
+  if (!hash) return hash;
+  try {
+    const row = sql().prepare('SELECT canonical_hash FROM pf_skin_aliases WHERE alias = ?').get(hash);
+    return row ? row.canonical_hash : hash;
+  } catch {
+    return hash;
+  }
+}
 
 function sql() {
   const h = db.getDb();
@@ -37,8 +48,15 @@ function sql() {
         url TEXT NOT NULL,
         model TEXT NOT NULL DEFAULT 'default',
         first_seen INTEGER NOT NULL,
-        last_seen INTEGER NOT NULL
+        last_seen INTEGER NOT NULL,
+        pixel_hash TEXT
       );
+      CREATE INDEX IF NOT EXISTS pf_skins_pixel_hash ON pf_skins(pixel_hash);
+      CREATE TABLE IF NOT EXISTS pf_skin_aliases (
+        alias TEXT PRIMARY KEY,
+        canonical_hash TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS pf_skin_aliases_canonical ON pf_skin_aliases(canonical_hash);
       CREATE TABLE IF NOT EXISTS pf_skin_history (
         subject TEXT NOT NULL,           -- n:<userId> | m:<minecraft uuid>
         hash TEXT NOT NULL,
@@ -115,10 +133,36 @@ function noteSkin(subject, { hash, source, url, model }) {
   const h = sql();
   const t = now();
   const m = model === 'slim' ? 'slim' : 'default';
-  h.prepare(`INSERT INTO pf_skins (hash, source, url, model, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(hash) DO UPDATE SET last_seen = excluded.last_seen, url = excluded.url`).run(hash, source, url, m, t, t);
+
+  let pixelHash = null;
+  let buf = null;
+  if (hooks.readTexture) {
+    try { buf = hooks.readTexture(hash); } catch {}
+  }
+  if (buf) {
+    try { pixelHash = skinPixelHash(buf); } catch {}
+  }
+
+  let targetHash = hash;
+  if (pixelHash) {
+    const existing = h.prepare('SELECT hash FROM pf_skins WHERE pixel_hash = ? LIMIT 1').get(pixelHash);
+    if (existing) {
+      targetHash = existing.hash;
+      if (targetHash !== hash) {
+        h.prepare('INSERT OR REPLACE INTO pf_skin_aliases (alias, canonical_hash) VALUES (?, ?)').run(hash, targetHash);
+      }
+    }
+  }
+
+  if (targetHash === hash) {
+    h.prepare(`INSERT INTO pf_skins (hash, source, url, model, first_seen, last_seen, pixel_hash) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(hash) DO UPDATE SET last_seen = excluded.last_seen, url = excluded.url, pixel_hash = COALESCE(excluded.pixel_hash, pf_skins.pixel_hash)`).run(hash, source, url, m, t, t, pixelHash);
+  } else {
+    h.prepare('UPDATE pf_skins SET last_seen = MAX(last_seen, ?) WHERE hash = ?').run(t, targetHash);
+  }
+
   h.prepare(`INSERT INTO pf_skin_history (subject, hash, model, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(subject, hash) DO UPDATE SET last_seen = excluded.last_seen, model = excluded.model`).run(subject, hash, m, t, t);
+    ON CONFLICT(subject, hash) DO UPDATE SET last_seen = excluded.last_seen, model = excluded.model`).run(subject, targetHash, m, t, t);
 }
 
 function noteName(subject, name, at = now()) {
@@ -215,7 +259,10 @@ async function mojangTextures(uuid) {
 
 /* ── reading ───────────────────────────────────────────────────────── */
 
-function likesOf(hash) { return Number(sql().prepare('SELECT COUNT(*) AS n FROM pf_skin_likes WHERE hash = ?').get(hash).n) || 0; }
+function likesOf(hash) {
+  const canonical = resolveSkinHash(hash);
+  return Number(sql().prepare('SELECT COUNT(*) AS n FROM pf_skin_likes WHERE hash = ? OR hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = ?)').get(canonical, canonical)?.n) || 0;
+}
 function viewsOf(subject) { return Number(sql().prepare('SELECT COUNT(*) AS n FROM pf_views WHERE subject = ?').get(subject).n) || 0; }
 
 function historyOf(subject) {
@@ -223,7 +270,7 @@ function historyOf(subject) {
   const names = h.prepare('SELECT name, seen_at FROM pf_name_history WHERE subject = ? ORDER BY id DESC LIMIT 50').all(subject)
     .map((r) => ({ name: r.name, at: Number(r.seen_at) }));
   const skins = h.prepare(`SELECT s.hash, s.url, s.source, x.model, x.first_seen, x.last_seen,
-      (SELECT COUNT(*) FROM pf_skin_likes l WHERE l.hash = s.hash) AS likes
+      (SELECT COUNT(*) FROM pf_skin_likes l WHERE l.hash = s.hash OR l.hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = s.hash)) AS likes
     FROM pf_skin_history x JOIN pf_skins s ON s.hash = x.hash WHERE x.subject = ? ORDER BY x.last_seen DESC LIMIT 60`).all(subject)
     .map((r) => ({ hash: r.hash, url: urlOf(r), source: r.source, model: r.model, firstSeen: Number(r.first_seen), lastSeen: Number(r.last_seen), likes: Number(r.likes) }));
   return { names, skins };
@@ -359,19 +406,20 @@ function listSkins({ sort, q, page }) {
   const args = [];
   const query = String(q || '').trim().slice(0, 32).replace(/[%_\\]/g, '');
   if (query) {
-    where.push(`s.hash IN (SELECT x.hash FROM pf_skin_history x JOIN pf_name_history n ON n.subject = x.subject WHERE lower(n.name) LIKE lower(?))`);
-    args.push(`${query}%`);
+    where.push(`(s.hash IN (SELECT x.hash FROM pf_skin_history x JOIN pf_name_history n ON n.subject = x.subject WHERE lower(n.name) LIKE lower(?)) OR s.hash IN (SELECT a.canonical_hash FROM pf_skin_history x JOIN pf_name_history n ON n.subject = x.subject JOIN pf_skin_aliases a ON a.alias = x.hash WHERE lower(n.name) LIKE lower(?)))`);
+    args.push(`${query}%`, `${query}%`);
   }
   const order = sort === 'new' ? 's.first_seen DESC'
     : sort === 'popular' ? 'likes DESC, wearers DESC, s.first_seen DESC'
     : 'recent_likes DESC, wearers DESC, s.last_seen DESC';
   const rows = h.prepare(`SELECT s.hash, s.url, s.source, s.model, s.first_seen, s.last_seen,
-      (SELECT COUNT(*) FROM pf_skin_likes l WHERE l.hash = s.hash) AS likes,
-      (SELECT COUNT(*) FROM pf_skin_likes l WHERE l.hash = s.hash AND l.created_at > ${week}) AS recent_likes,
-      (SELECT COUNT(DISTINCT subject) FROM pf_skin_history x WHERE x.hash = s.hash) AS wearers
+      (SELECT COUNT(*) FROM pf_skin_likes l WHERE l.hash = s.hash OR l.hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = s.hash)) AS likes,
+      (SELECT COUNT(*) FROM pf_skin_likes l WHERE (l.hash = s.hash OR l.hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = s.hash)) AND l.created_at > ${week}) AS recent_likes,
+      (SELECT COUNT(DISTINCT subject) FROM pf_skin_history x WHERE x.hash = s.hash OR x.hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = s.hash)) AS wearers
     FROM pf_skins s ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    GROUP BY COALESCE(s.pixel_hash, s.hash)
     ORDER BY ${order} LIMIT ${PAGE + 1} OFFSET ${offset}`).all(...args);
-  const total = Number(h.prepare('SELECT COUNT(*) AS n FROM pf_skins').get().n) || 0;
+  const total = Number(h.prepare(`SELECT COUNT(DISTINCT COALESCE(s.pixel_hash, s.hash)) AS n FROM pf_skins s ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`).get(...args)?.n) || 0;
   return {
     total,
     more: rows.length > PAGE,
@@ -381,9 +429,10 @@ function listSkins({ sort, q, page }) {
 
 function wearersOf(hash) {
   const h = sql();
+  const canonical = resolveSkinHash(hash);
   return h.prepare(`SELECT x.subject, x.first_seen, x.last_seen,
       (SELECT name FROM pf_name_history n WHERE n.subject = x.subject ORDER BY id DESC LIMIT 1) AS name
-    FROM pf_skin_history x WHERE x.hash = ? ORDER BY x.last_seen DESC LIMIT 60`).all(hash)
+    FROM pf_skin_history x WHERE (x.hash = ? OR x.hash IN (SELECT alias FROM pf_skin_aliases WHERE canonical_hash = ?)) ORDER BY x.last_seen DESC LIMIT 60`).all(canonical, canonical)
     .filter((r) => r.name)
     .map((r) => ({ name: r.name, native: r.subject.startsWith('n:'), firstSeen: Number(r.first_seen), lastSeen: Number(r.last_seen) }));
 }
@@ -476,9 +525,10 @@ async function handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson 
   const likeMatch = p.match(/^\/v1\/library\/skins\/([a-f0-9]{32,64})\/like$/);
   if (likeMatch && (req.method === 'POST' || req.method === 'GET')) {
     const user = signedIn();
-    const hash = likeMatch[1];
+    const rawHash = likeMatch[1];
+    const hash = resolveSkinHash(rawHash);
     if (req.method === 'GET') {
-      const liked = user ? Boolean(sql().prepare('SELECT 1 FROM pf_skin_likes WHERE user_id = ? AND hash = ?').get(user.id, hash)) : false;
+      const liked = user ? Boolean(sql().prepare('SELECT 1 FROM pf_skin_likes WHERE user_id = ? AND (hash = ? OR hash = ?)').get(user.id, hash, rawHash)) : false;
       send(res, 200, { ok: true, liked, likes: likesOf(hash) }, noStore);
       return true;
     }
@@ -486,7 +536,7 @@ async function handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson 
     if (!hit('pf-like', user.id, 120, 10 * 60_000)) { tooMany(res, 600); return true; }
     if (!sql().prepare('SELECT 1 FROM pf_skins WHERE hash = ?').get(hash)) { send(res, 404, { ok: false, error: 'Unknown skin.' }); return true; }
     const body = await readJson(req);
-    if (body.like === false) sql().prepare('DELETE FROM pf_skin_likes WHERE user_id = ? AND hash = ?').run(user.id, hash);
+    if (body.like === false) sql().prepare('DELETE FROM pf_skin_likes WHERE user_id = ? AND (hash = ? OR hash = ?)').run(user.id, hash, rawHash);
     else sql().prepare('INSERT OR IGNORE INTO pf_skin_likes (user_id, hash, created_at) VALUES (?, ?, ?)').run(user.id, hash, now());
     send(res, 200, { ok: true, liked: body.like !== false, likes: likesOf(hash) }, noStore);
     return true;
@@ -495,7 +545,8 @@ async function handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson 
   const skinMatch = p.match(/^\/v1\/library\/skins\/([a-f0-9]{32,64})$/);
   if (req.method === 'GET' && skinMatch) {
     if (!hit('pf-skins', ip, 120, 60_000)) { tooMany(res, 60); return true; }
-    const row = sql().prepare('SELECT * FROM pf_skins WHERE hash = ?').get(skinMatch[1]);
+    const hash = resolveSkinHash(skinMatch[1]);
+    const row = sql().prepare('SELECT * FROM pf_skins WHERE hash = ?').get(hash);
     if (!row) { send(res, 404, { ok: false, error: 'Unknown skin.' }); return true; }
     send(res, 200, { ok: true, skin: { hash: row.hash, url: urlOf(row), source: row.source, model: row.model, firstSeen: Number(row.first_seen), lastSeen: Number(row.last_seen), likes: likesOf(row.hash), wearers: wearersOf(row.hash) } }, { 'Cache-Control': 'public, max-age=30', ...cors });
     return true;

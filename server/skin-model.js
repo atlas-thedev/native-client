@@ -52,7 +52,17 @@ function decodeRgba(buffer) {
     if (type === 3) return trns && px[i] < trns.length ? trns[px[i]] : 255;
     return 255;
   };
-  return { width, height, alpha };
+  const color = (x, y) => {
+    const i = (y * width + x) * channels;
+    if (type === 6 || type === 2) return [px[i], px[i + 1], px[i + 2]];
+    if (type === 3) {
+      const idx = px[i] * 3;
+      return palette && idx + 2 < palette.length ? [palette[idx], palette[idx + 1], palette[idx + 2]] : [0, 0, 0];
+    }
+    if (type === 0 || type === 4) return [px[i], px[i], px[i]];
+    return [0, 0, 0];
+  };
+  return { width, height, alpha, color };
 }
 
 function isSlimSkinPng(buffer) {
@@ -65,4 +75,26 @@ function isSlimSkinPng(buffer) {
   return clear(54, 20, 2, 12) && clear(50, 16, 2, 4);
 }
 
-module.exports = { isSlimSkinPng, decodeRgba };
+const crypto = require('node:crypto');
+
+function skinPixelHash(buffer) {
+  if (!buffer) return null;
+  const img = decodeRgba(buffer);
+  if (!img) return null;
+  const out = Buffer.alloc(img.width * img.height * 4);
+  let p = 0;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const a = img.alpha(x, y);
+      if (a === 0) {
+        out[p++] = 0; out[p++] = 0; out[p++] = 0; out[p++] = 0;
+      } else {
+        const c = img.color(x, y);
+        out[p++] = c[0]; out[p++] = c[1]; out[p++] = c[2]; out[p++] = a;
+      }
+    }
+  }
+  return crypto.createHash('sha256').update(out).digest('hex');
+}
+
+module.exports = { isSlimSkinPng, decodeRgba, skinPixelHash };

@@ -219,6 +219,32 @@ function skinLooksSlim(hash) {
   try { return isSlimSkinPng(fs.readFileSync(path.join(texturesDir, hash))); } catch { return false; }
 }
 
+async function ensureTexture(hash) {
+  if (!hash || !/^[a-f0-9]{32,64}$/.test(hash)) return null;
+  const target = path.join(texturesDir, hash);
+  if (fs.existsSync(target)) return hash;
+  try {
+    const row = db.getDb().prepare('SELECT url FROM pf_skins WHERE hash = ?').get(hash);
+    if (row && row.url && /^https?:\/\//i.test(row.url)) {
+      const res = await fetch(row.url, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 24 && buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+          const fetchedHash = crypto.createHash('sha256').update(buf).digest('hex');
+          if (fetchedHash === hash || hash.length === 32) {
+            atomicWrite(target, buf);
+            return hash;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Native] ensureTexture failed for', hash, err.message);
+  }
+  return null;
+}
+
+
 function profilePath(username) {
   return path.join(profilesDir, `${username.toLowerCase()}.json`);
 }
@@ -571,7 +597,7 @@ async function handler(req, res) {
     }
 
     try {
-      profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(req), lookOf: (profile) => lookOf(profile, originOf(req)) });
+      profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(req), lookOf: (profile) => lookOf(profile, originOf(req)), readTexture: (hash) => { try { return fs.readFileSync(path.join(texturesDir, hash)); } catch { return null; } } });
       if (await profileRoutes.handleProfileRoutes(req, res, { ip, send, hit, tooMany, readJson })) return;
     } catch (profileError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Profile route failed.' });
@@ -589,10 +615,12 @@ async function handler(req, res) {
       return;
     }
 
-    if (req.method === 'GET' && url.pathname === '/health') {
+    if ((req.method === 'GET' || req.method === 'HEAD') && (url.pathname === '/health' || url.pathname === '/')) {
       return send(res, 200, {
         ok: true,
         service: 'native-server',
+        name: 'Native API',
+        version: 3,
         api: 3,
         providers: ['customskinapi', 'auth', 'social', 'realtime'],
         liveConnections: events.connectionCount()
@@ -601,7 +629,7 @@ async function handler(req, res) {
 
     // CustomSkinLoader profile document
     const profileMatch = url.pathname.match(/^\/csl\/([A-Za-z0-9_]{3,16})(?:\.json)?$/);
-    if (req.method === 'GET' && profileMatch) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && profileMatch) {
       const profile = readProfile(profileMatch[1]);
       if (!profile) return send(res, 404, { error: 'Profile not found.' });
       const etag = `W/"${profile.updatedAt || 'static'}"`;
@@ -615,7 +643,7 @@ async function handler(req, res) {
     // the double slash merged by nginx). Older clients read those values as
     // URLs, so keep them and accept the nested form: the hash is what counts.
     const textureMatch = url.pathname.match(/^\/(?:csl\/)?textures\/(?:.*\/)?([a-f0-9]{64})(?:\.png)?$/);
-    if (req.method === 'GET' && textureMatch) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && textureMatch) {
       const target = path.join(texturesDir, textureMatch[1]);
       if (!fs.existsSync(target)) return send(res, 404, { error: 'Texture not found.' });
       return send(res, 200, fs.readFileSync(target), {
@@ -629,7 +657,7 @@ async function handler(req, res) {
     // player has not published a skin the client falls back to its bundled
     // Steve texture instead.
     const avatarMatch = url.pathname.match(/^\/(?:csl\/)?avatar\/([A-Za-z0-9_]{3,16})$/i);
-    if (req.method === 'GET' && avatarMatch) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && avatarMatch) {
       const profile = readProfile(avatarMatch[1]);
       if (profile?.skin) {
         return send(res, 302, '', { Location: `/csl/textures/${profile.skin}`, 'Access-Control-Allow-Origin': '*' });
@@ -639,7 +667,7 @@ async function handler(req, res) {
 
     // Social Media delivery (preserves full resolution)
     const mediaMatch = url.pathname.match(/^\/v1\/social\/media\/([a-zA-Z0-9_.\-]+)$/);
-    if (req.method === 'GET' && mediaMatch) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && mediaMatch) {
       const target = path.join(mediaDir, path.basename(mediaMatch[1]));
       if (!fs.existsSync(target)) return send(res, 404, { error: 'Media not found.' });
       const stat = fs.statSync(target);
@@ -654,6 +682,7 @@ async function handler(req, res) {
         'Content-Disposition': inline ? 'inline' : 'attachment',
         'Access-Control-Allow-Origin': '*'
       });
+      if (req.method === 'HEAD') return res.end();
       return fs.createReadStream(target).pipe(res);
     }
 
@@ -673,9 +702,21 @@ async function handler(req, res) {
       const username = sessionUser.username;
       const existing = readProfile(username);
       const premiumSkin = sessionUser.auth_type === 'premium' || sessionUser.auth_type === 'merged';
-      const skin = premiumSkin
-        ? null
-        : body.skin !== undefined ? (body.skin ? textureHash(pngBuffer(body.skin)) : null) : (existing?.skin ?? null);
+      let skin = existing?.skin ?? null;
+      if (!premiumSkin) {
+        if (body.skin !== undefined) {
+          skin = body.skin ? textureHash(pngBuffer(body.skin)) : null;
+        } else if (body.skinHash !== undefined) {
+          if (body.skinHash && /^[a-f0-9]{32,64}$/.test(String(body.skinHash))) {
+            const hash = String(body.skinHash).toLowerCase();
+            skin = (await ensureTexture(hash)) || (fs.existsSync(path.join(texturesDir, hash)) ? hash : null);
+          } else {
+            skin = null;
+          }
+        }
+      } else {
+        skin = null;
+      }
       let cape = existing?.cape ?? null;
       let capeRefused = false;
       if (body.cape !== undefined) {
@@ -751,6 +792,51 @@ async function handler(req, res) {
       });
     }
 
+    if (req.method === 'POST' && (url.pathname === '/v1/skins/equip' || url.pathname.match(/^\/v1\/library\/skins\/[a-f0-9]{32,64}\/equip$/))) {
+      const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const nativeToken = String(req.headers['x-native-token'] || req.headers['x-noctra-token'] || '').trim();
+      const sessionUser = db.getUserBySession(nativeToken || bearer);
+      if (!sessionUser) return send(res, 401, { ok: false, error: 'Sign in to your Native account to equip a skin.' });
+      if (!hit('wardrobe', sessionUser.id, 60, 10 * 60_000)) return tooMany(res, 600);
+      const body = await readJson(req);
+      const match = url.pathname.match(/^\/v1\/library\/skins\/([a-f0-9]{32,64})\/equip$/);
+      const rawSkinHash = String(match ? match[1] : (body.hash || body.skinHash || '')).toLowerCase().trim();
+      if (!rawSkinHash || !/^[a-f0-9]{32,64}$/.test(rawSkinHash)) {
+        return send(res, 400, { ok: false, error: 'Invalid skin hash.' });
+      }
+      let skinHash = rawSkinHash;
+      try {
+        const aliasRow = db.getDb().prepare('SELECT canonical_hash FROM pf_skin_aliases WHERE alias = ?').get(rawSkinHash);
+        if (aliasRow?.canonical_hash) skinHash = aliasRow.canonical_hash;
+      } catch {}
+      const targetHash = (await ensureTexture(skinHash)) || (fs.existsSync(path.join(texturesDir, skinHash)) ? skinHash : null) || (await ensureTexture(rawSkinHash)) || (fs.existsSync(path.join(texturesDir, rawSkinHash)) ? rawSkinHash : null);
+      if (!targetHash) {
+        return send(res, 404, { ok: false, error: 'Skin texture not found.' });
+      }
+      const username = sessionUser.username;
+      const existing = readProfile(username);
+      const model = body.model === 'slim' || skinLooksSlim(targetHash) ? 'slim' : 'default';
+      const cleanSkinName = (value) => String(value ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) || null;
+      const skinName = body.skinName ? cleanSkinName(body.skinName) : (existing?.skinName || null);
+      const profile = {
+        ...(existing || {}),
+        username,
+        model,
+        skin: targetHash,
+        ...(skinName ? { skinName } : {}),
+        updatedAt: new Date().toISOString()
+      };
+      saveProfile(profile, req, sessionUser);
+      return send(res, 200, {
+        ok: true,
+        username,
+        model: profile.model,
+        skin: profile.skin,
+        skins: [profile.skin],
+        profile: customSkinProfile(profile, originOf(req))
+      });
+    }
+
     // ── Authentication APIs ─────────────────────────────────────────────
     if (req.method === 'POST' && url.pathname === '/v1/auth/register/send-code') {
       if (!hit('code-ip', ip, 6, 10 * 60_000)) return tooMany(res, 600, 'Too many verification emails. Please wait a few minutes.');
@@ -809,6 +895,27 @@ async function handler(req, res) {
       }
 
       if (!db.checkVerificationCode(email, code)) {
+        // Idempotency: If the account was just created within the last 2 minutes
+        // with this exact email & username & matching password, this was a duplicate/retry request.
+        const existing = db.getUserByEmail(email);
+        if (existing && existing.username && existing.username.toLowerCase() === username.toLowerCase() &&
+            Date.now() - Number(existing.created_at || 0) < 120_000 &&
+            (await db.verifyPasswordAsync(password, existing.password_hash, existing.salt))) {
+          const session = db.createSession(existing.id);
+          return send(res, 200, {
+            ok: true,
+            token: session.token,
+            account: {
+              id: existing.id,
+              name: existing.username,
+              email: existing.email,
+              uuid: existing.uuid,
+              type: 'native',
+              model: existing.model,
+              token: session.token
+            }
+          });
+        }
         return send(res, 400, { ok: false, error: 'Invalid or expired verification code.' });
       }
 
@@ -1656,7 +1763,7 @@ function applyTimeouts(server) {
 function createServer() {
   storeRoutes.setTextureReader((hash) => (/^[a-f0-9]{64}$/.test(String(hash)) ? fs.readFileSync(path.join(texturesDir, hash)) : null));
   try { storeRoutes.ensureCatalog(textureHash); } catch (error) { console.warn('[Native Store] catalogue failed to load:', error.message); }
-  try { profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(null), lookOf: (profile) => lookOf(profile, originOf(null)) }); profileRoutes.start(); } catch (error) { console.warn('[Native Profiles] start failed:', error.message); }
+  try { profileRoutes.setHooks({ readProfile, mojangSkin, allItems: storeRoutes.allItems, originOf: () => originOf(null), lookOf: (profile) => lookOf(profile, originOf(null)), readTexture: (hash) => { try { return fs.readFileSync(path.join(texturesDir, hash)); } catch { return null; } } }); profileRoutes.start(); } catch (error) { console.warn('[Native Profiles] start failed:', error.message); }
   return applyTimeouts(http.createServer(handler));
 }
 
