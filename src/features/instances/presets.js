@@ -41,7 +41,6 @@ export const PRESETS = [
       'reeses-sodium-options',
       'zoomify',
       'appleskin',
-      'mouse-tweaks',
       'modmenu'
     ]
   },

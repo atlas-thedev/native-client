@@ -614,6 +614,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         if (modResult.installed) await versionArt.writeForGame(instanceDir(instance.id), instance).catch(() => {});
         if (modResult.installed) {
           gameConsole.pushLauncher(`Native Client mod ${modResult.version || modResult.filename} ready${modResult.signedIn ? ' · signed in to Native' : ' · guest mode'}`);
+        } else if (modResult.reason === 'disabled') {
+          gameConsole.pushLauncher('Native Client mod is disabled for this instance.');
         }
       } catch (err) {
         gameConsole.pushLauncher(`Native Client mod unavailable: ${err.message}`);

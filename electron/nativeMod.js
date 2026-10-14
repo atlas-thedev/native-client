@@ -205,7 +205,9 @@ function writeHandoff(gameDir, { ticket, api, expiresAt, account }) {
     },
     launcher: 'native-client'
   };
-  try { writeFileAtomic(sessionPath(gameDir), JSON.stringify(body, null, 2), 0o600); } catch { /* ignore */ }
+  for (const p of handoffPaths(gameDir)) {
+    try { writeFileAtomic(p, JSON.stringify(body, null, 2), 0o600); } catch { /* ignore */ }
+  }
 }
 
 /**
@@ -256,6 +258,17 @@ function clearHandoff(gameDir) {
   }
 }
 
+function removeInstalledJar(modsDir) {
+  try {
+    if (!fs.existsSync(modsDir)) return;
+    for (const entry of fs.readdirSync(modsDir)) {
+      if (OWNED_JAR.test(entry)) {
+        try { fs.rmSync(path.join(modsDir, entry), { force: true }); } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 /**
  * Install the mod into an instance and hand it the account ticket.
  *
@@ -268,6 +281,11 @@ function clearHandoff(gameDir) {
  * @returns {{installed:boolean, version?:string, filename?:string, signedIn?:boolean, warning?:string, reason?:string}}
  */
 async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCache = null, local = null, presence = null, fetchImpl = fetch, onState = () => {} }) {
+  if (instance?.disableNativeMod || instance?.nativeMod === false) {
+    removeInstalledJar(path.join(gameDir, 'mods'));
+    clearHandoff(gameDir);
+    return { installed: false, reason: 'disabled' };
+  }
   const loader = instance?.loader || instance?.mc_loader;
   const mcVersion = String(instance?.version || instance?.mc_version || '');
   if (!supportsLoader(loader)) return { installed: false, reason: 'loader' };
@@ -309,6 +327,7 @@ module.exports = {
   seedSkinCache,
   prepare,
   clearHandoff,
+  removeInstalledJar,
   loadManifest,
   ensureJar,
   installJar,

@@ -153,3 +153,36 @@ test('offline: cached manifest + jar keep working, and a first-ever offline laun
     assert.deepEqual(fs.readdirSync(path.join(root, 'i', 'mods')), ['native-client-1.2.3.jar']);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('disabling Native mod skips install, removes existing jar and clears handoff', async () => {
+  const root = tmp();
+  const gameDir = path.join(root, 'i');
+  fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
+  fs.writeFileSync(path.join(gameDir, 'mods', 'native-client-1.2.3.jar'), 'jar');
+  fs.writeFileSync(path.join(gameDir, 'mods', 'sodium.jar'), 'sodium');
+  fs.mkdirSync(path.join(gameDir, '.native'), { recursive: true });
+  fs.writeFileSync(path.join(gameDir, '.native', 'session.json'), '{}');
+
+  try {
+    const res = await nativeMod.prepare({
+      instance: { id: 'i', version: '1.21.1', loader: 'fabric', disableNativeMod: true },
+      identity: { token: 'tok', name: 'User' },
+      gameDir,
+      cacheDir: path.join(root, 'c'),
+      roots: [],
+      fetchImpl: fakeFetch()
+    });
+    assert.equal(res.installed, false);
+    assert.equal(res.reason, 'disabled');
+    assert.deepEqual(fs.readdirSync(path.join(gameDir, 'mods')), ['sodium.jar']);
+    assert.equal(fs.existsSync(path.join(gameDir, '.native', 'session.json')), false);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('PvP preset excludes mouse-tweaks', async () => {
+  const { getPreset } = await import('../src/features/instances/presets.js');
+  const pvp = getPreset('pvp');
+  assert.ok(pvp, 'pvp preset exists');
+  assert.equal(pvp.mods.includes('mouse-tweaks'), false, 'mouse-tweaks must be removed from pvp preset');
+});
+

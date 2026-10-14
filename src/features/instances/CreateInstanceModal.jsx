@@ -70,6 +70,7 @@ export default function CreateInstanceModal({
   const [search, setSearch] = useState('');
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [preset, setPreset] = useState('');
+  const [nativeMod, setNativeMod] = useState(true);
 
   /* Reset every time the modal is opened so it never shows stale input. */
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function CreateInstanceModal({
     setSearch('');
     setShowSnapshots(false);
     setLoader(initialLoader || 'Fabric');
+    setNativeMod(true);
     const seededPreset = getPreset(initialPreset);
     setPreset(seededPreset ? seededPreset.id : '');
     setMemoryMb(seededPreset?.memoryMb || 4096);
@@ -202,7 +204,9 @@ export default function CreateInstanceModal({
       description: line?.description || `Minecraft ${version}`,
       tags: line?.tags?.length ? line.tags.slice(0, 3) : [loader],
       preset: preset || null,
-      play: Boolean(initialPlay)
+      play: Boolean(initialPlay),
+      disableNativeMod: !nativeMod,
+      nativeMod
     });
     onClose?.();
   };
@@ -359,7 +363,25 @@ export default function CreateInstanceModal({
                   {availability.reasonKey ? t(availability.reasonKey, availability.reasonVars) : availability.reason}
                 </p>
               )}
-              {version && !native.ok && (
+            </div>
+
+            <div className="ci-field">
+              <div className="ci-label-row">
+                <span className="ci-label">Native Client mod</span>
+                {native.ok && (
+                  <button
+                    type="button"
+                    className={`ci-toggle ${nativeMod ? 'active' : ''}`}
+                    onClick={() => setNativeMod((value) => !value)}
+                  >
+                    <span className="ci-toggle-track">
+                      <span className="ci-toggle-knob" />
+                    </span>
+                    {nativeMod ? 'Enabled' : 'Disabled'}
+                  </button>
+                )}
+              </div>
+              {version && !native.ok ? (
                 <div className="ci-native-warn" role="note">
                   <NativeIcon name="alert" size={14} />
                   <div>
@@ -371,6 +393,20 @@ export default function CreateInstanceModal({
                     </span>
                   </div>
                 </div>
+              ) : !nativeMod ? (
+                <div className="ci-native-warn" role="note">
+                  <NativeIcon name="alert" size={14} />
+                  <div>
+                    <strong>Native mod disabled</strong>
+                    <span>
+                      Native mod is disabled for this instance. In-game Relay chat, cosmetics (capes &amp; 3D items), and HUD mods will not work.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="ci-hint">
+                  Enables in-game Relay chat, cosmetics (capes &amp; 3D items), and HUD mods.
+                </p>
               )}
             </div>
 
@@ -492,6 +528,12 @@ export default function CreateInstanceModal({
                 <dt>{t('create.loader')}</dt>
                 <dd>{loader}</dd>
               </div>
+              {native.ok && (
+                <div>
+                  <dt>Native mod</dt>
+                  <dd>{nativeMod ? 'Enabled' : 'Disabled'}</dd>
+                </div>
+              )}
               {activePreset && (
                 <div>
                   <dt>Preset</dt>
