@@ -33,7 +33,7 @@ export function prepareSkinSource(url, modelOption) {
       return;
     }
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!/^data:|^blob:/.test(url)) img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
         if (img.naturalWidth === 64 && img.naturalHeight === 64) {

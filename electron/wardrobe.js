@@ -1371,7 +1371,10 @@ async function refreshFromCloud(account) {
   } catch {
     return { ok: false };
   }
-  if (!(remoteTime > (Number(metadata.lastSyncedAt) || 0) && remoteTime > (Number(metadata.lastModifiedAt) || 0))) return { ok: true, pulled: false };
+  const localSyncedTime = Number(metadata.lastSyncedAt) || 0;
+  const localModifiedTime = Number(metadata.lastModifiedAt) || 0;
+  if (localModifiedTime > localSyncedTime) return { ok: true, pulled: false };
+  if (!(remoteTime > localSyncedTime)) return { ok: true, pulled: false };
   const state = await pullRemoteWardrobe(account, { authoritative: true });
   return { ok: true, pulled: Boolean(state), state };
 }
@@ -1404,11 +1407,12 @@ async function syncWardrobe(account) {
     if (checkRes.ok) {
       const remoteData = await checkRes.json();
       const remoteTime = Date.parse(remoteData?.updatedAt) || 0;
-      const localSyncedTime = Number(metadata.lastSyncedAt) || 0;
-      const localModifiedTime = Number(metadata.lastModifiedAt) || 0;
+      const syncedAt = Number(metadata.lastSyncedAt) || 0;
+      const modifiedAt = Number(metadata.lastModifiedAt) || 0;
+      const hasPendingLocalModifications = modifiedAt > syncedAt;
 
-      // If remote was updated more recently than our last sync AND more recently than our local modifications
-      if (remoteTime > localSyncedTime && remoteTime > localModifiedTime) {
+      // If remote was updated more recently than our last sync AND we don't have pending local modifications
+      if (!hasPendingLocalModifications && remoteTime > syncedAt) {
         const pulled = await pullRemoteWardrobe(account);
         if (pulled) return { ok: true, pulled: true, state: pulled };
       }
@@ -1666,7 +1670,7 @@ async function applyOfficialSkin(account, id) {
   if (!item?.file) throw new Error('Pick a skin from your locker before publishing it.');
   const filePath = itemPath(account, item.file);
   const form = new FormData();
-  form.append('variant', item.model === 'slim' ? 'SLIM' : 'CLASSIC');
+  form.append('variant', item.model === 'slim' ? 'slim' : 'classic');
   form.append('file', new Blob([fs.readFileSync(filePath)], { type: 'image/png' }), `${item.name || 'skin'}.png`);
   // Uploading a skin file is a multipart POST (PUT only exists on the old Mojang API and fails).
   await minecraftRequest(account, '/minecraft/profile/skins', { method: 'POST', body: form });

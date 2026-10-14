@@ -125,10 +125,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const fileInputRef = useRef(null);
   const [capeQuery, setCapeQuery] = useState('');
   const [skinQuery, setSkinQuery] = useState('');
+  const [skinBusy, setSkinBusy] = useState(null);
 
-  const publishState = (next) => {
+  const publishState = (next, broadcast = true) => {
     setWardrobe(next);
     onWardrobeChanged?.(next);
+    if (broadcast && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
+    }
     return next;
   };
 
@@ -163,12 +167,12 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (window.native?.wardrobe?.get) {
         // The saved copy on this PC is shown straight away (instant when offline).
         const current = await window.native.wardrobe.get(account);
-        publishState(current);
+        publishState(current, false);
         syncInBackground();
       } else {
         const saved = localStorage.getItem(`native.wardrobe.${account.id || 'default'}`)
           || localStorage.getItem(`native.wardrobe.${account.id || 'default'}`);
-        publishState(saved ? JSON.parse(saved) : { model: account.model || 'classic', items: [], skins: [], capes: [], favorites: [], latest: [], active: { skinUrl: null, capeUrl: null, model: account.model || 'classic', hasSkin: false, hasCape: false } });
+        publishState(saved ? JSON.parse(saved) : { model: account.model || 'classic', items: [], skins: [], capes: [], favorites: [], latest: [], active: { skinUrl: null, capeUrl: null, model: account.model || 'classic', hasSkin: false, hasCape: false } }, false);
       }
     } catch (error) {
       console.warn('Could not load wardrobe:', error);
@@ -554,12 +558,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
 
   const applySkin = async (skin) => {
-    if (!skin?.id || !account) return;
+    if (!skin?.id || !account || skinBusy) return;
+    setSkinBusy(skin.id);
     try {
       const next = await window.native?.wardrobe?.apply?.(account, skin.id);
       if (next) publishState(next);
       window.native?.wardrobe?.sync?.(account).catch(() => {});
+      onNotify?.(t('locker.title'), t('locker.equipped', { name: skin.name || 'Skin' }) || `Equipped ${skin.name || 'skin'}.`);
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip skin.'); }
+    finally { setSkinBusy(null); }
   };
 
   const toggleFavorite = async (item, event) => {
@@ -823,7 +830,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
 
   // Premium skins live on the Minecraft profile: picking one changes it for real.
-  const [skinBusy, setSkinBusy] = useState(null);
   const applyPremiumSkin = async (skin) => {
     if (!skin?.id || !account || skinBusy) return;
     setSkinBusy(skin.id);

@@ -405,8 +405,10 @@ export default function App() {
         onRemoveAccount={handleRemoveAccount}
         onMergeNative={handleMergeNative}
         onOpenWebsite={handleOpenWebsite}
-        onRetryNative={handleRetryNative}
-        onWardrobeChanged={(value) => setWardrobe({ ...value, accountId: activeAccount?.id })}
+        onWardrobeChanged={(value) => {
+          setWardrobe({ ...value, accountId: activeAccount?.id });
+          window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
+        }}
         updateStatus={updater.status}
         networkStatus={network.status}
         onRetryNetwork={network.refresh}

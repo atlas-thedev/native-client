@@ -129,6 +129,13 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
   const providedSkinUrl = account?.skinUrl || null;
   // Otherwise, local accounts self-heal their wardrobe skin (the switcher list
   // hands us raw account records with no skinUrl, which would render as Steve).
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  useEffect(() => {
+    const onRefresh = () => setRefreshVersion((v) => v + 1);
+    window.addEventListener('native:wardrobe-refreshed', onRefresh);
+    return () => window.removeEventListener('native:wardrobe-refreshed', onRefresh);
+  }, []);
+
   const shouldResolveWardrobe = !providedSkinUrl && isLocalIdentity(account);
   const cacheKey = wardrobeCacheKey(account);
   const [wardrobeSkinUrl, setWardrobeSkinUrl] = useState(() =>
@@ -143,12 +150,12 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
   useEffect(() => {
     if (!canResolveOfficial) { setOfficialSkin({ key: officialSkinKey, url: null, done: true }); return undefined; }
     let cancelled = false;
-    if (officialSkinCache.has(officialSkinKey)) { setOfficialSkin({ key: officialSkinKey, url: officialSkinCache.get(officialSkinKey), done: true }); return undefined; }
+    if (refreshVersion === 0 && officialSkinCache.has(officialSkinKey)) { setOfficialSkin({ key: officialSkinKey, url: officialSkinCache.get(officialSkinKey), done: true }); return undefined; }
     setOfficialSkin({ key: officialSkinKey, url: null, done: false });
     resolveOfficialSkin(account).then((url) => { if (!cancelled) setOfficialSkin({ key: officialSkinKey, url, done: true }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [officialSkinKey, canResolveOfficial]);
+  }, [officialSkinKey, canResolveOfficial, refreshVersion]);
   const officialSkinUrl = officialSkin.key === officialSkinKey ? officialSkin.url : null;
   const officialPending = canResolveOfficial && !(officialSkin.key === officialSkinKey && officialSkin.done);
 
@@ -178,7 +185,7 @@ export default function PlayerAvatar({ account, uuid, name, kind = 'avatar', siz
     attempt(true);
     return () => { cancelled = true; if (retry) clearTimeout(retry); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKey, shouldResolveWardrobe]);
+  }, [cacheKey, shouldResolveWardrobe, refreshVersion]);
 
   useEffect(() => {
     let cancelled = false;
