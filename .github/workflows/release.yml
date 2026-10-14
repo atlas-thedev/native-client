@@ -20,13 +20,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Never try to code-sign on CI (builds are unsigned; mac config has identity: null).
+  # electron-builder never signs by itself; Windows binaries are signed by SignPath (build-windows job).
   CSC_IDENTITY_AUTO_DISCOVERY: "false"
-  # This repo is private: installers and update feeds go to the public releases-only repo, which is
-  # what the launcher's auto-updater reads (package.json build.publish). RELEASES_TOKEN = fine-grained
+  # Installers and update feeds go to the releases-only repo, which is what the launcher's
+  # auto-updater reads (package.json build.publish). RELEASES_TOKEN = fine-grained
   # token with Contents: read and write on atlas-thedev/native-client-releases.
   GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
   RELEASES_REPO: atlas-thedev/native-client-releases
+  # SignPath (free OSS signing via SignPath Foundation). Secrets: SIGNPATH_API_TOKEN, SIGNPATH_ORGANIZATION_ID.
+  SIGNPATH_PROJECT_SLUG: native-client
+  SIGNPATH_POLICY_SLUG: release-signing
 
 jobs:
   prepare:
@@ -87,9 +90,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Windows
-            os: windows-latest
-            flag: --win
           - name: macOS
             os: macos-latest
             flag: --mac
@@ -116,9 +116,91 @@ jobs:
       - name: Package and upload to the release
         run: npx electron-builder ${{ matrix.flag }} --publish always
 
+  # Windows: package -> SignPath signs Native Client.exe -> build installer/zip from the signed app
+  # -> SignPath signs the installer -> refresh latest.yml/blockmap hashes -> upload.
+  build-windows:
+    name: Build (Windows, signed)
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build UI
+        run: npx vite build
+
+      - name: Package app (unsigned)
+        run: npx electron-builder --win --x64 --dir --publish never
+
+      - name: Upload unsigned app
+        id: upload-unsigned-app
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-unpacked-unsigned
+          path: release/win-unpacked
+          if-no-files-found: error
+
+      - name: Sign app executable (SignPath)
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: win-unpacked
+          github-artifact-id: ${{ steps.upload-unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/win-unpacked
+
+      - name: Build installer and portable zip from the signed app
+        run: npx electron-builder --win --x64 --prepackaged signed/win-unpacked --publish never
+
+      - name: Upload unsigned installer
+        id: upload-unsigned-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-unsigned
+          path: release/Native-Client-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Sign installer (SignPath)
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/installer
+
+      - name: Swap in signed installer and refresh update metadata
+        run: node scripts/finalize-signed-installer.js signed/installer release
+
+      - name: Upload to the release
+        run: |
+          shopt -s nullglob
+          gh release upload "${{ needs.prepare.outputs.tag }}" --repo "$RELEASES_REPO" --clobber \
+            release/Native-Client-Setup-*.exe release/Native-Client-Setup-*.exe.blockmap \
+            release/Native-Client-Portable-*.zip release/latest.yml
+
   publish:
     name: Publish release
-    needs: [prepare, build]
+    needs: [prepare, build, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Check all platforms uploaded, then publish
