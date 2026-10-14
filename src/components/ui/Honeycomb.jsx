@@ -8,10 +8,15 @@ import './Honeycomb.css';
 export default function Honeycomb({ className = '', glow = false, testId = 'honeycomb-bg' }) {
   const rootRef = useRef(null);
   const blobRef = useRef(null);
-  const [awake, setAwake] = useState(() => !document.hidden && document.hasFocus());
+  const isAwake = () => {
+    if (typeof document === 'undefined') return true;
+    return !document.hidden && (typeof document.hasFocus === 'function' ? document.hasFocus() : true);
+  };
+  const [awake, setAwake] = useState(isAwake);
 
   useEffect(() => {
-    const update = () => setAwake(!document.hidden && document.hasFocus());
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    const update = () => setAwake(isAwake());
     window.addEventListener('focus', update);
     window.addEventListener('blur', update);
     document.addEventListener('visibilitychange', update);
