@@ -6,7 +6,7 @@ import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3
 import { PixelTabs } from '../../components/ui/PixelControls.jsx';
 import steveSkin from '../../assets/steve.png';
 import { ImportPackModal, PricingModal } from './AdminStoreTools.jsx';
-import { AdminCheckbox, AdminColor, AdminNumber, AdminSegmented } from './adminShared.jsx';
+import { AdminCheckbox, AdminColor, AdminNumber, AdminSegmented, AdminSelect, adminCall } from './adminShared.jsx';
 
 /** Store sections, in the same order as the Store. */
 export const SECTIONS = [
@@ -198,11 +198,11 @@ function CapeOwners({ item, onNotify, onChanged }) {
 
 /** Matches the server: each Store section's hero rotates through at most 5 featured items. */
 const MAX_FEATURED = 5;
-const emptyDraft = () => ({ name: '', id: '', description: '', tags: '', author: 'Native', order: '', featured: false, hidden: false, exclusive: false, free: false, price: '', fps: 12, frames: 1, texture: null, model: null, cosTexture: null, thumb: null, dyeable: false, dyeDefault: '#ffffff', dyeColors: [], dyeMask: null, dropMask: false });
+const emptyDraft = () => ({ partner: '', name: '', id: '', description: '', tags: '', author: 'Native', order: '', featured: false, hidden: false, exclusive: false, free: false, price: '', fps: 12, frames: 1, texture: null, model: null, cosTexture: null, thumb: null, dyeable: false, dyeDefault: '#ffffff', dyeColors: [], dyeMask: null, dropMask: false });
 
 const draftFrom = (item) => ({
   ...emptyDraft(),
-  name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Native',
+  partner: item.partner?.id || '', name: item.name, id: item.id, description: item.description || '', tags: (item.tags || []).join(', '), author: item.author || 'Native',
   order: String(item.order ?? ''), featured: Boolean(item.featured), hidden: Boolean(item.hidden), exclusive: Boolean(item.exclusive), free: Boolean(item.free) && !item.exclusive,
   price: item.price > 0 ? String(item.price) : '', fps: item.fps || 12, frames: item.frames || 1,
   dyeable: Boolean(item.dyeable), dyeDefault: item.dyeDefault || '#ffffff', dyeColors: item.dyeColors || []
@@ -210,6 +210,11 @@ const draftFrom = (item) => ({
 
 /** Admin -> Store: add, edit, hide, feature and delete cloaks and every kind of cosmetic. */
 export default function AdminStore({ onNotify, onError, onAccessRevoked, onItemsChanged }) {
+  // Partners (Admin → Partners) an item can be branded with.
+  const [partners, setPartners] = useState([]);
+  useEffect(() => {
+    adminCall('GET', '/site', undefined, onAccessRevoked).then((doc) => setPartners(doc?.settings?.partners || [])).catch(() => {});
+  }, [onAccessRevoked]);
   const [items, setItems] = useState(null);
   const [tool, setTool] = useState(null); // null | 'pricing' | 'import'
   const [section, setSection] = useState('capes');
@@ -372,6 +377,7 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
       description: draft.description.trim(),
       tags: draft.tags,
       author: draft.author.trim() || 'Native',
+      partner: draft.partner || '',
       featured: draft.featured,
       hidden: draft.hidden,
       exclusive: draft.exclusive,
@@ -556,6 +562,9 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
               <label className="is-wide"><span>Description</span><textarea rows={2} value={draft.description} maxLength={200} onChange={set('description')} placeholder={`What makes this ${meta.noun} special?`}/></label>
               <label><span>Tags</span><input value={draft.tags} onChange={set('tags')} placeholder="space, glow"/></label>
               <label><span>Author</span><input value={draft.author} maxLength={40} onChange={set('author')}/></label>
+              <label onClick={holdLabel}><span>Partner brand</span>
+                <AdminSelect value={draft.partner} onChange={(value) => setDraft((current) => ({ ...current, partner: value }))} options={[{ value: '', label: 'None' }, ...partners.map((pt) => ({ value: pt.id, label: pt.name }))]} />
+              </label>
               {!cosmeticSection && previewAnimated && <label onClick={holdLabel}><span>Frames</span><AdminNumber min={2} max={MAX_FRAMES} value={draft.frames} disabled={!draft.texture} onChange={set('frames')}/></label>}
               {!cosmeticSection && previewAnimated && <label onClick={holdLabel}><span>Speed (fps)</span><AdminNumber min={1} max={MAX_FPS} value={draft.fps} suffix="fps" onChange={set('fps')}/></label>}
               <label onClick={holdLabel}><span>Price (USD) · 0 = {draft.free ? 'free' : 'automatic'}</span><AdminNumber min={0} max={99.99} step={0.5} value={priceLocked ? 0 : draft.price} disabled={priceLocked} suffix={priceLocked ? (draft.free ? 'Free' : 'Event') : Number(draft.price) > 0 ? 'USD' : 'Auto'} onChange={(value) => set('price')(value > 0 ? String(Math.max(1.99, value)) : '')}/></label>

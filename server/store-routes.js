@@ -402,8 +402,33 @@ function setPrices(price, itemIds = null) {
   return changed;
 }
 
+/** The partner an item is branded with ({ id, name, logo, accent, website }), or null. */
+function partnerOf(item, textureBase) {
+  if (!item || !item.partner) return null;
+  try {
+    const site = require('./site-routes');
+    const found = (site.settings().partners || []).find((pt) => pt.id === item.partner);
+    if (!found) return null;
+    const origin = String(textureBase || '').replace(/\/csl\/textures\/$/, '');
+    const pub = site.publicPartner(found, origin);
+    return { id: pub.id, name: pub.name, logo: pub.logo, accent: pub.accent, website: pub.website };
+  } catch {
+    return null;
+  }
+}
+
+/** '' clears; otherwise the id of an existing partner (Admin → Partners). */
+function cleanPartner(value) {
+  const id = String(value || '').trim();
+  if (!id) return null;
+  const exists = (require('./site-routes').settings().partners || []).some((pt) => pt.id === id);
+  if (!exists) throw new Error('That partner does not exist.');
+  return id;
+}
+
 function publicItem(item, textureBase, counts) {
   return {
+    partner: partnerOf(item, textureBase),
     id: item.id,
     section: item.section,
     name: item.name,
@@ -997,7 +1022,11 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
     if (slot !== null && !cosmetics.isSlot(slot)) { send(res, 400, { ok: false, error: `Pick a slot: ${cosmetics.SLOTS.join(', ')}.` }); return true; }
     if (body.featured && featuredCount(cat.items, null, slot || 'capes') >= MAX_FEATURED) { send(res, 409, { ok: false, error: tooManyFeatured() }); return true; }
     let textures;
-    try { textures = slot ? applyDye(cosmeticFrom(body), body) : texturesFrom(body); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+    let partner = null;
+    try {
+      textures = slot ? applyDye(cosmeticFrom(body), body) : texturesFrom(body);
+      partner = cleanPartner(body.partner);
+    } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
     const now = Date.now();
     const item = {
       id,
@@ -1012,6 +1041,7 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       exclusive: Boolean(body.exclusive),
       free: Boolean(body.free) && !body.exclusive,
       order: Number.isFinite(Number(body.order)) ? Number(body.order) : -1,
+      ...(partner ? { partner } : {}),
       ...textures,
       createdAt: now,
       updatedAt: now
@@ -1146,6 +1176,10 @@ async function handleAdmin(req, res, ctx, url, cat, textureBase) {
       const wasFree = Boolean(item.free) && !next.free;
       if (body.price !== undefined || body.exclusive !== undefined || body.free !== undefined) next.price = pricing.finalPrice(body.price !== undefined ? body.price : (wasFree ? 0 : next.price), next);
       if (body.order !== undefined && Number.isFinite(Number(body.order))) next.order = Number(body.order);
+      if (body.partner !== undefined) {
+        try { next.partner = cleanPartner(body.partner); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }
+        if (!next.partner) delete next.partner;
+      }
       if (cosmetics.isCosmetic(item)) {
         if (body.model || body.texture || body.thumb || body.still) {
           try { Object.assign(next, cosmeticFrom(body, item)); } catch (error) { send(res, 400, { ok: false, error: error.message }); return true; }

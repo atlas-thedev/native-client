@@ -585,3 +585,9 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 .store-view .store-card .store-card-sub { width: 100%; }
 .store-view .store-card .store-card-sub small { order: 0; margin-left: auto; }
 .store-view .store-card .store-card-price { flex: 1 1 auto; overflow: hidden; }
+
+/* Partner-branded items: the partner's logo and name in its colour. */
+.store-partner-tag { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px 0 3px; border-radius: 999px; background: color-mix(in srgb, var(--partner) 85%, #000); color: #fff; font: 700 11px/1 var(--font-sans, inherit); white-space: nowrap; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.store-partner-tag img { width: 15px; height: 15px; padding: 1px; border-radius: 50%; background: #fff; object-fit: contain; }
+.store-partner-tag.is-large { height: 24px; padding: 0 10px 0 3px; font-size: 12px; }
+.store-partner-tag.is-large img { width: 19px; height: 19px; }

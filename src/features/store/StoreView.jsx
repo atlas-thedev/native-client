@@ -15,6 +15,7 @@ import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
 import './StoreView.css';
+import PartnerTag from './PartnerTag.jsx';
 import { SHOTS, createCamera } from '../../lib/viewerCamera.js';
 import '../../components/ui/shop.css';
 
@@ -789,6 +790,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         {kicker}
         {item.featured && !kicker && <span className="store-badge solid"><PixelStar size={9} />Featured</span>}
         {item.exclusive && <span className="store-event-badge">Event</span>}
+        {item.partner && <PartnerTag partner={item.partner} large />}
       </div>
       <Heading className="store-spot-name">{item.name}</Heading>
       <p className="store-spot-desc">{item.description}</p>
@@ -842,6 +844,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
           <div className="store-card-badges">
+            {item.partner && <PartnerTag partner={item.partner} />}
             {onSale(item) && <span className="store-sale-badge">−{salePercent(item)}%</span>}
             {item.exclusive && <span className="store-event-badge">Event</span>}
             {!item.exclusive && item.isNew && newMeans && <span className="store-new-badge">New</span>}

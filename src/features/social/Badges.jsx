@@ -4,6 +4,7 @@ import earlySupporterBadge from '../../assets/badges/early-supporter.png';
 import bugHunterBadge from '../../assets/badges/bug-hunter.png';
 import staffBadge from '../../assets/badges/staff.png';
 import superBetaBadge from '../../assets/badges/super-beta-tester.png';
+import partnerBadge from '../../assets/badges/partner.png';
 import './Badges.css';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 
@@ -47,6 +48,13 @@ export const BADGE_DEFS = {
     description: 'Hand-picked to test Native before everyone else',
     gradient: 'linear-gradient(135deg, #2fd4c9 0%, #ffd36b 100%)',
     icon: badgeIcon(superBetaBadge)
+  },
+  partner: {
+    id: 'partner',
+    name: 'Native Partner',
+    description: 'Official Native partner',
+    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #f5b94a 100%)',
+    icon: badgeIcon(partnerBadge)
   },
   plus: {
     id: 'plus',
