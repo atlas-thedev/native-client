@@ -7,8 +7,8 @@
 .apt-row.is-selected { border-color: color-mix(in srgb, var(--pt-accent) 45%, rgba(255, 255, 255, 0.1)); background: linear-gradient(90deg, color-mix(in srgb, var(--pt-accent) 16%, transparent), rgba(255, 255, 255, 0.02)); }
 .apt-row.is-muted .apt-row-logo, .apt-row.is-muted strong { opacity: 0.55; }
 .apt-row-hit { position: absolute; inset: 0; z-index: 0; border: 0; border-radius: inherit; background: none; cursor: pointer; }
-.apt-row-logo { position: relative; z-index: 1; pointer-events: none; display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: #fff; color: #09090b; box-shadow: 0 6px 18px -8px var(--pt-accent); }
-.apt-row-logo img { width: 78%; height: 78%; object-fit: contain; }
+.apt-row-logo { position: relative; z-index: 1; pointer-events: none; display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; box-shadow: 0 4px 14px -4px var(--pt-accent); }
+.apt-row-logo img { width: 85%; height: 85%; object-fit: contain; }
 .apt-row-main { position: relative; z-index: 1; pointer-events: none; display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .apt-row-main strong { font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .apt-row-main small { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

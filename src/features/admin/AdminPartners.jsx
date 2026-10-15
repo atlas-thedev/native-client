@@ -7,7 +7,7 @@ import './AdminPartners.css';
 const BUNDLED = '/v1/site/partners/media/';
 const blank = () => ({
   name: '', tagline: '', description: '', website: '', cta: 'Visit',
-  logo: '', background: '', art: '',
+  logo: '', logoSize: 52, background: '', art: '',
   accent: '#8b5cf6', accent2: '#c07eff',
   animation: 'aurora', speed: 1, intensity: 70,
   perks: [], code: '', tier: 'partner', order: 0,
@@ -249,6 +249,10 @@ export default function AdminPartners({ doc, setDoc, onNotify, onAccessRevoked }
               <div className="admin-card-head"><h3>Artwork</h3><span>https:// links (PNG, WebP, JPG or GIF)</span></div>
               <div className="admin-form-grid">
                 <ImageField label="Logo" required value={draft.logo} onChange={(value) => set('logo', value)} placeholder="https://…/logo.png" />
+                <div className="admin-field">
+                  <span>Logo size · {draft.logoSize ?? 52}px</span>
+                  <AdminSlider min={24} max={120} step={2} value={draft.logoSize ?? 52} onChange={(value) => set('logoSize', value)} ariaLabel="Logo size" />
+                </div>
                 <ImageField label="Background" value={draft.background} onChange={(value) => set('background', value)} placeholder="https://…/banner.webp" />
                 <ImageField label="Floating art" value={draft.art} onChange={(value) => set('art', value)} placeholder="https://…/render.png" />
               </div>

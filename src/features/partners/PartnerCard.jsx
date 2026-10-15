@@ -35,7 +35,8 @@ export const BUILT_IN_PARTNERS = [{
   intensity: 70,
   perks: ['Ryzen 7 nodes', 'NVMe storage', 'Always-on DDoS protection', 'From LKR 400/mo'],
   code: '',
-  tier: 'featured'
+  tier: 'featured',
+  logoSize: 52
 }];
 
 /* Bundled copies of the seeded art, so the Aurex card never shows a broken image. */
@@ -81,11 +82,16 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
   const [copied, setCopied] = useState(false);
   const pt = partner || {};
   const animation = pt.animation || 'aurora';
+  const defaultLogoSize = size === 'hero' ? 52 : 42;
+  const logoSize = Number(pt.logoSize)
+    ? (size === 'hero' ? Number(pt.logoSize) : Math.max(20, Math.round(Number(pt.logoSize) * 0.8)))
+    : defaultLogoSize;
   const style = {
     '--pt-accent': pt.accent || '#ffffff',
     '--pt-accent2': pt.accent2 || pt.accent || '#ffffff',
     '--pt-speed': String(Math.max(0.25, Number(pt.speed) || 1)),
-    '--pt-intensity': String(Math.max(0, Math.min(100, Number(pt.intensity ?? 60))) / 100)
+    '--pt-intensity': String(Math.max(0, Math.min(100, Number(pt.intensity ?? 60))) / 100),
+    '--pt-logo-size': `${logoSize}px`
   };
 
   // Gentle 3D tilt that follows the pointer.
