@@ -98,6 +98,8 @@ const api = {
     merge:                (payload) => ipcRenderer.invoke('accounts:merge', payload),
     openWebsite:          (id)      => ipcRenderer.invoke('accounts:openWebsite', id),
     refreshNames:         ()        => ipcRenderer.invoke('accounts:refreshNames'),
+    checkSessions:        ()        => ipcRenderer.invoke('accounts:checkSessions'),
+    onChanged:            (callback) => subscribe('accounts:changed', callback),
     setActive:            (id)      => ipcRenderer.invoke('accounts:setActive', id),
     remove:               (id)      => ipcRenderer.invoke('accounts:remove', id),
     getAvatar:            (uuid)    => ipcRenderer.invoke('accounts:getAvatar', uuid),
@@ -230,6 +232,7 @@ const api = {
     // Resolves { ok, forced } — `force` skips the graceful close request.
     stop: (options) => ipcRenderer.invoke('launcher:stop', options || {}),
     onState: (callback) => subscribe('launcher:state', callback),
+    onNotice: (callback) => subscribe('launcher:notice', callback),
     onProgress: (callback) => subscribe('launcher:progress', callback),
     onLog: (callback) => subscribe('launcher:log', callback)
   },

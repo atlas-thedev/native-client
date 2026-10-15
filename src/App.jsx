@@ -86,17 +86,48 @@ export default function App() {
     });
   }, []);
 
+  // The locker for the active account: the copy on this PC straight away, then the cloud copy.
+  // Runs on every sign-in, switch and "signed in again", so a fresh login on a new PC (or after
+  // an expired session) shows its skins and cosmetics without a restart.
+  const sessionKey = `${activeAccount?.id || ''}|${activeAccount?.sessionExpired ? 'x' : ''}|${activeAccount?.nativeLink?.connected ? 'l' : ''}`;
   useEffect(() => {
     let cancelled = false;
-    if (!activeAccount || !window.native?.wardrobe?.get) {
+    const current = activeAccount;
+    if (!current || !window.native?.wardrobe?.get) {
       setWardrobe(null);
       return undefined;
     }
-    window.native.wardrobe.get(activeAccount).then((value) => {
-      if (!cancelled) setWardrobe({ ...value, accountId: activeAccount.id });
+    window.native.wardrobe.get(current).then((value) => {
+      if (!cancelled) setWardrobe({ ...value, accountId: current.id });
     }).catch(() => { if (!cancelled) setWardrobe(null); });
+    if (current.type === 'native' && !current.sessionExpired && window.native.wardrobe.sync) {
+      window.native.wardrobe.sync(current).then((res) => {
+        if (cancelled || !res?.state) return;
+        setWardrobe({ ...res.state, accountId: current.id });
+        window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
+      }).catch(() => {});
+    }
+    // Locker, Store and Relay views reload what they show for the new session.
+    window.dispatchEvent(new CustomEvent('native:session-changed', { detail: { accountId: current.id } }));
     return () => { cancelled = true; };
-  }, [activeAccount?.id]);
+  }, [sessionKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expired or renewed sessions: checked at start, every 30 minutes and when the connection comes back.
+  useEffect(() => {
+    const accounts = window.native?.accounts;
+    if (!accounts?.checkSessions) return undefined;
+    const check = () => accounts.checkSessions().catch(() => {});
+    const first = setTimeout(check, 4000);
+    const timer = setInterval(check, 30 * 60_000);
+    window.addEventListener('native:reconnected', check);
+    const off = accounts.onChanged?.(() => refreshAccounts());
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+      window.removeEventListener('native:reconnected', check);
+      off?.();
+    };
+  }, []);
 
   useEffect(() => {
     window.native?.onMaximizedChange(setIsMaximized);
@@ -253,13 +284,6 @@ export default function App() {
   const handleSwitchAccount = async (id) => {
     await window.native?.accounts?.setActive(id);
     setActiveId(id);
-    const target = accounts.find(a => a.id === id);
-    if (target && window.native?.wardrobe?.get) {
-      try {
-        const w = await window.native.wardrobe.get(target);
-        if (w) setWardrobe({ ...w, accountId: id });
-      } catch {}
-    }
   };
 
   // Premium accounts are Native accounts. They can merge once into an email

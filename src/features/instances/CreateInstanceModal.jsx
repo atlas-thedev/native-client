@@ -1,6 +1,7 @@
 import { nativeSupport } from '../../lib/nativeSupport.js';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
+import Logo from '../../components/ui/Logo.jsx';
 import { RELEASE_LINES, getClusterArt } from '../../data/versionsData.js';
 import {
   LOADERS,
@@ -11,13 +12,31 @@ import {
 } from '../../lib/mojang.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { PRESETS, PRESET_LOADERS, checkPresetCompat, getPreset } from './presets.js';
+import fabricIcon from '../../assets/icons/fabric.png';
+import forgeIcon from '../../assets/icons/forge.jpg';
+import vanillaIcon from '../../assets/icons/vanilla.png';
 import './CreateInstanceModal.css';
 import './Presets.css';
 
-const MAX_VERSION_ROWS = 90;
+const MAX_LINES = 24;
 const RAM_MIN = 1024;
 const RAM_MAX = 16384;
 const RAM_STEP = 512;
+
+const STEPS = [
+  { id: 'version', label: 'Version', hint: 'Which Minecraft' },
+  { id: 'loader', label: 'Loader', hint: 'Mods or vanilla' },
+  { id: 'extras', label: 'Extras', hint: 'Mods, memory, Native' }
+];
+
+const LOADER_INFO = {
+  Vanilla: { icon: vanillaIcon, blurb: 'Plain Minecraft, exactly as Mojang ships it.' },
+  Fabric: { icon: fabricIcon, blurb: 'Fast and light. Sodium, Iris and the Native mod.', recommended: true },
+  Quilt: { mark: 'Q', tint: '#a855f7', blurb: 'Fabric-compatible, with its own extras.' },
+  Forge: { icon: forgeIcon, blurb: 'The classic loader for big modpacks.' },
+  NeoForge: { mark: 'N', tint: '#f97316', blurb: 'Modern Forge, for 1.20.2 and newer packs.' },
+  'Legacy Fabric': { mark: 'L', tint: '#38bdf8', blurb: 'Fabric for old versions (1.3 to 1.13).' }
+};
 
 function lineFor(versionId) {
   const line = versionLine(versionId);
@@ -46,6 +65,18 @@ const presetPlaceholder = (preset) => [
   ...(preset.shaders || []).map((slug) => ({ slug, kind: 'shader', title: slug, iconUrl: '', status: 'checking', versionNumber: '' }))
 ];
 
+/** "1.21.4 Fabric", or "1.21.4 Fabric (2)" when that name is taken. */
+function uniqueName(base, taken) {
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 100; n += 1) {
+    const next = `${base} (${n})`;
+    if (!taken.has(next.toLowerCase())) return next;
+  }
+  return base;
+}
+
+const gb = (mb) => `${(mb / 1024).toFixed(mb % 1024 ? 1 : 0)} GB`;
+
 export default function CreateInstanceModal({
   open,
   instances = [],
@@ -61,7 +92,9 @@ export default function CreateInstanceModal({
   const [manifest, setManifest] = useState(null);
   const [fabricSet, setFabricSet] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [systemGb, setSystemGb] = useState(null);
 
+  const [step, setStep] = useState('version');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [version, setVersion] = useState('');
@@ -71,6 +104,9 @@ export default function CreateInstanceModal({
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [preset, setPreset] = useState('');
   const [nativeMod, setNativeMod] = useState(true);
+  const nameRef = useRef(null);
+
+  const takenNames = useMemo(() => new Set(instances.map((instance) => String(instance.name || '').trim().toLowerCase())), [instances]);
 
   /* Reset every time the modal is opened so it never shows stale input. */
   useEffect(() => {
@@ -80,34 +116,20 @@ export default function CreateInstanceModal({
     setName(initialName || '');
     setNameTouched(Boolean(initialName));
     setSearch('');
-    setShowSnapshots(false);
+    setShowSnapshots(Boolean(initialVersion && !/^\d+\.\d+(?:\.\d+)?$/.test(initialVersion)));
     setLoader(initialLoader || 'Fabric');
     setNativeMod(true);
     const seededPreset = getPreset(initialPreset);
     setPreset(seededPreset ? seededPreset.id : '');
     setMemoryMb(seededPreset?.memoryMb || 4096);
     setVersion(initialVersion || '');
-    // Quick search can open the modal with a version already picked.
-    if (initialVersion) {
-      if (!/^\d+\.\d+(?:\.\d+)?$/.test(initialVersion)) setShowSnapshots(true);
-    }
-  }, [open]);
-
-  /* Bring a version picked from quick search into view once the list exists. */
-  useEffect(() => {
-    if (!open || !initialVersion || loading) return undefined;
-    const frame = window.requestAnimationFrame(() => {
-      const rows = document.querySelectorAll('.ci-version-row[data-version]');
-      const row = Array.from(rows).find((el) => el.getAttribute('data-version') === initialVersion);
-      row?.scrollIntoView?.({ block: 'center' });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [open, initialVersion, loading]);
+    // Seeded from a card or quick search: the version is chosen, start on the next step.
+    setStep(initialVersion ? (initialLoader ? 'extras' : 'loader') : 'version');
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-
     setLoading(true);
     getVersionManifest()
       .then((data) => {
@@ -115,53 +137,54 @@ export default function CreateInstanceModal({
         setManifest(data);
         setVersion((current) => current || data.latest?.release || data.versions[0]?.id || '');
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
+      .finally(() => { if (!cancelled) setLoading(false); });
     getFabricGameVersions()
-      .then((result) => {
-        if (!cancelled) setFabricSet(result);
-      })
+      .then((result) => { if (!cancelled) setFabricSet(result); })
       .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
+    window.native?.settings?.systemMemory?.()
+      .then((info) => { if (!cancelled && info?.totalGb) setSystemGb(info.totalGb); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') onClose?.();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
-  /* Suggest a name until the user types their own. */
+  /* Suggest a (free) name until the user types their own. */
   useEffect(() => {
     if (nameTouched || !version) return;
-    setName(`${version} ${loader}`);
-  }, [version, loader, nameTouched]);
+    setName(uniqueName(`${version} ${loader}`, takenNames));
+  }, [version, loader, nameTouched, takenNames]);
 
-  const versions = useMemo(() => {
+  /* Versions grouped by release line, newest first. */
+  const groups = useMemo(() => {
     const all = manifest?.versions || [];
     const query = search.trim().toLowerCase();
-    return all
-      .filter((entry) => (showSnapshots ? true : entry.type === 'release'))
-      .filter((entry) => (query ? entry.id.toLowerCase().includes(query) : true))
-      .slice(0, MAX_VERSION_ROWS);
+    const map = new Map();
+    for (const entry of all) {
+      if (!showSnapshots && entry.type !== 'release') continue;
+      if (query && !entry.id.toLowerCase().includes(query)) continue;
+      const key = entry.type === 'release' ? versionLine(entry.id) : entry.type === 'snapshot' ? 'Snapshots' : 'Old versions';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(entry);
+    }
+    return Array.from(map.entries()).slice(0, MAX_LINES).map(([key, entries]) => {
+      const line = entries[0]?.type === 'release' ? lineFor(entries[0].id) : null;
+      return { key, title: line?.name || (key === 'Snapshots' || key === 'Old versions' ? key : `Minecraft ${key}`), art: entries[0]?.type === 'release' ? artFor(entries[0].id) : null, entries };
+    });
   }, [manifest, search, showSnapshots]);
 
-  const availability = version
-    ? loaderAvailability(loader, version, fabricSet)
-    : { available: true };
+  /* One-click picks: the newest release plus the versions people play most. */
+  const quickPicks = useMemo(() => {
+    const releases = (manifest?.versions || []).filter((entry) => entry.type === 'release').map((entry) => entry.id);
+    if (!releases.length) return [];
+    const picks = [{ id: releases[0], label: 'Latest' }];
+    for (const [id, label] of [['1.21.1', 'Modded'], ['1.20.1', 'Modpacks'], ['1.8.9', 'PvP']]) {
+      if (releases.includes(id) && id !== releases[0]) picks.push({ id, label });
+    }
+    return picks;
+  }, [manifest]);
 
+  const availability = version ? loaderAvailability(loader, version, fabricSet) : { available: true };
   const trimmedName = name.trim();
-  const duplicateName = instances.some(
-    (instance) => String(instance.name || '').toLowerCase() === trimmedName.toLowerCase()
-  );
+  const duplicateName = Boolean(trimmedName) && takenNames.has(trimmedName.toLowerCase());
   const activePreset = getPreset(preset);
 
   /* Which of the preset's mods have a build for the chosen version + loader. */
@@ -178,10 +201,7 @@ export default function CreateInstanceModal({
         .then((items) => { if (!cancelled) setCompat({ items }); })
         .catch(() => { if (!cancelled) setCompat({ items: null, error: true }); });
     }, 250);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [open, preset, version, loader]);
 
   const compatSummary = compat?.items
@@ -190,7 +210,17 @@ export default function CreateInstanceModal({
 
   const presetUsable = !preset || PRESET_LOADERS.includes(loader);
   const native = nativeSupport(loader, version);
-  const canSubmit = presetUsable && Boolean(trimmedName) && Boolean(version) && availability.available;
+  const problem = !version ? 'Pick a Minecraft version.'
+    : !availability.available ? (availability.reasonKey ? t(availability.reasonKey, availability.reasonVars) : availability.reason || `${loader} doesn’t support ${version}.`)
+    : !trimmedName ? 'Give your instance a name.'
+    : duplicateName ? 'You already have an instance with this name.'
+    : !presetUsable ? 'Mod presets need Fabric or Quilt.'
+    : '';
+  const canSubmit = !problem;
+
+  const maxRam = systemGb ? Math.min(RAM_MAX, Math.max(RAM_MIN * 2, Math.floor((systemGb * 1024 * 0.75) / RAM_STEP) * RAM_STEP)) : RAM_MAX;
+  const recommendedRam = activePreset?.memoryMb || (loader === 'Vanilla' ? 2048 : 4096);
+  const ramWarn = systemGb && memoryMb > systemGb * 1024 * 0.6;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -211,356 +241,285 @@ export default function CreateInstanceModal({
     onClose?.();
   };
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.();
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); submit(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
+
   if (!open) return null;
+
+  const stepIndex = STEPS.findIndex((entry) => entry.id === step);
+  const goto = (delta) => setStep(STEPS[Math.max(0, Math.min(STEPS.length - 1, stepIndex + delta))].id);
+  const line = version ? lineFor(version) : null;
+  const pickLoader = (option) => {
+    setLoader(option);
+    if (!PRESET_LOADERS.includes(option)) setPreset('');
+  };
 
   return (
     <div className="create-instance-backdrop" onClick={onClose}>
-      <div
-        className="create-instance-box"
-        role="dialog"
-        aria-modal="true"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="create-instance-header">
-          <div>
-            <h2 className="create-instance-title">{t('instances.new')}</h2>
-            <p className="create-instance-sub">
-              {t('create.subtitle')}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="create-instance-close"
-            onClick={onClose}
-            title={t('common.close')}
-          >
-            <NativeIcon name="close" size={16} />
-          </button>
-        </header>
-
-        <div className="create-instance-body">
-          <div className="create-instance-form">
-            <div className="ci-field">
-              <label className="ci-label" htmlFor="ci-name">
-                {t('onboarding.instanceName')}
-              </label>
+      <div className="cim" role="dialog" aria-modal="true" aria-label={t('instances.new')} onClick={(event) => event.stopPropagation()}>
+        {/* ── live preview ───────────────────────────────────────── */}
+        <aside className="cim-stage">
+          {version ? <img key={version} className="cim-stage-art" src={artFor(version)} alt="" /> : <div className="cim-stage-art is-blank" />}
+          <div className="cim-stage-shade" />
+          <div className="cim-stage-body">
+            <span className="cim-eyebrow">{initialPlay ? 'Create & Play' : t('instances.new')}</span>
+            <label className="cim-name">
               <input
-                id="ci-name"
-                className="ci-input"
-                type="text"
+                ref={nameRef}
                 value={name}
                 maxLength={60}
-                autoFocus
+                spellCheck={false}
                 placeholder={t('create.namePlaceholder')}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  setNameTouched(true);
-                }}
+                aria-label="Instance name"
+                onChange={(event) => { setName(event.target.value); setNameTouched(true); }}
+                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } }}
               />
-              {duplicateName && (
-                <p className="ci-hint warn">
-                  <NativeIcon name="alert" size={13} />
-                  {t('create.duplicateName')}
-                </p>
-              )}
+              <NativeIcon name="edit" size={14} />
+            </label>
+            <div className="cim-chips">
+              <span className="cim-chip is-mono">{version || '—'}</span>
+              <span className="cim-chip is-brand">{loader}</span>
+              {activePreset && <span className="cim-chip">{activePreset.name}</span>}
             </div>
+            {line?.description && <p className="cim-stage-desc">{line.description}</p>}
 
-            <div className="ci-field">
-              <div className="ci-label-row">
-                <span className="ci-label">{t('onboarding.minecraftVersion')}</span>
-                <button
-                  type="button"
-                  className={`ci-toggle ${showSnapshots ? 'active' : ''}`}
-                  onClick={() => setShowSnapshots((value) => !value)}
-                >
-                  <span className="ci-toggle-track">
-                    <span className="ci-toggle-knob" />
-                  </span>
-                  {t('create.showSnapshots')}
+            <dl className="cim-specs">
+              <div><dt>Native mod</dt><dd className={native.ok && nativeMod ? 'is-on' : ''}>{!native.ok ? 'Not supported' : nativeMod ? 'On' : 'Off'}</dd></div>
+              <div><dt>Memory</dt><dd>{gb(memoryMb)}</dd></div>
+              <div><dt>Mods</dt><dd>{activePreset ? (compatSummary ? `${compatSummary.ok} of ${compatSummary.total}` : 'Checking…') : 'None yet'}</dd></div>
+            </dl>
+
+            <div className="cim-stage-foot">
+              {problem ? <p className="cim-problem"><NativeIcon name="alert" size={13} />{problem}</p> : <p className="cim-ready"><NativeIcon name="check" size={13} />Ready to create</p>}
+              <div className="cim-stage-actions">
+                <button type="button" className="cim-ghost" onClick={onClose}>{t('common.cancel')}</button>
+                <button type="button" className="cim-create" onClick={submit} disabled={!canSubmit} title="Ctrl + Enter">
+                  <NativeIcon name={initialPlay ? 'play' : 'plus'} size={15} />
+                  <span>{initialPlay ? 'Create & Play' : 'Create instance'}</span>
                 </button>
               </div>
-
-              <label className="ci-search">
-                <NativeIcon name="search" size={15} />
-                <input
-                  type="text"
-                  value={search}
-                  placeholder={t('create.searchVersions')}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </label>
-
-              <div className="ci-version-list">
-                {loading && !manifest && (
-                  <div className="ci-version-empty">
-                    <NativeIcon name="refresh" size={16} className="is-spinning" />
-                    <span>{t('onboarding.loadingVersions')}</span>
-                  </div>
-                )}
-
-                {!loading && versions.length === 0 && (
-                  <div className="ci-version-empty">
-                    <span>{t('create.noVersionsMatch')}</span>
-                  </div>
-                )}
-
-                {versions.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className={`ci-version-row ${version === entry.id ? 'active' : ''}`}
-                    data-version={entry.id}
-                    onClick={() => setVersion(entry.id)}
-                  >
-                    <span className="ci-version-id">{entry.id}</span>
-                    <span className="ci-version-meta">
-                      {entry.type !== 'release' && (
-                        <span className="ci-version-tag">{entry.type.replace('old_', '')}</span>
-                      )}
-                      {entry.releaseTime ? formatDate(new Date(entry.releaseTime), { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
-                    </span>
-                    {version === entry.id && <NativeIcon name="check" size={14} />}
-                  </button>
-                ))}
-              </div>
-
-              {manifest?.offline && (
-                <p className="ci-hint warn">
-                  <NativeIcon name="alert" size={13} />
-                  {t('create.offlineCache')}
-                </p>
-              )}
             </div>
+          </div>
+        </aside>
 
-            <div className="ci-field">
-              <span className="ci-label">{t('onboarding.modLoader')}</span>
-              <div className="ci-loader-row">
+        {/* ── steps ─────────────────────────────────────────────── */}
+        <section className="cim-main">
+          <header className="cim-head">
+            <nav className="cim-steps" aria-label="Steps">
+              {STEPS.map((entry, index) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`cim-step${entry.id === step ? ' is-on' : ''}${index < stepIndex ? ' is-done' : ''}`}
+                  aria-current={entry.id === step ? 'step' : undefined}
+                  onClick={() => setStep(entry.id)}
+                >
+                  <i>{index < stepIndex ? <NativeIcon name="check" size={11} /> : index + 1}</i>
+                  <span><strong>{entry.label}</strong><small>{entry.hint}</small></span>
+                </button>
+              ))}
+              <span className="cim-steps-bar" style={{ '--p': stepIndex / (STEPS.length - 1) }} aria-hidden="true" />
+            </nav>
+            <button type="button" className="cim-close" onClick={onClose} title={t('common.close')} aria-label={t('common.close')}>
+              <NativeIcon name="close" size={16} />
+            </button>
+          </header>
+
+          <div className="cim-body" key={step}>
+            {step === 'version' && (
+              <>
+                {quickPicks.length > 0 && (
+                  <div className="cim-quick">
+                    {quickPicks.map((pick) => (
+                      <button key={pick.id} type="button" className={`cim-quick-btn${version === pick.id ? ' is-on' : ''}`} onClick={() => setVersion(pick.id)}>
+                        <img src={artFor(pick.id)} alt="" />
+                        <span><small>{pick.label}</small><strong>{pick.id}</strong></span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="cim-toolbar">
+                  <label className="cim-search">
+                    <NativeIcon name="search" size={15} />
+                    <input type="text" value={search} placeholder={t('create.searchVersions')} onChange={(event) => setSearch(event.target.value)} autoFocus />
+                  </label>
+                  <button type="button" role="switch" aria-checked={showSnapshots} className={`cim-switch${showSnapshots ? ' is-on' : ''}`} onClick={() => setShowSnapshots((value) => !value)}>
+                    <i><b /></i>{t('create.showSnapshots')}
+                  </button>
+                </div>
+                <div className="cim-lines">
+                  {loading && !manifest && <div className="cim-empty"><NativeIcon name="refresh" size={16} className="is-spinning" /><span>Loading versions…</span></div>}
+                  {!loading && groups.length === 0 && <div className="cim-empty">{t('create.noVersionsMatch')}</div>}
+                  {groups.map((group) => (
+                    <section key={group.key} className="cim-line">
+                      <header>
+                        {group.art ? <img src={group.art} alt="" /> : <span className="cim-line-dot" />}
+                        <strong>{group.title}</strong>
+                        <small>{group.entries.length}</small>
+                      </header>
+                      <div className="cim-line-versions">
+                        {group.entries.slice(0, 40).map((entry) => (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            data-version={entry.id}
+                            className={`cim-ver${version === entry.id ? ' is-on' : ''}`}
+                            title={entry.releaseTime ? formatDate(new Date(entry.releaseTime), { year: 'numeric', month: 'short', day: 'numeric' }) : entry.id}
+                            onClick={() => setVersion(entry.id)}
+                            onDoubleClick={() => { setVersion(entry.id); setStep('loader'); }}
+                          >
+                            {entry.id}
+                            {entry.type !== 'release' && <em>{entry.type.replace('old_', '')}</em>}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+                {manifest?.offline && <p className="cim-note is-warn"><NativeIcon name="alert" size={13} />{t('create.offlineCache')}</p>}
+              </>
+            )}
+
+            {step === 'loader' && (
+              <div className="cim-loaders" role="radiogroup" aria-label="Mod loader">
                 {LOADERS.map((option) => {
-                  const state = version
-                    ? loaderAvailability(option, version, fabricSet)
-                    : { available: true };
+                  const state = version ? loaderAvailability(option, version, fabricSet) : { available: true };
+                  const info = LOADER_INFO[option] || { mark: option[0], blurb: '' };
+                  const runsNative = nativeSupport(option, version).ok;
                   return (
                     <button
                       key={option}
                       type="button"
-                      className={`ci-loader-btn ${loader === option ? 'active' : ''} ${
-                        state.available ? '' : 'unavailable'
-                      }`}
-                      onClick={() => {
-                        setLoader(option);
-                        if (!PRESET_LOADERS.includes(option)) setPreset('');
-                      }}
-                      title={state.available ? option : state.reasonKey ? t(state.reasonKey, state.reasonVars) : state.reason}
+                      role="radio"
+                      aria-checked={loader === option}
+                      disabled={!state.available}
+                      className={`cim-loader${loader === option ? ' is-on' : ''}${state.available ? '' : ' is-off'}`}
+                      style={info.tint ? { '--tint': info.tint } : undefined}
+                      onClick={() => pickLoader(option)}
+                      onDoubleClick={() => { pickLoader(option); setStep('extras'); }}
                     >
-                      {option}
+                      <span className="cim-loader-icon">{info.icon ? <img src={info.icon} alt="" /> : <b>{info.mark}</b>}</span>
+                      <span className="cim-loader-text">
+                        <strong>{option}{info.recommended && <em>Recommended</em>}</strong>
+                        <small>{state.available ? info.blurb : (state.reasonKey ? t(state.reasonKey, state.reasonVars) : state.reason || `Not available for ${version}`)}</small>
+                      </span>
+                      {state.available && runsNative && <span className="cim-loader-native" title="Runs the Native mod: cosmetics, Relay and HUD in game"><Logo height={11} variant="mark" />Native</span>}
+                      <span className="cim-radio" aria-hidden="true" />
                     </button>
                   );
                 })}
               </div>
-              {!availability.available && (
-                <p className="ci-hint warn">
-                  <NativeIcon name="alert" size={13} />
-                  {availability.reasonKey ? t(availability.reasonKey, availability.reasonVars) : availability.reason}
-                </p>
-              )}
-            </div>
+            )}
 
-            <div className="ci-field">
-              <div className="ci-label-row">
-                <span className="ci-label">Native Client mod</span>
-                {native.ok && (
-                  <button
-                    type="button"
-                    className={`ci-toggle ${nativeMod ? 'active' : ''}`}
-                    onClick={() => setNativeMod((value) => !value)}
-                  >
-                    <span className="ci-toggle-track">
-                      <span className="ci-toggle-knob" />
-                    </span>
-                    {nativeMod ? 'Enabled' : 'Disabled'}
-                  </button>
-                )}
-              </div>
-              {version && !native.ok ? (
-                <div className="ci-native-warn" role="note">
-                  <NativeIcon name="alert" size={14} />
+            {step === 'extras' && (
+              <div className="cim-extras">
+                <section className={`cim-card cim-native${native.ok && nativeMod ? ' is-on' : ''}`}>
+                  <span className="cim-native-mark"><Logo height={22} variant="mark" /></span>
                   <div>
-                    <strong>Unsupported client</strong>
-                    <span>
-                      Native Client doesn’t run on {native.loader ? loader : `Minecraft ${version}`}
-                      {native.loader && native.version ? ` ${version}` : ''}, so Native cosmetics, the Native menu and HUD mods won’t work in this instance.
-                      {' '}Pick Fabric on 1.16 or newer to get them.
-                    </span>
+                    <strong>Native Client mod</strong>
+                    <small>
+                      {!native.ok
+                        ? `Not available on ${native.loader ? loader : `Minecraft ${version}`}. Pick Fabric on 1.16 or newer for cosmetics, Relay and HUD mods in game.`
+                        : nativeMod ? 'Your capes and 3D cosmetics, Relay chat and HUD mods, in game.' : 'Off: no cosmetics, Relay chat or HUD mods in this instance.'}
+                    </small>
                   </div>
-                </div>
-              ) : !nativeMod ? (
-                <div className="ci-native-warn" role="note">
-                  <NativeIcon name="alert" size={14} />
-                  <div>
-                    <strong>Native mod disabled</strong>
-                    <span>
-                      Native mod is disabled for this instance. In-game Relay chat, cosmetics (capes &amp; 3D items), and HUD mods will not work.
-                    </span>
+                  {native.ok && (
+                    <button type="button" role="switch" aria-checked={nativeMod} className={`cim-switch is-bare${nativeMod ? ' is-on' : ''}`} onClick={() => setNativeMod((value) => !value)} aria-label="Native Client mod">
+                      <i><b /></i>
+                    </button>
+                  )}
+                </section>
+
+                <section className="cim-card">
+                  <div className="cim-card-head">
+                    <strong>Mod preset</strong>
+                    {preset && compatSummary && <small>{compatSummary.ok} of {compatSummary.total} work on {version}</small>}
                   </div>
-                </div>
-              ) : (
-                <p className="ci-hint">
-                  Enables in-game Relay chat, cosmetics (capes &amp; 3D items), and HUD mods.
-                </p>
-              )}
-            </div>
-
-            <div className="ci-field">
-              <div className="ci-label-row">
-                <span className="ci-label">Mod preset</span>
-                {preset && compatSummary && (
-                  <span className="ci-preset-summary">
-                    {compatSummary.ok} of {compatSummary.total} compatible with {version}
-                  </span>
-                )}
-              </div>
-
-              <div className="ci-loader-row">
-                <button
-                  type="button"
-                  className={`ci-loader-btn ${preset ? '' : 'active'}`}
-                  onClick={() => setPreset('')}
-                >
-                  None
-                </button>
-                {PRESETS.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className={`ci-loader-btn ${preset === entry.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setPreset(entry.id);
-                      if (!PRESET_LOADERS.includes(loader)) setLoader('Fabric');
-                      setMemoryMb((current) => Math.max(current, entry.memoryMb));
-                    }}
-                  >
-                    {entry.name}
-                  </button>
-                ))}
-              </div>
-
-              {activePreset ? (
-                <>
-                  <p className="ci-hint">{activePreset.tagline}. Installed automatically after you create the instance.</p>
-                  <div className="ci-mod-list" role="list">
-                    {(compat?.items || presetPlaceholder(activePreset)).map((item) => (
-                      <div key={`${item.kind}-${item.slug}`} className={`ci-mod-row ${item.status}`} role="listitem">
-                        <span className="ci-mod-icon">
-                          {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span>{item.title.slice(0, 1).toUpperCase()}</span>}
-                        </span>
-                        <span className="ci-mod-name">
-                          {item.title}
-                          {item.kind === 'shader' && <em>Shader pack</em>}
-                        </span>
-                        <span className="ci-mod-version">{item.versionNumber}</span>
-                        <span className={`ci-mod-status ${item.status}`}>
-                          {item.status === 'compatible' && 'Compatible'}
-                          {item.status === 'unavailable' && 'Not available'}
-                          {item.status === 'checking' && 'Checking…'}
-                        </span>
-                      </div>
+                  <div className="cim-presets">
+                    <button type="button" className={`cim-preset${preset ? '' : ' is-on'}`} onClick={() => setPreset('')}>
+                      <strong>None</strong><small>Start clean, add mods later</small>
+                    </button>
+                    {PRESETS.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className={`cim-preset${preset === entry.id ? ' is-on' : ''}`}
+                        onClick={() => {
+                          setPreset(entry.id);
+                          if (!PRESET_LOADERS.includes(loader)) setLoader('Fabric');
+                          setMemoryMb((current) => Math.max(current, entry.memoryMb));
+                        }}
+                      >
+                        <strong>{entry.name}</strong><small>{entry.tagline}</small>
+                      </button>
                     ))}
                   </div>
-                  {compat?.error && (
-                    <p className="ci-hint warn">
-                      <NativeIcon name="alert" size={13} />
-                      Could not check compatibility (offline?). Mods are checked again when installing.
-                    </p>
+                  {activePreset && (
+                    <div className="cim-mods" role="list">
+                      {(compat?.items || presetPlaceholder(activePreset)).map((item) => (
+                        <div key={`${item.kind}-${item.slug}`} className={`cim-mod is-${item.status}`} role="listitem">
+                          <span className="cim-mod-icon">{item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : item.title.slice(0, 1).toUpperCase()}</span>
+                          <span className="cim-mod-name">{item.title}{item.kind === 'shader' && <em>Shader</em>}</span>
+                          <span className="cim-mod-state">{item.status === 'compatible' ? item.versionNumber || 'Ready' : item.status === 'unavailable' ? 'Skipped' : 'Checking…'}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  {compatSummary && compatSummary.ok < compatSummary.total && (
-                    <p className="ci-hint">Mods marked Not available have no build for {version} and are skipped.</p>
-                  )}
-                </>
-              ) : (
-                <p className="ci-hint">Pick a preset to preview its mods and see which work with {version || 'this version'}.</p>
-              )}
-            </div>
+                  {compat?.error && <p className="cim-note is-warn"><NativeIcon name="alert" size={13} />Could not check compatibility (offline?). Mods are checked again when installing.</p>}
+                </section>
 
-            <div className="ci-field">
-              <div className="ci-label-row">
-                <span className="ci-label">{t('onboarding.memory')}</span>
-                <span className="ci-ram-value">{`${(memoryMb / 1024).toFixed(1)} GB`}</span>
+                <section className="cim-card">
+                  <div className="cim-card-head">
+                    <strong>Memory</strong>
+                    <small>{gb(memoryMb)}{systemGb ? ` of ${Math.round(systemGb)} GB on this PC` : ''}</small>
+                  </div>
+                  <input
+                    className="cim-range"
+                    type="range"
+                    min={RAM_MIN}
+                    max={maxRam}
+                    step={RAM_STEP}
+                    value={Math.min(memoryMb, maxRam)}
+                    style={{ '--p': (Math.min(memoryMb, maxRam) - RAM_MIN) / (maxRam - RAM_MIN), '--r': (Math.min(recommendedRam, maxRam) - RAM_MIN) / (maxRam - RAM_MIN) }}
+                    onChange={(event) => setMemoryMb(Number(event.target.value))}
+                    aria-label="Memory"
+                  />
+                  <div className="cim-ram-picks">
+                    {[2048, 4096, 6144, 8192].filter((mb) => mb <= maxRam).map((mb) => (
+                      <button key={mb} type="button" className={memoryMb === mb ? 'is-on' : ''} onClick={() => setMemoryMb(mb)}>
+                        {gb(mb)}{mb === recommendedRam && <em>Best</em>}
+                      </button>
+                    ))}
+                  </div>
+                  {ramWarn && <p className="cim-note is-warn"><NativeIcon name="alert" size={13} />That’s a lot of this PC’s memory. Leave some for Windows and the launcher.</p>}
+                </section>
               </div>
-              <input
-                className="ci-range"
-                type="range"
-                min={RAM_MIN}
-                max={RAM_MAX}
-                step={RAM_STEP}
-                value={memoryMb}
-                onChange={(event) => setMemoryMb(Number(event.target.value))}
-              />
-              <div className="ci-range-scale">
-                <span>1 GB</span>
-                <span>16 GB</span>
-              </div>
-            </div>
+            )}
           </div>
 
-          <aside className="create-instance-preview">
-            <span className="ci-preview-label">{t('create.preview')}</span>
-
-            <div className="ci-preview-card">
-              <div className="ci-preview-art">
-                {version ? <img src={artFor(version)} alt="" /> : <div className="ci-preview-blank" />}
-              </div>
-              <div className="ci-preview-body">
-                <h3>{trimmedName || t('create.untitled')}</h3>
-                <div className="ci-preview-chips">
-                  <span className="ci-preview-chip mono">{version || '--'}</span>
-                  <span className="ci-preview-chip brand">{loader}</span>
-                  {preset && <span className="ci-preview-chip">{activePreset?.name}</span>}
-                </div>
-              </div>
-            </div>
-
-            <dl className="ci-preview-specs">
-              <div>
-                <dt>{t('create.version')}</dt>
-                <dd>{version || t('create.notSelected')}</dd>
-              </div>
-              <div>
-                <dt>{t('create.loader')}</dt>
-                <dd>{loader}</dd>
-              </div>
-              {native.ok && (
-                <div>
-                  <dt>Native mod</dt>
-                  <dd>{nativeMod ? 'Enabled' : 'Disabled'}</dd>
-                </div>
-              )}
-              {activePreset && (
-                <div>
-                  <dt>Preset</dt>
-                  <dd>{compatSummary ? `${compatSummary.ok}/${compatSummary.total} mods` : 'Checking…'}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{t('onboarding.memory')}</dt>
-                <dd>{`${memoryMb} MB`}</dd>
-              </div>
-              <div>
-                <dt>{t('create.edition')}</dt>
-                <dd>{lineFor(version)?.name || t('create.javaEdition')}</dd>
-              </div>
-            </dl>
-          </aside>
-        </div>
-
-        <footer className="create-instance-footer">
-          <button type="button" className="ci-ghost-btn" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
-          <button type="button" className="ci-brand-btn" onClick={submit} disabled={!canSubmit}>
-            <NativeIcon name="plus" size={15} />
-            <span>{initialPlay ? 'Create & Play' : t('onboarding.finish')}</span>
-          </button>
-        </footer>
+          <footer className="cim-foot">
+            <button type="button" className="cim-ghost" onClick={() => goto(-1)} disabled={stepIndex === 0}>
+              <NativeIcon name="chevron-left" size={14} />Back
+            </button>
+            <span className="cim-foot-hint">{step === 'version' ? 'Double-click a version to continue' : step === 'loader' ? 'Fabric runs the Native mod on 1.16+' : 'Ctrl + Enter creates it'}</span>
+            {stepIndex < STEPS.length - 1 ? (
+              <button type="button" className="cim-next" onClick={() => goto(1)}>
+                Next<NativeIcon name="chevron-right" size={14} />
+              </button>
+            ) : (
+              <button type="button" className="cim-next" onClick={submit} disabled={!canSubmit}>
+                {initialPlay ? 'Create & Play' : 'Create'}<NativeIcon name="check" size={14} />
+              </button>
+            )}
+          </footer>
+        </section>
       </div>
     </div>
   );

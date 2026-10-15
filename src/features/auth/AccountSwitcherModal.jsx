@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, Globe, GitMerge, Minus, Square, Trash2, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronRight, Eye, EyeOff, Globe, GitMerge, Link2, Minus, Square, Trash2, WifiOff, X } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import ProviderLogo from '../../components/ui/ProviderLogo.jsx';
@@ -47,8 +47,20 @@ function ProviderBadge({ type }) {
  * A saved account on the login screen: face with its provider mark, name, how it signs in and when it was last
  * used. Click anywhere to continue as that player; the tools (website, merge, remove) show on hover.
  */
+/**
+ * How a saved account's Native sign-in looks right now: `expired` (sign in again), `unlinked` (a premium
+ * account whose Native session could not be renewed) or `ok`.
+ */
+export function sessionStateOf(account) {
+  if (!account) return 'ok';
+  if (account.type === 'native' && account.sessionExpired) return 'expired';
+  if (account.type === 'microsoft' && !account.nativeLink?.connected) return 'unlinked';
+  return 'ok';
+}
+
 function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite, onRemove, t }) {
   const type = account.type === 'microsoft' ? 'microsoft' : account.type === 'offline' ? 'offline' : 'native';
+  const session = sessionStateOf(account);
   const merged = type === 'microsoft' && account.nativeLink?.type === 'merged';
   const provider = type === 'microsoft' ? (t('account.microsoft') || 'Microsoft') : type === 'offline' ? 'Offline' : 'Native';
   const detail = type === 'native' && account.email ? account.email : type === 'offline' ? 'This PC only' : '';
@@ -57,7 +69,7 @@ function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite
   return (
     <div
       role="listitem"
-      className={`acc-card is-${type}${active ? ' is-active' : ''}${confirming ? ' is-confirming' : ''}`}
+      className={`acc-card is-${type}${active ? ' is-active' : ''}${confirming ? ' is-confirming' : ''}${session === 'expired' ? ' is-expired' : ''}`}
       tabIndex={0}
       onClick={onChoose}
       onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onChoose(); } }}
@@ -73,6 +85,8 @@ function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite
         <small>
           <b className="acc-card-provider">{provider}</b>
           {merged && <span className="acc-card-chip" title={`Merged with ${account.nativeLink.email || 'your Native account'}`}><GitMerge size={9} strokeWidth={2.6} aria-hidden="true" />Merged</span>}
+          {session === 'expired' && <span className="acc-card-chip is-warn" title="Sign in again to use skins, cosmetics and Relay"><AlertTriangle size={9} strokeWidth={2.6} aria-hidden="true" />Session expired</span>}
+          {session === 'unlinked' && <span className="acc-card-chip is-muted" title="Skins, cosmetics and Relay reconnect automatically when Native is reachable"><Link2 size={9} strokeWidth={2.6} aria-hidden="true" />Not connected</span>}
           {detail && <span className="acc-card-detail">{detail}</span>}
           {when && <span className="acc-card-when">{when}</span>}
         </small>
@@ -94,7 +108,9 @@ function AccountCard({ account, active, confirming, onChoose, onMerge, onWebsite
           {confirming && <span>Remove?</span>}
         </button>
       </span>
-      {active
+      {session === 'expired'
+        ? <span className="acc-card-state is-warn">Sign in again</span>
+        : active
         ? <span className="acc-card-state"><i aria-hidden="true" />Signed in</span>
         : <span className="acc-card-go" aria-hidden="true"><ChevronRight size={15} strokeWidth={2.4} /></span>}
       </span>
@@ -119,7 +135,8 @@ export default function AccountSwitcherModal({
   onRemoveAccount,
   onMergeNative,
   onOpenWebsite,
-  connectRequest = null
+  connectRequest = null,
+  reauthRequest = null
 }) {
   const { t } = useI18n();
 
@@ -156,6 +173,8 @@ export default function AccountSwitcherModal({
   // Merging a premium account into an email Native account
   const [connectTargetId, setConnectTargetId] = useState(null);
   const [connectDone, setConnectDone] = useState(false);
+  // "Sign in again" for an account whose Native session expired.
+  const [reauthFor, setReauthFor] = useState(null);
 
   // OTP 6-digit verification state
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
@@ -174,6 +193,15 @@ export default function AccountSwitcherModal({
     setError('');
     setView('native-connect');
   }, [open, connectRequest?.nonce]);
+
+  useEffect(() => { if (view === 'main') setReauthFor(null); }, [view]);
+
+  // Shell asks for this when the active account's session expired (banner, in-game notice).
+  useEffect(() => {
+    if (!open || !reauthRequest?.id) return;
+    const target = accounts.find((acc) => acc.id === reauthRequest.id);
+    if (target) startReauth(target);
+  }, [open, reauthRequest?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.native?.onMaximizedChange?.(setIsMaximized);
@@ -198,6 +226,7 @@ export default function AccountSwitcherModal({
   useEffect(() => {
     if (!open) {
       setView('main');
+      setReauthFor(null);
       setError('');
       setLoginInput('');
       setPasswordInput('');
@@ -226,6 +255,14 @@ export default function AccountSwitcherModal({
 
   const connectTarget = accounts.find((acc) => acc.id === connectTargetId && acc.type === 'microsoft') || null;
   const savedNativeAccounts = accounts.filter((acc) => acc.type === 'native');
+
+  function startReauth(account) {
+    setReauthFor(account);
+    setLoginInput(account.email || account.name || '');
+    setPasswordInput('');
+    setError('');
+    setView('native-login');
+  }
 
   const openConnect = (microsoftAccountId) => {
     setConnectTargetId(microsoftAccountId);
@@ -687,6 +724,12 @@ export default function AccountSwitcherModal({
                             active={acc.id === activeId}
                             confirming={confirmRemove === acc.id}
                             onChoose={() => {
+                              // An expired Native session can't be used: sign in again first (the account stays selected).
+                              if (sessionStateOf(acc) === 'expired') {
+                                onSwitchAccount?.(acc.id);
+                                startReauth(acc);
+                                return;
+                              }
                               onSwitchAccount?.(acc.id);
                               if (firstRun) onClose?.();
                             }}
@@ -961,9 +1004,11 @@ export default function AccountSwitcherModal({
                 </div>
 
                 <div className="native-auth-header">
-                  <Logo height={48} variant="mark" className="native-auth-clean-logo" />
-                  <h2 className="native-auth-title">{t('account.nativeLogin')}</h2>
-                  <p className="native-auth-sub">{t('account.nativeSubtitle')}</p>
+                  {reauthFor
+                    ? <span className="native-auth-reauth-face"><PlayerAvatar account={reauthFor} kind="avatar" size={56} radius={14} /></span>
+                    : <Logo height={48} variant="mark" className="native-auth-clean-logo" />}
+                  <h2 className="native-auth-title">{reauthFor ? `Welcome back, ${reauthFor.name}` : t('account.nativeLogin')}</h2>
+                  <p className="native-auth-sub">{reauthFor ? 'Your session expired. Sign in again to bring back your skins, cosmetics and Relay, in the launcher and in game.' : t('account.nativeSubtitle')}</p>
                 </div>
 
                 <form className="native-auth-form" onSubmit={handleLoginSubmit}>

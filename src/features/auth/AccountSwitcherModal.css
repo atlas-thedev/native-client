@@ -1568,3 +1568,10 @@
 .native-auth-primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
 .native-auth-back-btn { border-radius: var(--radius-full, 999px); }
 .account-login-error { border-radius: var(--radius-lg, 14px); }
+
+/* ---------- session states ---------- */
+.acc-card-chip.is-warn { color: rgb(251, 191, 36); background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.3); }
+.acc-card-chip.is-muted { color: rgba(255, 255, 255, 0.55); }
+.acc-card.is-expired .acc-card-face { opacity: 0.7; filter: saturate(0.6); }
+.acc-card-state.is-warn { background: rgba(251, 191, 36, 0.1); color: rgb(251, 191, 36); }
+.native-auth-reauth-face { display: grid; place-items: center; margin: 0 auto 4px; border-radius: 16px; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25), 0 16px 40px -16px rgba(0, 0, 0, 0.8); }

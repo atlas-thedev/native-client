@@ -986,6 +986,11 @@ async function fetchStoreMe(account) {
   const response = await fetch(`${apiRoot()}/v1/store/me`, { headers: storeHeaders(account), signal: AbortSignal.timeout(10_000) });
   let body = {};
   try { body = await response.json(); } catch {}
+  if (response.status === 401 && account.type === 'native' && account.id) {
+    // The session expired: flag it so the launcher asks the player to sign in again.
+    try { require('./auth').markNativeExpired(account.id); } catch { /* best effort */ }
+    throw new Error('Your Native session expired. Sign in again to see your capes and cosmetics.');
+  }
   if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
   return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || body.equipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], dyes: body.dyes && typeof body.dyes === 'object' ? body.dyes : {}, bundles: body.bundles && typeof body.bundles === 'object' ? body.bundles : {}, wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
 }
