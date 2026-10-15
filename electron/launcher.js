@@ -177,6 +177,58 @@ const rootDir = () => path.join(deps.app.getPath('userData'), 'minecraft');
 const instanceDir = (id) => path.join(rootDir(), 'instances', id);
 
 /** The Native session of the account being launched (Native account, or a premium account's own). */
+/* ── game ticket upkeep ─────────────────────────────────────────────── *
+ * The game's Native ticket lasts 24 h. While a game runs it is rewritten every few hours (and right
+ * after the player signs in again), so Relay, cosmetics and skins never lapse mid-session. */
+const TICKET_REFRESH_MS = 3 * 60 * 60 * 1000;
+let ticketUpkeep = null; // { timer, gameDir, accountId }
+
+/** Premium accounts: renew their Native session through Microsoft before it is used. */
+async function freshIdentity(rawAccount) {
+  if (rawAccount?.type === 'microsoft') {
+    await Promise.race([
+      auth.ensurePremiumLink(rawAccount.id).catch(() => null),
+      new Promise((resolve) => setTimeout(resolve, 8000))
+    ]);
+  }
+  return nativeIdentityFor(rawAccount);
+}
+
+/** A rejected session: mark the account and tell the player why in-game features are locked. */
+function sessionRejected(accountId) {
+  if (auth.markNativeExpired(accountId)) {
+    send('launcher:notice', {
+      kind: 'session-expired',
+      title: 'Sign in to Native again',
+      body: 'Your Native session expired, so skins, cosmetics and Relay are locked in game. Sign in again and they unlock by themselves.'
+    });
+  }
+  gameConsole.pushLauncher('Native session expired · sign in again to unlock skins, cosmetics and Relay in game');
+}
+
+async function refreshGameTicket() {
+  const upkeep = ticketUpkeep;
+  if (!upkeep || !activeChild) return { ok: false };
+  const rawAccount = auth.readAccounts(deps.app.getPath('userData')).accounts.find((a) => a.id === upkeep.accountId);
+  const identity = await freshIdentity(rawAccount);
+  const result = await nativeMod.refreshHandoff(upkeep.gameDir, identity, socialMod.API_ROOTS).catch(() => ({ signedIn: false }));
+  if (result.sessionExpired) sessionRejected(upkeep.accountId);
+  return { ok: Boolean(result.signedIn) };
+}
+
+function startTicketUpkeep(gameDir, accountId) {
+  stopTicketUpkeep();
+  if (!accountId) return;
+  const timer = setInterval(() => { refreshGameTicket().catch(() => {}); }, TICKET_REFRESH_MS);
+  timer.unref?.();
+  ticketUpkeep = { timer, gameDir, accountId };
+}
+
+function stopTicketUpkeep() {
+  if (ticketUpkeep) clearInterval(ticketUpkeep.timer);
+  ticketUpkeep = null;
+}
+
 function nativeIdentityFor(rawAccount) {
   try {
     const data = auth.readAccounts(deps.app.getPath('userData'));
@@ -457,6 +509,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
   currentDetail = 'Preparing…';
   currentPhase = 'preparing';
   resetProgress();
+  let nativeModReady = false; // the Native mod is in this game: keep its ticket fresh while it runs
   try {
     const settings = settingsMod.get();
 
@@ -596,7 +649,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       try {
         modResult = await nativeMod.prepare({
           instance: { ...instance, loader },
-          identity: nativeIdentityFor(rawAccount),
+          identity: await freshIdentity(rawAccount),
           gameDir: instanceDir(instance.id),
           cacheDir: path.join(deps.app.getPath('userData'), 'native-mod'),
           roots: socialMod.API_ROOTS,
@@ -608,6 +661,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
           onState: (detail) => setState('preparing', detail)
         });
         if (modResult.warning) launcher.emit('debug', `[Native Client]: Native mod: ${modResult.warning}`);
+        if (modResult.sessionExpired) sessionRejected(rawAccount?.id);
+        nativeModReady = Boolean(modResult.installed);
         // Title-screen ads: the banners the launcher already downloaded.
         if (modResult.installed) await adsMod.writeForGame(instanceDir(instance.id)).catch(() => {});
         // Title-screen background: this version's artwork, the same picture as the instance card.
@@ -650,6 +705,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     rememberInstall(instance, opts);
     activeChild = child;
     activeInstance = instance;
+    if (nativeModReady && rawAccount?.type !== 'offline') startTicketUpkeep(instanceDir(instance.id), rawAccount?.id);
     const launchedAt = Date.now();
     crashReporter.beginSession({ instance, memoryMaxGb: memMaxGb, javaPath });
     setState('launching', 'Starting Minecraft…');
@@ -749,6 +805,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeChild = null;
         activeInstance = null;
       }
+      stopTicketUpkeep();
       nativeMod.clearHandoff(instanceDir(instance.id));
       setState('error', `Minecraft process failed: ${err.message}`);
       resetPresence();
@@ -771,6 +828,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         activeInstance = null;
         activeFinish = null;
       }
+      stopTicketUpkeep();
       nativeMod.clearHandoff(instanceDir(instance.id));
       gameConsole.end(instance.id, { code, signal, killed });
       resetPresence();
@@ -995,6 +1053,7 @@ function init(dependencies, ipcMain) {
 
 module.exports = {
   init,
+  refreshGameTicket,
   isGameRunning: () => Boolean(activeChild),
   // Exported for focused launch-pipeline regression tests.
   _internals: {

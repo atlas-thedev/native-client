@@ -114,8 +114,10 @@ async function socialFetch(endpoint, options = {}) {
   if (result && result.status === 401 && !options.token) {
     const account = getActiveNativeAccount();
     if (account?.linkedFrom) {
-      const renewed = await require('./auth').ensurePremiumLink(account.linkedFrom, { force: true }).catch(() => null);
+      const renewed = await require('./auth').ensurePremiumLink(account.linkedFrom).catch(() => null);
       if (renewed?.ok) return stripStatus(await socialFetchOnce(endpoint, options));
+    } else if (account?.id) {
+      require('./auth').markNativeExpired(account.id);
     }
   }
   return stripStatus(result);
@@ -224,6 +226,11 @@ async function connectStreamOnce(root, token, generation) {
     signal: controller.signal
   });
 
+  if (res.status === 401) {
+    const error = new Error('Stream refused (401)');
+    error.unauthorized = true;
+    throw error;
+  }
   if (!res.ok || !res.body) {
     throw new Error(`Stream refused (${res.status})`);
   }
@@ -288,6 +295,17 @@ async function streamLoop(generation) {
         break; // stream ended cleanly; reconnect through the outer loop
       } catch (err) {
         if (!alive() || err?.name === 'AbortError') break;
+        if (err?.unauthorized) {
+          // The session is dead: renew a premium one, or flag a Native one so the player signs in again.
+          if (account.linkedFrom) {
+            await require('./auth').ensurePremiumLink(account.linkedFrom).catch(() => null);
+          } else if (require('./auth').markNativeExpired(account.id)) {
+            if (alive()) streamRunning = false;
+            setStreamStatus('signed-out');
+            return;
+          }
+          break;
+        }
       }
     }
 

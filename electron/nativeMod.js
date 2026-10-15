@@ -163,7 +163,11 @@ function installJar(jarPath, modsDir) {
   return name;
 }
 
-/** Trades the account's launcher session for a game-only ticket. */
+/**
+ * Trades the account's launcher session for a game-only ticket.
+ * Returns the ticket, `{ rejected: true }` when Native refused the session (it expired or was
+ * revoked: the player must sign in again), or null when Native could not be reached.
+ */
 async function requestTicket(roots, sessionToken, { fetchImpl = fetch } = {}) {
   if (!sessionToken) return null;
   for (const root of roots) {
@@ -173,7 +177,7 @@ async function requestTicket(roots, sessionToken, { fetchImpl = fetch } = {}) {
         headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
         body: '{}'
       }, 10_000);
-      if (response.status === 401) return null;
+      if (response.status === 401) return { rejected: true };
       if (!response.ok) continue;
       const data = await response.json();
       if (data?.ok && typeof data.ticket === 'string' && data.ticket.startsWith('nmt1.')) {
@@ -304,23 +308,28 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCa
     if (!existing) return { installed: false, warning: error.message, reason: 'unavailable' };
     clearHandoff(gameDir);
     writeLauncherInfo(gameDir, { textureCache, local, presence });
-    const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
-    return { installed: true, filename: existing, signedIn, warning: `Using the installed mod: ${error.message}` };
+    const { signedIn, sessionExpired } = await handoff(gameDir, identity, roots, fetchImpl);
+    return { installed: true, filename: existing, signedIn, sessionExpired, warning: `Using the installed mod: ${error.message}` };
   }
 
   const filename = installJar(jarPath, path.join(gameDir, 'mods'));
   clearHandoff(gameDir);
   writeLauncherInfo(gameDir, { textureCache, local, presence });
-  const signedIn = await handoff(gameDir, identity, roots, fetchImpl);
-  return { installed: true, version: manifest.version, filename, signedIn };
+  const { signedIn, sessionExpired } = await handoff(gameDir, identity, roots, fetchImpl);
+  return { installed: true, version: manifest.version, filename, signedIn, sessionExpired };
 }
 
-async function handoff(gameDir, identity, roots, fetchImpl) {
-  if (!identity?.token) return false;
+/**
+ * Writes a fresh game ticket for `identity` (at launch, and again while the game runs so it never
+ * outlives its 24 h ticket). The mod notices the rewritten file and switches over live.
+ */
+async function handoff(gameDir, identity, roots, fetchImpl = fetch) {
+  if (!identity?.token) return { signedIn: false, sessionExpired: false };
   const ticket = await requestTicket(roots, identity.token, { fetchImpl });
-  if (!ticket) return false;
+  if (ticket?.rejected) return { signedIn: false, sessionExpired: true };
+  if (!ticket) return { signedIn: false, sessionExpired: false };
   writeHandoff(gameDir, { ...ticket, account: ticket.account || identity });
-  return true;
+  return { signedIn: true, sessionExpired: false };
 }
 
 module.exports = {
@@ -332,6 +341,7 @@ module.exports = {
   ensureJar,
   installJar,
   requestTicket,
+  refreshHandoff: handoff,
   writeHandoff,
   writeLauncherInfo,
   supportsLoader,

@@ -580,6 +580,67 @@ async function ensurePremiumLink(microsoftId) {
   return premiumSignIn(microsoftId);
 }
 
+/** Tells the window the saved accounts changed (a session expired, renewed, ...). */
+function notifyAccountsChanged(reason) {
+  const win = deps?.getWin?.();
+  if (win && !win.isDestroyed()) win.webContents.send('accounts:changed', { reason });
+}
+
+/**
+ * Native refused this account's session (expired or revoked). A Native account keeps its place
+ * in the list, marked `sessionExpired`, until the player signs in again; a premium account just
+ * loses its Native link, which ensurePremiumLink renews through Microsoft.
+ */
+function markNativeExpired(accountId) {
+  const data = readAccounts();
+  const index = data.accounts.findIndex((a) => a.id === accountId);
+  if (index < 0) return false;
+  const account = data.accounts[index];
+  if (account.type === 'native') {
+    if (account.sessionExpired && !account.token) return false;
+    const next = { ...account, sessionExpired: true };
+    delete next.token;
+    delete next.sessionToken;
+    data.accounts[index] = next;
+    saveAccounts(data);
+  } else if (account.type === 'microsoft' && account.nativeToken) {
+    clearLink(accountId);
+  } else {
+    return false;
+  }
+  notifyAccountsChanged('expired');
+  return true;
+}
+
+/**
+ * Checks every saved Native session (and renews premium ones) so an expired sign-in shows up
+ * in the launcher right away instead of as missing skins, cosmetics and Relay later on.
+ * Offline or a server error changes nothing.
+ */
+async function checkSessions() {
+  const expired = [];
+  for (const account of readAccounts().accounts) {
+    if (account.type === 'native' && (account.token || account.sessionToken)) {
+      const { status } = await apiRequest('/v1/account/minecraft', { method: 'GET', token: account.token || account.sessionToken });
+      if (status === 401) {
+        markNativeExpired(account.id);
+        expired.push(account.id);
+      }
+    } else if (account.type === 'native' && !account.sessionExpired && account.email) {
+      // Saved without a token (older builds, or decrypted on another PC): it has to sign in again.
+      markNativeExpired(account.id);
+      expired.push(account.id);
+    } else if (account.type === 'microsoft') {
+      const before = publicLink(account)?.userId || null;
+      const result = await ensurePremiumLink(account.id).catch(() => null);
+      const after = publicLink(readAccounts().accounts.find((a) => a.id === account.id))?.userId || null;
+      if (before !== after) notifyAccountsChanged('renewed');
+      if (result && !result.ok && result.code === 'microsoft_expired') expired.push(account.id);
+    }
+  }
+  return { ok: true, expired };
+}
+
 /** Ends a Native session on the server (best effort, never blocks signing out). */
 function revokeNativeSession(token) {
   if (!token) return;
@@ -782,6 +843,8 @@ function init(dependencies, ipcMain) {
       data.accounts.push(account);
       data.activeId = account.id;
       saveAccounts(data);
+      // Signed in again: a game that is already running gets a fresh ticket and unlocks by itself.
+      try { require('./launcher').refreshGameTicket?.(); } catch { /* no game running */ }
       return { ok: true, account };
     }
     return res;
@@ -808,6 +871,8 @@ function init(dependencies, ipcMain) {
       data.accounts.push(account);
       data.activeId = account.id;
       saveAccounts(data);
+      // Signed in again: a game that is already running gets a fresh ticket and unlocks by itself.
+      try { require('./launcher').refreshGameTicket?.(); } catch { /* no game running */ }
       return { ok: true, account };
     }
     return res;
@@ -853,6 +918,7 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('accounts:merge', async (_event, payload = {}) => mergeNative(payload));
   ipcMain.handle('accounts:openWebsite', async (_event, accountId) => openWebsite(accountId).catch((error) => ({ ok: false, error: String(error?.message || error) })));
   ipcMain.handle('accounts:refreshNames', async () => refreshNativeNames().catch(() => ({ ok: false, changed: false })));
+  ipcMain.handle('accounts:checkSessions', async () => checkSessions().catch(() => ({ ok: false, expired: [] })));
 
   // Rename a plain Native account. Premium and merged accounts are refused by
   // the server too: their name comes from Minecraft (minecraft.net).
@@ -922,6 +988,8 @@ function init(dependencies, ipcMain) {
 
 module.exports = {
   readAccounts,
+  markNativeExpired,
+  checkSessions,
   linkedIdentity,
   publicLink,
   ensurePremiumLink,

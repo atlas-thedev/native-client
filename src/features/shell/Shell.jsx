@@ -19,7 +19,7 @@ import NicknameModal from '../social/NicknameModal.jsx';
 import useSocial from '../social/useSocial.js';
 import SettingsView from '../settings/SettingsView.jsx';
 import SettingsModal from '../settings/SettingsModal.jsx';
-import AccountSwitcherModal from '../auth/AccountSwitcherModal.jsx';
+import AccountSwitcherModal, { sessionStateOf } from '../auth/AccountSwitcherModal.jsx';
 import CreateInstanceModal from '../instances/CreateInstanceModal.jsx';
 import useLauncher from '../launcher/useLauncher.js';
 import useInstances from '../instances/useInstances.js';
@@ -175,6 +175,8 @@ export default function Shell({
     if (canUseLocalLocker && (currentTab === 'relay' || currentTab === 'store')) setCurrentTab('home');
   }, [canUseLocalLocker, currentTab]);
   const [connectRequest, setConnectRequest] = useState(null);
+  const [reauthRequest, setReauthRequest] = useState(null);
+  const [expiredDismissed, setExpiredDismissed] = useState(null);
   // Opens the account switcher on "Merge with a Native account" for this premium account.
   const openConnectNative = useCallback((microsoftAccountId) => {
     setConnectRequest({ id: microsoftAccountId, nonce: Date.now() });
@@ -262,6 +264,18 @@ export default function Shell({
       return [entry, ...prev.filter((item) => item !== existing)].slice(0, 60);
     });
   }, [locale]);
+
+  // The active Native account's session expired: ask to sign in again (banner + login screen).
+  const activeSaved = accounts.find((entry) => entry.id === activeId) || null;
+  const sessionExpired = Boolean(activeSaved && sessionStateOf(activeSaved) === 'expired');
+  const openReauth = useCallback((id) => {
+    if (!id) return;
+    setReauthRequest({ id, nonce: Date.now() });
+    setAccountSwitcherOpen(true);
+  }, []);
+  useEffect(() => window.native?.launcher?.onNotice?.((notice) => {
+    if (notice?.kind === 'session-expired') notify(notice.title, notice.body);
+  }), [notify]);
 
   const revokeAdminView = useCallback(() => {
     setIsAdmin(false);
@@ -753,6 +767,17 @@ export default function Shell({
         />
 
         <div className="shell-content-layer">
+          {sessionExpired && expiredDismissed !== activeSaved.id && (
+            <div className="session-banner" role="alert">
+              <span className="session-banner-icon" aria-hidden="true">!</span>
+              <span className="session-banner-text">
+                <strong>Your Native session expired</strong>
+                <small>Skins, cosmetics and Relay are paused for {activeSaved.name}, here and in game, until you sign in again.</small>
+              </span>
+              <button type="button" className="session-banner-cta" onClick={() => openReauth(activeSaved.id)}>Sign in again</button>
+              <button type="button" className="session-banner-close" aria-label="Dismiss" onClick={() => setExpiredDismissed(activeSaved.id)}>×</button>
+            </div>
+          )}
           {currentTab === 'home' && (
             <HomeView
               instances={instancesManager.instances}
@@ -1002,6 +1027,7 @@ export default function Shell({
         onMergeNative={onMergeNative}
         onOpenWebsite={onOpenWebsite}
         connectRequest={connectRequest}
+        reauthRequest={reauthRequest}
       />
 
       <CreateInstanceModal
