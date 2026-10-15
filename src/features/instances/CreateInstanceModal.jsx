@@ -509,15 +509,10 @@ export default function CreateInstanceModal({
               <NativeIcon name="chevron-left" size={14} />Back
             </button>
             <span className="cim-foot-hint">{step === 'version' ? 'Double-click a version to continue' : step === 'loader' ? 'Fabric runs the Native mod on 1.16+' : 'Ctrl + Enter creates it'}</span>
-            {stepIndex < STEPS.length - 1 ? (
-              <button type="button" className="cim-next" onClick={() => goto(1)}>
-                Next<NativeIcon name="chevron-right" size={14} />
-              </button>
-            ) : (
-              <button type="button" className="cim-next" onClick={submit} disabled={!canSubmit}>
-                {initialPlay ? 'Create & Play' : 'Create'}<NativeIcon name="check" size={14} />
-              </button>
-            )}
+            {/* creating happens from the one button in the preview panel; the footer only moves between steps */}
+            <button type="button" className="cim-next" onClick={() => goto(1)} disabled={stepIndex >= STEPS.length - 1} style={stepIndex >= STEPS.length - 1 ? { visibility: 'hidden' } : undefined} aria-hidden={stepIndex >= STEPS.length - 1 || undefined}>
+              Next<NativeIcon name="chevron-right" size={14} />
+            </button>
           </footer>
         </section>
       </div>
