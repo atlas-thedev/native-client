@@ -411,7 +411,12 @@ function partnerOf(item, textureBase) {
     if (!found) return null;
     const origin = String(textureBase || '').replace(/\/csl\/textures\/$/, '');
     const pub = site.publicPartner(found, origin);
-    return { id: pub.id, name: pub.name, logo: pub.logo, accent: pub.accent, website: pub.website };
+    // the in-game client can only read PNG: bundled logos have a PNG twin
+    const media = /\/v1\/site\/partners\/media\/([a-z0-9-]+)\.webp$/.exec(found.logo || '');
+    const png = media && fs.existsSync(path.join(__dirname, 'partners-media', `${media[1]}.png`))
+      ? `${origin}/v1/site/partners/media/${media[1]}.png`
+      : (/\.png(\?|$)/i.test(pub.logo || '') ? pub.logo : null);
+    return { id: pub.id, name: pub.name, logo: pub.logo, logoPng: png, accent: pub.accent, website: pub.website };
   } catch {
     return null;
   }
