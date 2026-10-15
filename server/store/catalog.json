@@ -1,12 +1,187 @@
 {
   "version": 1,
   "sections": [
-    {"id": "capes", "name": "Capes", "blurb": "Animated and classic capes for your Native account."},
-    {"id": "hats", "name": "Hats", "blurb": "3D hats that sit on your head in game. Some of them move."},
-    {"id": "glasses", "name": "Glasses", "blurb": "Shades, specs and visors for your face."},
-    {"id": "back", "name": "Wings & Backpacks", "blurb": "Wings, jetpacks and backpacks that ride on your back."},
-    {"id": "shoes", "name": "Shoes", "blurb": "Kicks and boots for your feet."},
-    {"id": "hand", "name": "Hand Items", "blurb": "Things to hold in your hand in game."}
+    {
+      "id": "capes",
+      "name": "Capes",
+      "blurb": "Animated and classic capes for your Native account."
+    },
+    {
+      "id": "hats",
+      "name": "Hats",
+      "blurb": "3D hats that sit on your head in game. Some of them move."
+    },
+    {
+      "id": "glasses",
+      "name": "Glasses",
+      "blurb": "Shades, specs and visors for your face."
+    },
+    {
+      "id": "back",
+      "name": "Wings & Backpacks",
+      "blurb": "Wings, jetpacks and backpacks that ride on your back."
+    },
+    {
+      "id": "shoes",
+      "name": "Shoes",
+      "blurb": "Kicks and boots for your feet."
+    },
+    {
+      "id": "hand",
+      "name": "Hand Items",
+      "blurb": "Things to hold in your hand in game."
+    }
   ],
-  "items": []
+  "items": [
+    {
+      "id": "sakura-night",
+      "section": "capes",
+      "name": "Sakura Night",
+      "description": "Cherry blossoms drifting under a luminous night sky.",
+      "tags": [
+        "animated",
+        "anime",
+        "sakura"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": true
+    },
+    {
+      "id": "crimson-moon",
+      "section": "capes",
+      "name": "Crimson Moon",
+      "description": "A blood-red eclipse radiating dark anime energy.",
+      "tags": [
+        "animated",
+        "anime",
+        "dark"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "manga-burst",
+      "section": "capes",
+      "name": "Manga Burst",
+      "description": "High-energy manga action lines bursting across your cape.",
+      "tags": [
+        "animated",
+        "anime",
+        "manga"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "thunder-god",
+      "section": "capes",
+      "name": "Thunder God",
+      "description": "Crackling lightning storms summoned from the heavens.",
+      "tags": [
+        "animated",
+        "anime",
+        "thunder"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "kitsune-foxfire",
+      "section": "capes",
+      "name": "Kitsune Foxfire",
+      "description": "Mystical foxfire spirits dancing in glowing harmony.",
+      "tags": [
+        "animated",
+        "anime",
+        "kitsune"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "great-wave",
+      "section": "capes",
+      "name": "Great Wave",
+      "description": "Legendary tidal waves rolling in timeless woodblock style.",
+      "tags": [
+        "animated",
+        "anime",
+        "wave"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": true
+    },
+    {
+      "id": "golden-sky",
+      "section": "capes",
+      "name": "Golden Sky",
+      "description": "Sunlit anime clouds bathed in warm golden twilight.",
+      "tags": [
+        "animated",
+        "anime",
+        "calm"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "magical-sparkle",
+      "section": "capes",
+      "name": "Magical Sparkle",
+      "description": "Shimmering starlight and enchanted anime sparkles.",
+      "tags": [
+        "animated",
+        "anime",
+        "magic"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "oni-aura",
+      "section": "capes",
+      "name": "Oni Aura",
+      "description": "A fierce demon aura glowing with untamed strength.",
+      "tags": [
+        "animated",
+        "anime",
+        "oni"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    },
+    {
+      "id": "koi-pond",
+      "section": "capes",
+      "name": "Koi Pond",
+      "description": "Graceful koi fish swimming gently through crystal waters.",
+      "tags": [
+        "animated",
+        "anime",
+        "koi"
+      ],
+      "frames": 48,
+      "fps": 12,
+      "author": "Native",
+      "featured": false
+    }
+  ]
 }
