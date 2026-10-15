@@ -4,7 +4,7 @@
 .home-mascot {
   position: absolute;
   z-index: 1;
-  left: 78%;
+  left: 68%;
   top: 56%;
   transform: translate(-50%, -50%);
   display: flex;
@@ -26,7 +26,8 @@
 @keyframes home-mascot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes home-mascot-hand { 0%, 60%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(16deg); } 30% { transform: rotate(-8deg); } }
 
-@media (max-width: 1180px) { .home-mascot { display: none; } }
+/* the skin's size comes from HomeMascot (it measures the hero area), so it scales with the window */
+.home-mascot-probe { display: contents; }
 
 /* tighter hero: big instance name, small version line, less air */
 .home-view .home-cluster-subtitle {

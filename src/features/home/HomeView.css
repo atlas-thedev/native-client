@@ -799,3 +799,15 @@
 }
 .recents-rail-btn:hover:not(:disabled), .other-versions-tile:hover { background: rgba(255, 255, 255, 0.07); }
 .home-side-col > * { border-radius: 16px; }
+
+/* ---------- responsive home (zones) ----------
+   Greeting top-left, title + Launch bottom-left, skin in the middle, ad at the top of the right column,
+   "Jump back in" at its bottom, instances along the bottom. Everything scales with the window. */
+.home-view .home-cluster-title { font-size: clamp(30px, 1.6vw + 2.2vh, 60px); }
+.home-view .home-topbar { padding-top: clamp(16px, 3vh, 34px); }
+.home-view .home-hero-content { padding-bottom: clamp(12px, 2.4vh, 28px); }
+.home-view .home-recents-container { padding-bottom: clamp(14px, 2.4vh, 26px); }
+.home-view .version-card { width: clamp(180px, 13vw, 260px); height: clamp(96px, 12vh, 140px); }
+@media (max-height: 640px) {
+  .home-view .recents-hint { display: none; }
+}

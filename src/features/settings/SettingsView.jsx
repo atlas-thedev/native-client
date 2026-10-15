@@ -404,7 +404,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
     `Native Client v${buildVersion}`,
     `Platform: ${window.native?.platform || navigator.platform || 'unknown'}`,
     `User agent: ${navigator.userAgent}`,
-    `System RAM: ${systemMem?.totalGb ? `${systemMem.totalGb} GB` : 'unknown'}`,
+    `System RAM: ${systemMem?.totalGb ? `${Math.round(systemMem.totalGb)} GB` : 'unknown'}`,
     `Allocated RAM: ${store?.memory?.min ?? '?'}–${store?.memory?.max ?? '?'} GB`,
     `Resolution: ${prefs.fullscreen ? 'Fullscreen' : `${prefs.resolutionWidth}×${prefs.resolutionHeight}`}`,
     `Language: ${locale}`,
@@ -697,7 +697,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
                   </div>
 
                   <div className="sv-stats">
-                    <StatCard icon={Cpu} label="Memory" value={`${memory.min}–${memory.max} GB`} sub={systemMem?.totalGb ? `of ${systemMem.totalGb} GB system RAM` : 'Allocated to Minecraft'} onClick={() => goTo('minecraft', 'memory')} />
+                    <StatCard icon={Cpu} label="Memory" value={`${memory.min}–${memory.max} GB`} sub={systemMem?.totalGb ? `of ${Math.round(systemMem.totalGb)} GB system RAM` : 'Allocated to Minecraft'} onClick={() => goTo('minecraft', 'memory')} />
                     <StatCard icon={Monitor} label="Display" value={prefs.fullscreen ? 'Fullscreen' : `${prefs.resolutionWidth}×${prefs.resolutionHeight}`} sub="Game window" onClick={() => goTo('minecraft', 'resolution')} />
                     <StatCard icon={Terminal} label="Java" value={javaCount ? `${javaCount} custom` : 'Automatic'} sub="Runtime selection" onClick={() => goTo('java')} />
                     <StatCard icon={Globe} label="Language" value={LANGUAGE_NAMES[locale] || locale} sub="Interface" onClick={() => goTo('launcher', 'language')} />
@@ -956,7 +956,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
                   <div className="sv-stats is-compact">
                     <StatCard icon={Info} label="Version" value={`v${buildVersion}`} sub="Stable channel" />
                     <StatCard icon={Monitor} label="Platform" value={window.native?.platform || navigator.platform || 'Windows'} sub="Operating system" />
-                    <StatCard icon={Cpu} label="System RAM" value={systemMem?.totalGb ? `${systemMem.totalGb} GB` : '—'} sub="Installed memory" />
+                    <StatCard icon={Cpu} label="System RAM" value={systemMem?.totalGb ? `${Math.round(systemMem.totalGb)} GB` : '—'} sub="Installed memory" />
                     <StatCard icon={HardDrive} label="Instances" value={String(instances.length)} sub="On this PC" />
                   </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { dyeTextures, cosmeticAssets } from '../../lib/dyeCache.js';
 import './HomeMascot.css';
@@ -110,12 +110,32 @@ export default function HomeMascot({ account }) {
     return { ...account, ...skin, capeUrl, hasCape: Boolean(capeUrl), capeAnim };
   }, [account, look]);
 
-  if (!viewerAccount) return null;
+  // The skin is sized from the hero area, so it grows and shrinks with the window (hidden when there is no room).
+  const probeRef = useRef(null);
+  const [size, setSize] = useState(null);
+  useEffect(() => {
+    const host = probeRef.current?.parentElement;
+    if (!host || typeof ResizeObserver === 'undefined') { setSize({ w: 560, h: 520 }); return undefined; }
+    const fit = () => {
+      const { width, height } = host.getBoundingClientRect();
+      if (width < 720 || height < 340) { setSize(null); return; }
+      const h = Math.round(Math.max(300, Math.min(height * 0.86, width * 0.62, 680)));
+      setSize((cur) => (cur && Math.abs(cur.h - h) < 4 ? cur : { w: Math.round(h * 0.85), h }));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, [Boolean(viewerAccount)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!viewerAccount || !size) return <div ref={probeRef} className="home-mascot-probe" aria-hidden="true" />;
 
   return (
+    <div ref={probeRef} className="home-mascot-probe" aria-hidden="true">
     <div className="home-mascot" aria-hidden="true">
-      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={560} height={520} animation="pose" zoom={0.68} />
+      <SkinViewer3D account={viewerAccount} cosmetics={cosmetics} width={size.w} height={size.h} animation="pose" zoom={0.68} />
       <div className="home-mascot-shadow" />
+    </div>
     </div>
   );
 }
