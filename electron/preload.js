@@ -299,6 +299,11 @@ const api = {
     list: (options) => ipcRenderer.invoke('ads:list', options),
     savePlayer: (dataUrl) => ipcRenderer.invoke('ads:savePlayer', dataUrl)
   },
+  playtime: {
+    drain: () => ipcRenderer.invoke('playtime:drain'),
+    ack: (ids) => ipcRenderer.invoke('playtime:ack', ids),
+    onSession: (callback) => subscribe('playtime:session', callback)
+  },
   partners: {
     list: (options) => ipcRenderer.invoke('partners:list', options)
   },

@@ -3,6 +3,7 @@ const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { Client } = require('minecraft-launcher-core');
 const auth = require('./auth');
+const playtime = require('./playtime');
 const settingsMod = require('./settings');
 const javaMod = require('./java');
 const javaRuntime = require('./javaRuntime');
@@ -774,6 +775,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
         sawOutput = true;
         if (finished || crashSeen) return;
         setState('running', 'Minecraft is running');
+        playtime.begin(instance.id);
         // The splash screen is up: stop advertising "Starting…" to friends.
         if (!payload?.quickJoinServer && !presenceWatch.isActive()) {
           socialMod.setPresence({ status: 'in-game', activity: 'In-game: Menus', serverAddress: null });
@@ -807,13 +809,16 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       }
       stopTicketUpkeep();
       nativeMod.clearHandoff(instanceDir(instance.id));
+      playtime.end({ crashed: true });
       setState('error', `Minecraft process failed: ${err.message}`);
       resetPresence();
       gameConsole.end(instance.id, { note: `Minecraft process failed: ${err.message}` });
     });
+    let exitedAt = 0;
     const finish = async (code, signal) => {
       if (finished) return;
       finished = true;
+      const endedAt = exitedAt || Date.now();
       clearTimeout(runningFallback);
       clearTimeout(crashKillTimer);
       const startedAgo = Date.now() - launchedAt;
@@ -836,6 +841,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       const verdict = killed
         ? { crashed: false, detail: '' }
         : classifyExit({ code, signal, crashSeen, hasCrashRecord: Boolean(record), startedAgo, sawOutput });
+      // Time ends when the process did, not after the crash report was read.
+      playtime.end({ crashed: verdict.crashed, endedAt });
       if (verdict.crashed) {
         if (outputTail.includes('org/spongepowered/asm/launch/MixinBootstrap')) {
           setState('error', `${loaders.displayName(instance.loader)}'s Mixin failed to load after repair. Check the logs and try launching again.`);
@@ -857,6 +864,7 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
     // 'exit' fires as soon as the process dies; 'close' waits for its pipes,
     // which a lingering child process can hold open. Use whichever comes first.
     child.on('exit', (code, signal) => {
+      exitedAt = Date.now();
       setTimeout(() => finish(code, signal), 1500);
     });
     child.on('close', (code, signal) => { finish(code, signal); });

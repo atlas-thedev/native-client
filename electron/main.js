@@ -15,6 +15,7 @@ const newsMod = require('./news');
 const serverPingMod = require('./serverPing');
 const adsMod = require('./ads');
 const partnersMod = require('./partners');
+const playtimeMod = require('./playtime');
 const wardrobeMod = require('./wardrobe');
 const socialMod = require('./social');
 const relayMod = require('./relay');
@@ -231,6 +232,7 @@ newsMod.init({ app }, ipcMain);
 serverPingMod.init({ app }, ipcMain);
 adsMod.init({ app }, ipcMain);
 partnersMod.init({ app }, ipcMain);
+playtimeMod.init({ app, getWin: () => win }, ipcMain);
 wardrobeMod.init({ app, auth: authMod }, ipcMain);
 socialMod.init({ app, getWin: () => win }, ipcMain);
 relayMod.init();
@@ -246,6 +248,9 @@ app.whenReady().then(() => {
     }
   });
 });
+
+// Quitting while a game is being timed still banks the time played so far.
+app.on('before-quit', () => { try { playtimeMod.end({}); } catch { /* nothing to bank */ } });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
