@@ -280,8 +280,13 @@ function SkinViewerCanvas({
       capeAnimRef.current?.stop();
       capeAnimRef.current = null;
       if (capeUrl) {
-        viewer.loadCape(capeUrl).then(() => {
+        loadStripImage(capeUrl).then((img) => {
           if (reqId !== capeReqRef.current) return;
+          try {
+            viewer.loadCape(img);
+          } catch (err) {
+            console.warn('viewer.loadCape failed', err);
+          }
           const anim = capeAnimSource.current;
           if (anim) {
             loadStripImage(anim.stripUrl).then((image) => {
@@ -365,6 +370,7 @@ function SkinViewerCanvas({
     if (!viewer || !lib || !ready) return;
     // The 'pose' stance turns and lifts the whole player; undo that for every other animation.
     if (viewer.playerObject && animation !== 'pose') { viewer.playerObject.rotation.y = 0; viewer.playerObject.position.y = 0; }
+    if (viewer.playerObject && animation === 'pose' && viewer.playerObject.rotation.y === 0) { viewer.playerObject.rotation.y = -0.45; }
 
     if (!animation || animation === 'none') {
       viewer.animation = null;
@@ -393,8 +399,6 @@ function SkinViewerCanvas({
         return new lib.FunctionAnimation((player, t) => {
           const s = player.skin;
           const b = Math.sin(t * 1.6);
-          player.rotation.y = -0.45;
-          player.position.y = 0;
           s.head.rotation.set(0.06 + b * 0.02, 0.3, -0.1);
           s.body.rotation.set(0, 0, 0.03);
           s.rightArm.rotation.set(-0.35 + b * 0.03, 0, -0.42 - b * 0.02);

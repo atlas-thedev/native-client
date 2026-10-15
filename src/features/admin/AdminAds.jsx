@@ -108,7 +108,7 @@ export default function AdminAds({ doc, setDoc, onNotify, onAccessRevoked }) {
                 <span style={{ display: 'flex', gap: 8 }}>
                   <input style={{ width: 130 }} maxLength={20} placeholder={i === 0 ? 'Join' : 'Website'} value={b.label} onChange={(event) => setButton(i, 'label', event.target.value)} />
                   <span className="admin-inline-select"><AdminSelect value={b.action} options={ACTIONS} onChange={(value) => setButton(i, 'action', value)} /></span>
-                  <input style={{ flex: 1 }} maxLength={500} placeholder={b.action === 'server' ? 'play.example.net' : 'https://discord.gg/playnative'} value={b.value} onChange={(event) => setButton(i, 'value', event.target.value)} />
+                  <input style={{ flex: 1 }} maxLength={500} placeholder={b.action === 'server' ? 'play.example.net' : 'https://discord.gg/nativeclient'} value={b.value} onChange={(event) => setButton(i, 'value', event.target.value)} />
                 </span>
               </div>
             ))}

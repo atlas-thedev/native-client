@@ -351,6 +351,15 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       for (const hex of item.dyeColors || []) if (hex !== item.dyeDefault) loadDye(id, hex, true);
     }
   }, [wearing, catalogById, dyePanelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tryOn?.kind === 'cosmetic') fetchCosmetic(tryOn.id);
+  }, [tryOn?.id, tryOn?.kind]);
+  useEffect(() => {
+    for (const item of trySetPieces) {
+      if (item?.kind === 'cosmetic') fetchCosmetic(item.id);
+    }
+  }, [trySetPieces]);
+
   // What the player wears, with the item being tried on swapped into its slot.
   const wornCosmetics = useMemo(() => {
     const slots = showCosmetics ? { ...(wearing || {}) } : {};
@@ -362,8 +371,21 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     }
     return Object.entries(slots).map(([slot, id]) => (cosAssets[id] && !dyePending(id) ? { ...dyedAsset(id), side: sides[slot] || null } : null)).filter(Boolean);
   }, [wearing, cosAssets, showCosmetics, tryOn, trySet, catalogBundles, sides, dyes, dyeTex, catalogById]); // eslint-disable-line react-hooks/exhaustive-deps
-  const viewAngle = section === 'cosmetics' ? (FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85) : 0;
-  const viewerAccount = useMemo(() => ({ ...account, model: currentModel, skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null, capeUrl: previewCapeUrl, hasCape: Boolean(previewCapeUrl), capeAnim: previewCapeAnim }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim]);
+  const viewAngle = useMemo(() => {
+    if (section !== 'cosmetics') return 0;
+    if (tryOn) {
+      return (tryOn.kind !== 'cosmetic' || tryOn.slot === 'back') ? Math.PI * 0.85 : 0.42;
+    }
+    return FRONT_TABS.has(cosTab) ? 0.42 : Math.PI * 0.85;
+  }, [section, tryOn, cosTab]);
+  const viewerAccount = useMemo(() => ({
+    ...account,
+    model: currentModel,
+    skinUrl: officialSkin?.url || wardrobe?.active?.skinUrl || null,
+    capeUrl: previewCapeUrl,
+    hasCape: Boolean(previewCapeUrl),
+    capeAnim: previewCapeAnim
+  }), [account, currentModel, officialSkin?.url, wardrobe?.active?.skinUrl, previewCapeUrl, previewCapeAnim, capeReady]);
 
   const skinItems = useMemo(() => {
     const byId = new Map();

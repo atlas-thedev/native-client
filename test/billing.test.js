@@ -81,13 +81,13 @@ test('Tebex webhooks sell capes, run Native+, refund, and redeem codes', async (
 
     // Native+ unlocks paid capes while active.
     const firstPayment = {
-      transaction_id: 'tbx-2', status: { id: 1 }, price: { amount: 2.99, currency: 'USD' }, price_paid: { amount: 2.99, currency: 'USD' },
+      transaction_id: 'tbx-2', status: { id: 1 }, price: { amount: 5.99, currency: 'USD' }, price_paid: { amount: 5.99, currency: 'USD' },
       payment_method: { name: 'Card' }, custom: { userId: buyer.id, kind: 'plus', plan: 'monthly' }, products: [{ name: 'Native+ (monthly)', custom: { plan: 'monthly' } }],
       recurring_payment_reference: 'tbx-r-1'
     };
     await hook(ev('payment.completed', firstPayment));
     const renewsAt = new Date(Date.now() + 864e5 * 30).toISOString();
-    await hook(ev('recurring-payment.started', { reference: 'tbx-r-1', next_payment_at: renewsAt, status: { id: 2, description: 'Active' }, initial_payment: firstPayment, price: { amount: 2.99, currency: 'USD' } }));
+    await hook(ev('recurring-payment.started', { reference: 'tbx-r-1', next_payment_at: renewsAt, status: { id: 2, description: 'Active' }, initial_payment: firstPayment, price: { amount: 5.99, currency: 'USD' } }));
     const me = await (await call('GET', '/v1/billing/me', null, buyerSession.token)).json();
     assert.equal(me.plus.active, true);
     assert.equal(me.plus.plan, 'monthly');

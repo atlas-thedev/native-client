@@ -38,7 +38,9 @@ function capeUnit(width, height) {
 export function loadStripImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.crossOrigin = 'anonymous';
+    if (typeof src === 'string' && !/^data:|^blob:/.test(src)) {
+      image.crossOrigin = 'anonymous';
+    }
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error('Could not read the animation image.'));
     image.src = src;
