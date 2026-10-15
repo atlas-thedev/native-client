@@ -42,6 +42,7 @@ import { SUPPORTED_LOCALES } from '../../i18n/catalogs.js';
 import { readNotifyPrefs, writeNotifyPrefs } from '../shell/relayNotifications.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import packageInfo from '../../../package.json';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import './SettingsView.css';
 
 /* ────────────────────────────────────────────────────────────
@@ -556,6 +557,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
 
   return (
     <div className="settings-view-page sv" data-testid="settings-view-page">
+      <Honeycomb glow testId="settings-honeycomb-bg" />
       <aside className="sv-sidebar">
         <div className="sv-brand">
           {onBack && (

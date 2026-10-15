@@ -3,6 +3,7 @@ import {
   ArrowLeft, ArrowRight, BookOpen, Boxes, Compass, LifeBuoy, Rocket, Search, UsersRound, X
 } from 'lucide-react';
 import { GUIDES, GUIDE_CATEGORIES, guideById } from './guides.js';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import './GuidesView.css';
 
 const CATEGORY_ICON = { start: Rocket, play: Boxes, content: Compass, account: UsersRound, help: LifeBuoy };
@@ -32,7 +33,9 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
   const open = openId ? guideById(openId) : null;
 
   return (
-    <div className="guides-page" ref={scrollRef}>
+    <div className="guides-shell">
+      <Honeycomb glow testId="guides-honeycomb-bg" />
+      <div className="guides-page" ref={scrollRef}>
       {open ? (
         <GuideDetail
           guide={open}
@@ -94,6 +97,7 @@ export default function GuidesView({ initialGuideId = null, onAction }) {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
