@@ -203,7 +203,7 @@ export default function Shell({
         instance: runningInstance || null
       }
     : null;
-  usePlaytimeTracker(instancesManager.recordSession, { launcherState: launcher });
+  usePlaytimeTracker(instancesManager.recordSession, { ready: instancesManager.synced });
   const social = useSocial(socialAccount);
   const crash = useCrashReports();
   const instancesRef = useRef(instancesManager.instances);

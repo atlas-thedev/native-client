@@ -174,6 +174,8 @@ export default function useInstances(initialData = null) {
   const dataRef = useRef(data);
   dataRef.current = data;
   const [loaded, setLoaded] = useState(() => Boolean(initialData?.instances?.length));
+  // The disk copy has finished loading: nothing can overwrite what is applied from now on.
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     const parsed = normalizeSaved(initialData);
@@ -190,16 +192,31 @@ export default function useInstances(initialData = null) {
       })
       .catch((err) => console.error('Could not load instances:', err))
       .finally(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) { setLoaded(true); setSynced(true); }
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // Play sessions are acknowledged to the launcher only once the data holding them is on disk.
+  const unacked = useRef(new Map()); // session id -> { instanceId, startedAt }
   useEffect(() => {
     if (!loaded) return;
-    saveData(data).catch((err) => console.error('Could not save instances:', err));
+    // Only sessions that are really in the data being written (or whose instance is gone) are acknowledged.
+    const ids = [...unacked.current.entries()]
+      .filter(([, s]) => {
+        const item = data.instances.find((entry) => entry.id === s.instanceId);
+        return !item || (Array.isArray(item.sessions) && item.sessions.some((entry) => entry.startedAt === s.startedAt));
+      })
+      .map(([id]) => id);
+    saveData(data)
+      .then((ok) => {
+        if (ok === false || !ids.length) return;
+        ids.forEach((id) => unacked.current.delete(id));
+        window.native?.playtime?.ack?.(ids);
+      })
+      .catch((err) => console.error('Could not save instances:', err));
   }, [data, loaded]);
 
   const selected =
@@ -211,11 +228,15 @@ export default function useInstances(initialData = null) {
    * launch that actually happened.
    */
   const recordSession = useCallback((id, durationSeconds, meta = {}) => {
+    if (meta.id) unacked.current.set(meta.id, { instanceId: id, startedAt: meta.startedAt });
     setData((current) => ({
       ...current,
       instances: current.instances.map((item) => {
         if (item.id !== id) return item;
-        const next = applySession(normalizeStats(item), {
+        const before = normalizeStats(item);
+        // The launcher may hand over the same session twice (it is only dropped from its queue once saved).
+        if (meta.startedAt && before.sessions.some((entry) => entry.startedAt === meta.startedAt)) return item;
+        const next = applySession(before, {
           secs: durationSeconds,
           startedAt: meta.startedAt,
           endedAt: meta.endedAt,
@@ -232,6 +253,7 @@ export default function useInstances(initialData = null) {
     selected,
     selectedId: data.selectedId,
     loaded,
+    synced,
     totals: summarizeLibrary(data.instances),
     recordSession,
 

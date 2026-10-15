@@ -94,25 +94,6 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
     '--pt-logo-size': `${logoSize}px`
   };
 
-  // Gentle 3D tilt that follows the pointer.
-  const onMove = (event) => {
-    const el = ref.current;
-    if (!el) return;
-    const box = el.getBoundingClientRect();
-    const x = (event.clientX - box.left) / box.width - 0.5;
-    const y = (event.clientY - box.top) / box.height - 0.5;
-    el.style.setProperty('--pt-rx', `${(-y * (size === 'hero' ? 4 : 7)).toFixed(2)}deg`);
-    el.style.setProperty('--pt-ry', `${(x * (size === 'hero' ? 5 : 9)).toFixed(2)}deg`);
-    el.style.setProperty('--pt-mx', `${((x + 0.5) * 100).toFixed(1)}%`);
-    el.style.setProperty('--pt-my', `${((y + 0.5) * 100).toFixed(1)}%`);
-  };
-  const onLeave = () => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.setProperty('--pt-rx', '0deg');
-    el.style.setProperty('--pt-ry', '0deg');
-  };
-
   const visit = () => {
     if (preview || !pt.website) return;
     onVisit?.(pt);
@@ -132,8 +113,6 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
       ref={ref}
       className={`pt-card is-${size} pt-anim-${animation}${preview ? ' is-preview' : ''}`}
       style={style}
-      onPointerMove={onMove}
-      onPointerLeave={onLeave}
     >
       <div className="pt-card-inner">
         {background && <img className="pt-bg" src={background} alt="" draggable="false" />}
