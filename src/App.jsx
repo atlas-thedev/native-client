@@ -3,8 +3,6 @@ import Shell from './features/shell/Shell.jsx';
 import UpdateCenter, { UpdateToast } from './features/updater/UpdateCenter.jsx';
 import useUpdater from './features/updater/useUpdater.js';
 import useNetwork from './features/network/useNetwork.js';
-import OnboardingFlow from './features/onboarding/OnboardingFlow.jsx';
-import AccountSwitcherModal from './features/auth/AccountSwitcherModal.jsx';
 import { setApplicationLocale } from './i18n/I18nProvider.jsx';
 
 const GUEST = { id: 'guest', name: 'Guest', uuid: null, type: 'guest', isMicrosoft: false };
@@ -19,7 +17,7 @@ export default function App() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [startup, setStartup] = useState({ ready: false, onboarding: false, settings: null });
+  const [startup, setStartup] = useState({ ready: false, settings: null });
   const [updateOpen, setUpdateOpen] = useState(false);
   const [toastVersion, setToastVersion] = useState(null);
   const [wardrobe, setWardrobe] = useState(null);
@@ -133,24 +131,8 @@ export default function App() {
           }
         }
 
-        const completion = settings?.onboarding?.completed;
-        const hasExistingData = Boolean(
-          accountData?.accounts?.length || instanceData?.instances?.length
-        );
-        const onboarding = completion === true ? false : completion === false ? true : !hasExistingData;
         setApplicationLocale(settings?.onboarding?.language || 'en');
-
-        // Transparently mark pre-onboarding installs as complete.
-        let migratedSettings = settings;
-        if (completion == null && hasExistingData) {
-          migratedSettings = {
-            ...settings,
-            onboarding: { language: settings?.onboarding?.language || 'en', completed: true }
-          };
-          await window.native.settings?.save(migratedSettings);
-        }
-
-        setStartup({ ready: true, onboarding, settings: migratedSettings, instances: instanceData });
+        setStartup({ ready: true, settings, instances: instanceData });
 
         // Background sync so any remote cloud updates are pulled seamlessly
         if (initialAccount && window.native.wardrobe?.sync) {
@@ -178,18 +160,15 @@ export default function App() {
         } catch {}
       }
       const instanceData = rawInstances ? JSON.parse(rawInstances) : null;
-      const completion = settings?.onboarding?.completed;
-      const hasExistingData = Boolean(instanceData?.instances?.length);
-      const onboarding = completion === true ? false : completion === false ? true : !hasExistingData;
       setApplicationLocale(settings?.onboarding?.language || 'en');
 
       setAccounts(savedAccounts);
-      setStartup({ ready: true, onboarding, settings, instances: instanceData });
+      setStartup({ ready: true, settings, instances: instanceData });
     };
 
     loadStartup().catch((error) => {
       console.error('Could not load startup state:', error);
-      setStartup({ ready: true, onboarding: true, settings: {}, instances: null });
+      setStartup({ ready: true, settings: {}, instances: null });
     });
   }, []);
 
@@ -331,26 +310,6 @@ export default function App() {
     await refreshAccounts();
   };
 
-  const handleOnboardingComplete = async ({ language, instance }) => {
-    const instanceData = { instances: [instance], selectedId: instance.id };
-    const nextSettings = {
-      ...(startup.settings ?? {}),
-      onboarding: { completed: true, language }
-    };
-
-    // Save the instance first. The completion marker is written last so a
-    // failed write never strands the user outside setup without an instance.
-    if (window.native) {
-      await window.native.instances.save(instanceData);
-      const savedSettings = await window.native.settings.save(nextSettings);
-      setStartup({ ready: true, onboarding: false, settings: savedSettings ?? nextSettings, instances: instanceData });
-    } else {
-      localStorage.setItem('native.instances', JSON.stringify(instanceData));
-      localStorage.setItem('native.settings', JSON.stringify(nextSettings));
-      setStartup({ ready: true, onboarding: false, settings: nextSettings, instances: instanceData });
-    }
-  };
-
   // Fade out the boot splash (index.html) once the first real screen has
   // painted: two frames after commit guarantees layout and paint happened.
   useEffect(() => {
@@ -404,6 +363,7 @@ export default function App() {
         onSwitchAccount={handleSwitchAccount}
         onRemoveAccount={handleRemoveAccount}
         onMergeNative={handleMergeNative}
+        onRetryNative={handleRetryNative}
         onOpenWebsite={handleOpenWebsite}
         onWardrobeChanged={(value) => {
           setWardrobe({ ...value, accountId: activeAccount?.id });

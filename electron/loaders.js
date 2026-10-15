@@ -733,7 +733,7 @@ function disableMods(modsDir, files) {
   if (!disabled.length) return disabled;
 
   const primary = path.join(modsDir, '.native-mods.json');
-  const legacy = path.join(modsDir, '.native-mods.json');
+  const legacy = path.join(modsDir, '.noctra-mods.json');
   const manifestFile = fs.existsSync(primary) ? primary : fs.existsSync(legacy) ? legacy : null;
   if (manifestFile) {
     try {

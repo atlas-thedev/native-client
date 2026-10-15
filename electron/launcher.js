@@ -270,7 +270,7 @@ function quarantineIncompatibleMods(gameDirectory, mcVersion) {
 
   if (quarantined.length > 0) {
     const primaryManifest = path.join(modsDirectory, '.native-mods.json');
-    const legacyManifest = path.join(modsDirectory, '.native-mods.json');
+    const legacyManifest = path.join(modsDirectory, '.noctra-mods.json');
     const manifestFile = fs.existsSync(primaryManifest) ? primaryManifest : (fs.existsSync(legacyManifest) ? legacyManifest : primaryManifest);
     try {
       const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));

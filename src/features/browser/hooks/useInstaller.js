@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../i18n/I18nProvider.jsx';
 import {
   LOADER_FACETS,
-  endpoint,
   getProject,
   getVersion,
   getVersions,
@@ -329,15 +328,12 @@ export default function useInstaller({
 
     try {
       /* Ask for versions that actually match the instance rather than
-         blindly taking the newest build. */
-      const params = {};
-      if (targetVersion) params.game_versions = JSON.stringify([targetVersion]);
-      if (activeType.id === 'mod' && loaderFacet) {
-        params.loaders = JSON.stringify([loaderFacet]);
-      }
-
-      let response = await fetch(endpoint('/project/' + id + '/version', params));
-      let versions = response.ok ? await response.json() : [];
+         blindly taking the newest build. getVersions handles both
+         Modrinth and CurseForge (cf:) projects. */
+      let versions = await getVersions(id, {
+        gameVersion: targetVersion || null,
+        loader: activeType.id === 'mod' ? loaderFacet : null
+      });
 
       versions = Array.isArray(versions) ? versions.filter(versionMatchesTarget) : [];
       if (versions.length === 0) {

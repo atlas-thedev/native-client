@@ -43,7 +43,7 @@ const modsDir = (instanceId) => resolveInside(instanceDir(instanceId), 'mods');
 const manifestPath = (instanceId) => {
   const dir = modsDir(instanceId);
   const primary = path.join(dir, '.native-mods.json');
-  const legacy = path.join(dir, '.native-mods.json');
+  const legacy = path.join(dir, '.noctra-mods.json');
   return fs.existsSync(primary) || !fs.existsSync(legacy) ? primary : legacy;
 };
 
@@ -58,7 +58,7 @@ function readManifest(instanceId) {
   try {
     const dir = modsDir(instanceId);
     const primary = path.join(dir, '.native-mods.json');
-    const legacy = path.join(dir, '.native-mods.json');
+    const legacy = path.join(dir, '.noctra-mods.json');
     const target = fs.existsSync(primary) ? primary : (fs.existsSync(legacy) ? legacy : primary);
     return JSON.parse(fs.readFileSync(target, 'utf8'));
   } catch {
@@ -70,11 +70,12 @@ function writeManifest(instanceId, manifest) {
   fs.mkdirSync(modsDir(instanceId), { recursive: true });
   const dir = modsDir(instanceId);
   const primary = path.join(dir, '.native-mods.json');
-  const legacy = path.join(dir, '.native-mods.json');
+  const legacy = path.join(dir, '.noctra-mods.json');
   const payload = JSON.stringify(manifest, null, 2);
   writeFileAtomic(primary, payload);
+  // The pre-rebrand manifest is migrated on first write.
   if (fs.existsSync(legacy)) {
-    writeFileAtomic(legacy, payload);
+    try { fs.unlinkSync(legacy); } catch {}
   }
 }
 
@@ -190,7 +191,7 @@ function init(dependencies, ipcMain) {
       }
       assertContentCompatible(instanceId, folder, metadata);
       const parsedUrl = new URL(url);
-      if (!['https:', 'http:'].includes(parsedUrl.protocol)) throw new Error('Unsupported download URL');
+      if (parsedUrl.protocol !== 'https:') throw new Error('Unsupported download URL');
       const { dir, target } = validateDestination(instanceId, folder, filename);
       fs.mkdirSync(dir, { recursive: true });
 
