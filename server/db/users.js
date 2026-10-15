@@ -253,16 +253,30 @@ function revokeSessions(db, userId, kind = null) {
   return Number(result.changes || 0);
 }
 
+/** Session kinds that stay alive while they are used (premium ones are renewed through Microsoft). */
+const SLIDING = new Set(['password', 'web']);
+
 function getUserBySession(db, token) {
   if (!token) return null;
-  return db.prepare(`
+  const now = Date.now();
+  const hash = tokenHash(token);
+  const row = db.prepare(`
     SELECT u.id, u.email, u.username, u.uuid, u.model, u.badges, u.is_admin, u.created_at,
            u.auth_type, u.minecraft_uuid, u.minecraft_username, u.minecraft_linked_at,
-           s.kind AS session_kind
+           s.kind AS session_kind, s.expires_at AS session_expires_at
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token = ? AND s.expires_at > ?
-  `).get(tokenHash(token), Date.now()) || null;
+  `).get(hash, now);
+  if (!row) return null;
+  // Sliding expiry: a session used in its second half gets a full lifetime again, so an account
+  // that is used at least once a fortnight never gets signed out behind the player's back.
+  const ttl = SESSION_TTL[row.session_kind];
+  if (ttl && SLIDING.has(row.session_kind) && row.session_expires_at - now < ttl / 2) {
+    db.prepare('UPDATE sessions SET expires_at = ? WHERE token = ?').run(now + ttl, hash);
+  }
+  delete row.session_expires_at;
+  return row;
 }
 
 function getMinecraftLink(db, userId) {
