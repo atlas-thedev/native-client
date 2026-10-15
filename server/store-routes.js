@@ -254,12 +254,26 @@ function searchUsers(query) {
       FROM users u JOIN store_owned o ON o.user_id = u.id
       LEFT JOIN store_prefs p ON p.user_id = u.id
       WHERE COALESCE(p.hide_locker, 0) = 0
-      GROUP BY u.id ORDER BY n DESC, u.created_at ASC LIMIT 12`).all().map((row) => ({ ...userCard(row), owned: Number(row.n) }));
+      GROUP BY u.id ORDER BY n DESC, u.created_at ASC LIMIT 50`).all().map((row) => ({ ...userCard(row), owned: Number(row.n) }));
   }
   return h.prepare(`SELECT u.username, u.uuid, u.model, u.created_at,
       (SELECT COUNT(*) FROM store_owned o WHERE o.user_id = u.id) AS n
     FROM users u WHERE u.username LIKE ? ORDER BY (lower(u.username) = lower(?)) DESC, length(u.username) ASC LIMIT 12`)
     .all(`${q}%`, q).map((row) => ({ ...userCard(row), owned: Number(row.n) }));
+}
+
+/** The newest accounts (public lockers only), for the website's "New on Native" list. */
+function recentUsers(limit = 24) {
+  return sql().prepare(`SELECT u.username, u.uuid, u.model, u.created_at,
+      (SELECT COUNT(*) FROM store_owned o WHERE o.user_id = u.id) AS n
+    FROM users u LEFT JOIN store_prefs p ON p.user_id = u.id
+    WHERE COALESCE(p.hide_locker, 0) = 0
+    ORDER BY u.created_at DESC LIMIT ?`).all(limit).map((row) => ({ ...userCard(row), owned: Number(row.n) }));
+}
+
+/** How many accounts exist. */
+function playerCount() {
+  try { return Number(sql().prepare('SELECT COUNT(*) AS n FROM users').get().n) || 0; } catch { return 0; }
 }
 
 /* ── animation policy (used by server.js and mod-routes.js) ───────── */
@@ -737,7 +751,12 @@ async function handleStoreRoutes(req, res, ctx) {
 
   if (req.method === 'GET' && url.pathname === '/v1/store/users') {
     if (!hit('store-users', ip, 60, 60_000)) { tooMany(res, 60); return true; }
-    send(res, 200, { ok: true, users: searchUsers(url.searchParams.get('q')) }, { 'Cache-Control': 'public, max-age=20', 'Access-Control-Allow-Origin': '*' });
+    const q = String(url.searchParams.get('q') || '').trim();
+    send(res, 200, {
+      ok: true,
+      users: searchUsers(q),
+      ...(q ? {} : { recent: recentUsers(), total: playerCount() })
+    }, { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
     return true;
   }
 

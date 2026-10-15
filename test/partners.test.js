@@ -105,3 +105,12 @@ test('store items can carry a partner brand, and admins can give the Partner bad
   assert.ok(JSON.parse(db.getUserById(adminUser.id).badges || '[]').includes('partner'));
 });
 
+
+test('the player directory lists the newest accounts and the total', async () => {
+  const r = await json('/v1/store/users');
+  assert.ok(Array.isArray(r.body.recent));
+  assert.ok(r.body.recent.some((u) => u.name === 'PartnerBoss'), 'a brand-new account shows up straight away');
+  assert.ok(r.body.total >= 1);
+  const search = await json('/v1/store/users?q=Partner');
+  assert.equal(search.body.recent, undefined);
+});
