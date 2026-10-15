@@ -807,7 +807,8 @@
 .home-view .home-topbar { padding-top: clamp(16px, 3vh, 34px); }
 .home-view .home-hero-content { padding-bottom: clamp(12px, 2.4vh, 28px); }
 .home-view .home-recents-container { padding-bottom: clamp(14px, 2.4vh, 26px); }
-.home-view .version-card { width: clamp(180px, 13vw, 260px); height: clamp(96px, 12vh, 140px); }
+/* always the original 232x124 shape, just bigger or smaller with the window */
+.home-view .version-card { height: clamp(96px, 12vh, 140px); width: auto; aspect-ratio: 232 / 124; }
 @media (max-height: 640px) {
   .home-view .recents-hint { display: none; }
 }
