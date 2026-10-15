@@ -8,6 +8,7 @@ import InstanceContentTab from './InstanceContentTab.jsx';
 import ScreenshotManager from './ScreenshotManager.jsx';
 import ConsoleTab from './ConsoleTab.jsx';
 import LoaderTab from './LoaderTab.jsx';
+import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import { formatPlaytime } from '../instances/playtimeStats.js';
 import { getClusterArt } from '../../data/versionsData.js';
 import './ClusterDetailView.css';
@@ -34,6 +35,7 @@ export default function ClusterDetailView({
   onLaunch,
   onKill,
   launcherState,
+  gameSince = null,
   onUpdateCluster,
   onUpdateInstance,
   social,
@@ -58,9 +60,38 @@ export default function ClusterDetailView({
   const [notice, setNotice] = useState(null);
   const noticeTimerRef = useRef(null);
 
-  const isInstalled = useIsInstalled(cluster, launcherState?.status);
+  const currentInstance = instances.find((item) => item.id === cluster.id) || cluster;
+  const isInstalled = useIsInstalled(currentInstance, launcherState?.status);
   const isThisRunning =
+    (launcherState?.status === 'running' || Boolean(launcherState?.isGameRunning)) &&
     (launcherState?.instanceId || launcherState?.instance?.id || launcherState?.clusterId) === cluster.id;
+
+  const [liveElapsed, setLiveElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isThisRunning) {
+      setLiveElapsed(0);
+      return undefined;
+    }
+
+    let startedAt = launcherState?.startedAt || gameSince || Date.now();
+
+    if (window.native?.playtime?.active) {
+      window.native.playtime.active().then((act) => {
+        if (act?.startedAt && act.instanceId === cluster.id) {
+          startedAt = act.startedAt;
+          setLiveElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+        }
+      }).catch(() => {});
+    }
+
+    const tick = () => {
+      setLiveElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isThisRunning, cluster.id, launcherState?.startedAt, gameSince]);
 
   const showNotice = (title, body) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -173,15 +204,21 @@ export default function ClusterDetailView({
       ? 'Show enabled overrides only'
       : 'Sort alphabetically';
 
-  const playtimeSeconds = cluster.totalPlaytime || cluster.playtime || 0;
+  const baseSeconds =
+    Number(currentInstance.playtimeSecs) ||
+    Number(currentInstance.totalPlaytime) ||
+    Number(currentInstance.playtime) ||
+    0;
+  const playtimeSeconds = baseSeconds + (isThisRunning ? liveElapsed : 0);
   const playtimeLabel = formatPlaytime(playtimeSeconds);
 
   return (
     <div className="instance-manager-backdrop is-page">
+      <Honeycomb glow testId="instance-settings-honeycomb-bg" />
       <section
         className="instance-manager"
         role="region"
-        aria-label={`Manage ${cluster.name || cluster.version}`}
+        aria-label={`Manage ${currentInstance.name || cluster.name || cluster.version}`}
         tabIndex={-1}
         ref={dialog}
       >
@@ -211,13 +248,13 @@ export default function ClusterDetailView({
             </div>
 
             <div className="im-identity-overlay-meta">
-              <h2 className="im-identity-title" title={cluster.name}>
-                {cluster.name}
+              <h2 className="im-identity-title" title={currentInstance.name || cluster.name}>
+                {currentInstance.name || cluster.name}
               </h2>
               <div className="im-identity-badges">
-                <span className="im-badge-version">{cluster.mc_version || cluster.version}</span>
+                <span className="im-badge-version">{currentInstance.mc_version || currentInstance.version || cluster.mc_version || cluster.version}</span>
                 <span className={`im-badge-loader is-${loader.toLowerCase().replace(/\s+/g, '-')}`}>{loader}</span>
-                <span className="im-identity-stat" title="Total playtime">
+                <span className={`im-identity-stat${isThisRunning ? ' is-live' : ''}`} title={`Total playtime: ${playtimeLabel}${isThisRunning ? ' (counting...)' : ''}`}>
                   <NativeIcon name="clock" size={12} className="im-stat-icon" />
                   <span>{playtimeLabel}</span>
                 </span>
@@ -226,7 +263,7 @@ export default function ClusterDetailView({
 
             <LaunchActionButton
               className="im-launch"
-              instance={cluster}
+              instance={currentInstance}
               launcherState={isThisRunning ? launcherState : null}
               isInstalled={isInstalled}
               onLaunch={onLaunch}

@@ -113,6 +113,7 @@ function init(dependencies, ipcMain) {
   deps = dependencies;
   recover();
   ipcMain.handle('playtime:drain', () => readQueue());
+  ipcMain.handle('playtime:active', () => (active ? { ...active, elapsed: Math.max(0, Math.round((Date.now() - active.startedAt) / 1000)) } : null));
   ipcMain.handle('playtime:ack', (_event, ids) => {
     const done = new Set(Array.isArray(ids) ? ids.map(String) : []);
     if (!done.size) return false;

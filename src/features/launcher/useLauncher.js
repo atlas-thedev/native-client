@@ -50,7 +50,8 @@ export default function useLauncher() {
         status,
         detail,
         percent: settled ? 0 : prev.percent,
-        bytes: settled ? 0 : prev.bytes
+        bytes: settled ? 0 : prev.bytes,
+        startedAt: status === 'running' ? (prev.startedAt || Date.now()) : (settled ? null : prev.startedAt)
       }));
       if (status === 'error') {
         errorTimer.current = setTimeout(() => setState(IDLE), 7000);

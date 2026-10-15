@@ -227,6 +227,8 @@
 .im-badge-loader { text-transform: capitalize; color: var(--fg-primary); }
 .im-badge-loader.is-vanilla { color: var(--fg-secondary); }
 .im-identity-stat { border-color: transparent; background: transparent; padding: 0 2px; font-weight: 500; }
+.im-identity-stat.is-live { color: #3ddc84; font-weight: 600; }
+.im-identity-stat.is-live .im-stat-icon { opacity: 1; color: #3ddc84; }
 .im-stat-icon { opacity: 0.7; }
 
 .im-launch { width: 100%; }
@@ -962,6 +964,7 @@
   align-items: stretch;
   justify-content: stretch;
   background: var(--page);
+  isolation: isolate;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   animation: shell-view-in 0.2s var(--ease-out);
@@ -976,9 +979,11 @@
   box-shadow: none;
   animation: none;
   grid-template-columns: 272px minmax(0, 1fr);
+  background: transparent;
 }
 .instance-manager-backdrop.is-page > .instance-manager.is-browsing { grid-template-columns: 1fr; }
-.instance-manager-backdrop.is-page .im-sidebar { border-right: 1px solid var(--hairline); }
+.instance-manager-backdrop.is-page .im-sidebar { border-right: 1px solid var(--hairline); background: color-mix(in srgb, var(--page) 85%, #000); }
+.instance-manager-backdrop.is-page .im-main { background: transparent; }
 @media (max-width: 900px) {
   .instance-manager-backdrop.is-page > .instance-manager { grid-template-columns: 228px minmax(0, 1fr); }
 }

@@ -956,6 +956,7 @@ export default function Shell({
             onLaunch={handleLaunch}
             onKill={launcher.kill}
             launcherState={launcher}
+            gameSince={gameSince}
             onUpdateCluster={instancesManager.saveOverrides}
             onUpdateInstance={instancesManager.update}
             onAnalyzeCrash={crash.analyzeInstance}

@@ -58,3 +58,18 @@ test('quitting while a game runs banks the time so far; starting another ends th
   const ids = (await queue()).map((item) => item.instanceId);
   assert.deepEqual(ids.slice(before), ['inst-d', 'inst-e', 'inst-f']);
 });
+
+test('playtime:active reports ongoing session elapsed time, and ClusterDetailView renders honeycomb and reads playtimeSecs', async () => {
+  assert.equal(await handlers.get('playtime:active')(), null);
+  playtime.begin('inst-live', Date.now() - 15_000);
+  const active = await handlers.get('playtime:active')();
+  assert.equal(active?.instanceId, 'inst-live');
+  assert.ok(active?.elapsed >= 14);
+  playtime.end({});
+  assert.equal(await handlers.get('playtime:active')(), null);
+
+  const cdCode = fs.readFileSync(path.join(__dirname, '../src/features/cluster/ClusterDetailView.jsx'), 'utf8');
+  assert.ok(cdCode.includes('<Honeycomb glow'), 'ClusterDetailView renders Honeycomb with glow');
+  assert.ok(cdCode.includes('playtimeSecs'), 'ClusterDetailView correctly reads playtimeSecs for playtime counter');
+  assert.ok(cdCode.includes('liveElapsed'), 'ClusterDetailView increments live elapsed playtime while game is running');
+});

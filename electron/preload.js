@@ -302,6 +302,7 @@ const api = {
   playtime: {
     drain: () => ipcRenderer.invoke('playtime:drain'),
     ack: (ids) => ipcRenderer.invoke('playtime:ack', ids),
+    active: () => ipcRenderer.invoke('playtime:active'),
     onSession: (callback) => subscribe('playtime:session', callback)
   },
   partners: {
