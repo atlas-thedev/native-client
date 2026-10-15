@@ -808,7 +808,11 @@
 .home-view .home-hero-content { padding-bottom: clamp(12px, 2.4vh, 28px); }
 .home-view .home-recents-container { padding-bottom: clamp(14px, 2.4vh, 26px); }
 /* always the original 232x124 shape, just bigger or smaller with the window */
-.home-view .version-card { height: clamp(96px, 12vh, 140px); width: auto; aspect-ratio: 232 / 124; }
+.home-view .version-card { height: clamp(124px, 16vh, 186px); width: auto; aspect-ratio: 232 / 124; border-radius: 18px; }
+.home-view .other-versions-tile { height: clamp(124px, 16vh, 186px); width: clamp(96px, 7vw, 120px); }
+.home-view .version-card-label { left: 14px; right: 14px; bottom: 12px; gap: 3px; }
+.home-view .version-card-name { font-size: clamp(14px, 0.5vw + 0.6vh, 17px); }
+.home-view .version-card-sub { font-size: clamp(11.5px, 0.35vw + 0.5vh, 13px); }
 @media (max-height: 640px) {
   .home-view .recents-hint { display: none; }
 }

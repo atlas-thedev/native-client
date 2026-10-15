@@ -37,6 +37,7 @@ import ServersView from '../servers/ServersView.jsx';
 import PartnersView from '../partners/PartnersView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
+import nativeLogo from '../../assets/native-icon.png';
 import './Shell.css';
 import '../../lib/whitePrimary.css';
 
@@ -769,7 +770,10 @@ export default function Shell({
         <div className="shell-content-layer">
           {sessionExpired && expiredDismissed !== activeSaved.id && (
             <div className="session-banner" role="alert">
-              <span className="session-banner-icon" aria-hidden="true">!</span>
+              <span className="session-banner-icon" aria-hidden="true">
+                <img src={nativeLogo} alt="" draggable="false" />
+                <span className="session-banner-dot">!</span>
+              </span>
               <span className="session-banner-text">
                 <strong>Your Native session expired</strong>
                 <small>Skins, cosmetics and Relay are paused for {activeSaved.name}, here and in game, until you sign in again.</small>
