@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, Check, Copy, Eye, EyeOff, Gift, ImagePlus, Layers, LoaderCircle, Pencil, Plus, Sparkles, Star, Trash2, X } from 'lucide-react';
+import { CalendarClock, Check, Copy, Eye, EyeOff, Gift, ImagePlus, Layers, LoaderCircle, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
 import AdminPicker from './AdminPicker.jsx';
 import { ItemThumb } from './AdminStore.jsx';
 import { Modal } from './AdminStoreTools.jsx';

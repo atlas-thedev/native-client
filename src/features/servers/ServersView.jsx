@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Crown, Globe, Play, RefreshCw, Search, Signal, Sparkles, Trophy, Users, X } from 'lucide-react';
+import { Check, Copy, Crown, Globe, Play, RefreshCw, Search, Signal, Trophy, Users, X, Megaphone } from 'lucide-react';
 import { SERVERS, SERVER_CATEGORIES } from '../../data/servers.js';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import Honeycomb from '../../components/ui/Honeycomb.jsx';
@@ -157,7 +157,7 @@ function ServerRow({ server, rank, live, onPlay, onCopy, copied }) {
   return (
     <article className={`srv-row${server.promoted ? ' is-promoted' : ''}${medal}`}>
       <div className="srv-rank">
-        {server.promoted ? <Sparkles size={15} /> : rank <= 3 ? <Trophy size={15} /> : null}
+        {server.promoted ? <Megaphone size={15} /> : rank <= 3 ? <Trophy size={15} /> : null}
         <span>{server.promoted ? 'AD' : `#${rank}`}</span>
       </div>
 
@@ -166,7 +166,7 @@ function ServerRow({ server, rank, live, onPlay, onCopy, copied }) {
       <div className="srv-row-main">
         <div className="srv-row-title">
           <h3>{server.name}</h3>
-          {server.promoted && <span className="srv-badge-promoted"><Sparkles size={10} />Sponsored</span>}
+          {server.promoted && <span className="srv-badge-promoted"><Megaphone size={10} />Sponsored</span>}
           {!server.promoted && rank === 1 && <span className="srv-badge-top"><Crown size={10} />Top server</span>}
         </div>
         <p className="srv-row-desc">{server.description || 'No description yet.'}</p>

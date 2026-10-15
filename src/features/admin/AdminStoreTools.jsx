@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DollarSign, FolderUp, LoaderCircle, PackagePlus, Sparkles, X } from 'lucide-react';
+import { DollarSign, FolderUp, LoaderCircle, PackagePlus, X, Calculator } from 'lucide-react';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3D.jsx';
 import { wornShot } from '../../lib/wornShot.jsx';
@@ -70,7 +70,7 @@ export function PricingModal({ onClose, onDone, onNotify, onAccessRevoked }) {
           {busy === 'set' ? <LoaderCircle size={13} className="is-spinning" /> : <DollarSign size={13} />}{armed === 'set' ? 'Click again to confirm' : `Set everything to ${usd(value)}`}
         </button>
         <button type="button" className={`admin-btn ghost${armed === 'auto' ? ' is-confirm' : ''}`} disabled={Boolean(busy)} onClick={() => apply('auto', 0, 'Every item now has its automatic price.')}>
-          {busy === 'auto' ? <LoaderCircle size={13} className="is-spinning" /> : <Sparkles size={13} />}{armed === 'auto' ? 'Click again to confirm' : 'Automatic prices'}
+          {busy === 'auto' ? <LoaderCircle size={13} className="is-spinning" /> : <Calculator size={13} />}{armed === 'auto' ? 'Click again to confirm' : 'Automatic prices'}
         </button>
       </div>
       <p className="admin-note">Automatic: cloaks 1.99 static, up to 2.99 animated. Cosmetics 1.99 and up with motion, size and detail.</p>

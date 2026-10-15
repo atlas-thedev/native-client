@@ -26,11 +26,11 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  Sparkles,
   User,
   UserRound,
   Users,
-  X
+  X,
+  Zap,
 } from 'lucide-react';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
 import { GUIDES, GUIDE_CATEGORIES } from '../guides/guides.js';
@@ -73,7 +73,7 @@ const GROUP_LABELS = {
 
 const GROUP_ICONS = {
   pages: ArrowRight,
-  actions: Sparkles,
+  actions: Zap,
   settings: Settings,
   guides: BookOpen,
   versions: Blocks,
@@ -244,7 +244,7 @@ export default function QuickSearch({
     action('new-instance', 'Create new instance', 'Pick a version and mod loader', Plus, ['add', 'make', 'new', 'instance', 'profile', 'install minecraft'], { boost: 4 });
     action('discover-mods', 'Browse mods', 'Open Discover on mods', Package, ['install', 'download', 'modrinth']);
     action('discover-modpacks', 'Browse modpacks', 'Open Discover on modpacks', Layers3, ['install', 'download', 'pack']);
-    action('discover-shaders', 'Browse shaders', 'Open Discover on shaders', Sparkles, ['shader', 'graphics', 'iris', 'optifine']);
+    action('discover-shaders', 'Browse shaders', 'Open Discover on shaders', Zap, ['shader', 'graphics', 'iris', 'optifine']);
     action('accounts', 'Switch account', account?.name ? `Signed in as ${account.name}` : 'Add or switch accounts', UserRound, ['account', 'login', 'sign in', 'logout', 'microsoft', 'offline', 'profile']);
     if (account?.type === 'microsoft') {
       action('connect-native', 'Merge with a Native account',

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OwnedMark, RarityBadge } from './RarityBadges.jsx';
 import './RarityBadges.css';
-import { Check, ChevronRight, Clock, Layers, Lock, Sparkles } from 'lucide-react';
+import { Check, ChevronRight, Clock, Layers, Lock } from 'lucide-react';
 import { OutfitShot } from '../../lib/wornShot.jsx';
 import './BundleViews.css';
 

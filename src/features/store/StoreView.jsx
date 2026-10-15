@@ -9,7 +9,7 @@ import { PixelCape, PixelStar } from './PixelIcons.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { ShopStrip, SpotBackdrop } from '../../components/ui/ShopBits.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
-import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, Sparkles, ChevronLeft, ChevronRight, Eye, Glasses, Globe, Infinity as InfinityIcon, Loader2, AppWindow, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X } from 'lucide-react';
+import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, UserRound, ChevronLeft, ChevronRight, Eye, Glasses, Globe, Infinity as InfinityIcon, Loader2, AppWindow, Lock, Package, Palette, Pencil, Plus, RefreshCw, Rotate3d, Search, Shirt, ShoppingBag, Store, Ticket, Trash2, Type, User, Users, X, Clock } from 'lucide-react';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import Honeycomb from '../../components/ui/Honeycomb.jsx';
@@ -996,7 +996,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           )}
           {newest.length > 0 && (
             <section className="store-new-shelf" aria-label="Just added">
-              <div className="store-shelf-head"><Sparkles size={14} /><strong>Just added</strong><span>New in the last 3 weeks</span></div>
+              <div className="store-shelf-head"><Clock size={14} /><strong>Just added</strong><span>New in the last 3 weeks</span></div>
               <div className="store-grid store-new-grid">{newest.map((item, index) => renderCard(item, index, 'new'))}</div>
             </section>
           )}

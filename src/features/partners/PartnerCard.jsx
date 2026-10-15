@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { ArrowUpRight, Check, Copy, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Handshake } from 'lucide-react';
 import aurexLogo from '../../assets/partners/aurex-logo-v1.webp';
 import aurexHero from '../../assets/partners/aurex-hero-v1.webp';
 import aurexCrystal from '../../assets/partners/aurex-crystal-v1.webp';
@@ -123,7 +123,7 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
 
         <div className="pt-content">
           <div className="pt-id">
-            <span className="pt-logo">{logo ? <img src={logo} alt="" draggable="false" /> : <Sparkles size={18} />}</span>
+            <span className="pt-logo">{logo ? <img src={logo} alt="" draggable="false" /> : <Handshake size={18} />}</span>
             <span className="pt-tier">{pt.tier === 'featured' ? 'Featured partner' : pt.tier === 'sponsor' ? 'Sponsor' : 'Partner'}</span>
           </div>
           <h3 className="pt-name">{pt.name || 'Partner name'}</h3>

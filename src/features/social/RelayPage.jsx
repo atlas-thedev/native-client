@@ -17,7 +17,6 @@ import {
   Search,
   Send,
   Smile,
-  Sparkles,
   Trash2,
   Upload,
   Users,
@@ -25,7 +24,7 @@ import {
   UserPlus,
   UserSquare2,
   Ban,
-  X
+  X,
 } from 'lucide-react';
 import { openProfile } from '../profile/ProfilePage.jsx';
 import RelayAvatar, { useAvatarsReady } from './RelayAvatar.jsx';

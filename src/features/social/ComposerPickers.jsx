@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Clock, Search, Smile, Sparkles, X } from 'lucide-react';
+import { Clock, Search, Smile, X, ImageOff } from 'lucide-react';
 
 /* Full emoji + GIF pickers for the Relay composer. */
 
@@ -261,7 +261,7 @@ export function GifPicker({ onPick, onClose }) {
           {state.loading && Array.from({ length: state.gifs.length ? 3 : 9 }, (_, i) => <span key={`s${i}`} className="relay-gif-skel" />)}
         </div>
         {!state.loading && state.gifs.length === 0 && (
-          <div className="relay-picker-empty"><Sparkles size={18} /><span>No GIFs found</span></div>
+          <div className="relay-picker-empty"><ImageOff size={18} /><span>No GIFs found</span></div>
         )}
       </div>
       <div className="relay-gif-credit">Powered by GIPHY</div>

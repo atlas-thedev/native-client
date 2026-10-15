@@ -23,12 +23,13 @@ import {
   Search,
   ShieldCheck,
   Sliders,
-  Sparkles,
   Terminal,
   Upload,
   Volume2,
   X,
-  Zap
+  Zap,
+  BellRing,
+  Waves,
 } from 'lucide-react';
 import useUpdater from '../updater/useUpdater.js';
 import { UpdateCard } from '../updater/UpdateCenter.jsx';
@@ -501,7 +502,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
       { tab: 'launcher', id: 'logs', icon: Terminal, title: t('settings.keepLogs'), desc: t('settings.keepLogsDesc'), keywords: 'logs log session console' },
       { tab: 'notifications', id: 'notify-desktop', icon: Bell, title: t('settings.notifyDesktop'), desc: t('settings.notifyDesktopDesc'), keywords: 'notifications relay desktop alert message' },
       { tab: 'notifications', id: 'notify-sound', icon: Volume2, title: t('settings.notifySound'), desc: t('settings.notifySoundDesc'), keywords: 'sound audio ping notification' },
-      { tab: 'appearance', id: 'reduced-motion', icon: Sparkles, title: 'Reduce motion', desc: 'Turn off animations and transitions.', keywords: 'animation motion accessibility transitions' },
+      { tab: 'appearance', id: 'reduced-motion', icon: Waves, title: 'Reduce motion', desc: 'Turn off animations and transitions.', keywords: 'animation motion accessibility transitions' },
       { tab: 'appearance', id: 'bg-motion', icon: Monitor, title: 'Animated backgrounds', desc: 'Moving artwork behind pages.', keywords: 'background video animation art' },
       { tab: 'appearance', id: 'density', icon: LayoutGrid, title: 'Compact layout', desc: 'Tighter spacing to fit more on screen.', keywords: 'density compact spacing small' },
       { tab: 'updates', id: 'update-startup', icon: ShieldCheck, title: t('settings.checkOnStartup'), desc: t('settings.checkOnStartupDesc'), keywords: 'update startup automatic version' },
@@ -776,7 +777,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
                   <Row id="notify-sound" highlight={R('notify-sound')} icon={Volume2} title={t('settings.notifySound')} desc={t('settings.notifySoundDesc')}>
                     <Toggle label="Notification sound" checked={notifyPrefs.sound} onChange={(v) => setNotify({ sound: v })} />
                   </Row>
-                  <Row icon={Sparkles} title={t('settings.notifyTest')} desc={t('settings.notifyTestDesc')}>
+                  <Row icon={BellRing} title={t('settings.notifyTest')} desc={t('settings.notifyTestDesc')}>
                     <button
                       type="button"
                       className="sv-btn"
@@ -795,7 +796,7 @@ export default function SettingsView({ initialTab = 'overview', instances = [], 
               {activeTab === 'appearance' && (
                 <>
                   <Section title="Motion" desc="Smoother on older PCs and easier on the eyes.">
-                    <Row id="reduced-motion" highlight={R('reduced-motion')} icon={Sparkles} title="Reduce motion" desc="Turns off animations and transitions across the launcher.">
+                    <Row id="reduced-motion" highlight={R('reduced-motion')} icon={Waves} title="Reduce motion" desc="Turns off animations and transitions across the launcher.">
                       <Toggle label="Reduce motion" checked={appearance.reducedMotion} onChange={(v) => updateSection('appearance', { reducedMotion: v })} />
                     </Row>
                     <Row id="bg-motion" highlight={R('bg-motion')} icon={Monitor} title="Animated backgrounds" desc="Moving artwork behind pages. Turn off to save GPU.">

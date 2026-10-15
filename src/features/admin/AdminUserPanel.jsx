@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Crown, Gift, LoaderCircle, LogOut, Search, Shirt, ShieldCheck, ShieldOff, Sparkles, X } from 'lucide-react';
+import { Check, Copy, Crown, Gift, LoaderCircle, LogOut, Search, Shirt, ShieldCheck, ShieldOff, X } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import { ItemThumb } from './AdminStore.jsx';
@@ -229,7 +229,7 @@ export default function AdminUserPanel({ userId, summary, items, strips, onNotif
                       </div>
                       <div className="admin-attach-actions">
                         <button type="button" disabled={Boolean(busy) || !user} onClick={() => cape(item, 'grant')} title={`Give ${item.name}`}>{busy === `grant:${item.id}` ? <LoaderCircle size={12} className="is-spinning" /> : <Gift size={12} />}Give</button>
-                        <button type="button" className="is-primary" disabled={Boolean(busy) || !user} onClick={() => cape(item, 'equip')} title={`Give ${item.name} and put it on`}>{busy === `equip:${item.id}` ? <LoaderCircle size={12} className="is-spinning" /> : <Sparkles size={12} />}Give &amp; wear</button>
+                        <button type="button" className="is-primary" disabled={Boolean(busy) || !user} onClick={() => cape(item, 'equip')} title={`Give ${item.name} and put it on`}>{busy === `equip:${item.id}` ? <LoaderCircle size={12} className="is-spinning" /> : <Shirt size={12} />}Give &amp; wear</button>
                       </div>
                     </div>
                   ))}

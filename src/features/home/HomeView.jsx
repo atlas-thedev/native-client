@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Sparkles, Swords, Zap, Box } from 'lucide-react';
+import { Plus, Swords, Zap, Box } from 'lucide-react';
 import Icon from '../../components/ui/Icon.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import ContextMenu from '../../components/ui/ContextMenu.jsx';
