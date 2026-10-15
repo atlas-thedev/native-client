@@ -303,6 +303,19 @@ function bucketFor(name, key, windowMs) {
   return item;
 }
 
+/** What the in-game Relay may do on /v1/social with a game ticket (never presence, uploads or the launcher stream). */
+function gameSocialAllowed(method, pathname) {
+  if (method === 'GET') {
+    return pathname === '/v1/social/requests' || pathname === '/v1/social/search' || pathname === '/v1/social/blocked'
+      || /^\/v1\/social\/friends\/[^/]+\/mutual$/.test(pathname);
+  }
+  if (method === 'POST') {
+    return ['/v1/social/requests/send', '/v1/social/requests/respond', '/v1/social/friends/update', '/v1/social/block', '/v1/social/unblock'].includes(pathname);
+  }
+  if (method === 'DELETE') return /^\/v1\/social\/friends\/[^/]+$/.test(pathname);
+  return false;
+}
+
 function hit(name, key, limit, windowMs) {
   const item = bucketFor(name, key, windowMs);
   item.count += 1;
@@ -1398,7 +1411,14 @@ async function handler(req, res) {
 
       // EventSource cannot set headers, so the stream also accepts ?token=
       const token = headerToken || String(url.searchParams.get('token') || '').trim();
-      const authUser = db.getUserBySession(token);
+      let authUser = db.getUserBySession(token);
+      // The in-game Relay (Native mod) signs in with its game ticket: friends, requests, search and blocking only.
+      if (!authUser && token.startsWith('nmt1.') && gameSocialAllowed(req.method, url.pathname)) {
+        authUser = require('./mod-routes').userForTicket(token);
+        if (authUser && req.method !== 'GET' && !hit('game-social', authUser.id, 40, 60_000)) {
+          return send(res, 429, { ok: false, error: 'Slow down a little.' }, { 'Retry-After': '10' });
+        }
+      }
       if (!authUser) {
         return send(res, 401, { ok: false, error: 'Unauthorized. Native account session required.' });
       }
@@ -1787,6 +1807,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  _gameSocialAllowed: gameSocialAllowed,
   createServer,
   applyTimeouts,
   clientIp,
