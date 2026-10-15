@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Globe, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Server, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Blocks, BookOpen, CircleHelp, Compass, Download, Globe, Handshake, Home, Layers3, Lock, MessageSquare, Minus, PackageOpen, Radio, RefreshCw, Search, Server, Settings, ShieldCheck, User, WifiOff, X, ShoppingBag } from 'lucide-react';
 import Logo from '../../components/ui/Logo.jsx';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
@@ -292,6 +292,13 @@ export default function AppNavbar({
         <div className="rail-spacer" />
 
         <div className="rail-group rail-foot">
+          <RailButton
+            icon={Handshake}
+            active={currentTab === 'partners'}
+            onClick={() => onSelectTab('partners')}
+            label={t('nav.partners')}
+            className="rail-partners-btn"
+          />
           <RailButton
             icon={BookOpen}
             active={currentTab === 'guides'}

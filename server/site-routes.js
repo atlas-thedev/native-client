@@ -17,6 +17,8 @@
  *   POST /v1/admin/site/servers          promote a server       PATCH/DELETE /v1/admin/site/servers/:id
  *   GET  /v1/site/ads                    live launcher ad cards  GET /v1/site/ads/media/:file  bundled banners
  *   POST /v1/admin/site/ads              add a launcher ad       PATCH/DELETE /v1/admin/site/ads/:id
+ *   GET  /v1/site/partners               live partners (also in config)  GET /v1/site/partners/media/:file  bundled art
+ *   POST /v1/admin/site/partners         add a partner           PATCH/DELETE /v1/admin/site/partners/:id
  *   POST /v1/admin/site/prices           { price, itemIds? }  set the price of many capes at once
  *   GET  /v1/admin/polls                 every vote with full results
  *   POST /v1/admin/polls                 create (options may be Store items: { itemId })
@@ -54,6 +56,32 @@ const DEFAULT_ADS = () => [{
   createdAt: 0
 }];
 
+/* Partners shown on the website and the launcher's Partners page. Aurex is seeded until the admin edits the list. */
+const DEFAULT_PARTNERS = () => [{
+  id: 'aurex01',
+  name: 'Aurex Hosting',
+  tagline: 'Sri Lanka’s #1 game hosting provider.',
+  description: 'Minecraft, FiveM, MTA, Rust and Hytale servers on AMD Ryzen 7 nodes in Singapore, around 60 ms from Colombo. Instant setup, NVMe storage and always-on DDoS protection.',
+  website: 'https://www.aurex.lk/en',
+  cta: 'Get a server',
+  logo: '/v1/site/partners/media/aurex-logo-v1.webp',
+  background: '/v1/site/partners/media/aurex-hero-v1.webp',
+  art: '/v1/site/partners/media/aurex-crystal-v1.webp',
+  accent: '#8b5cf6',
+  accent2: '#c07eff',
+  animation: 'aurora',
+  speed: 1,
+  intensity: 70,
+  perks: ['Ryzen 7 nodes', 'NVMe storage', 'Always-on DDoS protection', 'From LKR 400/mo'],
+  code: '',
+  tier: 'featured',
+  order: 0,
+  startsAt: null,
+  endsAt: null,
+  enabled: true,
+  createdAt: 0
+}];
+
 const DEFAULTS = () => ({
   launch: {
     at: DEFAULT_LAUNCH_AT,
@@ -71,7 +99,8 @@ const DEFAULTS = () => ({
   theme: { halloween: false },
   offers: [],
   servers: [],
-  ads: DEFAULT_ADS()
+  ads: DEFAULT_ADS(),
+  partners: DEFAULT_PARTNERS()
 });
 
 let ready = false;
@@ -118,6 +147,7 @@ function settings() {
       if (row.key === 'offers') base.offers = Array.isArray(v) ? v : [];
       else if (row.key === 'servers') base.servers = Array.isArray(v) ? v : [];
       else if (row.key === 'ads') base.ads = Array.isArray(v) ? v : [];
+      else if (row.key === 'partners') base.partners = Array.isArray(v) ? v : [];
       else if (base[row.key] && typeof v === 'object') base[row.key] = { ...base[row.key], ...v };
     }
   } catch (error) { console.warn('[Native Site] settings:', error.message); }
@@ -464,6 +494,108 @@ function liveAds(origin = '') {
     .map((ad) => publicAd(ad, origin));
 }
 
+/* ── partners ──────────────────────────────────────────────────────── *
+ * Brands we work with, shown on the website (landing + /partners) and the
+ * launcher's Partners page. Each card picks a motion preset and colours;
+ * art is an https link or a file bundled under server/partners-media. */
+
+const PARTNER_MEDIA_DIR = path.join(__dirname, 'partners-media');
+const PARTNER_ANIMATIONS = ['aurora', 'orbit', 'glitch', 'float', 'shine', 'pulse', 'grid', 'none'];
+const PARTNER_TIERS = ['featured', 'partner', 'sponsor'];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+function partnerImage(value, label, required = false) {
+  const image = clean(value, 500);
+  if (!image) {
+    if (required) throw new Error(`Add a ${label}.`);
+    return '';
+  }
+  if (!/^https:\/\//.test(image) && !/^\/v1\/site\/partners\/media\/[a-z0-9._-]+$/.test(image)) throw new Error(`The ${label} must be an https:// image link.`);
+  return image;
+}
+
+function partnerFrom(b, prev = {}) {
+  const pt = { ...prev };
+  if (b.name !== undefined || !prev.id) pt.name = clean(b.name, 48);
+  if (!pt.name || pt.name.length < 2) throw new Error('Give the partner a name.');
+  if (b.tagline !== undefined) pt.tagline = clean(b.tagline, 90);
+  if (b.description !== undefined) pt.description = clean(b.description, 500);
+  if (b.website !== undefined || !prev.id) {
+    const site = clean(b.website, 300);
+    if (!/^https:\/\//.test(site)) throw new Error('The website must start with https://.');
+    pt.website = site;
+  }
+  if (b.cta !== undefined) pt.cta = clean(b.cta, 24);
+  if (b.logo !== undefined || !prev.id) pt.logo = partnerImage(b.logo, 'logo', true);
+  if (b.background !== undefined) pt.background = partnerImage(b.background, 'background');
+  if (b.art !== undefined) pt.art = partnerImage(b.art, 'artwork');
+  for (const key of ['accent', 'accent2']) {
+    if (b[key] === undefined && prev.id) continue;
+    const colour = clean(b[key], 7) || (key === 'accent' ? '#ffffff' : pt.accent || '#ffffff');
+    if (!HEX.test(colour)) throw new Error('Colours must look like #8b5cf6.');
+    pt[key] = colour.toLowerCase();
+  }
+  if (b.animation !== undefined || !prev.id) pt.animation = PARTNER_ANIMATIONS.includes(b.animation) ? b.animation : 'aurora';
+  if (b.speed !== undefined || !prev.id) {
+    const n = Number(b.speed ?? 1);
+    pt.speed = Number.isFinite(n) ? Math.max(0.25, Math.min(3, Math.round(n * 100) / 100)) : 1;
+  }
+  if (b.intensity !== undefined || !prev.id) {
+    const n = Math.round(Number(b.intensity ?? 60));
+    pt.intensity = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 60;
+  }
+  if (b.perks !== undefined) {
+    if (!Array.isArray(b.perks)) throw new Error('Invalid perks.');
+    pt.perks = b.perks.map((x) => clean(x, 40)).filter(Boolean).slice(0, 6);
+  }
+  if (b.code !== undefined) pt.code = clean(b.code, 24);
+  if (b.tier !== undefined || !prev.id) pt.tier = PARTNER_TIERS.includes(b.tier) ? b.tier : 'partner';
+  if (b.order !== undefined || !prev.id) {
+    const n = Math.round(Number(b.order ?? 0));
+    pt.order = Number.isFinite(n) ? Math.max(0, Math.min(999, n)) : 0;
+  }
+  if (b.startsAt !== undefined) { const t = timeOf(b.startsAt); if (t === undefined) throw new Error('Invalid start date.'); pt.startsAt = t; }
+  if (b.endsAt !== undefined) { const t = timeOf(b.endsAt); if (t === undefined) throw new Error('Invalid end date.'); pt.endsAt = t; }
+  if (pt.startsAt && pt.endsAt && pt.endsAt <= pt.startsAt) throw new Error('The partnership must end after it starts.');
+  pt.enabled = bool(b.enabled, prev.id ? prev.enabled : true);
+  return pt;
+}
+
+const partnerLive = (pt, now = Date.now()) =>
+  pt && pt.enabled && (!pt.startsAt || pt.startsAt <= now) && (!pt.endsAt || pt.endsAt > now);
+
+const absolute = (value, origin) => (String(value || '').startsWith('/') ? `${origin}${value}` : (value || ''));
+
+const publicPartner = (pt, origin = '') => ({
+  id: pt.id,
+  name: pt.name,
+  tagline: pt.tagline || '',
+  description: pt.description || '',
+  website: pt.website,
+  cta: pt.cta || 'Visit',
+  logo: absolute(pt.logo, origin),
+  background: absolute(pt.background, origin),
+  art: absolute(pt.art, origin),
+  accent: pt.accent || '#ffffff',
+  accent2: pt.accent2 || pt.accent || '#ffffff',
+  animation: PARTNER_ANIMATIONS.includes(pt.animation) ? pt.animation : 'aurora',
+  speed: Number(pt.speed) || 1,
+  intensity: Number.isFinite(Number(pt.intensity)) ? Number(pt.intensity) : 60,
+  perks: Array.isArray(pt.perks) ? pt.perks : [],
+  code: pt.code || '',
+  tier: pt.tier || 'partner',
+  order: pt.order || 0
+});
+
+function livePartners(origin = '') {
+  const now = Date.now();
+  return (settings().partners || [])
+    .filter((pt) => partnerLive(pt, now))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0))
+    .slice(0, 50)
+    .map((pt) => publicPartner(pt, origin));
+}
+
 /* ── http ──────────────────────────────────────────────────────────── */
 
 const bearerOf = (req) => String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
@@ -486,7 +618,8 @@ function publicConfig(origin = 'https://api.playnative.net') {
     beta: { open: Boolean(s.beta.open) && (!s.beta.closesAt || Date.now() < Number(s.beta.closesAt)), closesAt: s.beta.closesAt || null },
     offers: s.offers.filter((o) => offerLive(o)).map(publicOffer),
     servers: liveServers(),
-    ads: liveAds(origin)
+    ads: liveAds(origin),
+    partners: livePartners(origin)
   };
 }
 
@@ -586,6 +719,25 @@ async function handleSiteRoutes(req, res, ctx) {
         send(res, 200, adminDoc(), noStore);
         return true;
       }
+      if (p === '/v1/admin/site/partners' && req.method === 'POST') {
+        const pt = { id: ID(), createdAt: Date.now(), ...partnerFrom(body) };
+        const list = settings().partners || [];
+        if (list.length >= 100) return fail(400, 'That is a lot of partners - remove a few first.');
+        save('partners', [...list, pt]);
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
+      const ptm = p.match(/^\/v1\/admin\/site\/partners\/([a-z0-9]{6,24})$/);
+      if (ptm) {
+        const list = settings().partners || [];
+        const prev = list.find((pt) => pt.id === ptm[1]);
+        if (!prev) return fail(404, 'That partner does not exist.');
+        if (req.method === 'PATCH') save('partners', list.map((pt) => (pt.id === prev.id ? partnerFrom(body, prev) : pt)));
+        else if (req.method === 'DELETE') save('partners', list.filter((pt) => pt.id !== prev.id));
+        else return fail(405, 'Method not allowed.');
+        send(res, 200, adminDoc(), noStore);
+        return true;
+      }
       const sm = p.match(/^\/v1\/admin\/site\/servers\/([a-f0-9]{6,24})$/);
       if (sm) {
         const list = settings().servers;
@@ -678,12 +830,18 @@ async function handleSiteRoutes(req, res, ctx) {
     return true;
   }
 
-  const adMedia = req.method === 'GET' && p.match(/^\/v1\/site\/ads\/media\/([^/]+)$/);
+  if (req.method === 'GET' && p === '/v1/site/partners') {
+    if (!hit('site-partners', ip, 120, 60_000)) { tooMany(res, 60); return true; }
+    send(res, 200, { ok: true, partners: livePartners(ctx.originOf(req)) }, { 'Cache-Control': 'public, max-age=60', 'Access-Control-Allow-Origin': '*' });
+    return true;
+  }
+
+  const adMedia = req.method === 'GET' && p.match(/^\/v1\/site\/(ads|partners)\/media\/([^/]+)$/);
   if (adMedia) {
-    const name = adMedia[1].toLowerCase();
+    const name = adMedia[2].toLowerCase();
     const match = AD_MEDIA_FILE.exec(name);
     let bytes = null;
-    if (match) { try { bytes = fs.readFileSync(path.join(AD_MEDIA_DIR, name)); } catch {} }
+    if (match) { try { bytes = fs.readFileSync(path.join(adMedia[1] === 'ads' ? AD_MEDIA_DIR : PARTNER_MEDIA_DIR, name)); } catch {} }
     if (!bytes) { send(res, 404, { ok: false, error: 'Not found.' }); return true; }
     // Files are versioned by name, so they never change once published.
     res.writeHead(200, { 'Content-Type': AD_MEDIA_TYPES[match[1]], 'Content-Length': bytes.length, 'Cache-Control': 'public, max-age=31536000, immutable' });
@@ -746,4 +904,4 @@ async function handleSiteRoutes(req, res, ctx) {
 /** Test hook. */
 function resetCache() { cache = null; ready = false; }
 
-module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, liveServers, publicServer, liveAds, publicAd, adFrom, founderCapes, resetCache };
+module.exports = { dropAutoBetaBadges, handleSiteRoutes, setHooks, settings, publicConfig, isPrelaunch, storeLocked, maintenanceOn, priceOf, offerFor, publicOffer, liveServers, publicServer, liveAds, publicAd, adFrom, livePartners, publicPartner, partnerFrom, founderCapes, resetCache };

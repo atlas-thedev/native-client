@@ -21,7 +21,7 @@ process.stdout.write(renderToString(React.createElement(AdminView, {})));
 
   require('esbuild').buildSync({
     entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', jsx: 'automatic',
-    loader: { '.css': 'empty', '.png': 'dataurl' }, outfile: bundle, logLevel: 'error',
+    loader: { '.css': 'empty', '.png': 'dataurl', '.webp': 'dataurl' }, outfile: bundle, logLevel: 'error',
     nodePaths: [path.join(ROOT, 'node_modules')]
   });
 

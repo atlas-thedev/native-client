@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
+  Handshake,
   Blocks,
   Bell,
   CircleHelp,
@@ -232,6 +233,7 @@ export default function QuickSearch({
     page('skins', 'Locker', 'Skins and capes', User, ['skin', 'cape', 'wardrobe', 'cosmetics']);
     page('store', 'Store', 'Animated cloaks from Native', User, ['store', 'shop', 'cloak', 'cape', 'animated', 'buy']);
     page('relay', 'Relay', hasNative ? 'Friends and chat' : 'Friends and chat · needs Native', MessageSquare, ['chat', 'friends', 'messages', 'social', 'dm']);
+    page('partners', 'Partners', 'Brands we team up with', Handshake, ['partner', 'aurex', 'hosting', 'sponsor', 'deals']);
     page('guides', 'How to', 'Guides and answers', BookOpen, ['help', 'tutorial', 'guide', 'faq', 'learn']);
     page('settings', 'Settings', 'Launcher, Minecraft, Java, storage', Settings, ['preferences', 'options', 'config']);
     if (isAdmin) page('admin', 'Admin control room', 'Moderation and live stats', ShieldCheck, ['admin', 'moderation', 'ban', 'users']);
