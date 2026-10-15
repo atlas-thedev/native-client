@@ -19,8 +19,8 @@ require('./rate-overrides'); // raise the Locker/Store equip limit (40 -> 300 pe
 const server = require('./server');
 const db = require('./db');
 
-const PORT = Number(process.env.PORT || process.env.NATIVE_SKIN_PORT || 3418);
-const HOST = process.env.HOST || '127.0.0.1';
+const PORT = Number(process.env.PORT || process.env.SERVER_PORT || process.env.NATIVE_SKIN_PORT || 3418);
+const HOST = process.env.HOST || '0.0.0.0';
 
 // server.handler applies the rate limiter first, then the relay routes, then
 // the rest of the API, so every endpoint is rate limited.

@@ -8,13 +8,5 @@
     {"id": "shoes", "name": "Shoes", "blurb": "Kicks and boots for your feet."},
     {"id": "hand", "name": "Hand Items", "blurb": "Things to hold in your hand in game."}
   ],
-  "items": [
-    {"id": "you-got-this", "section": "capes", "name": "You Got This", "description": "A tiny cat cheering you on, frame by frame.", "tags": ["animated", "cute"], "frames": 26, "fps": 12, "author": "Native", "featured": true},
-    {"id": "aurora", "section": "capes", "name": "Aurora", "description": "Northern lights rolling across your back.", "tags": ["animated", "calm"], "frames": 24, "fps": 12, "author": "Native"},
-    {"id": "ember", "section": "capes", "name": "Ember", "description": "A slow, living flame.", "tags": ["animated", "fire"], "frames": 24, "fps": 12, "author": "Native"},
-    {"id": "pulse", "section": "capes", "name": "Pulse", "description": "Neon rings that breathe outwards.", "tags": ["animated", "neon"], "frames": 24, "fps": 12, "author": "Native"},
-    {"id": "matrix", "section": "capes", "name": "Rain Code", "description": "Green code rain, endlessly falling.", "tags": ["animated", "tech"], "frames": 24, "fps": 12, "author": "Native"},
-    {"id": "beta-tester", "section": "capes", "name": "Beta Tester", "description": "For the people who tested Native before anyone else. Given by the Native team, never sold.", "tags": ["animated", "exclusive"], "frames": 24, "fps": 12, "author": "Native", "exclusive": true},
-    {"id": "super-beta-tester", "section": "capes", "name": "Super Beta Tester", "description": "Only for accepted Native beta testers. Bubbling with test potions. Given by the Native team, never sold.", "tags": ["animated", "exclusive"], "frames": 32, "fps": 12, "author": "Native", "exclusive": true}
-  ]
+  "items": []
 }
