@@ -301,6 +301,11 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     ? (catalog?.items || []).filter((item) => sectionOf(item) === section && item.isNew && !item.exclusive).sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0)).slice(0, 4)
     : []), [catalog, section, filter, query, sort, newMeans]);
 
+  /** Featured items get their own shelf at the top (no filter, search or sort), in this section or across all. */
+  const featuredShelf = useMemo(() => (filter === 'all' && !query.trim() && sort === 'featured' && section !== 'bundles'
+    ? featuredIn(catalog?.items || [], section)
+    : []), [catalog, section, filter, query, sort]);
+
   const viewing = viewId ? (catalog?.items || []).find((item) => item.id === viewId) || null : null;
   // 3D viewer controls: the same round buttons and smooth camera as the locker.
   const viewViewer = useRef(null);
@@ -831,8 +836,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     return (
       <article
         key={`${prefix}${item.id}`}
-        style={{ '--i': Math.min(index, 14) }}
-        className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}`}
+        style={{ '--i': Math.min(index, 14), ...(item.featured ? { '--feat': item.partner?.accent || '#ffd36b' } : {}) }}
+        className={`store-card store-pop${viewId === item.id ? ' active' : ''}${owned ? ' is-owned' : ''}${item.featured ? ' is-featured' : ''}`}
         onClick={() => setViewId(item.id)}
         tabIndex={0}
         aria-haspopup="dialog"
@@ -844,6 +849,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
             ? cosmeticArt(item, 'store-card-thumb')
             : <canvas ref={bindCanvas(prefix ? `${prefix}:${item.id}` : item.id)} width={80} height={128} className={`store-card-canvas${previews[item.id] ? '' : ' is-pending'}`} aria-hidden="true" />}
           <div className="store-card-badges">
+            {item.featured && <span className="store-featured-badge"><PixelStar size={9} />Featured</span>}
             {item.partner && <PartnerTag partner={item.partner} />}
             {onSale(item) && <span className="store-sale-badge">−{salePercent(item)}%</span>}
             {item.exclusive && <span className="store-event-badge">Event</span>}
@@ -982,6 +988,12 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
               onOpenItem={(id) => setViewId(id)}
             />
           ) : <>
+          {featuredShelf.length > 0 && (
+            <section className="store-featured-shelf" aria-label="Featured">
+              <div className="store-shelf-head"><PixelStar size={13} /><strong>Featured</strong><span>Picked by the Native team</span></div>
+              <div className="store-grid store-new-grid">{featuredShelf.map((item, index) => renderCard(item, index, 'feat'))}</div>
+            </section>
+          )}
           {newest.length > 0 && (
             <section className="store-new-shelf" aria-label="Just added">
               <div className="store-shelf-head"><Sparkles size={14} /><strong>Just added</strong><span>New in the last 3 weeks</span></div>
