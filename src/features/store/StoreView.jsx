@@ -121,6 +121,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   const [previews, setPreviews] = useState({}); // id -> data URL (strip or still)
   const canvases = useRef(new Map());
   const images = useRef(new Map()); // id -> { image, frames, fps }
+  const visibleCanvases = useRef(new Set());
+  const lastDrawnFrames = useRef(new Map());
+  const observerRef = useRef(null);
+  const bindCache = useRef(new Map());
   const signedIn = isStoreAccount(account);
   // Last known billing config + membership, so the Native+ banner shows the right state at once.
   const [billing, setBillingState] = useState(() => readCache(BILLING_CACHE) || { enabled: false, plus: null });
@@ -205,36 +209,77 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     window.native?.wardrobe?.get?.(account).then((state) => state && setWardrobe(state)).catch(() => {});
   }, [account?.id]);
 
-  // Download previews once, then animate every visible card from a single loop.
+  // Download previews concurrently, then animate only visible cards when their frame index changes.
   useEffect(() => {
     if (!catalog) return undefined;
     let alive = true;
     (async () => {
-      for (const item of catalog.items) {
+      let pendingBatch = {};
+      let batchTimer = null;
+      const flush = () => {
         if (!alive) return;
-        if (isCosmetic(item)) continue;
-        if (images.current.has(item.id)) continue;
-        try {
-          const res = await window.native.store.strip(item.id);
-          if (!res?.ok || !alive) continue;
-          const image = await loadStripImage(res.url);
-          images.current.set(item.id, { image, frames: item.animated ? item.frames : 1, fps: item.animated ? item.fps : 0 });
-          setPreviews((current) => ({ ...current, [item.id]: res.url }));
+        if (Object.keys(pendingBatch).length > 0) {
+          const patch = pendingBatch;
+          pendingBatch = {};
+          setPreviews((current) => ({ ...current, ...patch }));
+        }
+      };
 
-        } catch { /* the card keeps its placeholder */ }
+      const queue = (catalog.items || []).filter((item) => !isCosmetic(item) && !images.current.has(item.id));
+      const worker = async () => {
+        while (alive && queue.length > 0) {
+          const item = queue.shift();
+          if (!item) break;
+          try {
+            const res = await window.native.store.strip(item.id);
+            if (!res?.ok || !alive) continue;
+            const image = await loadStripImage(res.url);
+            if (!alive) continue;
+            const entry = { image, frames: item.animated ? item.frames : 1, fps: item.animated ? item.fps : 0 };
+            images.current.set(item.id, entry);
+            pendingBatch[item.id] = res.url;
+
+            canvases.current.forEach((canvas, key) => {
+              if (itemIdOfKey(key) === item.id && canvas.isConnected) {
+                drawCapeFront(canvas, image, entry.frames, 0);
+                lastDrawnFrames.current.set(key, 0);
+              }
+            });
+
+            if (!batchTimer) {
+              batchTimer = setTimeout(() => {
+                batchTimer = null;
+                flush();
+              }, 120);
+            }
+          } catch { /* the card keeps its placeholder */ }
+        }
+      };
+
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      if (batchTimer) {
+        clearTimeout(batchTimer);
+        batchTimer = null;
       }
+      flush();
     })();
+
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     let raf = 0;
     let last = 0;
     const tick = (now) => {
-      if (now - last > 40) {
+      if (now - last > 30) {
         last = now;
-        canvases.current.forEach((canvas, key) => {
+        const targets = observerRef.current ? visibleCanvases.current : canvases.current.keys();
+        targets.forEach((key) => {
+          const canvas = canvases.current.get(key);
+          if (!canvas || !canvas.isConnected) return;
           const entry = images.current.get(itemIdOfKey(key));
-          if (!entry || !canvas.isConnected) return;
+          if (!entry) return;
           const index = entry.frames > 1 && !reduce ? Math.floor((now * entry.fps) / 1000) % entry.frames : 0;
+          if (lastDrawnFrames.current.get(key) === index) return;
           drawCapeFront(canvas, entry.image, entry.frames, index);
+          lastDrawnFrames.current.set(key, index);
         });
       }
       raf = requestAnimationFrame(tick);
@@ -242,6 +287,36 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     raf = requestAnimationFrame(tick);
     return () => { alive = false; cancelAnimationFrame(raf); };
   }, [catalog]);
+
+  // Viewport intersection observer: pauses off-screen cape animations to keep rendering completely lag-free.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const key = entry.target._storeKey;
+        if (!key) return;
+        if (entry.isIntersecting) {
+          visibleCanvases.current.add(key);
+          const itemEntry = images.current.get(itemIdOfKey(key));
+          if (itemEntry) {
+            const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+            const now = performance.now();
+            const index = itemEntry.frames > 1 && !reduce ? Math.floor((now * itemEntry.fps) / 1000) % itemEntry.frames : 0;
+            drawCapeFront(entry.target, itemEntry.image, itemEntry.frames, index);
+            lastDrawnFrames.current.set(key, index);
+          }
+        } else {
+          visibleCanvases.current.delete(key);
+        }
+      });
+    }, { rootMargin: '120px 0px' });
+    observerRef.current = observer;
+    canvases.current.forEach((canvas) => observer.observe(canvas));
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, []);
 
   // Cosmetic models + thumbnails: the open section first, then everything else in the background.
   useEffect(() => {
@@ -253,14 +328,34 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     const rank = (item) => (inBundles.has(item.id) ? 0 : section === 'all' || sectionOf(item) === section ? 1 : 2);
     const ordered = [...list].sort((a, b) => rank(a) - rank(b));
     (async () => {
+      let pendingBatch = {};
+      let batchTimer = null;
+      const flush = () => {
+        if (!alive) return;
+        if (Object.keys(pendingBatch).length > 0) {
+          cosAssetsRef.current = { ...cosAssetsRef.current, ...pendingBatch };
+          pendingBatch = {};
+          setCosAssets(cosAssetsRef.current);
+        }
+      };
       for (const item of ordered) {
         if (!alive) return;
         if (cosAssetsRef.current[item.id]) continue;
         const res = await window.native.store.cosmetic(item.id).catch(() => null);
         if (!alive || !res?.ok) continue;
-        cosAssetsRef.current = { ...cosAssetsRef.current, [item.id]: res };
-        setCosAssets(cosAssetsRef.current);
+        pendingBatch[item.id] = res;
+        if (!batchTimer) {
+          batchTimer = setTimeout(() => {
+            batchTimer = null;
+            flush();
+          }, 120);
+        }
       }
+      if (batchTimer) {
+        clearTimeout(batchTimer);
+        batchTimer = null;
+      }
+      flush();
     })();
     return () => { alive = false; };
   }, [catalog, section]);
@@ -768,7 +863,39 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       <span className="store-sale-pct">−{salePercent(item)}%</span>
     </>
   ) : priceOf(item));
-  const bindCanvas = (key) => (node) => { if (node) canvases.current.set(key, node); else canvases.current.delete(key); };
+  const bindCanvas = useCallback((key) => {
+    let fn = bindCache.current.get(key);
+    if (!fn) {
+      fn = (node) => {
+        if (!node) {
+          const old = canvases.current.get(key);
+          if (old) {
+            observerRef.current?.unobserve(old);
+            visibleCanvases.current.delete(key);
+            lastDrawnFrames.current.delete(key);
+            canvases.current.delete(key);
+          }
+          bindCache.current.delete(key);
+          return;
+        }
+        if (canvases.current.get(key) === node) return;
+        node._storeKey = key;
+        canvases.current.set(key, node);
+        if (observerRef.current) {
+          observerRef.current.observe(node);
+        } else {
+          visibleCanvases.current.add(key);
+        }
+        const entry = images.current.get(itemIdOfKey(key));
+        if (entry) {
+          drawCapeFront(node, entry.image, entry.frames, 0);
+          lastDrawnFrames.current.set(key, 0);
+        }
+      };
+      bindCache.current.set(key, fn);
+    }
+    return fn;
+  }, []);
 
   /** "You own this": a quiet row under the price with when it was added, whether it's on, and a way to the locker. */
   const renderOwned = (item) => {

@@ -1146,6 +1146,8 @@ function AnimatedCapeThumb({ item, fallback }) {
   useEffect(() => {
     let alive = true;
     let timer = null;
+    let observer = null;
+    let visible = true;
     setReady(false);
     (async () => {
       try {
@@ -1158,15 +1160,30 @@ function AnimatedCapeThumb({ item, fallback }) {
         let index = 0;
         const paint = () => {
           if (!alive || !ref.current) return;
+          if (!visible) { timer = null; return; }
           try { drawCapeFront(ref.current, image, frames, index); } catch { return; }
           setReady(true);
           index = (index + 1) % frames;
           if (frames > 1 && !reduce) timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
         };
+
+        if (typeof IntersectionObserver !== 'undefined' && ref.current) {
+          observer = new IntersectionObserver((entries) => {
+            const isVis = entries.some((e) => e.isIntersecting);
+            if (isVis && !visible) {
+              visible = true;
+              if (frames > 1 && !reduce && !timer) paint();
+            } else if (!isVis) {
+              visible = false;
+            }
+          }, { rootMargin: '100px 0px' });
+          observer.observe(ref.current);
+        }
+
         paint();
       } catch { /* keep the still */ }
     })();
-    return () => { alive = false; clearTimeout(timer); };
+    return () => { alive = false; clearTimeout(timer); observer?.disconnect(); };
   }, [item.id, item.frames, item.fps]);
   return <span className="locker-cape-anim">
     {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}

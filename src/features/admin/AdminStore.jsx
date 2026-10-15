@@ -126,6 +126,8 @@ export function CapeThumb({ src, frames = 1, fps = 0, width = 40, height = 64 })
   useEffect(() => {
     let stopped = false;
     let timer = null;
+    let observer = null;
+    let visible = true;
     if (!src) return undefined;
     loadImage(src).then((image) => {
       if (stopped || !ref.current) return;
@@ -133,13 +135,28 @@ export function CapeThumb({ src, frames = 1, fps = 0, width = 40, height = 64 })
       let index = 0;
       const paint = () => {
         if (stopped || !ref.current) return;
+        if (!visible) { timer = null; return; }
         try { drawCapeFront(ref.current, image, count, index); } catch {}
         index = (index + 1) % count;
         if (count > 1) timer = setTimeout(paint, 1000 / Math.max(1, fps || 12));
       };
+
+      if (typeof IntersectionObserver !== 'undefined' && ref.current) {
+        observer = new IntersectionObserver((entries) => {
+          const isVis = entries.some((e) => e.isIntersecting);
+          if (isVis && !visible) {
+            visible = true;
+            if (count > 1 && !timer) paint();
+          } else if (!isVis) {
+            visible = false;
+          }
+        }, { rootMargin: '80px 0px' });
+        observer.observe(ref.current);
+      }
+
       paint();
     }).catch(() => {});
-    return () => { stopped = true; clearTimeout(timer); };
+    return () => { stopped = true; clearTimeout(timer); observer?.disconnect(); };
   }, [src, frames, fps]);
   return <canvas ref={ref} width={width} height={height} className="admin-cape-thumb" />;
 }
