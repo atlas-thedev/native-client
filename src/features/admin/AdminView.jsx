@@ -6,6 +6,7 @@ import {
   DollarSign,
   FlaskConical,
   Globe,
+  Handshake,
   LayoutDashboard,
   Megaphone,
   Package,
@@ -29,7 +30,8 @@ import {
   UserPlus,
   Users,
   UsersRound,
-  Wifi
+  Wifi,
+  Zap
 } from 'lucide-react';
 import { BADGE_DEFS } from '../social/Badges.jsx';
 import AdminStore, { ItemThumb } from './AdminStore.jsx';
@@ -41,6 +43,7 @@ import AdminWebsite from './AdminWebsite.jsx';
 import AdminOffers from './AdminOffers.jsx';
 import AdminServers from './AdminServers.jsx';
 import AdminAds from './AdminAds.jsx';
+import AdminPartners from './AdminPartners.jsx';
 import AdminApplications from './AdminApplications.jsx';
 import { AdminSegmented, AdminSelect, InitialAvatar, Presence, adminCall, adminError, usd, formatAgo, formatBytes, formatDate, formatNumber } from './adminShared.jsx';
 import '../instances/InstancesView.css';
@@ -119,6 +122,7 @@ const NAV_GROUPS = [
   ['Launcher & site', [
     ['website', 'Website', Globe, 'Maintenance, pre-launch and website settings.'],
     ['servers', 'Servers', Server, 'Partner servers pinned to the top of the Servers page.'],
+    ['partners', 'Partners', Handshake, 'Partner cards on the website and launcher, with their own motion.'],
     ['ads', 'Ads', Megaphone, 'Home page ad cards and their schedule.'],
     ['beta', 'Beta', FlaskConical, 'Beta applications and beta builds.']
   ]]
@@ -141,6 +145,9 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
   const [siteDoc, setSiteDoc] = useState(null);
   const [billing, setBilling] = useState(null);
   const [betaView, setBetaView] = useState('applications');
+  const [navQuery, setNavQuery] = useState('');
+  const [updatedAt, setUpdatedAt] = useState(Date.now());
+  const [, setTick] = useState(0);
 
   const loadOverview = useCallback(async () => {
     const result = await window.native?.admin?.overview?.();
@@ -218,11 +225,16 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     return () => { alive = false; };
   }, [storeItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const refresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
     setError('');
-    try { await Promise.all([loadOverview(), loadUsers(), loadStoreItems(), loadSite(), loadBilling()]); }
+    try { await Promise.all([loadOverview(), loadUsers(), loadStoreItems(), loadSite(), loadBilling()]); setUpdatedAt(Date.now()); }
     catch (reason) { setError(reason?.message || 'Could not refresh the control room.'); }
     finally { setRefreshing(false); }
   };
@@ -270,8 +282,18 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
     website: siteDoc?.settings?.maintenance?.enabled ? 'Maint.' : (siteDoc?.config?.launch?.prelaunch ? 'Pre' : null),
     offers: siteDoc?.config?.offers?.length ? `${siteDoc.config.offers.length}` : null,
     servers: siteDoc?.config?.servers?.length ? `${siteDoc.config.servers.length}` : null,
-    ads: siteDoc?.config?.ads?.length ? `${siteDoc.config.ads.length}` : null
+    ads: siteDoc?.config?.ads?.length ? `${siteDoc.config.ads.length}` : null,
+    partners: siteDoc?.config?.partners?.length ? `${siteDoc.config.partners.length}` : null
   };
+  const navFilter = navQuery.trim().toLowerCase();
+  const navGroups = NAV_GROUPS
+    .map(([group, items]) => [group, items.filter(([id, label, , hint]) => !navFilter || `${id} ${label} ${hint}`.toLowerCase().includes(navFilter))])
+    .filter(([, items]) => items.length);
+  const signupsWeek = signupDays.slice(-7).reduce((sum, day) => sum + day.count, 0);
+  const signupsPrevWeek = signupDays.slice(-14, -7).reduce((sum, day) => sum + day.count, 0);
+  const signupTrend = signupsPrevWeek ? Math.round(((signupsWeek - signupsPrevWeek) / signupsPrevWeek) * 100) : null;
+  const hour = new Date().getHours();
+  const greeting = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const current = NAV_GROUPS.flatMap(([, items]) => items).find(([id]) => id === section) || NAV_GROUPS[0][1][0];
   const currentGroup = NAV_GROUPS.find(([, items]) => items.some(([id]) => id === section))?.[0] || 'General';
 
@@ -286,41 +308,68 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           </div>
         </div>
 
-        {NAV_GROUPS.map(([group, items]) => (
+        <label className="admin-side-search">
+          <Search size={13} />
+          <input
+            value={navQuery}
+            onChange={(event) => setNavQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && navGroups[0]?.[1][0]) { setSection(navGroups[0][1][0][0]); setNavQuery(''); }
+              if (event.key === 'Escape') setNavQuery('');
+            }}
+            placeholder="Jump to…"
+            spellCheck={false}
+          />
+        </label>
+
+        {navGroups.map(([group, items]) => (
           <nav key={group} className="admin-side-group" aria-label={group}>
             <span className="admin-side-label">{group}</span>
             {items.map(([id, label, Icon]) => (
-              <button key={id} type="button" title={label} className={`admin-side-item${section === id ? ' active' : ''}`} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>
-                <Icon size={15} />
+              <button key={id} type="button" title={label} className={`admin-side-item${section === id ? ' active' : ''}`} aria-current={section === id ? 'page' : undefined} onClick={() => { setSection(id); setNavQuery(''); }}>
+                <i className="admin-side-icon"><Icon size={14} /></i>
                 <span>{label}</span>
                 {counts[id] && <em>{counts[id]}</em>}
               </button>
             ))}
           </nav>
         ))}
+        {!navGroups.length && <p className="admin-side-empty">Nothing matches “{navQuery}”.</p>}
 
         <div className="admin-side-foot">
+          <div className="admin-side-status">
+            <div><i className="is-live" /><span>Online now</span><strong>{overview ? formatNumber(overview.onlineUsers) : '—'}</strong></div>
+            <div><i className={siteDoc?.settings?.maintenance?.enabled ? 'is-warn' : 'is-live'} /><span>Website</span><strong>{siteDoc ? (siteDoc.settings?.maintenance?.enabled ? 'Maintenance' : siteDoc.config?.launch?.prelaunch ? 'Pre-launch' : 'Live') : '—'}</strong></div>
+            <div><i className={billing?.enabled ? 'is-live' : 'is-off'} /><span>Payments</span><strong>{billing ? (billing.enabled ? 'On' : 'Off') : '—'}</strong></div>
+          </div>
           <button type="button" className="admin-btn ghost" onClick={refresh} disabled={refreshing} title="Refresh">
             <RefreshCw size={13} className={refreshing ? 'is-spinning' : ''} />
-            <span>{refreshing ? 'Refreshing…' : 'Refresh data'}</span>
+            <span>{refreshing ? 'Refreshing…' : `Updated ${formatAgo(updatedAt).replace('Just now', 'just now')}`}</span>
           </button>
         </div>
       </aside>
 
       <section className="admin-main">
         <header className="admin-main-head">
-          <div>
+          <span className="admin-main-icon">{React.createElement(current[2], { size: 18 })}</span>
+          <div className="admin-main-title">
             <div className="admin-crumb"><span>Admin</span><ChevronRight size={11} /><span>{currentGroup}</span></div>
             <h1 className="page-title">{current[1]}</h1>
             <p>{current[3]}</p>
           </div>
-          {section === 'beta' && (
-            <AdminSegmented value={betaView} onChange={setBetaView} ariaLabel="Beta sections" options={[['applications', 'Applications'], ['updates', 'Beta updates']]} />
-          )}
+          <div className="admin-main-actions">
+            {section === 'beta' && (
+              <AdminSegmented value={betaView} onChange={setBetaView} ariaLabel="Beta sections" options={[['applications', 'Applications'], ['updates', 'Beta updates']]} />
+            )}
+            <button type="button" className="admin-icon-btn" onClick={refresh} disabled={refreshing} title="Refresh everything" aria-label="Refresh everything">
+              <RefreshCw size={13} className={refreshing ? 'is-spinning' : ''} />
+            </button>
+          </div>
         </header>
 
       {error && <div className="admin-error" role="alert"><span>{error}</span><button type="button" onClick={refresh}>Try again</button></div>}
 
+      <div key={section} className="admin-stage">
       {section === 'beta' ? (
         <div className="admin-subview">
           {betaView === 'applications'
@@ -331,6 +380,8 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         <AdminWebsite doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'offers' ? (
         <AdminOffers doc={siteDoc} setDoc={setSiteDoc} items={storeItems} strips={strips} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
+      ) : section === 'partners' ? (
+        <AdminPartners doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'ads' ? (
         <AdminAds doc={siteDoc} setDoc={setSiteDoc} onNotify={onNotify} onAccessRevoked={onAccessRevoked} />
       ) : section === 'servers' ? (
@@ -343,6 +394,44 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
         <AdminStore onNotify={onNotify} onError={setError} onAccessRevoked={onAccessRevoked} onItemsChanged={() => loadStoreItems().catch(() => {})} />
       ) : section === 'overview' ? (
         <div className="admin-scroll">
+          <section className="admin-hero">
+            <div className="admin-hero-copy">
+              <span className="admin-hero-eyebrow"><i />Live · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+              <h2>{greeting}.</h2>
+              <p>
+                {overview ? <><strong>{formatNumber(overview.onlineUsers)}</strong> playing right now, <strong>{formatNumber(signupsWeek)}</strong> new this week</> : 'Loading the latest numbers…'}
+                {signupTrend != null && <em className={signupTrend >= 0 ? 'is-up' : 'is-down'}>{signupTrend >= 0 ? '▲' : '▼'} {Math.abs(signupTrend)}% vs last week</em>}
+              </p>
+              <div className="admin-hero-actions">
+                <button type="button" className="admin-btn primary" onClick={() => setSection('users')}><Users size={13} />Players</button>
+                <button type="button" className="admin-btn ghost" onClick={() => setSection('store')}><Plus size={13} />New cape</button>
+                <button type="button" className="admin-btn ghost" onClick={() => setSection('partners')}><Handshake size={13} />Partners</button>
+                <button type="button" className="admin-btn ghost" onClick={() => setSection('website')}><Zap size={13} />Site controls</button>
+              </div>
+            </div>
+            <div className="admin-hero-chart" role="img" aria-label="Daily sign-ups for the last 30 days">
+              <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="admin-hero-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fff" stopOpacity="0.28" />
+                    <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {(() => {
+                  const pts = signupDays.map((day, index) => [(index / (signupDays.length - 1)) * 300, 86 - (day.count / maxSignup) * 76]);
+                  const line = pts.map(([x, y], index) => `${index ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+                  return (
+                    <>
+                      <path d={`${line} L300,90 L0,90 Z`} fill="url(#admin-hero-fill)" />
+                      <path d={line} fill="none" stroke="#fff" strokeWidth="1.6" vectorEffect="non-scaling-stroke" className="admin-hero-line" />
+                    </>
+                  );
+                })()}
+              </svg>
+              <span>Sign-ups · 30 days</span>
+            </div>
+          </section>
+
           <div className="admin-kpis">
             <Kpi icon={<Users size={15} />} label="Registered players" value={formatNumber(overview?.users)} hint={overview ? `+${formatNumber(overview.newThisWeek)} this week` : '—'} onClick={() => { setUserFilter('all'); setSection('users'); }} />
             <Kpi icon={<Wifi size={15} />} label="Online now" value={formatNumber(overview?.onlineUsers)} hint={overview?.users ? `${Math.round(((overview.onlineUsers || 0) / overview.users) * 100)}% of players` : '—'} onClick={() => { setUserFilter('online'); setSection('users'); }} />
@@ -511,6 +600,7 @@ export default function AdminView({ onNotify, onAccessRevoked }) {
           )}
         </div>
       )}
+      </div>
       </section>
     </main>
   );

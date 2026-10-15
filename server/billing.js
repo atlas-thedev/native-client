@@ -37,8 +37,8 @@ const events = require('./social-events');
 
 const PLUS_ACTIVE = new Set(['active', 'overdue', 'pending_downgrade']);
 const PLANS = {
-  monthly: { amount: 2.99, period: 'month' },
-  yearly: { amount: 24.99, period: 'year' }
+  monthly: { amount: 5.99, period: 'month' },
+  yearly: { amount: 42.99, period: 'year' }
 };
 const CODE_RE = /^[A-Z0-9][A-Z0-9-]{2,31}$/;
 const MODES = ['off', 'test', 'live'];

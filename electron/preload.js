@@ -296,6 +296,9 @@ const api = {
     list: (options) => ipcRenderer.invoke('ads:list', options),
     savePlayer: (dataUrl) => ipcRenderer.invoke('ads:savePlayer', dataUrl)
   },
+  partners: {
+    list: (options) => ipcRenderer.invoke('partners:list', options)
+  },
   server: {
     ping: (address) => ipcRenderer.invoke('server:ping', address),
     promoted: (options) => ipcRenderer.invoke('server:promoted', options)

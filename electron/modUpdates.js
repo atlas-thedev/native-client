@@ -273,7 +273,7 @@ function safeName(name) {
 }
 
 function readManifest(modsDir) {
-  for (const file of ['.native-mods.json', '.native-mods.json']) {
+  for (const file of ['.native-mods.json', '.noctra-mods.json']) {
     try {
       return JSON.parse(fs.readFileSync(path.join(modsDir, file), 'utf8'));
     } catch {}
@@ -286,8 +286,9 @@ function readManifest(modsDir) {
  * hash-checked before the old one is removed, so a failure leaves the
  * instance exactly as it was for that mod.
  */
-async function applyUpdates({ dir, folder = 'mods', updates = [], installs = [], onProgress = () => {} }) {
-  const manifest = readManifest(dir);
+async function applyUpdates({ dir, manifestDir = dir, folder = 'mods', updates = [], installs = [], onProgress = () => {} }) {
+  // The manifest always lives in mods/, whichever content folder is updated.
+  const manifest = readManifest(manifestDir);
   const done = { updated: [], installed: [], failed: [] };
   const total = updates.length + installs.length;
   let index = 0;
@@ -347,7 +348,8 @@ async function applyUpdates({ dir, folder = 'mods', updates = [], installs = [],
   }
 
   if (done.updated.length || done.installed.length) {
-    writeFileAtomic(path.join(dir, '.native-mods.json'), JSON.stringify(manifest, null, 2));
+    fs.mkdirSync(manifestDir, { recursive: true });
+    writeFileAtomic(path.join(manifestDir, '.native-mods.json'), JSON.stringify(manifest, null, 2));
   }
   return done;
 }
@@ -607,6 +609,7 @@ function init(appDeps, ipcMain) {
   ipcMain.handle('mods:applyUpdates', (_event, { instanceId, folder = 'mods', updates = [], installs = [] } = {}) =>
     applyUpdates({
       dir: folderDir(instanceId, folder),
+      manifestDir: folderDir(instanceId, 'mods'),
       folder,
       updates: Array.isArray(updates) ? updates.slice(0, 500) : [],
       installs: Array.isArray(installs) ? installs.slice(0, 100) : [],

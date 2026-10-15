@@ -4,6 +4,8 @@
    ============================================================ */
 
 .clusters-view {
+  position: relative;
+  isolation: isolate;
   height: 100%;
   display: flex;
   flex-direction: column;

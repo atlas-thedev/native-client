@@ -238,7 +238,9 @@ export function attachToPlayer(built, skin) {
 export function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (typeof src === 'string' && !/^data:|^blob:/.test(src)) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('texture failed to load'));
     img.src = src;

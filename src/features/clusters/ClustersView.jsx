@@ -16,6 +16,7 @@ import InstancePickerModal from "./InstancePickerModal.jsx";
 import vanillaIcon from "../../assets/icons/vanilla.png";
 import fabricIcon from "../../assets/icons/fabric.png";
 import forgeIcon from "../../assets/icons/forge.jpg";
+import Honeycomb from "../../components/ui/Honeycomb.jsx";
 import "./ClustersView.css";
 
 const SNAPSHOT_LINE = "snapshots";
@@ -451,6 +452,7 @@ export default function ClustersView({
 
   return (
     <div className="clusters-view">
+      <Honeycomb glow testId="versions-honeycomb-bg" />
       <header className="clusters-header">
         <div className="clusters-heading-group">
           <h1 className="clusters-title page-title">{t("nav.versions")}</h1>

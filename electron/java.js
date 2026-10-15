@@ -366,6 +366,23 @@ function init(dependencies, ipcMain) {
    * it can run it with these memory / JVM settings.
    */
   ipcMain.handle('java:check', (_e, payload) => checkLaunch(payload || {}));
+
+  ipcMain.handle('java:install', async (_e, major) => {
+    const binary = await downloadRuntime(major, (percent) =>
+      send('java:progress', { major, percent })
+    );
+    rememberPath(major, binary);
+    return binary;
+  });
+
+  ipcMain.handle('java:browse', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog({
+      title: 'Select the java executable',
+      properties: ['openFile']
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
 }
 
 async function checkLaunch({ javaPath = null, mcVersion, loader = 'vanilla', memoryMaxGb = 4, preset = 'none', args = '' } = {}) {
@@ -398,23 +415,6 @@ async function checkLaunch({ javaPath = null, mcVersion, loader = 'vanilla', mem
     host: javaRuntime.hostArch(),
     ...compat
   };
-
-  ipcMain.handle('java:install', async (_e, major) => {
-    const binary = await downloadRuntime(major, (percent) =>
-      send('java:progress', { major, percent })
-    );
-    rememberPath(major, binary);
-    return binary;
-  });
-
-  ipcMain.handle('java:browse', async () => {
-    const { dialog } = require('electron');
-    const result = await dialog.showOpenDialog({
-      title: 'Select the java executable',
-      properties: ['openFile']
-    });
-    return result.canceled ? null : result.filePaths[0];
-  });
 }
 
 /** A managed runtime for `major`: reuses an existing download, otherwise fetches Temurin. */

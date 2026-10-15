@@ -34,6 +34,7 @@ import AdminView from '../admin/AdminView.jsx';
 import QuickSearch from '../search/QuickSearch.jsx';
 import GuidesView from '../guides/GuidesView.jsx';
 import ServersView from '../servers/ServersView.jsx';
+import PartnersView from '../partners/PartnersView.jsx';
 import { DownloadManagerProvider } from './DownloadManagerContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import './Shell.css';
@@ -893,6 +894,8 @@ export default function Shell({
             onNotify={notify}
           />
         )}
+
+        {currentTab === 'partners' && <PartnersView />}
 
         {currentTab === 'guides' && (
           <GuidesView

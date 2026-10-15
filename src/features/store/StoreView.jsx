@@ -941,8 +941,8 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
                   <PixelButton variant="ghost" icon={<Loader2 size={15} className="is-spinning" />} label={payLabel} onClick={() => setPending(null)} />
                 ) : (
                   <>
-                    <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'plus:monthly'} busyIcon={<Loader2 size={15} className="is-spinning" />} label={`$${(billing.plus?.monthly?.amount ?? 2.99).toFixed(2)} / month`} onClick={() => joinPlus('monthly')} />
-                    <PixelButton variant="gold" poof disabled={busy !== null} busy={busy === 'plus:yearly'} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<NativePlusIcon size={15} />} label={`$${(billing.plus?.yearly?.amount ?? 24.99).toFixed(2)} / year`} onClick={() => joinPlus('yearly')} />
+                    <PixelButton variant="ghost" disabled={busy !== null} busy={busy === 'plus:monthly'} busyIcon={<Loader2 size={15} className="is-spinning" />} label={`$${(billing.plus?.monthly?.amount ?? 5.99).toFixed(2)} / month`} onClick={() => joinPlus('monthly')} />
+                    <PixelButton variant="gold" poof disabled={busy !== null} busy={busy === 'plus:yearly'} busyIcon={<Loader2 size={15} className="is-spinning" />} icon={<NativePlusIcon size={15} />} label={`$${(billing.plus?.yearly?.amount ?? 42.99).toFixed(2)} / year`} onClick={() => joinPlus('yearly')} />
                   </>
                 )}
               </div>
