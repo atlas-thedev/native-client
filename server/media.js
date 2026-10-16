@@ -53,6 +53,10 @@ function originOf(req) {
   const forwardedProto = fromProxy
     ? String(headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase()
     : '';
+  // Public domains are only ever served over https (Cloudflare / nginx in front). The hop to this process
+  // can be plain http, which made generated links http:// and browsers (and the website) dropped them.
+  const local = match[1] === 'localhost' || match[1] === '[::1]' || /^\d{1,3}(\.\d{1,3}){3}$/.test(match[1]);
+  if (!local) return `https://${rawHost}`;
   const proto = forwardedProto === 'https' || forwardedProto === 'http'
     ? forwardedProto
     : (req.socket && req.socket.encrypted ? 'https' : 'http');

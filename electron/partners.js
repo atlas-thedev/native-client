@@ -19,9 +19,11 @@ let deps = null;
 let memo = { at: 0, partners: null };
 
 const feedFile = () => path.join(deps.app.getPath('userData'), 'partners', 'feed.json');
-const isHttps = (value) => /^https:\/\//i.test(String(value || ''));
+// An http:// link (e.g. from a backend behind a plain-http proxy hop) is upgraded rather than dropping the partner.
+const upgrade = (value) => String(value || '').replace(/^http:\/\//i, 'https://');
+const isHttps = (value) => /^https:\/\//i.test(upgrade(value));
 const text = (value, max) => String(value || '').slice(0, max);
-const image = (value) => (isHttps(value) ? String(value) : '');
+const image = (value) => (isHttps(value) ? upgrade(value) : '');
 
 function sanitize(list) {
   if (!Array.isArray(list)) return [];
@@ -33,9 +35,9 @@ function sanitize(list) {
       name: text(pt.name, 48),
       tagline: text(pt.tagline, 90),
       description: text(pt.description, 500),
-      website: String(pt.website),
+      website: upgrade(pt.website),
       cta: text(pt.cta, 24) || 'Visit',
-      logo: String(pt.logo),
+      logo: upgrade(pt.logo),
       background: image(pt.background),
       art: image(pt.art),
       accent: HEX.test(pt.accent) ? pt.accent : '#ffffff',
