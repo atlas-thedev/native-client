@@ -772,7 +772,6 @@ export default function Shell({
             <div className="session-banner" role="alert">
               <span className="session-banner-icon" aria-hidden="true">
                 <img src={nativeLogo} alt="" draggable="false" />
-                <span className="session-banner-dot">!</span>
               </span>
               <span className="session-banner-text">
                 <strong>Your Native session expired</strong>

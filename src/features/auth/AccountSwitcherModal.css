@@ -1574,4 +1574,4 @@
 .acc-card-chip.is-muted { color: rgba(255, 255, 255, 0.55); }
 .acc-card.is-expired .acc-card-face { opacity: 0.7; filter: saturate(0.6); }
 .acc-card-state.is-warn { background: rgba(251, 191, 36, 0.1); color: rgb(251, 191, 36); }
-.native-auth-reauth-face { display: grid; place-items: center; margin: 0 auto 4px; border-radius: 16px; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25), 0 16px 40px -16px rgba(0, 0, 0, 0.8); }
+.native-auth-reauth-face { display: grid; place-items: center; margin: 0 auto 4px; border-radius: 16px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }

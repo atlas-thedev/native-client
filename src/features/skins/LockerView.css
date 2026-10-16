@@ -1125,3 +1125,8 @@
 }
 .locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-anim { display: grid !important; place-items: center !important; position: relative; }
 .locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well > .locker-cape-anim > * { grid-area: 1 / 1; margin: 0 !important; }
+
+/* skin cards: one cached picture each (drawn by the shared off-screen viewer), not a live 3D view per card */
+.locker-skin-preview .locker-skin-shot { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.locker-skin-preview .locker-skin-shot.is-loading { border-radius: 10px; background: rgba(255, 255, 255, 0.04); animation: locker-shot-pulse 1.4s ease-in-out infinite; }
+@keyframes locker-shot-pulse { 50% { opacity: 0.5; } }

@@ -616,3 +616,15 @@ button.store-spot-stage:hover .store-spot-zoom, button.store-spot-stage:focus-vi
 @keyframes store-feat-spin { to { --feat-angle: 360deg; } }
 .store-featured-badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; background: #ffd36b; color: #2a1a00; font: 700 11px/1 var(--font-sans, inherit); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
 @media (prefers-reduced-motion: reduce) { .store-card.is-featured { animation: none; } }
+
+/* ---------- performance ----------
+   Nothing animates while the store just sits there: featured borders and badge dots move on hover only,
+   and badges over the cape art use a solid backdrop instead of a live blur. */
+.store-card.is-featured,
+.store-card.is-featured.store-pop { animation: store-card-pop 0.5s cubic-bezier(0.34, 1.6, 0.64, 1) both; animation-delay: calc(60ms + var(--i, 0) * 38ms); }
+.store-card.is-featured:hover,
+.store-card.is-featured.store-pop:hover { animation: store-feat-spin 4s linear infinite; animation-delay: 0s; }
+.store-badge.is-anim .store-badge-dot { animation: none; }
+.store-card:hover .store-badge.is-anim .store-badge-dot { animation: store-badge-pulse 1.6s ease-in-out infinite; }
+.store-badge { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--badge) 14%, rgba(10, 10, 14, 0.94)); }
+.store-card { contain: layout paint; }

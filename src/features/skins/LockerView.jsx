@@ -893,7 +893,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       {skeleton && [0, 1, 2, 3].map((n) => <div key={`skel-${n}`} className="locker-skel locker-skel-card" style={{ animationDelay: `${n * 120}ms` }}/>)}
       {!skeleton && visibleSkins.map((skin, index) => <article key={skin.id} style={{ '--i': index + 1 }} className={`locker-skin-card locker-pop ${skin.active ? 'active' : ''} ${skinBusy === skin.id ? 'is-busy' : ''}`} onClick={() => pickSkin(skin)}>
         <button type="button" className="locker-favourite" onClick={(event) => toggleFavorite(skin, event)} title={skin.favorite ? t('locker.unfavorite') : t('locker.favorite')}><Star size={13} fill={skin.favorite ? 'currentColor' : 'none'}/></button>
-        <div className="locker-skin-preview"><SkinViewer3D account={{ ...account, skinUrl: skin.url, model: skin.model }} width={116} height={156} paused/></div>
+        <div className="locker-skin-preview"><OutfitShot pieces={[]} cape={null} skinUrl={skinTextureUrl({ ...account, skinUrl: skin.url })} model={skin.model === 'slim' ? 'slim' : 'default'} prepare={prepareSkinSource} className="locker-skin-shot" alt="" /></div>
         <div className="locker-card-meta"><strong>{skin.name}</strong><small>{skin.ageDays ? `${skin.ageDays}d` : 'new'}</small></div>
         <button type="button" className="locker-remove" onClick={(event) => removeItem(skin, event)}><Trash2 size={13}/></button>
         {skinBusy === skin.id && <RefreshCw size={13} className="locker-skin-busy is-spinning"/>}
@@ -1146,8 +1146,9 @@ function AnimatedCapeThumb({ item, fallback }) {
   useEffect(() => {
     let alive = true;
     let timer = null;
-    let observer = null;
-    let visible = true;
+    let host = null;
+    let start = null;
+    let stop = null;
     setReady(false);
     (async () => {
       try {
@@ -1157,33 +1158,30 @@ function AnimatedCapeThumb({ item, fallback }) {
         if (!alive || !ref.current) return;
         const frames = Math.max(1, item.frames || 1);
         const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
+        try { drawCapeFront(ref.current, image, frames, 0); } catch { return; }
+        setReady(true);
+        if (frames < 2 || reduce) return;
+        // plays only while its card is hovered, then rests on the first frame
         let index = 0;
         const paint = () => {
           if (!alive || !ref.current) return;
-          if (!visible) { timer = null; return; }
-          try { drawCapeFront(ref.current, image, frames, index); } catch { return; }
-          setReady(true);
           index = (index + 1) % frames;
-          if (frames > 1 && !reduce) timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
+          try { drawCapeFront(ref.current, image, frames, index); } catch { return; }
+          timer = setTimeout(paint, 1000 / Math.max(1, item.fps || 12));
         };
-
-        if (typeof IntersectionObserver !== 'undefined' && ref.current) {
-          observer = new IntersectionObserver((entries) => {
-            const isVis = entries.some((e) => e.isIntersecting);
-            if (isVis && !visible) {
-              visible = true;
-              if (frames > 1 && !reduce && !timer) paint();
-            } else if (!isVis) {
-              visible = false;
-            }
-          }, { rootMargin: '100px 0px' });
-          observer.observe(ref.current);
-        }
-
-        paint();
+        start = () => { if (!timer) paint(); };
+        stop = () => { clearTimeout(timer); timer = null; index = 0; try { drawCapeFront(ref.current, image, frames, 0); } catch { /* gone */ } };
+        host = ref.current.closest('button, article, [role="button"]') || ref.current.parentElement;
+        host?.addEventListener('mouseenter', start);
+        host?.addEventListener('mouseleave', stop);
       } catch { /* keep the still */ }
     })();
-    return () => { alive = false; clearTimeout(timer); observer?.disconnect(); };
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      if (host && start) host.removeEventListener('mouseenter', start);
+      if (host && stop) host.removeEventListener('mouseleave', stop);
+    };
   }, [item.id, item.frames, item.fps]);
   return <span className="locker-cape-anim">
     {!ready && fallback && <span className="locker-cape-texture" style={{ backgroundImage: `url(${fallback})` }}/>}

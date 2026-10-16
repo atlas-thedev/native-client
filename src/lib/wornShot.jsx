@@ -350,7 +350,7 @@ async function drawOutfit(pieces, cape, skinUrl, model, prepare) {
  */
 export function outfitShot({ pieces = [], cape = null, skinUrl, model, prepare }) {
   const usable = pieces.filter(({ item, asset }) => item && asset?.model && asset?.texture);
-  if (!usable.length && !cape) return Promise.resolve(null);
+  if (!usable.length && !cape && !skinUrl) return Promise.resolve(null); // a plain skin is a look too
   const key = outfitKey(usable, cape, skinUrl, model);
   if (memory.has(key)) return Promise.resolve(memory.get(key));
   if (waiting.has(key)) return waiting.get(key);
@@ -373,7 +373,7 @@ export function OutfitShot({ pieces, cape, skinUrl, model, prepare, ready = true
   // a piece that never loads must not keep the picture empty: after a few seconds, draw what we have
   const [waited, setWaited] = useState(false);
   useEffect(() => { if (ready) return undefined; const t = setTimeout(() => setWaited(true), 6000); return () => clearTimeout(t); }, [ready]);
-  const key = (ready || waited) && (usable.length || cape) ? outfitKey(usable, cape, skinUrl, model) : null;
+  const key = (ready || waited) && (usable.length || cape || skinUrl) ? outfitKey(usable, cape, skinUrl, model) : null;
   const [url, setUrl] = useState(() => (key ? memory.get(key) || null : null));
   useEffect(() => {
     if (!key) { setUrl(null); return undefined; }
