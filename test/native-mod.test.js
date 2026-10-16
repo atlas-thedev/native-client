@@ -186,3 +186,47 @@ test('PvP preset excludes mouse-tweaks', async () => {
   assert.equal(pvp.mods.includes('mouse-tweaks'), false, 'mouse-tweaks must be removed from pvp preset');
 });
 
+
+test('Fabric instances get Fabric API (verified), once, so the mod\'s logo font can load', async () => {
+  const crypto = require('node:crypto');
+  const api = Buffer.from('fake fabric api jar');
+  const sha512 = crypto.createHash('sha512').update(api).digest('hex');
+  const fetchFor = (hash = sha512) => {
+    const calls = [];
+    const impl = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.startsWith('https://api.modrinth.com/v2/project/P7dR8mSH/version')) {
+        return { ok: true, status: 200, json: async () => [{ version_type: 'release', files: [{ primary: true, url: 'https://cdn.modrinth.com/data/P7dR8mSH/fabric-api-0.119.4+1.21.4.jar', filename: 'fabric-api-0.119.4+1.21.4.jar', hashes: { sha512: hash } }] }] };
+      }
+      if (u.startsWith('https://cdn.modrinth.com/')) return { ok: true, status: 200, arrayBuffer: async () => api.buffer.slice(api.byteOffset, api.byteOffset + api.length) };
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    impl.calls = calls;
+    return impl;
+  };
+  const root = tmp();
+  try {
+    const modsDir = path.join(root, 'mods');
+    const first = await nativeMod.ensureFabricApi({ loader: 'Fabric', mcVersion: '1.21.4', modsDir, fetchImpl: fetchFor() });
+    assert.equal(first.installed, true);
+    assert.ok(fs.existsSync(path.join(modsDir, 'fabric-api-0.119.4+1.21.4.jar')));
+    assert.ok(fetchFor().calls.length === 0);
+    const again = fetchFor();
+    assert.equal((await nativeMod.ensureFabricApi({ loader: 'Fabric', mcVersion: '1.21.4', modsDir, fetchImpl: again })).reason, 'present');
+    assert.equal(again.calls.length, 0, 'no download when it is already there');
+
+    const disabledDir = path.join(root, 'mods2');
+    fs.mkdirSync(disabledDir);
+    fs.writeFileSync(path.join(disabledDir, 'fabric-api-0.100.0.jar.disabled'), 'x');
+    assert.equal((await nativeMod.ensureFabricApi({ loader: 'fabric', mcVersion: '1.21.4', modsDir: disabledDir, fetchImpl: fetchFor() })).reason, 'present', 'a disabled copy is the player\'s choice');
+
+    const badDir = path.join(root, 'mods3');
+    assert.equal((await nativeMod.ensureFabricApi({ loader: 'fabric', mcVersion: '1.21.4', modsDir: badDir, fetchImpl: fetchFor('00') })).reason, 'hash');
+    assert.equal(fs.readdirSync(badDir).length, 0, 'a file that fails the hash is not kept');
+
+    assert.equal((await nativeMod.ensureFabricApi({ loader: 'quilt', mcVersion: '1.21.4', modsDir: path.join(root, 'q'), fetchImpl: fetchFor() })).reason, 'loader');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -313,10 +313,47 @@ async function prepare({ instance, identity, gameDir, cacheDir, roots, textureCa
   }
 
   const filename = installJar(jarPath, path.join(gameDir, 'mods'));
+  const fabricApi = await ensureFabricApi({ loader, mcVersion, modsDir: path.join(gameDir, 'mods'), fetchImpl, onState });
   clearHandoff(gameDir);
   writeLauncherInfo(gameDir, { textureCache, local, presence });
   const { signedIn, sessionExpired } = await handoff(gameDir, identity, roots, fetchImpl);
-  return { installed: true, version: manifest.version, filename, signedIn, sessionExpired };
+  return { installed: true, version: manifest.version, filename, signedIn, sessionExpired, fabricApi };
+}
+
+/* ── Fabric API ─────────────────────────────────────────────────────── */
+
+const FABRIC_API_PROJECT = 'P7dR8mSH'; // Modrinth id of Fabric API
+const FABRIC_API_JAR = /(^|[^a-z])(fabric-api|quilted[-_]fabric[-_]api|qfapi)[^/]*\.jar(\.disabled)?$/i;
+const MAX_FABRIC_API_BYTES = 32 * 1024 * 1024;
+
+/**
+ * The Native mod's logo font (and other assets) only load when Fabric API adds mod resources to the game,
+ * so a Fabric instance with the Native mod gets Fabric API too. Skipped when any copy is there already,
+ * even a disabled one (the player chose that). Never fails the launch.
+ */
+async function ensureFabricApi({ loader, mcVersion, modsDir, fetchImpl = fetch, onState = () => {} }) {
+  if (!/fabric/i.test(String(loader || '')) || /quilt|legacy/i.test(String(loader || ''))) return { installed: false, reason: 'loader' };
+  try {
+    fs.mkdirSync(modsDir, { recursive: true });
+    if (fs.readdirSync(modsDir).some((entry) => FABRIC_API_JAR.test(entry))) return { installed: false, reason: 'present' };
+    onState('Adding Fabric API…');
+    const query = `loaders=${encodeURIComponent(JSON.stringify(['fabric']))}&game_versions=${encodeURIComponent(JSON.stringify([mcVersion]))}`;
+    const res = await fetchWithTimeout(fetchImpl, `https://api.modrinth.com/v2/project/${FABRIC_API_PROJECT}/version?${query}`, { headers: { 'User-Agent': 'NativeLauncher (playnative.net)' } });
+    if (!res.ok) return { installed: false, reason: 'unavailable' };
+    const versions = await res.json();
+    const release = (Array.isArray(versions) ? versions : []).find((v) => v?.version_type === 'release') || (Array.isArray(versions) ? versions[0] : null);
+    const file = release?.files?.find((f) => f.primary) || release?.files?.[0];
+    if (!file?.url || !/^https:\/\/cdn\.modrinth\.com\//.test(file.url) || !/^[\w.+-]+\.jar$/.test(file.filename || '') || !file.hashes?.sha512) return { installed: false, reason: 'unavailable' };
+    const jar = await fetchWithTimeout(fetchImpl, file.url, {}, 60_000);
+    if (!jar.ok) return { installed: false, reason: 'unavailable' };
+    const data = Buffer.from(await jar.arrayBuffer());
+    if (!data.length || data.length > MAX_FABRIC_API_BYTES) return { installed: false, reason: 'unavailable' };
+    if (crypto.createHash('sha512').update(data).digest('hex') !== String(file.hashes.sha512).toLowerCase()) return { installed: false, reason: 'hash' };
+    writeFileAtomic(path.join(modsDir, file.filename), data);
+    return { installed: true, filename: file.filename };
+  } catch (error) {
+    return { installed: false, reason: 'unavailable', warning: error.message };
+  }
 }
 
 /**
@@ -345,6 +382,7 @@ module.exports = {
   writeHandoff,
   writeLauncherInfo,
   supportsLoader,
+  ensureFabricApi,
   supportsMinecraft,
   validateManifest,
   MANIFEST_URL
