@@ -54,6 +54,9 @@ export function loadStripImage(src) {
  */
 export async function loadCapeFronts(src, frames, width = 80, height = 128) {
   const image = await loadStripImage(src);
+  // decode off the main thread, then cut the fronts when the page is idle (never in the middle of an animation)
+  try { await image.decode?.(); } catch { /* drawImage decodes it */ }
+  await new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 600 }) : setTimeout(resolve, 0)));
   const count = Math.max(1, frames || 1);
   const frameWidth = image.naturalWidth || image.width;
   const frameHeight = count > 1 ? Math.floor((image.naturalHeight || image.height) / count) : (image.naturalHeight || image.height);

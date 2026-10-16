@@ -15,6 +15,22 @@ const VERSION = 'v6';
 const memory = new Map(); // key -> data URL
 const waiting = new Map(); // key -> Promise
 let chain = Promise.resolve();
+
+/*
+ * Pictures are drawn on the main thread, so they wait while the page is animating something it cares about
+ * (the Locker turning the player, the camera flying to a new view) and then use idle time.
+ */
+let holdUntil = 0;
+export function holdShots(ms = 900) { holdUntil = Math.max(holdUntil, performance.now() + ms); }
+const whenCalm = async () => {
+  for (;;) {
+    const wait = holdUntil - performance.now();
+    if (wait <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, wait + 30));
+  }
+  await new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 800 }) : setTimeout(resolve, 0)));
+  if (holdUntil > performance.now()) await whenCalm();
+};
 let stage = null; // { viewer, THREE, ncm, skinKey }
 
 /* ---------- persistent copy ---------- */
@@ -225,7 +241,7 @@ export function wornShot({ item, asset, skinUrl, model, prepare }) {
     const saved = await readSaved(key);
     if (saved) { memory.set(key, saved); return saved; }
     // one picture at a time keeps the shared viewer simple and the UI smooth
-    const run = chain.then(() => capped(draw(item, asset, skinUrl, model, prepare)));
+    const run = chain.then(whenCalm).then(() => capped(draw(item, asset, skinUrl, model, prepare)));
     chain = run.catch(() => {});
     const url = await run;
     if (url) { memory.set(key, url); writeSaved(key, url); }
@@ -357,7 +373,7 @@ export function outfitShot({ pieces = [], cape = null, skinUrl, model, prepare }
   const job = (async () => {
     const saved = await readSaved(key);
     if (saved) { memory.set(key, saved); return saved; }
-    const run = chain.then(() => capped(drawOutfit(usable, cape, skinUrl, model, prepare), 15000));
+    const run = chain.then(whenCalm).then(() => capped(drawOutfit(usable, cape, skinUrl, model, prepare), 15000));
     chain = run.catch(() => {});
     const url = await run;
     if (url) { memory.set(key, url); writeSaved(key, url); }

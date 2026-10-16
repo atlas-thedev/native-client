@@ -222,3 +222,10 @@
 /* flat look: no pixel poof */
 .px-burst { display: none; }
 .px-label { font-weight: 600; }
+
+/* The app-wide "plus icons are white" rule must not apply inside pixel buttons: the "+" follows the
+   button's own text colour (black on the white Add / Add to locker / Add & wear buttons). */
+:root .pxb .pxb-face svg.lucide-plus,
+:root .pxb .pxb-face svg.lucide-plus *,
+:root .pxb .pxb-face svg.lucide-user-plus,
+:root .pxb .pxb-face svg.lucide-user-plus * { color: currentColor !important; stroke: currentColor !important; }

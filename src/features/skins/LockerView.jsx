@@ -1,4 +1,4 @@
-import { OutfitShot, WornShot } from '../../lib/wornShot.jsx';
+import { OutfitShot, WornShot, holdShots } from '../../lib/wornShot.jsx';
 import { dyeTextures } from '../../lib/dyeCache.js';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
@@ -467,6 +467,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const baseY = player.position.y;
     const start = performance.now();
     const duration = 720;
+    holdShots(duration + 150); // card pictures wait until the turn is done
     let frame = 0;
     const backOut = (t) => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
     const step = (now) => {
@@ -491,7 +492,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     syncZoom();
     return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
   }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { holdShots(900); camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
   // Cosmetics load a moment after they're put on: re-frame so a tall hat never gets cut off at the top.
   const wornKey = (wornCosmetics || []).map((entry) => `${entry?.slot || ''}:${entry?.id || entry?.model?.id || ''}:${entry?.side || ''}`).join('|');
   useEffect(() => {
