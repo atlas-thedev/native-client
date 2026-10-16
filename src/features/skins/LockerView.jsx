@@ -1,5 +1,5 @@
 import { OutfitShot, WornShot, holdShots } from '../../lib/wornShot.jsx';
-import { dyeTextures } from '../../lib/dyeCache.js';
+import { cosmeticAssets, dyeTextures } from '../../lib/dyeCache.js';
 import { RARITY, bundleColor } from '../store/BundleViews.jsx';
 import { prepareSkinSource, skinTextureUrl } from '../../components/ui/SkinViewer3D.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -74,10 +74,20 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [dyes, setDyes] = useState(() => { try { return JSON.parse(localStorage.getItem(dyesKey) || '{}') || {}; } catch { return {}; } }); // itemId -> '#rrggbb' the player picked
   useEffect(() => { try { localStorage.setItem(dyesKey, JSON.stringify(dyes || {})); } catch { /* storage full */ } }, [dyes, dyesKey]);
   const [dyeTex, setDyeTex] = useState(() => Object.fromEntries(dyeTextures)); // `${itemId}|${hex}` -> dyed texture (data URL)
-  const dyeRequested = useRef(new Set());
+  const dyeRequested = useRef(new Set(dyeTextures.keys()));
+  const dyePendingBatch = useRef({});
+  const dyeFlushTimer = useRef(null);
   const activeSlotForDye = useRef(null);
-  const [cosAssets, setCosAssets] = useState({});
-  const cosRequested = useRef(new Set());
+  const [cosAssets, setCosAssets] = useState(() => Object.fromEntries(cosmeticAssets));
+  const cosRequested = useRef(new Set(cosmeticAssets.keys()));
+  const cosQueue = useRef([]);
+  const cosWorkers = useRef(0);
+  const cosPendingBatch = useRef({});
+  const cosFlushTimer = useRef(null);
+  useEffect(() => () => {
+    if (dyeFlushTimer.current) clearTimeout(dyeFlushTimer.current);
+    if (cosFlushTimer.current) clearTimeout(cosFlushTimer.current);
+  }, []);
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
   const [catalogItems, setCatalogItems] = useState([]);
   const [tryOn, setTryOn] = useState(null);
@@ -109,7 +119,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const switchSection = (next) => {
     setShotTick((n) => n + 1);
     if (next === section) return;
-    setLeaving(section);
+    setLeaving(null);
     setSection(next);
     setTryOn(null);
     try { localStorage.setItem(SECTION_KEY, next); } catch {}
@@ -126,11 +136,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const [capeQuery, setCapeQuery] = useState('');
   const [skinQuery, setSkinQuery] = useState('');
   const [skinBusy, setSkinBusy] = useState(null);
+  const selfBroadcastRef = useRef(0);
 
   const publishState = (next, broadcast = true) => {
     setWardrobe(next);
-    onWardrobeChanged?.(next);
-    if (broadcast && typeof window !== 'undefined') {
+    if (broadcast) selfBroadcastRef.current = Date.now();
+    onWardrobeChanged?.(next, broadcast);
+    if (broadcast && !onWardrobeChanged && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
     }
     return next;
@@ -153,7 +165,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const res = await window.native?.wardrobe?.sync?.(account);
       if (run !== syncRun.current) return;
       if (res?.pulled && res?.state) publishState(res.state);
-      else if (res?.ok) window.native.wardrobe.get(account).then((next) => { if (run === syncRun.current) publishState(next); }).catch(() => {});
       setCloud(res?.offline ? 'offline' : 'idle');
     } catch {
       if (run === syncRun.current) setCloud(onlineRef.current ? 'idle' : 'offline');
@@ -186,7 +197,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Live: the launcher shell pulls the cloud copy whenever the website / another device changes it.
   useEffect(() => {
     if (!account) return undefined;
-    const refresh = () => { window.native?.wardrobe?.get?.(account).then((next) => { if (next) publishState(next); }).catch(() => {}); };
+    const refresh = () => {
+      if (Date.now() - selfBroadcastRef.current < 250) return;
+      window.native?.wardrobe?.get?.(account).then((next) => { if (next) publishState(next, false); }).catch(() => {});
+    };
     window.addEventListener('native:wardrobe-refreshed', refresh);
     return () => window.removeEventListener('native:wardrobe-refreshed', refresh);
   }, [account?.id]);
@@ -218,14 +232,42 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       for (const item of cosmetics) fetchCosmetic(item.id);
     } catch {}
   };
-  // Model, texture and thumbnail of one cosmetic, fetched once.
+  const queueCosAsset = (id, res) => {
+    cosmeticAssets.set(id, res);
+    cosPendingBatch.current[id] = res;
+    if (!cosFlushTimer.current) {
+      cosFlushTimer.current = setTimeout(() => {
+        cosFlushTimer.current = null;
+        const patch = cosPendingBatch.current;
+        cosPendingBatch.current = {};
+        if (Object.keys(patch).length) setCosAssets((current) => ({ ...current, ...patch }));
+      }, 16);
+    }
+  };
+  const pumpCosQueue = () => {
+    while (cosWorkers.current < 3 && cosQueue.current.length) {
+      const id = cosQueue.current.shift();
+      cosWorkers.current += 1;
+      Promise.resolve(window.native?.store?.cosmetic?.(id)).then((res) => {
+        if (res?.ok) queueCosAsset(id, res);
+        else cosRequested.current.delete(id);
+      }).catch(() => { cosRequested.current.delete(id); }).finally(() => {
+        cosWorkers.current -= 1;
+        pumpCosQueue();
+      });
+    }
+  };
+  // Model, texture and thumbnail of one cosmetic, fetched once and batched.
   const fetchCosmetic = (id) => {
+    if (!id) return;
+    if (cosmeticAssets.has(id)) {
+      if (!cosAssets[id]) queueCosAsset(id, cosmeticAssets.get(id));
+      return;
+    }
     if (cosRequested.current.has(id)) return;
     cosRequested.current.add(id);
-    window.native?.store?.cosmetic?.(id).then((res) => {
-      if (res?.ok) setCosAssets((current) => (current[id] ? current : { ...current, [id]: res }));
-      else cosRequested.current.delete(id);
-    }).catch(() => { cosRequested.current.delete(id); });
+    cosQueue.current.push(id);
+    pumpCosQueue();
   };
   // Store items you don't own yet get their thumbnails when their tab opens.
   useEffect(() => {
@@ -242,10 +284,17 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   useEffect(() => { if (cosTab !== 'bundles' || section !== 'cosmetics') setTrySet(null); }, [cosTab, section]);
   useEffect(() => { loadStoreCapes(); }, [account?.id, account?.token, account?.nativeLink?.connected, online]);
   useEffect(() => {
-    const refresh = () => loadStoreCapes();
-    window.addEventListener('native:wardrobe-refreshed', refresh);
-    window.addEventListener('native:store-changed', refresh);
-    return () => { window.removeEventListener('native:wardrobe-refreshed', refresh); window.removeEventListener('native:store-changed', refresh); };
+    const onWardrobeRefresh = () => {
+      if (Date.now() - selfBroadcastRef.current < 250) return;
+      loadStoreCapes();
+    };
+    const onStoreChanged = () => loadStoreCapes();
+    window.addEventListener('native:wardrobe-refreshed', onWardrobeRefresh);
+    window.addEventListener('native:store-changed', onStoreChanged);
+    return () => {
+      window.removeEventListener('native:wardrobe-refreshed', onWardrobeRefresh);
+      window.removeEventListener('native:store-changed', onStoreChanged);
+    };
   }, [account?.id, account?.token]);
 
   // Connection lost -> keep working from the saved copy. Connection back -> sync again in the background.
@@ -302,23 +351,40 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   const storePreview = previewStoreItem ? peekStoreCape(previewStoreItem) : null; // data URLs once loaded, so the model never waits on the network
   const previewCapeUrl = tryCloak ? (storePreview?.still || tryCloak.stillUrl || null) : (showCape ? (premiumCapeItem || earlyCapeItem ? (storePreview?.still || wornCapeUrl) : wornCapeUrl) : null);
   // Animated Store capes animate in the preview on premium accounts too (the strip repaints the still).
-  const storeAnimOf = (item) => (item?.animated && item.stripUrl ? { stripUrl: storePreview?.strip || item.stripUrl, frames: item.frames, fps: item.fps } : null);
-  const premiumCapeAnim = previewCapeUrl ? storeAnimOf(premiumCapeItem) : null;
-  const previewCapeAnim = tryCloak
-    ? storeAnimOf(tryCloak)
-    : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (earlyCapeItem ? storeAnimOf(earlyCapeItem) : (wardrobe?.active?.capeAnim || null))) : null;
+  const previewCapeAnim = useMemo(() => {
+    const storeAnimOf = (item) => (item?.animated && item.stripUrl ? { stripUrl: storePreview?.strip || item.stripUrl, frames: item.frames, fps: item.fps } : null);
+    const premiumCapeAnim = previewCapeUrl ? storeAnimOf(premiumCapeItem) : null;
+    return tryCloak
+      ? storeAnimOf(tryCloak)
+      : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (earlyCapeItem ? storeAnimOf(earlyCapeItem) : (wardrobe?.active?.capeAnim || null))) : null;
+  }, [tryCloak, previewCapeUrl, showOfficialCards, premiumCapeItem, earlyCapeItem, storePreview?.strip, wardrobe?.active?.capeAnim]);
   const [showCosmetics, setShowCosmetics] = useState(true);
   // Dyeable cosmetics: the colour shown for an item (being picked, saved, or its own) and its dyed texture.
   const catalogById = useMemo(() => new Map(catalogItems.map((item) => [item.id, item])), [catalogItems]);
   const dyeOf = (id) => dyes[id] || null;
+  const queueDyeTex = (key, value) => {
+    dyePendingBatch.current[key] = value;
+    if (!dyeFlushTimer.current) {
+      dyeFlushTimer.current = setTimeout(() => {
+        dyeFlushTimer.current = null;
+        const patch = dyePendingBatch.current;
+        dyePendingBatch.current = {};
+        if (Object.keys(patch).length) setDyeTex((current) => ({ ...current, ...patch }));
+      }, 16);
+    }
+  };
   const loadDye = (id, color, quiet = false) => {
     const key = `${id}|${color}`;
+    if (dyeTextures.has(key)) {
+      if (!(key in dyeTex)) queueDyeTex(key, dyeTextures.get(key));
+      return;
+    }
     if (dyeRequested.current.has(key)) return;
     dyeRequested.current.add(key);
     window.native?.store?.dyeTexture?.(id, color).then((res) => {
-      if (res?.ok && res.texture) { dyeTextures.set(key, res.texture); setDyeTex((current) => ({ ...current, [key]: res.texture })); return; }
+      if (res?.ok && res.texture) { dyeTextures.set(key, res.texture); queueDyeTex(key, res.texture); return; }
       dyeRequested.current.delete(key);
-      setDyeTex((current) => (key in current ? current : { ...current, [key]: null }));
+      if (!(key in dyeTex)) queueDyeTex(key, null);
       if (quiet) return;
       onNotify?.(t('locker.title'), res?.error || 'Couldn’t load that colour. Try again.');
     }).catch((error) => { dyeRequested.current.delete(key); if (!quiet) onNotify?.(t('locker.title'), error?.message || 'Couldn’t load that colour. Try again.'); });
@@ -463,17 +529,17 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
     const from = player.rotation.y;
     const target = viewAngle;
-    if (reduce) { player.rotation.y = target; viewer.render?.(); return undefined; }
+    if (reduce || Math.abs(from - target) < 0.01) { player.rotation.y = target; viewer.render?.(); return undefined; }
     const baseY = player.position.y;
     const start = performance.now();
-    const duration = 720;
-    holdShots(duration + 150); // card pictures wait until the turn is done
+    const duration = 520;
+    holdShots(duration + 60); // card pictures wait until the turn is done
     let frame = 0;
-    const backOut = (t) => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+    const backOut = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
     const step = (now) => {
       const t = Math.min(1, (now - start) / duration);
       player.rotation.y = from + (target - from) * backOut(t);
-      player.position.y = baseY + Math.sin(Math.min(1, t * 1.6) * Math.PI) * 2.2;
+      player.position.y = baseY + Math.sin(Math.min(1, t * 1.6) * Math.PI) * 1.6;
       if (viewer.renderPaused) viewer.render?.();
       if (t < 1) frame = requestAnimationFrame(step);
       else player.position.y = baseY;
@@ -492,12 +558,13 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     syncZoom();
     return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
   }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { holdShots(900); camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { holdShots(550); camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
   // Cosmetics load a moment after they're put on: re-frame so a tall hat never gets cut off at the top.
   const wornKey = (wornCosmetics || []).map((entry) => `${entry?.slot || ''}:${entry?.id || entry?.model?.id || ''}:${entry?.side || ''}`).join('|');
   useEffect(() => {
-    const timers = [250, 900, 2000].map((ms) => setTimeout(() => camRef.current?.refit?.(), ms));
-    return () => timers.forEach(clearTimeout);
+    if (!wornKey) return undefined;
+    const timer = setTimeout(() => camRef.current?.refit?.(), 300);
+    return () => clearTimeout(timer);
   }, [wornKey, viewerTick]);
   // Mouse wheel / trackpad zoom on the stage.
   useEffect(() => {
@@ -1141,6 +1208,8 @@ function ModelArmGlyph({ model }) {
  * Animated store cape for a cape card: the still texture shows exactly like a normal cape card
  * (same crop, same size) until the strip has loaded, then the strip's front face plays in the same spot.
  */
+const stripThumbCache = new Map();
+
 function AnimatedCapeThumb({ item, fallback }) {
   const ref = useRef(null);
   const [ready, setReady] = useState(false);
@@ -1153,10 +1222,18 @@ function AnimatedCapeThumb({ item, fallback }) {
     setReady(false);
     (async () => {
       try {
-        const res = await window.native?.store?.strip?.(item.id);
-        if (!alive || !res?.ok) return;
+        let stripUrl = stripThumbCache.get(item.id) || null;
+        if (!stripUrl) {
+          const res = await window.native?.store?.strip?.(item.id);
+          if (res?.ok && res.url) {
+            if (stripThumbCache.size > 80) stripThumbCache.delete(stripThumbCache.keys().next().value);
+            stripThumbCache.set(item.id, res.url);
+            stripUrl = res.url;
+          }
+        }
+        if (!alive || !stripUrl) return;
         const frames = Math.max(1, item.frames || 1);
-        const image = await loadCapeFronts(res.url, frames);
+        const image = await loadCapeFronts(stripUrl, frames);
         if (!alive || !ref.current) return;
         const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
         try { drawCapeFront(ref.current, image, frames, 0); } catch { return; }

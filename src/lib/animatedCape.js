@@ -52,12 +52,16 @@ export function loadStripImage(src) {
  * canvas strip. A 48-frame 512x256 cape is ~25 MB decoded; its fronts at 80x128 are ~2 MB. The big image is let go.
  * drawCapeFront() draws from it like from a full strip.
  */
+const capeFrontsCache = new Map();
+
 export async function loadCapeFronts(src, frames, width = 80, height = 128) {
+  const count = Math.max(1, frames || 1);
+  const key = `${count}|${width}x${height}|${typeof src === 'string' ? `${src.length}:${src.slice(-48)}` : ''}`;
+  if (key && capeFrontsCache.has(key)) return capeFrontsCache.get(key);
   const image = await loadStripImage(src);
   // decode off the main thread, then cut the fronts when the page is idle (never in the middle of an animation)
   try { await image.decode?.(); } catch { /* drawImage decodes it */ }
   await new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 600 }) : setTimeout(resolve, 0)));
-  const count = Math.max(1, frames || 1);
   const frameWidth = image.naturalWidth || image.width;
   const frameHeight = count > 1 ? Math.floor((image.naturalHeight || image.height) / count) : (image.naturalHeight || image.height);
   const unit = capeUnit(frameWidth, frameHeight);
@@ -69,6 +73,10 @@ export async function loadCapeFronts(src, frames, width = 80, height = 128) {
   for (let i = 0; i < count; i += 1) ctx.drawImage(image, unit, i * frameHeight + unit, 10 * unit, 16 * unit, 0, i * height, width, height);
   image.src = '';
   canvas.capeFronts = { frames: count, width, height };
+  if (key) {
+    if (capeFrontsCache.size > 64) capeFrontsCache.delete(capeFrontsCache.keys().next().value);
+    capeFrontsCache.set(key, canvas);
+  }
   return canvas;
 }
 

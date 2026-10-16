@@ -61,9 +61,12 @@ const idb = async (mode, fn) => {
   });
 };
 const readSaved = (key) => idb('readonly', (store) => store.get(key));
+let writeTick = 0;
 const writeSaved = async (key, value) => {
-  const count = await idb('readonly', (store) => store.count());
-  if (count > 400) await idb('readwrite', (store) => store.clear());
+  if (++writeTick % 50 === 1) {
+    const count = await idb('readonly', (store) => store.count());
+    if (count > 400) await idb('readwrite', (store) => store.clear());
+  }
   return idb('readwrite', (store) => store.put(value, key));
 };
 
@@ -81,18 +84,7 @@ function snapshot(viewer) {
   const gl = viewer.renderer?.getContext?.();
   if (!gl || gl.isContextLost?.()) { stage = null; return null; }
   const url = viewer.canvas.toDataURL('image/png');
-  try {
-    const w = viewer.canvas.width, h = viewer.canvas.height;
-    const px = new Uint8Array(4 * 64);
-    // sample a coarse grid of pixels; any non-transparent one means something was drawn
-    let seen = false;
-    for (let i = 0; i < 64 && !seen; i++) {
-      gl.readPixels(Math.floor(((i % 8) + 0.5) * w / 8), Math.floor((Math.floor(i / 8) + 0.5) * h / 8), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px.subarray(i * 4, i * 4 + 4));
-      if (px[i * 4 + 3]) seen = true;
-    }
-    if (!seen) return url.length > 3000 ? url : null;
-  } catch { /* reading back is only a check */ }
-  return url;
+  return url && url.length > 2000 ? url : null;
 }
 const capped = (promise, ms = 12000) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 export const shotKey = (item, asset, skinUrl, model) => `${VERSION}|${item?.id}|${tag(asset?.texture)}${tag(JSON.stringify(asset?.model || ''))}|${tag(skinUrl)}|${model}`;

@@ -24,14 +24,17 @@ export function capeTextureUrl(account) {
   return null;
 }
 
+const preparedSkinCache = new Map();
+
 export function prepareSkinSource(url, modelOption) {
   // Mojang hands out http:// texture URLs; over https the pixels can be read (CORS) to detect slim arms
   if (typeof url === 'string') url = url.replace(/^http:\/\/textures\.minecraft\.net\//, 'https://textures.minecraft.net/');
-  return new Promise((resolve) => {
-    if (typeof document === 'undefined' || !url) {
-      resolve({ source: url, model: modelOption });
-      return;
-    }
+  if (typeof document === 'undefined' || !url) {
+    return Promise.resolve({ source: url, model: modelOption });
+  }
+  const cacheKey = `${modelOption || ''}|${url}`;
+  if (preparedSkinCache.has(cacheKey)) return preparedSkinCache.get(cacheKey);
+  const job = new Promise((resolve) => {
     const img = new Image();
     if (!/^data:|^blob:/.test(url)) img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -53,9 +56,15 @@ export function prepareSkinSource(url, modelOption) {
       }
       resolve({ source: url, model: modelOption });
     };
-    img.onerror = () => resolve({ source: url, model: modelOption });
+    img.onerror = () => {
+      preparedSkinCache.delete(cacheKey);
+      resolve({ source: url, model: modelOption });
+    };
     img.src = url;
   });
+  if (preparedSkinCache.size > 120) preparedSkinCache.delete(preparedSkinCache.keys().next().value);
+  preparedSkinCache.set(cacheKey, job);
+  return job;
 }
 
 /**

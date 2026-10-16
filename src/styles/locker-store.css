@@ -73,9 +73,7 @@
   border-radius: var(--ls-radius-sm);
   background: var(--ls-tile-2);
   box-shadow: none;
-  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), translate 0.22s var(--ease-spring, var(--ease));
-  content-visibility: auto;
-  contain-intrinsic-size: auto 200px;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 .locker-view .locker-skin-card:hover,
 .locker-view .locker-cape-card:hover,
@@ -450,12 +448,12 @@
   width: 64px; height: 102px; margin: 0;
   background-color: transparent; background-size: 410px 205px; background-position: -6.4px -6.4px;
   border: 0; border-radius: 2px; image-rendering: pixelated;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
 }
 .locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-anim { margin: 0; display: grid; place-items: center; }
 .locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-cape-anim .locker-cape-canvas {
   width: 64px; height: 102px; border: 0; border-radius: 0; background: transparent; image-rendering: pixelated;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
 }
 .locker-view .locker-cape-grid .locker-cape-tile .locker-tile-well .locker-no-cape {
   width: 64px; height: 102px; margin: 0; display: grid; place-items: center;

@@ -389,9 +389,11 @@ export default function App() {
         onMergeNative={handleMergeNative}
         onRetryNative={handleRetryNative}
         onOpenWebsite={handleOpenWebsite}
-        onWardrobeChanged={(value) => {
+        onWardrobeChanged={(value, broadcast = true) => {
           setWardrobe({ ...value, accountId: activeAccount?.id });
-          window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
+          if (broadcast) {
+            window.dispatchEvent(new CustomEvent('native:wardrobe-refreshed'));
+          }
         }}
         updateStatus={updater.status}
         networkStatus={network.status}

@@ -167,7 +167,7 @@ export default function Shell({
   /* Premium accounts are their own Native account (same name as Minecraft),
      so there is a single identity to play as. */
   const launchAccount = account;
-  const handleWardrobeChanged = useCallback((value) => { onWardrobeChanged?.(value); }, [onWardrobeChanged]);
+  const handleWardrobeChanged = useCallback((value, broadcast = true) => { onWardrobeChanged?.(value, broadcast); }, [onWardrobeChanged]);
   const identity = null;
   const chooseIdentity = useCallback(() => {}, []);
   const isPlus = usePlus(socialAccount, hasNative);

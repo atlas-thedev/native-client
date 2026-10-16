@@ -3,9 +3,30 @@ const fs = require('fs');
 const path = require('path');
 const { BrowserWindow, dialog, net, shell } = require('electron');
 const { openCheckoutWindow } = require('./checkoutWindow');
-const { downloadFile, writeFileAtomic } = require('./download');
+const { downloadFile, writeFileAtomic: rawWriteFileAtomic } = require('./download');
 const safeFile = require('./safeFile');
 const textureCache = require('./textureCache');
+
+const dataUrlCache = new Map(); // filePath -> { mtimeMs, size, value }
+const upgradedCapeDirs = new Set(); // accountDir -> true once official cape upgrade verified
+function writeFileAtomic(targetPath, data) {
+  dataUrlCache.delete(targetPath);
+  return rawWriteFileAtomic(targetPath, data);
+}
+function cachedFileDataUrl(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const hit = dataUrlCache.get(filePath);
+    if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) return hit.value;
+    const value = `data:image/png;base64,${fs.readFileSync(filePath).toString('base64')}`;
+    if (dataUrlCache.size > 200) dataUrlCache.delete(dataUrlCache.keys().next().value);
+    dataUrlCache.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size, value });
+    return value;
+  } catch {
+    dataUrlCache.delete(filePath);
+    return null;
+  }
+}
 
 /**
  * Locker / wardrobe storage (main process).
@@ -74,13 +95,16 @@ function getOfficialCapeByHash(hash) {
   return OFFICIAL_CAPES.find((c) => c.hash.toLowerCase() === clean);
 }
 
+const officialCapeBufferCache = new Map();
 function getOfficialCapeBuffer(nameOrId) {
   const cape = typeof nameOrId === 'object' && nameOrId ? nameOrId : (getOfficialCapeByName(nameOrId) || OFFICIAL_CAPES.find(c => c.id === nameOrId));
   if (!cape) return null;
+  if (officialCapeBufferCache.has(cape.id)) return officialCapeBufferCache.get(cape.id);
   const p1 = path.join(__dirname, 'capes', cape.file);
-  if (fs.existsSync(p1)) return fs.readFileSync(p1);
+  if (fs.existsSync(p1)) { const buf = fs.readFileSync(p1); officialCapeBufferCache.set(cape.id, buf); return buf; }
   const p2 = path.join(__dirname, '..', 'src', 'assets', 'capes', cape.file);
-  if (fs.existsSync(p2)) return fs.readFileSync(p2);
+  if (fs.existsSync(p2)) { const buf = fs.readFileSync(p2); officialCapeBufferCache.set(cape.id, buf); return buf; }
+  officialCapeBufferCache.set(cape.id, null);
   return null;
 }
 
@@ -203,36 +227,40 @@ function loadMetadata(account) {
 
   // Automatic upgrade: verify that any cape items matching official presets use authentic textures
   let upgraded = false;
-  for (const item of metadata.items) {
-    if (item.kind === 'cape') {
-      const official = getOfficialCapeByName(item.name);
-      if (official) {
-        const officialBuf = getOfficialCapeBuffer(official);
-        if (officialBuf) {
-          const targetPath = itemPath(account, item.file);
-          let replace = false;
-          try {
-            if (!fs.existsSync(targetPath)) {
-              replace = true;
-            } else {
-              const currentBuf = fs.readFileSync(targetPath);
-              if (!currentBuf.equals(officialBuf)) {
-                replace = true;
-              }
-            }
-          } catch {
-            replace = true;
-          }
-          if (replace) {
+  const dirKey = accountDir(account);
+  if (!upgradedCapeDirs.has(dirKey)) {
+    for (const item of metadata.items) {
+      if (item.kind === 'cape') {
+        const official = getOfficialCapeByName(item.name);
+        if (official) {
+          const officialBuf = getOfficialCapeBuffer(official);
+          if (officialBuf) {
+            const targetPath = itemPath(account, item.file);
+            let replace = false;
             try {
-              fs.mkdirSync(accountDir(account), { recursive: true });
-              writeFileAtomic(targetPath, officialBuf);
-              upgraded = true;
-            } catch {}
+              if (!fs.existsSync(targetPath)) {
+                replace = true;
+              } else {
+                const currentBuf = fs.readFileSync(targetPath);
+                if (!currentBuf.equals(officialBuf)) {
+                  replace = true;
+                }
+              }
+            } catch {
+              replace = true;
+            }
+            if (replace) {
+              try {
+                fs.mkdirSync(dirKey, { recursive: true });
+                writeFileAtomic(targetPath, officialBuf);
+                upgraded = true;
+              } catch {}
+            }
           }
         }
       }
     }
+    upgradedCapeDirs.add(dirKey);
   }
 
   // Persist the migrated shape, a new sync key, or upgraded items on read.
@@ -293,11 +321,7 @@ function decodeBase64Texture(value, options) {
 }
 
 function dataUrl(account, file) {
-  try {
-    return `data:image/png;base64,${fs.readFileSync(itemPath(account, file)).toString('base64')}`;
-  } catch {
-    return null;
-  }
+  return cachedFileDataUrl(itemPath(account, file));
 }
 
 function stripDataUrl(account, id) {
@@ -472,9 +496,7 @@ function publicState(account) {
   if (!skinUrl && account?.name && account.name !== 'guest' && deps?.app) {
     const cachedSkinPath = skinCacheFile(account);
     if (fs.existsSync(cachedSkinPath)) {
-      try {
-        skinUrl = `data:image/png;base64,${fs.readFileSync(cachedSkinPath).toString('base64')}`;
-      } catch {}
+      skinUrl = cachedFileDataUrl(cachedSkinPath);
     } else {
       warmSkinCache(account);
     }
@@ -535,6 +557,7 @@ function storeItem(account, kind, buffer, { name, model, favorite = false, anim 
 
   fs.mkdirSync(accountDir(account), { recursive: true });
   writeFileAtomic(itemPath(account, file), buffer);
+  if (kind === 'cape') upgradedCapeDirs.delete(accountDir(account));
 
   // Animated cape: keep the first frame next to the strip. Replacing an animation with a plain cape drops it.
   const target = metadata.items.find((item) => item.id === id);
