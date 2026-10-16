@@ -47,7 +47,17 @@ function sanitize(list) {
       intensity: Math.max(0, Math.min(100, Number.isFinite(Number(pt.intensity)) ? Number(pt.intensity) : 60)),
       perks: (Array.isArray(pt.perks) ? pt.perks : []).map((perk) => text(perk, 40)).filter(Boolean).slice(0, 6),
       code: text(pt.code, 24),
-      tier: ['featured', 'partner', 'sponsor'].includes(pt.tier) ? pt.tier : 'partner'
+      tier: ['featured', 'partner', 'sponsor'].includes(pt.tier) ? pt.tier : 'partner',
+      buttonStyle: ['gradient', 'solid', 'outline', 'glass'].includes(pt.buttonStyle) ? pt.buttonStyle : 'gradient',
+      buttonColor: HEX.test(pt.buttonColor) ? pt.buttonColor : '',
+      buttonText: HEX.test(pt.buttonText) ? pt.buttonText : '',
+      button2Label: isHttps(pt.button2Url) ? text(pt.button2Label, 24) : '',
+      button2Url: pt.button2Label && isHttps(pt.button2Url) ? upgrade(pt.button2Url) : '',
+      logoStyle: ['plain', 'tile', 'circle', 'glass'].includes(pt.logoStyle) ? pt.logoStyle : 'plain',
+      logoBg: HEX.test(pt.logoBg) ? pt.logoBg : '',
+      logoSize: Number(pt.logoSize) ? Math.max(20, Math.min(160, Number(pt.logoSize))) : 52,
+      badge: text(pt.badge, 24),
+      showName: pt.showName !== false
     }));
 }
 

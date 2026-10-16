@@ -186,3 +186,31 @@
 @media (prefers-reduced-motion: reduce) {
   .pt-motion, .pt-motion *, .pt-art, .pt-name, .pt-logo, .pt-logo img, .pt-enter { animation: none !important; }
 }
+
+/* ---------- customizable look (Admin → Partners) ---------- */
+/* Logo: as is, on a tile, in a circle, or on frosted glass. The plain logo no longer takes the accent glow,
+   which made logos in a different colour look washed out. */
+.pt-logo img { filter: none; }
+.pt-logo.is-plain img { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45)); }
+.pt-logo.is-tile, .pt-logo.is-circle, .pt-logo.is-glass {
+  box-sizing: border-box;
+  padding: calc(var(--pt-logo-size, 52px) * 0.16);
+  background: var(--pt-logo-bg, #ffffff);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.pt-logo.is-tile { border-radius: calc(var(--pt-logo-size, 52px) * 0.26); }
+.pt-logo.is-circle { border-radius: 50%; }
+.pt-logo.is-glass { border-radius: calc(var(--pt-logo-size, 52px) * 0.26); background: color-mix(in srgb, var(--pt-logo-bg, #ffffff) 14%, rgba(0, 0, 0, 0.35)); backdrop-filter: blur(10px); }
+
+/* Main button: gradient (accent → glow), solid colour, outline or glass; its own colour and text colour. */
+.pt-cta { color: var(--pt-btn-text, #fff); }
+.pt-cta.is-gradient { background: linear-gradient(135deg, var(--pt-btn, var(--pt-accent)), var(--pt-accent2)); }
+.pt-cta.is-solid { background: var(--pt-btn, var(--pt-accent)); box-shadow: 0 10px 26px -12px var(--pt-btn, var(--pt-accent)); }
+.pt-cta.is-outline { background: transparent; box-shadow: inset 0 0 0 1.5px var(--pt-btn, var(--pt-accent)); color: var(--pt-btn-text, var(--pt-btn, #fff)); }
+.pt-cta.is-outline:hover { background: color-mix(in srgb, var(--pt-btn, var(--pt-accent)) 16%, transparent); filter: none; }
+.pt-cta.is-glass { background: color-mix(in srgb, var(--pt-btn, #ffffff) 14%, rgba(0, 0, 0, 0.35)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); backdrop-filter: blur(10px); }
+.pt-card.is-preview .pt-cta { opacity: 1; }
+/* second button: always a quiet glass button next to the main one */
+.pt-cta2 { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px 0 16px; border: 0; border-radius: 11px; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); color: #fff; font: 700 13px var(--font-sans); cursor: pointer; backdrop-filter: blur(8px); }
+.pt-cta2:hover { background: rgba(255, 255, 255, 0.14); }
+.pt-card.is-preview .pt-cta2 { pointer-events: none; }

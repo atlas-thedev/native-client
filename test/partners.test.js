@@ -114,3 +114,28 @@ test('the player directory lists the newest accounts and the total', async () =>
   const search = await json('/v1/store/users?q=Partner');
   assert.equal(search.body.recent, undefined);
 });
+
+test('partner look settings: buttons, second button, logo style, label, name', async () => {
+  const admin = db.createSession(db.getUserByUsername('PartnerBoss').id).token;
+  let r = await call('POST', '/v1/admin/site/partners', {
+    name: 'Look Test', website: 'https://look.example', logo: 'https://cdn.example/look.png', accent: '#22c55e',
+    buttonStyle: 'outline', buttonColor: '#FF0000', buttonText: '#ffffff', button2Label: 'Discord', button2Url: 'https://discord.gg/look',
+    logoStyle: 'circle', logoBg: '#ffffff', logoSize: 64, badge: 'Official host', showName: false
+  }, admin);
+  assert.equal(r.status, 200);
+  const live = (await json('/v1/site/partners')).body.partners.find((pt) => pt.name === 'Look Test');
+  assert.deepEqual(
+    { s: live.buttonStyle, c: live.buttonColor, t: live.buttonText, l2: live.button2Label, u2: live.button2Url, ls: live.logoStyle, bg: live.logoBg, size: live.logoSize, badge: live.badge, name: live.showName },
+    { s: 'outline', c: '#ff0000', t: '#ffffff', l2: 'Discord', u2: 'https://discord.gg/look', ls: 'circle', bg: '#ffffff', size: 64, badge: 'Official host', name: false }
+  );
+  const id = live.id;
+  assert.equal((await call('PATCH', `/v1/admin/site/partners/${id}`, { buttonColor: 'red' }, admin)).status, 400, 'colours are hex');
+  assert.equal((await call('PATCH', `/v1/admin/site/partners/${id}`, { button2Url: 'http://insecure.example' }, admin)).status, 400, 'https only');
+  assert.equal((await call('PATCH', `/v1/admin/site/partners/${id}`, { button2Url: '' }, admin)).status, 400, 'a second button needs its link');
+  r = await call('PATCH', `/v1/admin/site/partners/${id}`, { button2Label: '', button2Url: '', buttonStyle: 'nope', logoStyle: 'nope' }, admin);
+  assert.equal(r.status, 200);
+  const after = (await json('/v1/site/partners')).body.partners.find((pt) => pt.id === id);
+  assert.equal(after.button2Label, '');
+  assert.equal(after.buttonStyle, 'gradient', 'unknown styles fall back');
+  assert.equal(after.logoStyle, 'plain');
+});

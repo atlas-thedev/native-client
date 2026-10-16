@@ -91,8 +91,12 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
     '--pt-accent2': pt.accent2 || pt.accent || '#ffffff',
     '--pt-speed': String(Math.max(0.25, Number(pt.speed) || 1)),
     '--pt-intensity': String(Math.max(0, Math.min(100, Number(pt.intensity ?? 60))) / 100),
-    '--pt-logo-size': `${logoSize}px`
+    '--pt-logo-size': `${logoSize}px`,
+    ...(pt.buttonColor ? { '--pt-btn': pt.buttonColor } : {}),
+    ...(pt.buttonText ? { '--pt-btn-text': pt.buttonText } : {}),
+    ...(pt.logoBg ? { '--pt-logo-bg': pt.logoBg } : {})
   };
+  const tierLabel = pt.badge || (pt.tier === 'featured' ? 'Featured partner' : pt.tier === 'sponsor' ? 'Sponsor' : 'Partner');
 
   const visit = () => {
     if (preview || !pt.website) return;
@@ -123,10 +127,10 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
 
         <div className="pt-content">
           <div className="pt-id">
-            <span className="pt-logo">{logo ? <img src={logo} alt="" draggable="false" /> : <Handshake size={18} />}</span>
-            <span className="pt-tier">{pt.tier === 'featured' ? 'Featured partner' : pt.tier === 'sponsor' ? 'Sponsor' : 'Partner'}</span>
+            <span className={`pt-logo is-${pt.logoStyle || 'plain'}`}>{logo ? <img src={logo} alt="" draggable="false" /> : <Handshake size={18} />}</span>
+            <span className="pt-tier">{tierLabel}</span>
           </div>
-          <h3 className="pt-name">{pt.name || 'Partner name'}</h3>
+          {pt.showName !== false && <h3 className="pt-name">{pt.name || 'Partner name'}</h3>}
           {pt.tagline && <p className="pt-tagline">{pt.tagline}</p>}
           {size === 'hero' && pt.description && <p className="pt-desc">{pt.description}</p>}
           {Array.isArray(pt.perks) && pt.perks.length > 0 && (
@@ -135,10 +139,16 @@ export default function PartnerCard({ partner, size = 'tile', preview = false, o
             </ul>
           )}
           <div className="pt-actions">
-            <button type="button" className="pt-cta" onClick={visit} disabled={!pt.website}>
+            <button type="button" className={`pt-cta is-${pt.buttonStyle || 'gradient'}`} onClick={visit} aria-disabled={!pt.website || undefined}>
               <span>{pt.cta || 'Visit'}</span>
               <ArrowUpRight size={15} />
             </button>
+            {pt.button2Label && pt.button2Url && (
+              <button type="button" className="pt-cta2" onClick={(event) => { event.stopPropagation(); if (!preview) openLink(pt.button2Url); }}>
+                <span>{pt.button2Label}</span>
+                <ArrowUpRight size={14} />
+              </button>
+            )}
             {pt.code && (
               <button type="button" className={`pt-code${copied ? ' is-copied' : ''}`} onClick={copy} title="Copy code">
                 <span>Code</span>

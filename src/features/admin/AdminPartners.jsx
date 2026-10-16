@@ -11,6 +11,8 @@ const blank = () => ({
   accent: '#8b5cf6', accent2: '#c07eff',
   animation: 'aurora', speed: 1, intensity: 70,
   perks: [], code: '', tier: 'partner', order: 0,
+  buttonStyle: 'gradient', buttonColor: '', buttonText: '', button2Label: '', button2Url: '',
+  logoStyle: 'plain', logoBg: '#ffffff', badge: '', showName: true,
   startsAt: null, endsAt: null, enabled: true
 });
 const FIELDS = Object.keys(blank());
@@ -255,6 +257,21 @@ export default function AdminPartners({ doc, setDoc, onNotify, onAccessRevoked }
                 </div>
                 <ImageField label="Background" value={draft.background} onChange={(value) => set('background', value)} placeholder="https://…/banner.webp" />
                 <ImageField label="Floating art" value={draft.art} onChange={(value) => set('art', value)} placeholder="https://…/render.png" />
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="admin-card-head"><h3>Look</h3><span>Buttons, logo and label</span></div>
+              <div className="admin-form-grid">
+                <div className="admin-field is-wide"><span>Button style</span><AdminSegmented value={draft.buttonStyle} onChange={(value) => set('buttonStyle', value)} ariaLabel="Button style" options={[['gradient', 'Gradient'], ['solid', 'Solid'], ['outline', 'Outline'], ['glass', 'Glass']]} /></div>
+                <div className="admin-field"><span>Button colour {draft.buttonColor ? '' : '· accent'}</span><div className="apt-colour-row"><AdminColor value={draft.buttonColor || draft.accent} onChange={(value) => set('buttonColor', value)} />{draft.buttonColor && <button type="button" className="admin-btn ghost" onClick={() => set('buttonColor', '')}>Use accent</button>}</div></div>
+                <div className="admin-field"><span>Button text {draft.buttonText ? '' : '· white'}</span><div className="apt-colour-row"><AdminColor value={draft.buttonText || '#ffffff'} onChange={(value) => set('buttonText', value)} />{draft.buttonText && <button type="button" className="admin-btn ghost" onClick={() => set('buttonText', '')}>Reset</button>}</div></div>
+                <label className="admin-field"><span>Second button label (optional)</span><input maxLength={24} placeholder="Discord" value={draft.button2Label} onChange={(event) => set('button2Label', event.target.value)} /></label>
+                <label className="admin-field"><span>Second button link (https)</span><input maxLength={300} placeholder="https://discord.gg/…" value={draft.button2Url} onChange={(event) => set('button2Url', event.target.value.trim())} /></label>
+                <div className="admin-field is-wide"><span>Logo style</span><AdminSegmented value={draft.logoStyle} onChange={(value) => set('logoStyle', value)} ariaLabel="Logo style" options={[['plain', 'Plain'], ['tile', 'Tile'], ['circle', 'Circle'], ['glass', 'Glass']]} /></div>
+                {draft.logoStyle !== 'plain' && <div className="admin-field"><span>Logo background</span><AdminColor value={draft.logoBg || '#ffffff'} onChange={(value) => set('logoBg', value)} /></div>}
+                <label className="admin-field"><span>Label (instead of “{draft.tier === 'featured' ? 'Featured partner' : draft.tier === 'sponsor' ? 'Sponsor' : 'Partner'}”)</span><input maxLength={24} placeholder="Official host" value={draft.badge} onChange={(event) => set('badge', event.target.value)} /></label>
+                <AdminSwitch on={draft.showName} onChange={(value) => set('showName', value)} label="Show the name" hint="Turn off when the logo already spells it." />
               </div>
             </section>
 

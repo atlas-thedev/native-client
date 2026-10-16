@@ -514,6 +514,11 @@ function partnerImage(value, label, required = false) {
   return image;
 }
 
+/** Button looks: gradient (accent → glow), solid colour, outline, or frosted glass. */
+const PARTNER_BUTTONS = ['gradient', 'solid', 'outline', 'glass'];
+/** Logo looks: as is, on a rounded tile, in a circle, or on frosted glass. */
+const PARTNER_LOGOS = ['plain', 'tile', 'circle', 'glass'];
+
 function partnerFrom(b, prev = {}) {
   const pt = { ...prev };
   if (b.name !== undefined || !prev.id) pt.name = clean(b.name, 48);
@@ -549,6 +554,28 @@ function partnerFrom(b, prev = {}) {
     pt.perks = b.perks.map((x) => clean(x, 40)).filter(Boolean).slice(0, 6);
   }
   if (b.code !== undefined) pt.code = clean(b.code, 24);
+  // look of the buttons, logo and label
+  if (b.buttonStyle !== undefined || !prev.id) pt.buttonStyle = PARTNER_BUTTONS.includes(b.buttonStyle) ? b.buttonStyle : 'gradient';
+  for (const key of ['buttonColor', 'buttonText', 'logoBg']) {
+    if (b[key] === undefined) continue;
+    const colour = clean(b[key], 7);
+    if (colour && !HEX.test(colour)) throw new Error('Colours must look like #8b5cf6.');
+    pt[key] = colour ? colour.toLowerCase() : '';
+  }
+  if (b.button2Label !== undefined) pt.button2Label = clean(b.button2Label, 24);
+  if (b.button2Url !== undefined) {
+    const link = clean(b.button2Url, 300);
+    if (link && !/^https:\/\//.test(link)) throw new Error('The second button link must start with https://.');
+    pt.button2Url = link;
+  }
+  if (pt.button2Label && !pt.button2Url) throw new Error('Give the second button a link (https://…).');
+  if (b.logoStyle !== undefined || !prev.id) pt.logoStyle = PARTNER_LOGOS.includes(b.logoStyle) ? b.logoStyle : 'plain';
+  if (b.logoSize !== undefined || !prev.id) {
+    const n = Math.round(Number(b.logoSize ?? 52));
+    pt.logoSize = Number.isFinite(n) ? Math.max(20, Math.min(160, n)) : 52;
+  }
+  if (b.badge !== undefined) pt.badge = clean(b.badge, 24);
+  if (b.showName !== undefined || !prev.id) pt.showName = bool(b.showName, true);
   if (b.tier !== undefined || !prev.id) pt.tier = PARTNER_TIERS.includes(b.tier) ? b.tier : 'partner';
   if (b.order !== undefined || !prev.id) {
     const n = Math.round(Number(b.order ?? 0));
@@ -584,7 +611,17 @@ const publicPartner = (pt, origin = '') => ({
   perks: Array.isArray(pt.perks) ? pt.perks : [],
   code: pt.code || '',
   tier: pt.tier || 'partner',
-  order: pt.order || 0
+  order: pt.order || 0,
+  buttonStyle: PARTNER_BUTTONS.includes(pt.buttonStyle) ? pt.buttonStyle : 'gradient',
+  buttonColor: pt.buttonColor || '',
+  buttonText: pt.buttonText || '',
+  button2Label: pt.button2Label || '',
+  button2Url: pt.button2Label && pt.button2Url ? pt.button2Url : '',
+  logoStyle: PARTNER_LOGOS.includes(pt.logoStyle) ? pt.logoStyle : 'plain',
+  logoBg: pt.logoBg || '',
+  logoSize: Number(pt.logoSize) || 52,
+  badge: pt.badge || '',
+  showName: pt.showName !== false
 });
 
 function livePartners(origin = '') {
