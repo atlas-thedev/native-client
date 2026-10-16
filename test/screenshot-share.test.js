@@ -49,7 +49,11 @@ const social = {
   const output = JSON.parse(execFileSync(process.execPath, [bundle], { encoding: 'utf8' }));
   fs.rmSync(workDir, { recursive: true, force: true });
 
-  assert.deepEqual(output.result, { sent: 2, failed: 0, total: 2 });
+  assert.equal(output.result.sent, 2);
+  assert.equal(output.result.failed, 0);
+  assert.equal(output.result.total, 2);
+  assert.deepEqual(output.result.failedTargets, []);
+  assert.equal(output.result.upload.url, 'https://cdn.test/shot.png');
   assert.equal(output.calls.reads, 1);
   assert.equal(output.calls.uploads, 1);
   assert.equal(output.calls.upload.name, 'castle.png');

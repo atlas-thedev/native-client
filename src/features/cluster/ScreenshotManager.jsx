@@ -10,12 +10,12 @@ import {
   Send,
   Share2,
   Trash2,
-  UserRound,
-  UsersRound,
   X
 } from 'lucide-react';
 import PlayerAvatar from '../../components/ui/PlayerAvatar.jsx';
-import Badges from '../social/Badges.jsx';
+import RelayAvatar from '../social/RelayAvatar.jsx';
+import { GroupAvatarBadge } from '../social/GroupAvatarBadge.jsx';
+import Badges, { isPlusUser, PlusMark } from '../social/Badges.jsx';
 import './ScreenshotManager.css';
 
 const formatSize = (bytes = 0) => {
@@ -63,37 +63,74 @@ function ScreenshotThumbnail({ instanceId, shot, eager = false }) {
   return <img src={url} alt={shot.name} draggable="false"/>;
 }
 
-function TargetAvatar({ target }) {
-  const name = target.nickname || target.name || (target.kind === 'group' ? 'Group' : 'Friend');
-  const image = target.kind === 'group' ? target.iconUrl : null;
+const displayName = (target) => target.nickname || target.name || (target.kind === 'group' ? 'Group' : 'Friend');
+
+/** Same wording and colours as the Relay inbox, so a friend looks the same here as there. */
+export function presenceOf(target) {
+  if (target.kind === 'group') {
+    const count = target.memberCount || target.members?.length || 0;
+    return { status: 'group', rank: 3, text: `${count} member${count === 1 ? '' : 's'}`, color: '#23a55a' };
+  }
+  const status = String(target.status || 'offline').toLowerCase();
+  if (status === 'in-game' || status === 'in-menus') return { status: 'in-game', rank: 0, text: target.activity || 'Playing Minecraft', color: '#d9a6da' };
+  if (status === 'online' || status === 'in-launcher') return { status: 'online', rank: 1, text: 'In launcher', color: '#23a55a' };
+  return { status: 'offline', rank: 2, text: target.lastSeen || 'Offline', color: '#80848e' };
+}
+
+/** A friend's real face (their Native or Minecraft skin) with a presence dot, or the group's picture. */
+function TargetAvatar({ target, size = 36, dot = true }) {
+  const presence = presenceOf(target);
   return (
-    <span className={`sm-target-avatar is-${target.kind}`}>
-      {image ? <img src={image} alt=""/> : target.kind === 'group' ? <UsersRound size={16}/> : <UserRound size={16}/>} 
-      <span className="sm-target-presence" data-status={target.status || 'offline'}/>
+    <span className={`sm-target-avatar is-${target.kind}`} style={{ width: size, height: size }}>
+      {target.kind === 'group'
+        ? <GroupAvatarBadge group={target} size={size}/>
+        : <RelayAvatar name={target.name} skinUrl={target.skinUrl} size={size} className="sm-target-face"/>}
+      {dot && target.kind !== 'group' && <span className="sm-target-presence" data-status={presence.status} style={{ backgroundColor: presence.color }}/>}
     </span>
   );
 }
 
-export async function shareScreenshot({ cluster, shot, social, recipients, caption = '' }) {
-  const dataUrl = await window.native.instance.screenshotData(cluster.id, shot.name, { thumbnail: false });
-  const upload = await social.uploadMedia(dataUrl, shot.name);
-  if (!upload?.ok || !upload.url) throw new Error(upload?.error || 'Screenshot upload failed.');
+/** The data URL's file name: a picture that had to be saved as JPEG gets a .jpg name. */
+function uploadName(name, dataUrl) {
+  if (/^data:image\/jpeg/i.test(dataUrl) && !/\.jpe?g$/i.test(name)) return name.replace(/\.[^.]+$/, '') + '.jpg';
+  return name;
+}
 
+/** Reads the picture (shrunk when it would be too big for the server) and uploads it once. */
+export async function uploadScreenshot({ cluster, shot, social }) {
+  const dataUrl = await window.native.instance.screenshotData(cluster.id, shot.name, { thumbnail: false, share: true });
+  const name = uploadName(shot.name, dataUrl);
+  const upload = await social.uploadMedia(dataUrl, name);
+  if (!upload?.ok || !upload.url) throw new Error(upload?.error || 'Screenshot upload failed.');
+  return { url: upload.url, name };
+}
+
+/**
+ * Sends a screenshot to friends and groups. The picture is uploaded once (pass {@code upload} from an earlier try to
+ * skip that) and one failing recipient never stops the others; the result says who got it and who did not.
+ */
+export async function shareScreenshot({ cluster, shot, social, recipients, caption = '', upload = null }) {
+  const uploaded = upload || await uploadScreenshot({ cluster, shot, social });
   const message = caption.trim().slice(0, 2000) || `Screenshot from ${cluster.name || cluster.mc_version || cluster.version || 'Minecraft'}`;
   const media = {
-    mediaUrl: upload.url,
-    mediaName: shot.name,
+    mediaUrl: uploaded.url,
+    mediaName: uploaded.name,
     mediaKind: 'image',
     isMedia: true
   };
   const results = await Promise.all(recipients.map(async (target) => {
-    if (target.kind === 'group') {
-      return window.native.relay.sendGroupMessage(target.id, { content: message, ...media });
+    try {
+      const result = target.kind === 'group'
+        ? await window.native.relay.sendGroupMessage(target.id, { content: message, ...media })
+        : await social.sendMessage(target.id, message, media);
+      return { target, ok: Boolean(result?.ok), error: result?.ok ? '' : (result?.error || 'Not delivered') };
+    } catch (reason) {
+      return { target, ok: false, error: reason?.message || 'Not delivered' };
     }
-    return social.sendMessage(target.id, message, media);
   }));
-  const failed = results.filter((result) => !result?.ok).length;
-  return { sent: results.length - failed, failed, total: results.length };
+  const failedTargets = results.filter((entry) => !entry.ok).map(({ target, error }) => ({ key: targetKey(target), name: displayName(target), error }));
+  const sentTargets = results.filter((entry) => entry.ok).map(({ target }) => targetKey(target));
+  return { sent: sentTargets.length, failed: failedTargets.length, total: results.length, failedTargets, sentTargets, upload: uploaded };
 }
 
 export function ShareScreenshotDialog({ cluster, shot, social, account, onClose, onShared }) {
@@ -106,6 +143,9 @@ export function ShareScreenshotDialog({ cluster, shot, social, account, onClose,
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sentKeys, setSentKeys] = useState(() => new Set());
+  const [failedMap, setFailedMap] = useState({});
+  const uploadRef = useRef(null);
 
   useEscapeClose(onClose, busy);
 
@@ -146,11 +186,20 @@ export function ShareScreenshotDialog({ cluster, shot, social, account, onClose,
     ...groups.map((group) => ({ ...group, kind: 'group' }))
   ], [groups, social?.friends]);
 
-  const visible = targets.filter((target) =>
-    `${target.nickname || ''} ${target.name || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return targets
+      .filter((target) => `${target.nickname || ''} ${target.name || ''}`.toLowerCase().includes(needle))
+      .sort((a, b) => presenceOf(a).rank - presenceOf(b).rank || displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' }));
+  }, [targets, query]);
+  const friendRows = visible.filter((target) => target.kind === 'friend');
+  const groupRows = visible.filter((target) => target.kind === 'group');
+  const chosen = targets.filter((target) => selected.has(targetKey(target)) && !sentKeys.has(targetKey(target)));
 
   const toggle = (target) => {
     const key = targetKey(target);
+    if (sentKeys.has(key)) return;
+    setFailedMap((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; });
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
@@ -160,17 +209,23 @@ export function ShareScreenshotDialog({ cluster, shot, social, account, onClose,
   };
 
   const share = async () => {
-    const recipients = targets.filter((target) => selected.has(targetKey(target)));
+    const recipients = chosen;
     if (!recipients.length || busy) return;
     setBusy(true);
     setError('');
     try {
-      const { sent, failed } = await shareScreenshot({ cluster, shot, social, recipients, caption });
-      if (failed) {
-        setError(`Shared with ${sent} recipient${sent === 1 ? '' : 's'}; ${failed} failed.`);
+      const result = await shareScreenshot({ cluster, shot, social, recipients, caption, upload: uploadRef.current });
+      uploadRef.current = result.upload; // a retry sends the same upload instead of uploading again
+      const nowSent = new Set([...sentKeys, ...result.sentTargets]);
+      setSentKeys(nowSent);
+      if (result.failed) {
+        const map = {};
+        result.failedTargets.forEach((entry) => { map[entry.key] = entry.error; });
+        setFailedMap(map);
+        setError(`Sent to ${nowSent.size}, but not to ${result.failedTargets.map((entry) => entry.name).join(', ')}. Press Retry to try them again.`);
         return;
       }
-      onShared(recipients.length);
+      onShared(nowSent.size);
     } catch (reason) {
       setError(reason?.message || 'Could not share this screenshot.');
     } finally {
@@ -178,62 +233,99 @@ export function ShareScreenshotDialog({ cluster, shot, social, account, onClose,
     }
   };
 
+  const onKeyDown = (event) => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      share();
+    }
+  };
+
+  const message = caption.trim() || `Screenshot from ${cluster.name || cluster.mc_version || cluster.version || 'Minecraft'}`;
+
+  const renderRow = (target) => {
+    const key = targetKey(target);
+    const active = selected.has(key);
+    const sent = sentKeys.has(key);
+    const failed = failedMap[key];
+    const presence = presenceOf(target);
+    return (
+      <button key={key} className={`${active ? 'is-selected' : ''} ${sent ? 'is-sent' : ''} ${failed ? 'is-failed' : ''}`} onClick={() => toggle(target)} disabled={busy || sent}>
+        <TargetAvatar target={target}/>
+        <span>
+          <strong>{displayName(target)}{target.kind === 'friend' && isPlusUser(target) && <PlusMark size={12}/>}</strong>
+          <small style={failed ? undefined : { color: target.kind === 'friend' && presence.status !== 'offline' ? presence.color : undefined }}>
+            {sent ? 'Sent' : failed ? `Failed: ${failed}` : presence.text}
+          </small>
+        </span>
+        <i>{(active || sent) && <Check size={13}/>}</i>
+      </button>
+    );
+  };
+
   return (
     <div className="sm-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-      <section ref={dialogRef} className="sm-share-dialog" role="dialog" aria-modal="true" aria-label={`Share ${shot.name}`} tabIndex={-1}>
+      <section ref={dialogRef} className="sm-share-dialog" role="dialog" aria-modal="true" aria-label={`Share ${shot.name}`} tabIndex={-1} onKeyDown={onKeyDown}>
         <header>
           <div><span className="sm-kicker">RELAY SHARE</span><h2>Share screenshot</h2></div>
           <button onClick={onClose} disabled={busy} aria-label="Close share dialog"><X size={17}/></button>
         </header>
 
-        <div className="sm-share-sender">
-          <PlayerAvatar account={currentUser} size={32} />
-          <div className="sm-share-sender-info">
-            <span className="sm-share-sender-label">Sharing as</span>
-            <div className="sm-share-sender-name-row">
-              <strong className="sm-share-sender-name">{currentUser.name || currentUser.username || 'You'}</strong>
-              <Badges user={currentUser} size={15} />
+        <div className="sm-share-body">
+          <div className="sm-share-preview" aria-label="How it will look in chat">
+            <PlayerAvatar account={currentUser} size={34} />
+            <div className="sm-share-bubble">
+              <span className="sm-share-sender-label">Sharing as</span>
+              <div className="sm-share-sender-name-row">
+                <strong className="sm-share-sender-name">{currentUser.name || currentUser.username || 'You'}</strong>
+                <Badges user={currentUser} size={14} />
+                <small>now</small>
+              </div>
+              <p>{message}</p>
+              <div className="sm-share-image"><ScreenshotThumbnail instanceId={cluster.id} shot={shot}/></div>
+              <small className="sm-share-file">{shot.name} · {formatSize(shot.size)} · {formatDate(shot.modified)}</small>
             </div>
           </div>
-        </div>
 
-        <div className="sm-share-shot">
-          <div><ScreenshotThumbnail instanceId={cluster.id} shot={shot}/></div>
-          <span><strong>{shot.name}</strong><small>{formatSize(shot.size)} · {formatDate(shot.modified)}</small></span>
-        </div>
+          <input
+            className="sm-caption"
+            value={caption}
+            maxLength={2000}
+            onChange={(event) => setCaption(event.target.value)}
+            placeholder="Add a message (optional)…"
+            disabled={busy}
+          />
 
-        <input
-          className="sm-caption"
-          value={caption}
-          maxLength={2000}
-          onChange={(event) => setCaption(event.target.value)}
-          placeholder={`Add a message about ${shot.name}…`}
-        />
-        <label className="sm-recipient-search">
-          <span>Send to</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find friends or groups…"/>
-        </label>
+          {chosen.length > 0 && (
+            <div className="sm-chips" aria-label="Sending to">
+              {chosen.map((target) => (
+                <button key={targetKey(target)} className="sm-chip" onClick={() => toggle(target)} disabled={busy} title="Remove">
+                  <TargetAvatar target={target} size={20} dot={false}/>
+                  <span>{displayName(target)}</span>
+                  <X size={11}/>
+                </button>
+              ))}
+            </div>
+          )}
 
-        <div className="sm-target-list">
-          {visible.map((target) => {
-            const key = targetKey(target);
-            const active = selected.has(key);
-            return (
-              <button key={key} className={active ? 'is-selected' : ''} onClick={() => toggle(target)}>
-                <TargetAvatar target={target}/>
-                <span><strong>{target.nickname || target.name}</strong><small>{target.kind === 'group' ? `${target.memberCount || target.members?.length || 0} members` : target.status || 'offline'}</small></span>
-                <i>{active && <Check size={13}/>}</i>
-              </button>
-            );
-          })}
-          {!visible.length && <div className="sm-no-targets">{loadingGroups ? 'Loading your groups…' : 'No friends or groups match.'}</div>}
+          <label className="sm-recipient-search">
+            <span>Send to</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find friends or groups…"/>
+          </label>
+
+          <div className="sm-target-list">
+            {friendRows.length > 0 && <div className="sm-section-label">Friends</div>}
+            {friendRows.map(renderRow)}
+            {groupRows.length > 0 && <div className="sm-section-label">Groups</div>}
+            {groupRows.map(renderRow)}
+            {!visible.length && <div className="sm-no-targets">{loadingGroups ? 'Loading your groups…' : targets.length ? 'No friends or groups match.' : 'Add friends in Relay to share screenshots with them.'}</div>}
+          </div>
         </div>
 
         {error && <p className="sm-share-error" role="alert">{error}</p>}
         <footer>
-          <span>{selected.size ? `${selected.size} selected` : 'Choose at least one recipient'}</span>
-          <button className="sm-send" disabled={!selected.size || busy} onClick={share}>
-            {busy ? <LoaderCircle className="is-spinning" size={15}/> : <Send size={15}/>} {busy ? 'Sharing…' : 'Share'}
+          <span>{chosen.length ? `${chosen.length} selected · Ctrl+Enter to send` : sentKeys.size ? `${sentKeys.size} sent` : 'Choose at least one recipient'}</span>
+          <button className="sm-send" disabled={!chosen.length || busy} onClick={share}>
+            {busy ? <LoaderCircle className="is-spinning" size={15}/> : <Send size={15}/>} {busy ? 'Sending…' : Object.keys(failedMap).length ? `Retry ${chosen.length}` : 'Share'}
           </button>
         </footer>
       </section>
