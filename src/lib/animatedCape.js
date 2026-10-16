@@ -47,6 +47,28 @@ export function loadStripImage(src) {
   });
 }
 
+/**
+ * Cards only ever show a cape's front face, so keep just that: every frame's front, at card size, in one small
+ * canvas strip. A 48-frame 512x256 cape is ~25 MB decoded; its fronts at 80x128 are ~2 MB. The big image is let go.
+ * drawCapeFront() draws from it like from a full strip.
+ */
+export async function loadCapeFronts(src, frames, width = 80, height = 128) {
+  const image = await loadStripImage(src);
+  const count = Math.max(1, frames || 1);
+  const frameWidth = image.naturalWidth || image.width;
+  const frameHeight = count > 1 ? Math.floor((image.naturalHeight || image.height) / count) : (image.naturalHeight || image.height);
+  const unit = capeUnit(frameWidth, frameHeight);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height * count;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  for (let i = 0; i < count; i += 1) ctx.drawImage(image, unit, i * frameHeight + unit, 10 * unit, 16 * unit, 0, i * height, width, height);
+  image.src = '';
+  canvas.capeFronts = { frames: count, width, height };
+  return canvas;
+}
+
 /** Paint frame `index` of a strip into `ctx` (a canvas of textureSizeFor(...)). */
 export function paintFrame(ctx, image, frames, index) {
   const frameWidth = image.naturalWidth || image.width;
@@ -96,6 +118,15 @@ export function startCapeAnimation(viewer, image, { frames, fps }) {
 
 /** Draw the front of the cape (the part you see from the front) into a small canvas. */
 export function drawCapeFront(canvas, image, frames, index) {
+  if (image.capeFronts) {
+    // a compact strip from loadCapeFronts: frame `index` is one card-sized row
+    const { width, height } = image.capeFronts;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, index * height, width, height, 0, 0, canvas.width, canvas.height);
+    return;
+  }
   const frameWidth = image.naturalWidth || image.width;
   const frameHeight = frames > 1 ? Math.floor((image.naturalHeight || image.height) / frames) : (image.naturalHeight || image.height);
   const unit = capeUnit(frameWidth, frameHeight);

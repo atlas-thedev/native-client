@@ -150,6 +150,26 @@ function SkinViewerCanvas({
   const camRef = useRef(null);
   useEffect(() => () => { camRef.current?.dispose(); camRef.current = null; }, []);
 
+  /* ---- no drawing while the launcher is minimised or in the background ---- */
+  useEffect(() => {
+    let held = false;
+    const sync = () => {
+      const viewer = viewerRef.current;
+      if (!viewer) return;
+      const away = document.hidden || !document.hasFocus();
+      if (away && !viewer.renderPaused) { held = true; viewer.renderPaused = true; }
+      else if (!away && held) { held = false; viewer.renderPaused = false; }
+    };
+    window.addEventListener('blur', sync);
+    window.addEventListener('focus', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      window.removeEventListener('blur', sync);
+      window.removeEventListener('focus', sync);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
+
   const onLostRef = useRef(onLost);
   onLostRef.current = onLost;
   const onViewerRef = useRef(onViewer);
@@ -170,7 +190,9 @@ function SkinViewerCanvas({
           width,
           height,
           model: initialModel,
-          preserveDrawingBuffer: false
+          preserveDrawingBuffer: false,
+          // pixel art: 1.5x is as sharp as it gets; full 2x-4x (scaled / 4K screens) only costs GPU time
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5)
         });
 
         viewer.fov = 42;

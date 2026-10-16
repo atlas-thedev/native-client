@@ -13,7 +13,7 @@ import { Check, Copy, Layers, Pause, Play, RotateCcw, ZoomIn, ZoomOut, Heart, Us
 import NativePlusIcon from '../../components/ui/NativePlusIcon.jsx';
 import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import Honeycomb from '../../components/ui/Honeycomb.jsx';
-import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
+import { drawCapeFront, loadCapeFronts } from '../../lib/animatedCape.js';
 import './StoreView.css';
 import PartnerTag from './PartnerTag.jsx';
 import { SHOTS, createCamera } from '../../lib/viewerCamera.js';
@@ -231,9 +231,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
           try {
             const res = await window.native.store.strip(item.id);
             if (!res?.ok || !alive) continue;
-            const image = await loadStripImage(res.url);
+            const frames = item.animated ? item.frames : 1;
+            const image = await loadCapeFronts(res.url, frames);
             if (!alive) continue;
-            const entry = { image, frames: item.animated ? item.frames : 1, fps: item.animated ? item.fps : 0 };
+            const entry = { image, frames, fps: item.animated ? item.fps : 0 };
             images.current.set(item.id, entry);
             pendingBatch[item.id] = res.url;
 
@@ -1010,7 +1011,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
 
   return (
     <div className="store-view">
-      <Honeycomb glow testId="store-honeycomb-bg" />
+      <Honeycomb still testId="store-honeycomb-bg" />
       <header className="store-header">
         <div className="store-header-copy">
           <h1 className="store-title page-title">Store</h1>

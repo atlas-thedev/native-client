@@ -10,7 +10,7 @@ import SkinViewer3D from '../../components/ui/SkinViewer3D.jsx';
 import { PixelButton, PixelIconButton, PixelTabs } from '../../components/ui/PixelControls.jsx';
 import { openProfile } from '../profile/ProfilePage.jsx';
 import { CAPE_PRESETS, presetTextureDataUrl } from './capePresets.js';
-import { drawCapeFront, loadStripImage } from '../../lib/animatedCape.js';
+import { drawCapeFront, loadCapeFronts } from '../../lib/animatedCape.js';
 import { loadStoreCape, peekStoreCape } from '../../lib/storeCapeCache.js';
 import useOfficialCapes from './useOfficialCapes.js';
 import { detectSkinModel, readFileAsDataUrl } from '../../lib/skins.js';
@@ -1028,7 +1028,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   };
 
   return <div className="locker-view" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); switchSection('skins'); processFile(event.dataTransfer?.files?.[0]); }}>
-    <Honeycomb glow testId="locker-honeycomb-bg" />
+    <Honeycomb still testId="locker-honeycomb-bg" />
     <header className="locker-header">
       <div>
         <h1 className="locker-title page-title">{t('locker.title') || 'Locker'}</h1>
@@ -1154,9 +1154,9 @@ function AnimatedCapeThumb({ item, fallback }) {
       try {
         const res = await window.native?.store?.strip?.(item.id);
         if (!alive || !res?.ok) return;
-        const image = await loadStripImage(res.url);
-        if (!alive || !ref.current) return;
         const frames = Math.max(1, item.frames || 1);
+        const image = await loadCapeFronts(res.url, frames);
+        if (!alive || !ref.current) return;
         const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || document.documentElement.dataset.motion === 'reduced';
         try { drawCapeFront(ref.current, image, frames, 0); } catch { return; }
         setReady(true);
