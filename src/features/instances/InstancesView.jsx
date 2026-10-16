@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import { getClusterArt } from '../../data/versionsData.js';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
-import { formatLaunchProgress } from '../launcher/useLauncher.js';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
 import Honeycomb from '../../components/ui/Honeycomb.jsx';
 import fabricIcon from '../../assets/icons/fabric.png';
@@ -414,10 +413,10 @@ export default function InstancesView({
                   <div className="instance-card-art">
                     <img src={artOf(instance)} alt="" draggable="false" />
 
-                    {running && (
-                      <span className="instance-card-live">
+                    {running && launcher.status === 'running' && (
+                      <span className="instance-card-live" data-testid="instance-card-running-badge">
                         <NativeIcon name="dot" size={10} />
-                        {launcher.status === 'running' ? t('instances.running') : formatLaunchProgress(launcherState, t)}
+                        {t('instances.running')}
                       </span>
                     )}
 

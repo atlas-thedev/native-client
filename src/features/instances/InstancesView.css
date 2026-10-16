@@ -449,6 +449,11 @@
 .instance-card-launch .launch-action { min-width: 104px; border-radius: var(--radius-full); }
 .instance-card-launch .launch-action.is-icon-only { min-width: 0; }
 
+/* While installing/launching the progress button takes the whole footer row. */
+.instance-card-footer:has(.launch-action.is-busy:not(.is-icon-only)) .instance-card-stats { display: none; }
+.instance-card-launch:has(.launch-action.is-busy:not(.is-icon-only)) { flex: 1; min-width: 0; }
+.instance-card-launch .launch-action.is-busy:not(.is-icon-only) { width: 100%; min-width: 0; }
+
 /* ---------- list layout ---------- */
 
 .instances-grid.is-list .instance-card { flex-direction: row; align-items: center; gap: 16px; padding: 8px 14px 8px 8px; border-radius: var(--radius-lg); }
