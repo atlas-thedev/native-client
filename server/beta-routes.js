@@ -1,7 +1,8 @@
 'use strict';
 /**
  * Super Beta Tester program: players apply on the website, admins review.
- * Accepted testers get the Super Beta Tester badge, the Super Beta Tester cape and Native+ forever.
+ * Accepted testers get the Super Beta Tester badge and cape (kept) and one month of Native+ (PLUS_DAYS).
+ * Testers accepted back when beta Native+ was forever were moved to one month from the switch (migratePlus).
  *
  * Signed in
  *   GET    /v1/beta/me          { open, application|null, perks }
@@ -28,6 +29,7 @@ const BADGE = 'super_beta_tester';
 const CAPE = 'super-beta-tester';
 const SOURCE = 'beta';
 const PLUS_NOTE = 'Super Beta Tester';
+const PLUS_DAYS = 30;
 const STATUSES = ['pending', 'approved', 'waitlist', 'rejected'];
 const PLATFORMS = ['windows', 'macos', 'linux'];
 const REAPPLY_MS = 7 * 86_400_000;
@@ -50,6 +52,7 @@ function sql() {
       user_id TEXT PRIMARY KEY, enabled INTEGER, note TEXT, added_by TEXT, added_at INTEGER,
       last_version TEXT, last_platform TEXT, last_seen_at INTEGER)`);
     h.exec('CREATE TABLE IF NOT EXISTS beta_update_config (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL)');
+    h.exec('CREATE TABLE IF NOT EXISTS beta_migrations (id TEXT PRIMARY KEY, done_at INTEGER NOT NULL)');
     ready = true;
   }
   return h;
@@ -103,6 +106,7 @@ function doc(row, admin = false) {
     canReapply: row.status === 'rejected' && Date.now() - Number(row.reviewed_at || row.updated_at) >= REAPPLY_MS,
     reapplyAt: row.status === 'rejected' ? Number(row.reviewed_at || row.updated_at) + REAPPLY_MS : null
   };
+  if (row.status === 'approved') out.plusEndsAt = plusEndsAt(row.user_id);
   if (admin) {
     const u = db.getUserById(row.user_id);
     Object.assign(out, {
@@ -116,14 +120,41 @@ function doc(row, admin = false) {
 
 function perks() {
   const cape = hooks.findItem ? hooks.findItem(CAPE) : null;
-  return { badge: BADGE, capeId: cape ? CAPE : null, plus: 'lifetime' };
+  return { badge: BADGE, capeId: cape ? CAPE : null, plus: 'month', plusDays: PLUS_DAYS };
+}
+
+/** When this tester's beta Native+ runs out (null when it isn't the beta gift, e.g. they pay or an admin gave more). */
+function plusEndsAt(userId) {
+  try {
+    const gift = billing().plusGift(userId);
+    return gift && gift.note === PLUS_NOTE ? gift.expiresAt : null;
+  } catch { return null; }
+}
+
+/**
+ * One time: beta Native+ used to be forever. Every tester who still has that forever beta gift gets one month
+ * from now instead (other gifts and paid Native+ are untouched). Returns how many were moved.
+ */
+let migrated = false;
+function migratePlus(now = Date.now()) {
+  if (migrated) return 0;
+  migrated = true;
+  const h = sql();
+  if (h.prepare("SELECT 1 FROM beta_migrations WHERE id = 'plus-month'").get()) return 0;
+  billing().plusGift('');  // makes sure plus_grants exists
+  const rows = h.prepare('SELECT user_id FROM plus_grants WHERE note = ? AND expires_at IS NULL').all(PLUS_NOTE);
+  h.prepare('UPDATE plus_grants SET expires_at = ? WHERE note = ? AND expires_at IS NULL').run(now + PLUS_DAYS * 86_400_000, PLUS_NOTE);
+  h.prepare("INSERT INTO beta_migrations (id, done_at) VALUES ('plus-month', ?)").run(now);
+  if (rows.length) console.log(`[Native Beta] ${rows.length} tester(s) moved from forever to ${PLUS_DAYS} days of Native+`);
+  for (const r of rows) notify(r.user_id);
+  return rows.length;
 }
 
 /* ── rewards ───────────────────────────────────────────────────────── */
 function grantRewards(userId, by) {
   try { db.setUserBadge(userId, BADGE, true); } catch (e) { console.warn('[Native Beta] badge', e.message); }
   if (hooks.findItem && hooks.findItem(CAPE)) billing().grantItem(userId, CAPE, SOURCE);
-  billing().givePlus(userId, { note: PLUS_NOTE, by });
+  billing().givePlus(userId, { days: PLUS_DAYS, note: PLUS_NOTE, by });
   notify(userId);
 }
 function revokeRewards(userId) {
@@ -383,4 +414,4 @@ async function handleBetaRoutes(req, res, ctx) {
   return fail(405, 'Method not allowed.');
 }
 
-module.exports = { BADGE, CAPE, handleBetaRoutes, setHooks, grantRewards, revokeRewards, isOpen, isTester, updateConfig };
+module.exports = { BADGE, CAPE, PLUS_DAYS, handleBetaRoutes, migratePlus, setHooks, grantRewards, revokeRewards, isOpen, isTester, updateConfig };

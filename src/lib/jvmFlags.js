@@ -13,7 +13,7 @@ const AIKAR = [
   '-XX:+DisableExplicitGC', '-XX:+AlwaysPreTouch', '-XX:G1NewSizePercent=30', '-XX:G1MaxNewSizePercent=40',
   '-XX:G1HeapRegionSize=8M', '-XX:G1ReservePercent=20', '-XX:G1HeapWastePercent=5', '-XX:G1MixedGCCountTarget=4',
   '-XX:InitiatingHeapOccupancyPercent=15', '-XX:G1MixedGCLiveThresholdPercent=90', '-XX:G1RSetUpdatingPauseTimePercent=5',
-  '-XX:SurvivorRatio=32', '-XX:+PerfDisableSharedMem', '-XX:MaxTenuringThreshold=1'
+  '-XX:SurvivorRatio=32', '-XX:MaxTenuringThreshold=1'
 ];
 // Aikar's large-heap variant (12 GB+).
 const AIKAR_LARGE = AIKAR.map((flag) => ({
@@ -80,8 +80,11 @@ export function splitArgs(text) {
  * preset whose collector clashes with a collector picked in the custom flags
  * is dropped, as are memory flags (the launcher sets -Xms/-Xmx itself).
  */
+// Flags that hide the JVM from injected clients and attach tools (same list as electron/javaRuntime.js).
+const INJECT_BLOCKERS = /^-XX:[+-]?(?:PerfDisableSharedMem|DisableAttachMechanism)$|^-XX:-UsePerfData$/;
+
 export function buildJvmArgs({ preset = 'none', args = '', major = null, memoryMaxGb = 4 } = {}) {
-  const custom = splitArgs(args).filter((flag) => !/^-Xm[sx]\d/i.test(flag));
+  const custom = splitArgs(args).filter((flag) => !/^-Xm[sx]\d/i.test(flag) && !INJECT_BLOCKERS.test(flag));
   const customText = custom.join(' ');
   let presetFlags = gcPreset(preset, major, memoryMaxGb);
   if (hasGcFlag(customText)) presetFlags = presetFlags.filter((flag) => !/-XX:\+Use\w+GC|ZGenerational/.test(flag) || customText.includes(flag));
@@ -89,5 +92,7 @@ export function buildJvmArgs({ preset = 'none', args = '', major = null, memoryM
     // Only the tuning flags of another collector would remain; they'd be meaningless.
     presetFlags = presetFlags.filter((flag) => /DisableExplicitGC|AlwaysPreTouch|PerfDisableSharedMem/.test(flag));
   }
-  return [...presetFlags, ...custom];
+  // Java 21+ warns about (and later blocks) agents loaded into a running game.
+  const agentFlag = Number(major) >= 21 && !custom.some((f) => /DynamicAgentLoading/.test(f)) ? ['-XX:+EnableDynamicAgentLoading'] : [];
+  return [...presetFlags.filter((flag) => !INJECT_BLOCKERS.test(flag)), ...agentFlag, ...custom];
 }

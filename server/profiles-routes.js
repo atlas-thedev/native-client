@@ -440,19 +440,23 @@ function wearersOf(hash) {
 function search(q) {
   const query = String(q || '').trim().slice(0, 32);
   if (!query) return { players: [], items: [] };
-  const like = `${query.replace(/[%_\\]/g, '')}%`;
+  // Names match anywhere ("atl" finds "Natla"), best first: exact, then starts-with, then shortest.
+  const esc = query.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const any = `%${esc}%`, starts = `${esc}%`;
   const h = sql();
   const latest = h.prepare(`SELECT s.hash, s.url, s.source, x.model FROM pf_skin_history x JOIN pf_skins s ON s.hash = x.hash WHERE x.subject = ? ORDER BY x.last_seen DESC LIMIT 1`);
   const look = (subject) => { const r = latest.get(subject); return r ? { skin: urlOf(r), model: r.model === 'slim' ? 'slim' : 'default' } : { skin: null, model: 'default' }; };
-  const native = h.prepare(`SELECT id, username, uuid, model, created_at FROM users WHERE username LIKE ? ORDER BY (lower(username) = lower(?)) DESC, length(username) ASC LIMIT 8`).all(like, query)
+  const native = h.prepare(`SELECT id, username, uuid, model, created_at FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY (lower(username) = lower(?)) DESC, (username LIKE ? ESCAPE '\\') DESC, length(username) ASC LIMIT 8`).all(any, query, starts)
     .map((r) => ({ name: r.username, uuid: r.uuid, native: true, ...look(`n:${r.id}`) }));
-  const known = h.prepare(`SELECT uuid, name FROM pf_mojang WHERE name LIKE ? ORDER BY length(name) ASC LIMIT 6`).all(like)
+  const known = h.prepare(`SELECT uuid, name FROM pf_mojang WHERE name LIKE ? ESCAPE '\\' ORDER BY (lower(name) = lower(?)) DESC, (name LIKE ? ESCAPE '\\') DESC, length(name) ASC LIMIT 6`).all(any, query, starts)
     .filter((r) => !native.some((n) => n.name.toLowerCase() === r.name.toLowerCase()))
     .map((r) => ({ name: r.name, uuid: dashed(r.uuid), native: false, ...look(mcSubject(r.uuid)) }));
   const lower = query.toLowerCase();
   let items = [];
   try {
-    items = hooks.allItems().filter((it) => it && !it.hidden && String(it.name || '').toLowerCase().includes(lower)).slice(0, 8)
+    const name = (it) => String(it.name || '').toLowerCase();
+    items = hooks.allItems().filter((it) => it && !it.hidden && name(it).includes(lower))
+      .sort((a, b) => Number(name(b).startsWith(lower)) - Number(name(a).startsWith(lower))).slice(0, 8)
       .map((it) => ({ id: it.id, name: it.name, kind: it.kind === 'cosmetic' ? 'cosmetic' : 'cape', slot: it.slot || null }));
   } catch {}
   return { players: [...native, ...known].slice(0, 10), items };

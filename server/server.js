@@ -586,6 +586,7 @@ async function handler(req, res) {
           events.publish([...new Set([target.id, ...db.getFriendIds(target.id)])], 'friends:changed', { actorId: target.id, userId: target.id, badgesChanged: true });
         }
       });
+      try { betaRoutes.migratePlus(); } catch (error) { console.warn('[Native Beta] Native+ month switch failed:', error.message); }
       if (await betaRoutes.handleBetaRoutes(req, res, { ip, send, hit, tooMany, readJson })) return;
     } catch (siteError) {
       console.error('[Native Site]', siteError);

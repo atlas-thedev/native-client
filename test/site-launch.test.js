@@ -155,7 +155,7 @@ test('pre-launch: config, store lock, founder pick, offers, votes and admin cont
   assert.equal(r.status, 402); // paid now, not locked
 });
 
-test('beta program: apply, admin review grants badge + cape + lifetime Native+, reject revokes', async () => {
+test('beta program: apply, admin review grants badge + cape + a month of Native+, reject revokes', async () => {
   const billing = require('../server/billing');
   const bossUser = db.createUser({ email: 'boss3@example.com', username: 'BossThree', password: 'correct horse battery' });
   db.setUserAdmin(bossUser.id, true);
@@ -192,7 +192,8 @@ test('beta program: apply, admin review grants badge + cape + lifetime Native+, 
   assert.equal(r.status, 200);
   assert.ok(badges().includes('super_beta_tester'));
   assert.equal(billing.hasPlus(tester.id), true);
-  assert.equal(billing.plusFor(tester.id).endsAt, null, 'lifetime');
+  const ends = billing.plusFor(tester.id).endsAt;
+  assert.ok(Math.abs(ends - (Date.now() + 30 * 86_400_000)) < 60_000, 'one month');
   assert.equal(billing.ownedSource(tester.id, 'super-beta-tester'), 'beta');
   r = await call('GET', '/v1/beta/me', undefined, tok);
   assert.equal(r.body.application.status, 'approved');

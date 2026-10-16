@@ -939,13 +939,19 @@ async function handleAdmin(req, res, ctx, url, user) {
 function givePlus(userId, { days = 0, note = '', by = null } = {}) {
   const current = sql().prepare('SELECT expires_at FROM plus_grants WHERE user_id = ?').get(String(userId));
   const expiresAt = Number(days) > 0 ? Date.now() + Math.min(Number(days), 3650) * 86_400_000 : null;
-  const keep = current && current.expires_at == null; // already forever
+  // already forever, or already running longer than this gift would
+  const keep = current && (current.expires_at == null || (expiresAt != null && current.expires_at >= expiresAt));
   if (!keep) {
     sql().prepare(`INSERT INTO plus_grants (user_id, expires_at, note, granted_by, created_at) VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET expires_at = excluded.expires_at, note = excluded.note, granted_by = excluded.granted_by`)
       .run(String(userId), expiresAt, String(note).slice(0, 120), by ? String(by) : null, Date.now());
   }
   syncPlus(userId);
+}
+/** The Native+ gift row for an account ({ expiresAt, note }), or null; expired gifts count as none. */
+function plusGift(userId) {
+  const row = giftFor(userId);
+  return row ? { expiresAt: row.expires_at || null, note: row.note || '' } : null;
 }
 /** Take back a Native+ gift — only the one with this note, so other gifts stay. */
 function takePlus(userId, note) {
@@ -960,6 +966,6 @@ function takeItem(userId, itemId, source) {
 }
 
 module.exports = {
-  handleBillingRoutes, setHooks, hasPlus, plusFor, isPaid, ownedSource, grantItem, syncPlus, givePlus, takePlus, takeItem,
+  handleBillingRoutes, setHooks, hasPlus, plusFor, isPaid, ownedSource, grantItem, syncPlus, givePlus, plusGift, takePlus, takeItem,
   verifySignature, handleEvent, redeem, enabled, openFor, config, mode, publicSettings, saveSetting
 };
