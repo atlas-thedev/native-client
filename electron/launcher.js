@@ -604,7 +604,8 @@ async function launch(payloadOrInstance = {}, maybeAccount = null, maybeOptions 
       },
       overrides: { gameDirectory: instanceDir(instance.id) },
       authorization: authResult,
-      javaPath
+      // javaw.exe like the official launcher, so injected clients find the game.
+      javaPath: javaRuntime.guiJava(javaPath)
     };
     if (jvmArgs.length) opts.customArgs = jvmArgs;
 
