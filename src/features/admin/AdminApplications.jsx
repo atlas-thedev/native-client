@@ -7,7 +7,7 @@ const LABEL = { pending: 'Pending', approved: 'Accepted', waitlist: 'Waitlist', 
 const PLATFORM = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
 const hours = (value) => (Number(value) >= 40 ? '40+' : String(value ?? '–'));
 
-/** Super Beta Tester applications from the website form. Accepting grants the badge, cape and lifetime Native+. */
+/** Super Beta Tester applications from the website form. Accepting grants the badge, the cape and one month of Native+. */
 export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevoked }) {
   const { busy, error, setError, run } = useAdminAction(onNotify, 'Beta applications');
   const { armed, ask } = useConfirm();
@@ -45,7 +45,7 @@ export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevok
     const keep = filter === 'all' || filter === status;
     setData((d) => d && { ...d, counts: result.counts, applications: keep ? d.applications.map((app) => (app.id === result.application.id ? result.application : app)) : d.applications.filter((app) => app.id !== result.application.id) });
     if (!keep) setSelected(data?.applications?.filter((app) => app.id !== current.id)?.[0]?.id ?? null);
-  }, status === 'approved' ? `${current.username} is a Super Beta Tester now. Badge, cape and Native+ given.` : status === 'rejected' ? `${current.username} rejected.` : status === 'waitlist' ? `${current.username} waitlisted.` : 'Moved back to pending.');
+  }, status === 'approved' ? `${current.username} is a Super Beta Tester now. Badge, cape and 1 month of Native+ given.` : status === 'rejected' ? `${current.username} rejected.` : status === 'waitlist' ? `${current.username} waitlisted.` : 'Moved back to pending.');
 
   const remove = () => current && ask(`del:${current.id}`) && run('del', async () => {
     const result = await adminCall('DELETE', `/beta/${encodeURIComponent(current.id)}`, undefined, onAccessRevoked);
@@ -136,7 +136,7 @@ export default function AdminApplications({ doc, setDoc, onNotify, onAccessRevok
                         {busy === 'del' ? <LoaderCircle size={13} className="is-spinning" /> : <Trash2 size={13} />}
                       </button>
                     </div>
-                    {current.status === 'approved' && <p className="admin-note"><Crown size={12} /> Has the Super Beta Tester badge, cape and lifetime Native+.</p>}
+                    {current.status === 'approved' && <p className="admin-note"><Crown size={12} /> {current.plusEndsAt ? `Has the Super Beta Tester badge and cape, and Native+ until ${formatDate(current.plusEndsAt)}.` : 'Has the Super Beta Tester badge and cape. Their beta month of Native+ is over, or their Native+ comes from somewhere else.'}</p>}
                   </article>
                 )}
               </div>
