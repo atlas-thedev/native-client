@@ -498,6 +498,30 @@ function screenshotList(instanceId) {
   }
 }
 
+/** What the server accepts for a chat picture is 8 MB; stay a little under it. */
+const SHARE_LIMIT_BYTES = 7 * 1024 * 1024;
+
+/**
+ * A copy of a picture small enough to upload: shrunk to at most 2560 x 1440 and saved as JPEG, trying lower qualities
+ * and then smaller sizes until it fits {@code limit}. {@code source} is an Electron NativeImage (or anything with the
+ * same getSize / resize / toJPEG). Returns a Buffer, or null when nothing fits.
+ */
+function compressForShare(source, limit = SHARE_LIMIT_BYTES) {
+  const { width, height } = source.getSize();
+  if (!width || !height) return null;
+  let scale = Math.min(1, 2560 / width, 1440 / height);
+  for (let round = 0; round < 4; round += 1, scale *= 0.75) {
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
+    const image = scale < 1 ? source.resize({ width: w, height: h, quality: 'best' }) : source;
+    for (const quality of [92, 85, 75, 62]) {
+      const bytes = image.toJPEG(quality);
+      if (bytes.length <= limit) return bytes;
+    }
+  }
+  return null;
+}
+
 function screenshotData(instanceId, filename, options = {}) {
   const filePath = screenshotPath(instanceId, filename);
   const stat = fs.lstatSync(filePath);
@@ -517,6 +541,13 @@ function screenshotData(instanceId, filename, options = {}) {
   }
 
   const mime = SCREENSHOT_EXTENSIONS.get(path.extname(filePath).toLowerCase());
+  if (options.share && stat.size > SHARE_LIMIT_BYTES) {
+    // a big PNG (4K and up easily passes 8 MB) would be refused by the server: send a smaller JPEG of it instead
+    const source = nativeImage?.createFromPath ? nativeImage.createFromPath(filePath) : null;
+    const bytes = source && !source.isEmpty() ? compressForShare(source) : null;
+    if (!bytes) throw new Error('This screenshot is too large to share and could not be shrunk.');
+    return `data:image/jpeg;base64,${bytes.toString('base64')}`;
+  }
   return `data:${mime};base64,${fs.readFileSync(filePath).toString('base64')}`;
 }
 
@@ -966,6 +997,7 @@ module.exports = {
   addContentFiles,
   screenshotList,
   screenshotData,
+  compressForShare,
   deleteScreenshot,
   worldList
 };
