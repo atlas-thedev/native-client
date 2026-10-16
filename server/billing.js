@@ -217,6 +217,11 @@ function takeOffIfWearing(user, itemIds) {
 
 function setPlusBadge(userId, on) {
   try { db.setUserBadge(userId, 'plus', on); } catch { /* badge list may be older */ }
+  // the in-game name tag mark comes from the skin directory: publish the change right away
+  try {
+    const user = db.getUserById(userId);
+    if (user) require('./mod-routes').noteProfile(user.username);
+  } catch { /* directory not loaded (tests) */ }
 }
 
 /** Brings a member's locker and badge in line with their Native+ status. */

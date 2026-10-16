@@ -10,6 +10,12 @@
  *   g:<id>       a group call (members only)
  *   srv:<addr>   everyone with Native on the same Minecraft server (proximity, mixed by distance in the mod)
  * Rosters go out on the existing mod event stream as `voice:state`.
+ *
+ * Private (dm) calls ring: the first person in the room is the caller, the other friend is the callee, until the
+ * callee joins, declines (POST /v1/voice/decline), the caller hangs up, or nobody answers for RING_MS. Events:
+ *   voice:ring      -> callee   { room, from: { userId, name, skin }, timeoutMs }
+ *   voice:ring-end  -> callee   { room, reason: answered | declined | cancelled | missed }   (dismisses every device)
+ *   voice:declined  -> caller   { room, reason: declined | no-answer, by: { userId, name } } (the caller's call is over too)
  */
 const dgram = require('dgram');
 const crypto = require('crypto');
@@ -24,10 +30,13 @@ const HEADER = 10, TAG = 16;
 const IDLE_MS = 20_000;
 const MAX_ROOM = 64;
 const MAX_PACKET = 1400;
+const RING_MS = Number(process.env.NATIVE_VOICE_RING_MS || 45_000);
 
 const sessions = new Map(); // sid -> session
 const rooms = new Map(); // room -> Set<sid>
+const ringing = new Map(); // dm room -> { room, caller, callee, callerName, callerSid, timer }
 let socket = null;
+let sweepTimer = null;
 
 function userForTicket(ticket) {
   return require('./mod-routes').userForTicket(ticket);
@@ -97,10 +106,75 @@ function newSid() {
   }
 }
 
+function publishTo(userId, type, payload) {
+  try { events.publish([String(userId)], type, payload); } catch { /* best effort */ }
+}
+
+function dmPeers(room) {
+  const [, a, b] = room.split(':');
+  return [a, b];
+}
+
+/** A dm room just got its first member: that member is calling the other friend. */
+function startRing(room, s) {
+  const callee = dmPeers(room).find((id) => id !== s.userId);
+  if (!callee) return;
+  endRing(room, 'cancelled', { silent: true });
+  const ring = { room, caller: s.userId, callee, callerName: s.name, callerSid: s.sid, timer: null };
+  ring.timer = setTimeout(() => ringTimeout(room), RING_MS);
+  if (ring.timer.unref) ring.timer.unref();
+  ringing.set(room, ring);
+  publishTo(callee, 'voice:ring', { room, from: { userId: s.userId, name: s.ign || s.name, skin: s.skin }, timeoutMs: RING_MS });
+}
+
+/**
+ * Stops ringing and tells both sides how it ended. `silent` skips the events (a ring that is replaced right away).
+ * Returns the ring that was active, or null.
+ */
+function endRing(room, reason, { silent = false, by = null } = {}) {
+  const ring = ringing.get(room);
+  if (!ring) return null;
+  ringing.delete(room);
+  clearTimeout(ring.timer);
+  if (silent) return ring;
+  publishTo(ring.callee, 'voice:ring-end', { room, reason, from: { userId: ring.caller, name: ring.callerName } });
+  if (reason === 'declined' || reason === 'no-answer') {
+    publishTo(ring.caller, 'voice:declined', { room, reason, by: by || { userId: ring.callee, name: '' } });
+  }
+  return ring;
+}
+
+function ringTimeout(room) {
+  const ring = ringing.get(room);
+  if (!ring) return;
+  endRing(room, 'no-answer');
+  for (const s of [...sessions.values()]) {
+    if (s.room === room && s.userId === ring.caller) removeSession(s.sid, 'no-answer');
+  }
+}
+
+/** The callee said no: the caller's side of the call ends too. */
+function decline(user, body) {
+  const { room, kind } = resolveRoom(user, body.room);
+  if (kind !== 'call' || !room.startsWith('dm:')) return { declined: false };
+  const ring = ringing.get(room);
+  if (!ring || ring.callee !== String(user.id)) return { declined: false };
+  endRing(room, 'declined', { by: { userId: String(user.id), name: user.username } });
+  for (const s of [...sessions.values()]) {
+    if (s.room === room && s.userId === ring.caller) removeSession(s.sid, 'declined');
+  }
+  return { declined: true };
+}
+
 function removeSession(sid, reason) {
   const s = sessions.get(sid);
   if (!s) return;
   sessions.delete(sid);
+  // the caller hung up (or dropped) before anyone answered: the other friend stops ringing
+  if (s.room.startsWith('dm:')) {
+    const ring = ringing.get(s.room);
+    if (ring && ring.caller === s.userId) endRing(s.room, reason === 'timeout' ? 'missed' : 'cancelled');
+  }
   const set = rooms.get(s.room);
   if (set) {
     set.delete(sid);
@@ -137,6 +211,11 @@ function join(user, body) {
   sessions.set(sid, s);
   set.add(sid);
   rooms.set(room, set);
+  if (kind === 'call' && room.startsWith('dm:')) {
+    const ring = ringing.get(room);
+    if (wasEmpty) startRing(room, s);
+    else if (ring && ring.callee === s.userId) endRing(room, 'answered');
+  }
   broadcast(room, notify, wasEmpty && kind === 'call' ? { started: { userId: s.userId, name: s.name } } : { joined: { userId: s.userId } });
   return s;
 }
@@ -153,7 +232,10 @@ function liveCalls(user) {
   for (const [room] of rooms) {
     if (room.startsWith('dm:')) {
       const [, a, b] = room.split(':');
-      if (a === me || b === me) out.push({ room, members: roster(room) });
+      if (a === me || b === me) {
+        const ring = ringing.get(room);
+        out.push({ room, members: roster(room), ...(ring && ring.callee === me ? { ringing: { userId: ring.caller, name: ring.callerName, timeoutMs: RING_MS } } : {}) });
+      }
     } else if (room.startsWith('g:')) {
       try {
         if ((db.groupMemberIds(room.slice(2)) || []).map(String).includes(me)) out.push({ room, members: roster(room) });
@@ -267,9 +349,16 @@ function start() {
   socket.on('message', (msg, rinfo) => { try { onPacket(msg, rinfo); } catch { /* bad packet */ } });
   socket.on('error', (e) => console.error('[Native Voice] UDP error:', e.message));
   socket.bind(PORT, '0.0.0.0', () => console.log(`[Native Voice] UDP relay on :${PORT}`));
-  const t = setInterval(sweep, 5_000);
-  if (t.unref) t.unref();
+  sweepTimer = setInterval(sweep, 5_000);
+  if (sweepTimer.unref) sweepTimer.unref();
   return socket;
+}
+
+function stop() {
+  if (sweepTimer) clearInterval(sweepTimer);
+  sweepTimer = null;
+  if (socket) { try { socket.close(); } catch { /* already closed */ } }
+  socket = null;
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────
@@ -321,6 +410,12 @@ async function handleVoiceRoutes(req, res, ctx) {
       send(res, 200, { ok: true });
       return true;
     }
+    if (req.method === 'POST' && url.pathname === '/v1/voice/decline') {
+      if (!hit('voice-decline', user.id, 30, 60_000)) { tooMany(res, 60); return true; }
+      const result = decline(user, await readBody(req));
+      send(res, 200, { ok: true, ...result });
+      return true;
+    }
     if (req.method === 'GET' && url.pathname === '/v1/voice/calls') {
       if (!hit('voice-calls', user.id, 30, 60_000)) { tooMany(res, 60); return true; }
       send(res, 200, { ok: true, calls: liveCalls(user) });
@@ -334,4 +429,4 @@ async function handleVoiceRoutes(req, res, ctx) {
   return true;
 }
 
-module.exports = { start, handleVoiceRoutes, _internals: { sessions, rooms, join, resolveRoom, onPacket, normalizeServer } };
+module.exports = { start, stop, handleVoiceRoutes, _internals: { sessions, rooms, ringing, decline, removeSession, join, resolveRoom, onPacket, normalizeServer } };
