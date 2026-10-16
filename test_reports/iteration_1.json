@@ -1,0 +1,21 @@
+{
+  "summary": "Static review plus an isolated CSS render check of the Instances card progress/overlap fix. Electron app, so no real app was run. 1) The instance-card-art now shows only the Running badge, only when running && launcher.status==='running'. No progress pill markup or leftover classes remain. 2) The new :has() rules work. Rendered in Chromium with the real InstancesView.css + LaunchActionButton.css: a busy (non-icon-only) size-md button in a 260px footer hides the stats (display:none), fills the whole footer width (260px, edges match the footer), and its long title is cut off with an ellipsis. Nothing overlaps. 3) The list layout (is-icon-only) busy button stays 38px and the stats stay visible. The idle Launch button layout is unchanged. 4) esbuild parses InstancesView.jsx and InstancesView.css with no errors. The formatLaunchProgress import is gone, and the function is still exported from useLauncher.js, which is fine. Electron ^31 (Chromium 126) supports :has().",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor/optional: readLauncher/badge checks only status==='running', but LaunchActionButton also treats 'game-running' as running. If the launcher ever reports 'game-running', the card badge will not show. This behavior was there before the change.",
+    "Specificity check passed: '.instance-card-launch .launch-action.is-busy:not(.is-icon-only)' (0,4,0) overrides '.launch-action.is-busy.size-md' min-width:150px (0,3,0)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100% (4/4 checks, static + isolated CSS render)"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Electron + Vite app, no web preview. Verified with esbuild parse (/usr/bin/esbuild) and with Playwright page.set_content, injecting the two real CSS files plus hand-written footer/button markup copied from LaunchActionButton's busy branch."
+}

@@ -413,7 +413,7 @@ export default function InstancesView({
                   <div className="instance-card-art">
                     <img src={artOf(instance)} alt="" draggable="false" />
 
-                    {running && launcher.status === 'running' && (
+                    {running && ['running', 'game-running'].includes(launcher.status) && (
                       <span className="instance-card-live" data-testid="instance-card-running-badge">
                         <NativeIcon name="dot" size={10} />
                         {t('instances.running')}
