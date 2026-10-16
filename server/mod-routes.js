@@ -52,6 +52,9 @@ function entryFor(profile) {
   // entry is pinned to that UUID. They keep their Mojang skin and only wear the
   // Native cloak; offline players never reach the directory.
   const mcUuid = user?.minecraft_uuid ? cleanUuid(user.minecraft_uuid) : null;
+  // Native+ members show the Native+ mark (not the plain Native logo) on name tags and in the tab list.
+  let plus = false;
+  try { plus = Boolean(user?.badges) && JSON.parse(user.badges).includes('plus'); } catch { /* unreadable badge list */ }
   const premiumUser = Boolean(mcUuid && (user.auth_type === 'premium' || user.auth_type === 'merged'));
   // Only Native store cloaks animate (see store-routes.animationFor).
   let allowed = null;
@@ -81,6 +84,8 @@ function entryFor(profile) {
     ...(premiumUser ? { p: { c: cape, a } } : {}),
     // 3D cosmetics (mod 1.5+): item id, NCM model hash, texture hash
     ...(k.length ? { k } : {}),
+    // Native+ member (mod 2.6+ shows the Native+ mark on name tags)
+    ...(plus ? { x: 1 } : {}),
     t: Date.parse(profile.updatedAt) || 0
   };
 }
@@ -121,7 +126,7 @@ function upsert(entry) {
   const previous = index.get(key);
   const empty = !entry.s && !entry.c && !(entry.k && entry.k.length);
   if (!previous && empty) return;
-  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && cosmeticKey(previous) === cosmeticKey(entry) && Boolean(previous.p) === Boolean(entry.p)) return;
+  if (previous && previous.s === entry.s && previous.c === entry.c && previous.m === entry.m && previous.u === entry.u && animKey(previous) === animKey(entry) && cosmeticKey(previous) === cosmeticKey(entry) && Boolean(previous.p) === Boolean(entry.p) && Boolean(previous.x) === Boolean(entry.x)) return;
   rev += 1;
   const stored = { ...entry, r: rev };
   if (empty) index.delete(key); else index.set(key, stored);

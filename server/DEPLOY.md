@@ -6,6 +6,9 @@ Run behind nginx (TLS via Cloudflare). Environment variables (systemd `Environme
 |---|---|
 | `NATIVE_DATA_DIR` | Where the SQLite DB, skins and media are stored |
 | `NATIVE_TRUST_PROXY=1` | Trust `X-Real-IP` from nginx |
+| `NATIVE_VOICE_HOST` | Address the game mod sends voice **UDP** to. Must reach this VPS directly: use its IP or a DNS-only (grey cloud) name, **not** a Cloudflare-proxied one such as `api.playnative.net` (Cloudflare does not forward UDP, so nobody would hear anything). Defaults to the request's Host header. |
+| `NATIVE_VOICE_PORT` | UDP port of the voice relay (default `24470`); open it in the firewall (`ufw allow 24470/udp`). |
+| `NATIVE_VOICE_RING_MS` | How long a private call rings before it ends as "no answer" (default `45000`). |
 | `NATIVE_SITE_KEY` | Long random secret shared with the website (`openssl rand -hex 32`). When set, requests from the website carrying `X-Native-Site-Key` may pass the visitor's IP in `X-Native-Client-IP`, so rate limits apply per visitor. Leave unset to disable. |
 
 Older `NOCTRA_*` variables and a `noctra.db` database file from before the rename are still picked up, so existing servers keep working without changes.

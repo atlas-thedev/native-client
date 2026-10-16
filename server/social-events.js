@@ -11,7 +11,7 @@ const clients = new Map(); // userId -> Set<ServerResponse>
 // The Native game mod listens separately: it must not count as "the launcher is open",
 // and it only receives the event types a game overlay can use (never message text).
 const modClients = new Map(); // userId -> Set<ServerResponse>
-const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed', 'voice:state']);
+const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 'skin:updated', 'wardrobe:changed', 'account:changed', 'voice:state', 'voice:ring', 'voice:ring-end', 'voice:declined']);
 // In-game Relay chat (mod 1.6+): a mod stream opened with ?relay=1 also receives the chat events, so the
 // overlay can show messages live. Only streams that asked for it get message text.
 const MOD_RELAY_EVENTS = new Set([
