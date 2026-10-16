@@ -32,6 +32,7 @@ for (const dir of ['profiles', 'textures', 'media']) {
 }
 
 const instance = createServer();
+require('./voice').start();
 instance.listen(PORT, HOST, () => {
   console.log(`[Native Server] Online and listening on http://${HOST}:${PORT}`);
   console.log(`[Native DB] SQLite database active at ${db.DB_PATH}`);

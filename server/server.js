@@ -557,6 +557,7 @@ async function handler(req, res) {
 
     try {
       if (await modRoutes.handleModRoutes(req, res, { ip, send, hit, tooMany })) return;
+      if (await require('./voice').handleVoiceRoutes(req, res, { ip, send, hit, tooMany })) return;
     } catch (modError) {
       if (!res.headersSent) return send(res, 500, { ok: false, error: 'Mod route failed.' });
       return;
