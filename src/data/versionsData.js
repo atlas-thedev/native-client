@@ -20,6 +20,7 @@ import BountifulUpdateArt from '../assets/backgrounds/Bountiful_Update.jpg';
 import ClassicLegacyArt from '../assets/backgrounds/Classic_Legacy.jpg';
 import SnapshotArt from '../assets/backgrounds/Snapshot_Art.jpg';
 import DappledCampArt from '../assets/backgrounds/Dappled_Camp.jpg';
+import DefaultHomeArt from '../assets/backgrounds/Default_Home.jpg';
 
 export const ART_ASSETS = {
   Chaos_Cubed: ChaosCubedArt,
@@ -43,7 +44,8 @@ export const ART_ASSETS = {
   Classic_Legacy: ClassicLegacyArt,
   Snapshot_Art: SnapshotArt,
   Dappled_Camp: DappledCampArt,
-  default: ChaosCubedArt
+  Default_Home: DefaultHomeArt,
+  default: DefaultHomeArt
 };
 
 export const INITIAL_CLUSTERS = [

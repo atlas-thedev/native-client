@@ -169,10 +169,16 @@ export default function HomeView({
     <div className="home-view">
       {/* Wallpaper */}
       <div className="home-bg-layer">
-        {/* The selected version's artwork as a plain still image: no video/animation, so Home stays light. */}
-        {cluster ? (
-          <img key={getClusterArt(cluster)} className="home-bg-img" src={getClusterArt(cluster)} alt="" draggable="false" decoding="async" aria-hidden="true" />
-        ) : null}
+        {/* The selected version's artwork as a plain still image, or default background when no instance is available. */}
+        <img
+          key={cluster ? getClusterArt(cluster) : 'default-home-bg'}
+          className="home-bg-img"
+          src={cluster ? getClusterArt(cluster) : getClusterArt(null)}
+          alt=""
+          draggable="false"
+          decoding="async"
+          aria-hidden="true"
+        />
         <div className="home-bg-overlay" />
         <div className="home-bg-fade" />
       </div>
