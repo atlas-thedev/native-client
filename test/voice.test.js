@@ -124,6 +124,45 @@ test('only the called friend can decline, and only while it rings', () => {
   assert.deepEqual(decline(bob, { room: 'dm:1' }), { declined: false }, 'already over');
 });
 
+test('when one side of a private call leaves, the other is taken out of it too', () => {
+  reset();
+  const forAlice = listen('1');
+  const forBob = listen('2');
+  const a = forAlice.length;
+  const b = forBob.length;
+  const callA = join(alice, { room: 'dm:2' });
+  const callB = join(bob, { room: 'dm:1' });
+  removeSession(callA.sid, 'left'); // Alice hangs up
+  assert.equal(sessions.has(callB.sid), false, 'Bob is no longer sitting in the call alone');
+  assert.equal(rooms.size, 0);
+  const ended = ofType(forBob.slice(b), 'voice:ended');
+  assert.equal(ended.length, 1);
+  assert.equal(ended[0].room, 'dm:1:2');
+  assert.equal(ended[0].by.userId, '1');
+  assert.equal(ofType(forAlice.slice(a), 'voice:ended').length, 0, 'the one who hung up is not told they were ended');
+  // the same in the other direction, and a dropped connection (timeout) counts too
+  const c2 = join(alice, { room: 'dm:2' });
+  const d2 = join(bob, { room: 'dm:1' });
+  removeSession(d2.sid, 'timeout');
+  assert.equal(sessions.has(c2.sid), false);
+});
+
+test('re-joining a call and a call nobody answered yet are not ended by that', () => {
+  reset();
+  const first = join(alice, { room: 'dm:2' });
+  const second = join(bob, { room: 'dm:1' });
+  // Bob reconnects: his old session is replaced ("switched"), Alice must stay in the call
+  const again = join(bob, { room: 'dm:1' });
+  assert.equal(sessions.has(second.sid), false);
+  assert.equal(sessions.has(first.sid), true, 'Alice was not ended by Bob\'s re-join');
+  assert.equal(sessions.has(again.sid), true);
+  reset();
+  // still ringing: the caller alone in the room is waiting, not "left alone"
+  const waiting = join(alice, { room: 'dm:2' });
+  assert.equal(sessions.has(waiting.sid), true);
+  assert.equal(ringing.size, 1);
+});
+
 test('group calls and proximity rooms never ring', () => {
   reset();
   db.groupMemberIds = () => ['1', '2', '3'];
@@ -133,6 +172,11 @@ test('group calls and proximity rooms never ring', () => {
   join(alice, { room: 'srv:mc.example.net' });
   assert.equal(ofType(forBob.slice(before), 'voice:ring').length, 0);
   assert.equal(ringing.size, 0);
+  // a group call carries on when a member leaves
+  const g1 = join(alice, { room: 'g:abc' });
+  const g2 = join(bob, { room: 'g:abc' });
+  removeSession(g1.sid, 'left');
+  assert.equal(sessions.has(g2.sid), true, 'a group call is not ended by one member leaving');
 });
 
 // ── the UDP relay, speaking the mod's packet format ─────────────────────────

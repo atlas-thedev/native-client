@@ -16,6 +16,7 @@
  *   voice:ring      -> callee   { room, from: { userId, name, skin }, timeoutMs }
  *   voice:ring-end  -> callee   { room, reason: answered | declined | cancelled | missed }   (dismisses every device)
  *   voice:declined  -> caller   { room, reason: declined | no-answer, by: { userId, name } } (the caller's call is over too)
+ *   voice:ended     -> the one left in a private call when the other leaves { room, reason: 'ended', by } (their session is removed)
  */
 const dgram = require('dgram');
 const crypto = require('crypto');
@@ -181,6 +182,16 @@ function removeSession(sid, reason) {
     if (set.size === 0) rooms.delete(s.room);
   }
   broadcast(s.room, s.notify, { left: { userId: s.userId, reason } });
+  // A private call is between two people: once one of them is gone the other is not left sitting in it alone.
+  // (A re-join of the same person, "switched", and a call nobody answered yet, which is still ringing, are not ends.)
+  if (s.room.startsWith('dm:') && reason !== 'switched' && set && set.size === 1 && !ringing.has(s.room)) {
+    const [restSid] = set;
+    const rest = sessions.get(restSid);
+    if (rest) {
+      publishTo(rest.userId, 'voice:ended', { room: s.room, reason: 'ended', by: { userId: s.userId, name: s.ign || s.name } });
+      removeSession(restSid, 'ended');
+    }
+  }
 }
 
 function join(user, body) {
