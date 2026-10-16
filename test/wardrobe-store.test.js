@@ -94,8 +94,8 @@ test('launcher: own animated capes are refused, store capes go through the locke
   const user = db.createUser({ email: 'u2@example.com', username: 'UploadUser', password: 'correct horse battery' });
   const session = db.createSession(user.id);
   const account = { id: String(user.id), name: 'UploadUser', type: 'native', token: session.token };
-  const strip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8');
-  const still = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.still.png.b64'), 'utf8');
+  const strip = fs.readFileSync(path.join(__dirname, 'fixtures', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8');
+  const still = fs.readFileSync(path.join(__dirname, 'fixtures', 'store', 'assets', 'matrix.still.png.b64'), 'utf8');
   assert.throws(() => wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: strip, name: 'Mine', anim: { frames: 24, fps: 12 }, stillDataUrl: still }), /Native Store/);
   // Static capes are still fine.
   wardrobe.addItemFromBase64(account, { kind: 'cape', dataUrl: still, name: 'Static' });

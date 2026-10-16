@@ -17,7 +17,9 @@ const fs = require('fs');
 const path = require('path');
 const cosmetics = require('./cosmetics');
 
-const STORE_DIR = path.join(__dirname, 'store');
+// The server ships no capes (admins upload them). Tests seed known capes from test/fixtures/store.
+const STORE_DIR = process.env.NATIVE_STORE_SEED_DIR
+  || (process.env.NODE_TEST_CONTEXT ? path.join(__dirname, '..', 'test', 'fixtures', 'store') : path.join(__dirname, 'store'));
 const ASSET_DIR = path.join(STORE_DIR, 'assets');
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 

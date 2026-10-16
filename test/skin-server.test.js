@@ -71,7 +71,7 @@ test('skin API rejects non-PNG uploads', () => {
 /* ---------- profile document shape ---------- */
 
 const VANILLA_HASH = 'f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4';
-const VANILLA_PNG = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'assets', 'capes', 'vanilla.png'));
+const VANILLA_PNG = require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'cape-64x32.png'));
 
 test('CustomSkinAPI documents use absolute texture URLs and follow the model', () => {
   const origin = 'https://api.example.test';

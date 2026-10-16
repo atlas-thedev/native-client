@@ -94,8 +94,8 @@ test('only Native store capes animate: own strips become still capes, owned stor
   assert.equal(own.body.profile.capeAnimation, undefined);
 
   // A store strip the account does not own is refused too...
-  const storeStrip = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8').trim();
-  const storeStill = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'matrix.still.png.b64'), 'utf8').trim();
+  const storeStrip = fs.readFileSync(path.join(__dirname, 'fixtures', 'store', 'assets', 'matrix.strip.png.b64'), 'utf8').trim();
+  const storeStill = fs.readFileSync(path.join(__dirname, 'fixtures', 'store', 'assets', 'matrix.still.png.b64'), 'utf8').trim();
   const notOwned = await post('/v1/wardrobe', { username: 'AnimUser', cape: storeStill, capeAnim: { strip: storeStrip, frames: 24, fps: 12 } }, session.token);
   assert.equal(notOwned.body.animated, false);
 
@@ -117,7 +117,7 @@ test('only Native store capes animate: own strips become still capes, owned stor
   assert.equal(resync.body.animated, true);
 
   // A different (classic) cape drops it.
-  const vanilla = fs.readFileSync(path.join(__dirname, '..', 'src', 'assets', 'capes', 'vanilla.png'));
+  const vanilla = fs.readFileSync(path.join(__dirname, 'fixtures', 'cape-64x32.png'));
   const swap = await post('/v1/wardrobe', { username: 'AnimUser', cape: b64(vanilla) }, session.token);
   assert.equal(swap.body.animated, false);
   assert.equal((await json('/csl/AnimUser.json')).body.capeAnimation, undefined);
@@ -310,7 +310,7 @@ test('exclusive Beta Tester cape: listed, never claimable, only admins hand it o
   assert.equal((await post('/v1/store/equip', { itemId: 'beta-tester' }, token)).status, 403);
 
   // Uploading its PNG through the wardrobe doesn't unlock it either.
-  const still = fs.readFileSync(path.join(__dirname, '..', 'server', 'store', 'assets', 'beta-tester.still.png.b64'), 'utf8').trim();
+  const still = fs.readFileSync(path.join(__dirname, 'fixtures', 'store', 'assets', 'beta-tester.still.png.b64'), 'utf8').trim();
   const sneaky = await post('/v1/wardrobe', { username: 'BetaPal', cape: still }, token);
   assert.equal(sneaky.status, 200);
   assert.equal(sneaky.body.profile.cape, null);

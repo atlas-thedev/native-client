@@ -86,6 +86,10 @@ function persist() {
   atomicWrite(catalogFile(), JSON.stringify({ version: 2, rev: catalog.rev, sections: catalog.sections, deleted: catalog.deleted, items: catalog.items, bundles: catalog.bundles || [] }, null, 2));
 }
 
+/** Capes that used to be bundled with the server (seeded into every catalogue). koi-pond is not here: that id is an uploaded cape. */
+const RETIRED_BUNDLED_CAPES = ['crimson-moon', 'golden-sky', 'great-wave', 'kitsune-foxfire', 'magical-sparkle', 'manga-burst', 'oni-aura', 'sakura-night', 'thunder-god'];
+const ownerCount = (itemId) => { try { return Number(sql().prepare('SELECT COUNT(*) AS n FROM store_owned WHERE item_id = ?').get(itemId)?.n) || 0; } catch { return 0; } };
+
 function ensureCatalog(textureFn) {
   if (textureFn) storeTexture = textureFn;
   if (catalog) return catalog;
@@ -111,6 +115,14 @@ function ensureCatalog(textureFn) {
         try { sql().prepare('DELETE FROM store_owned WHERE item_id = ?').run(item.id); } catch {}
       }
       console.log(`[Native Store] Removed ${retired.length} retired cosmetics: ${retired.map((item) => item.id).join(', ')}`);
+      added = true;
+    }
+    // capes that once shipped inside the server code: gone from the store unless someone already owns them
+    const retiredBundled = catalog.items.filter((item) => RETIRED_BUNDLED_CAPES.includes(item.id) && !bundled.items.some((b) => b.id === item.id) && !ownerCount(item.id));
+    if (retiredBundled.length) {
+      catalog.items = catalog.items.filter((item) => !retiredBundled.includes(item));
+      for (const item of retiredBundled) if (!catalog.deleted.includes(item.id)) catalog.deleted.push(item.id);
+      console.log(`[Native Store] Removed ${retiredBundled.length} bundled capes: ${retiredBundled.map((item) => item.id).join(', ')}`);
       added = true;
     }
     bundled.items.forEach((item, index) => {

@@ -14,7 +14,7 @@ test('preset capes inlined as data: URLs are used directly (CSP blocks fetching 
 
 test('preset capes served as files are fetched and encoded byte-for-byte', async () => {
   const { presetTextureDataUrl } = await load();
-  const png = fs.readFileSync(path.join(__dirname, '..', 'src', 'assets', 'capes', 'founders.png'));
+  const png = fs.readFileSync(path.join(__dirname, '..', 'src', 'assets', 'steve.png'));
   const result = await presetTextureDataUrl({ name: 'Founder', textureUrl: '/assets/founders.png' }, async () => ({ ok: true, arrayBuffer: async () => png }));
   assert.strictEqual(result, `data:image/png;base64,${png.toString('base64')}`);
 });
