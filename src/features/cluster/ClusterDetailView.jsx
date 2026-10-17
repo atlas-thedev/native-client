@@ -76,8 +76,8 @@ export default function ClusterDetailView({
   const noticeTimerRef = useRef(null);
 
   const currentInstance = instances.find((item) => item.id === cluster.id) || cluster;
-  const isInstalled = useIsInstalled(currentInstance, launchStatus);
   const launchStatus = launcherState?.status || 'idle';
+  const isInstalled = useIsInstalled(currentInstance, launchStatus);
   const isThisInstance = (launcherState?.instanceId || launcherState?.instance?.id || launcherState?.clusterId) === cluster.id;
   const isThisRunning = (launchStatus === 'running' || Boolean(launcherState?.isGameRunning)) && isThisInstance;
   // Starting, downloading or running this instance: the Launch button shows the live progress right away.
