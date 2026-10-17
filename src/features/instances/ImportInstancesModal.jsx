@@ -66,8 +66,7 @@ export default function ImportInstancesModal({ open, instances = [], initialLaun
   // the first launcher that has something, unless one was asked for
   const launchers = useMemo(() => {
     const byId = new Map((scan || []).map((entry) => [entry.id, entry]));
-    return LAUNCHERS.map((meta) => ({ ...meta, ...(byId.get(meta.id) || { found: false, instances: [] }) }))
-      .filter((entry) => entry.found || entry.id !== 'minecraft');
+    return LAUNCHERS.map((meta) => ({ ...meta, ...(byId.get(meta.id) || { found: false, instances: [] }) }));
   }, [scan]);
   useEffect(() => {
     if (!scan || active) return;

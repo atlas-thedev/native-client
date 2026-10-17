@@ -127,7 +127,11 @@ export default function InstancesView({
   // null = not known yet, treated as installed until the disk check answers.
   const [installedDiskKeys, setInstalledDiskKeys] = useState(readDiskCache);
 
+  // Re-read the install list when a launch settles, not on every step of it (each read scans the disk
+  // synchronously in the main process while it is starting the game).
+  const launchSettle = ['preparing', 'downloading', 'verifying', 'launching', 'stopping'].includes(launcherState?.status) ? 'busy' : launcherState?.status;
   useEffect(() => {
+    if (launchSettle === 'busy') return undefined;
     let cancelled = false;
     window.native?.instance?.installedVersions?.()
       .then((list) => {
@@ -141,7 +145,7 @@ export default function InstancesView({
     return () => {
       cancelled = true;
     };
-  }, [launcherState?.status]);
+  }, [launchSettle]);
 
   const sortRef = useRef(null);
   const menuRef = useRef(null);

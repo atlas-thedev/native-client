@@ -150,25 +150,34 @@ test('wear one cosmetic per slot: profile, mod directory, CSL document and /me f
   r = await call('POST', '/v1/store/equip', { itemId: 'pixel-shades' }, token);
   r = await call('POST', '/v1/store/equip', { itemId: 'street-sneakers' }, token);
   assert.deepEqual(r.body.wearing, { hats: 'propeller-cap', back: 'angel-wings', glasses: 'pixel-shades', shoes: 'street-sneakers' });
-  // a second hat replaces the first; a cape sits next to the cosmetics
+  // a second hat replaces the first
   r = await call('POST', '/v1/store/equip', { itemId: 'royal-crown' }, token);
   assert.equal(r.body.wearing.hats, 'royal-crown');
+  // a cloak and wings share the back: one takes the other off
   r = await call('POST', '/v1/store/equip', { itemId: 'aurora' }, token);
   assert.equal(r.body.equipped, 'aurora');
-  assert.equal(Object.keys(r.body.wearing).length, 4);
+  assert.equal(r.body.wearing.back, undefined, 'the cloak took the wings off');
+  assert.equal(Object.keys(r.body.wearing).length, 3);
+  r = await call('POST', '/v1/store/equip', { itemId: 'angel-wings' }, token);
+  assert.equal(r.body.wearing.back, 'angel-wings');
+  assert.equal(r.body.equipped, null, 'the wings took the cloak off');
+  r = await call('POST', '/v1/store/equip', { itemId: 'aurora' }, token);
+  assert.equal(r.body.equipped, 'aurora');
+  assert.equal(Object.keys(r.body.wearing).length, 3);
 
   const me = await json('/v1/store/me', { headers: { Authorization: `Bearer ${token}` } });
-  assert.equal(me.body.wearing.back, 'angel-wings');
+  assert.equal(me.body.wearing.back, undefined);
+  assert.equal(me.body.equipped, 'aurora');
   assert.ok(me.body.owned.some((o) => o.id === 'royal-crown'));
 
   const entry = await entryOf('HatFan');
-  assert.equal(entry.k.length, 4);
+  assert.equal(entry.k.length, 3);
   for (const ref of entry.k) { assert.match(ref.m, HASH); assert.match(ref.x, HASH); }
   assert.ok(entry.k.some((ref) => ref.i === 'royal-crown'));
   assert.ok(entry.a, 'the animated cape still animates');
 
   const doc = (await json('/csl/HatFan.json')).body;
-  assert.equal(doc.cosmetics.length, 4);
+  assert.equal(doc.cosmetics.length, 3);
   const crown = doc.cosmetics.find((c) => c.slot === 'hats');
   assert.equal(crown.id, 'royal-crown');
   assert.equal((await fetch(crown.modelUrl)).status, 200);
@@ -176,7 +185,7 @@ test('wear one cosmetic per slot: profile, mod directory, CSL document and /me f
   // a wardrobe sync (launcher) never drops the cosmetics
   const sync = await call('POST', '/v1/wardrobe', { model: 'default', skin: b64(png(64, 64, 200)) }, token);
   assert.equal(sync.status, 200, JSON.stringify(sync.body));
-  assert.equal((await entryOf('HatFan')).k.length, 4);
+  assert.equal((await entryOf('HatFan')).k.length, 3);
 
   // take one slot off, then the cape; the rest stays
   r = await call('POST', '/v1/store/equip', { slot: 'glasses', itemId: null }, token);
@@ -184,10 +193,12 @@ test('wear one cosmetic per slot: profile, mod directory, CSL document and /me f
   assert.equal(r.body.wearing.hats, 'royal-crown');
   r = await call('POST', '/v1/store/equip', { itemId: null }, token);
   assert.equal(r.body.equipped, null);
-  assert.equal(Object.keys(r.body.wearing).length, 3);
+  assert.equal(Object.keys(r.body.wearing).length, 2);
   assert.equal((await call('POST', '/v1/store/equip', { slot: 'tail', itemId: null }, token)).status, 400);
 
   // unclaiming a worn cosmetic takes it off
+  r = await call('POST', '/v1/store/equip', { itemId: 'angel-wings' }, token);
+  assert.equal(r.body.wearing.back, 'angel-wings');
   r = await call('POST', '/v1/store/unclaim', { itemId: 'angel-wings' }, token);
   assert.equal(r.status, 200);
   assert.equal(r.body.wearing.back, undefined);

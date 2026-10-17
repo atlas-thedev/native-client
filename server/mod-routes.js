@@ -274,8 +274,21 @@ function friendsPayload(user) {
 
 const MOD_STREAMS_PER_USER = 3;
 
+/**
+ * The launcher reports exactly what the game is doing ("In-game: Hypixel" + the server address, from the mod's
+ * presence.json). The game's own stream only knows "Playing Minecraft", so while that fresher launcher presence is
+ * there it is kept: (re)connecting the stream used to wipe the server, and with it the server icon friends see.
+ */
+function launcherReportsGame(userId) {
+  try {
+    const now = db.getPresence(userId);
+    return Boolean(now && now.status === 'in-game' && Date.now() - (Number(now.last_seen) || 0) < db.PRESENCE_TTL_MS);
+  } catch { return false; }
+}
+
 function announce(user, activity, status) {
   try {
+    if (status === 'online' && activity !== 'In Launcher' && launcherReportsGame(user.id)) return;
     db.updatePresence(user.id, { status, activity, serverAddress: null });
     events.publish(db.getFriendIds(user.id), 'presence', { userId: user.id, status, activity, serverAddress: null });
   } catch { /* presence is best-effort */ }

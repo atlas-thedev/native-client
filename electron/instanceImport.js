@@ -3,15 +3,20 @@
  * Import instances from other launchers, or from an exported pack file.
  *
  * Found on disk (default install folders on Windows, macOS and Linux):
- *   Modrinth App    profiles/<name>, details from app.db (or profile.json on the old app)
+ *   Modrinth App    profiles/<path>, names + versions from app.db: the `instances` + `instance_content_sets`
+ *                   tables (app from mid 2026), the `profiles` table before that, profile.json on the very old app.
+ *                   The folders move to settings.custom_dir when the user picked another app directory.
  *   CurseForge      minecraft/Instances/<name>/minecraftinstance.json
  *   Prism, PolyMC, MultiMC   instances/<name>/{instance.cfg, mmc-pack.json, .minecraft}
  *   ATLauncher      instances/<name>/instance.json
- *   TLauncher / Minecraft Launcher   .minecraft/versions/<id>/<id>.json (+ launcher_profiles.json game dirs)
+ *   TLauncher / Minecraft Launcher   .minecraft/versions/<id>/<id>.json, named after the launcher's installations
+ *                   (launcher_profiles.json / launcher_profiles_microsoft_store.json) when there are any
  * Files: .mrpack (Modrinth), CurseForge .zip (manifest.json), Prism/MultiMC .zip export, or any instance folder.
  *
  * Importing copies the chosen parts (mods + configs, worlds, resource/shader packs, settings, screenshots)
- * into a new Native instance; the other launcher's files are never changed.
+ * into a new Native instance; the other launcher's files are never changed. The other launcher's game
+ * assets, libraries and vanilla jar are linked (or copied) into Native's shared folder too, so the first
+ * launch doesn't download them again.
  *
  * IPC: import:scan -> { launchers }, import:instance { source, dir, include } -> instance,
  *      import:pick { kind: 'file'|'folder' } -> path|null, import:file { path, include } -> instance,
@@ -23,7 +28,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
-const { readTable } = require('./sqliteRead');
+const { readTables } = require('./sqliteRead');
 
 let deps = null; // { app, getWin }
 
@@ -107,22 +112,45 @@ function fromLog(gameDir) {
 
 /* ── per launcher ──────────────────────────────────────────────── */
 
+/** Instance rows from a Modrinth app.db, in one shape whatever the app version: { path, name, icon_path, ... }. */
+function modrinthRows(dbFile) {
+  let t;
+  try { t = readTables(dbFile, ['instances', 'instance_content_sets', 'profiles', 'settings']); } catch { return { rows: [], customDir: null }; }
+  const customDir = t.settings.find((row) => row.custom_dir)?.custom_dir || null;
+  if (t.instances.length) {
+    const sets = new Map(t.instance_content_sets.map((set) => [set.id, set]));
+    const firstSet = new Map();
+    for (const set of t.instance_content_sets) if (!firstSet.has(set.instance_id) || set.status === 'active') firstSet.set(set.instance_id, set);
+    const rows = t.instances.map((row) => {
+      const set = sets.get(row.applied_content_set_id) || firstSet.get(row.id) || {};
+      return {
+        path: row.path, name: row.name, icon_path: row.icon_path, last_played: row.last_played,
+        game_version: set.game_version, mod_loader: set.loader, mod_loader_version: set.loader_version
+      };
+    });
+    return { rows, customDir };
+  }
+  return { rows: t.profiles, customDir }; // the app before the 2026 instances rework
+}
+
 function scanModrinth(dir) {
-  const profiles = path.join(dir, 'profiles');
+  const { rows, customDir } = exists(path.join(dir, 'app.db')) ? modrinthRows(path.join(dir, 'app.db')) : { rows: [], customDir: null };
+  // "App directory" in Modrinth's settings moves profiles/ and meta/ out of the default folder
+  const home = customDir && isDir(path.join(customDir, 'profiles')) ? customDir : dir;
+  const profiles = path.join(home, 'profiles');
   if (!isDir(profiles)) return [];
   const out = [];
-  let rows = [];
-  if (exists(path.join(dir, 'app.db'))) {
-    try { rows = readTable(path.join(dir, 'app.db'), 'profiles'); } catch { rows = []; }
-  }
   const seen = new Set();
   for (const row of rows) {
     const gameDir = path.join(profiles, String(row.path || ''));
-    if (!row.path || !isDir(gameDir)) continue;
+    if (!row.path || !row.game_version || !isDir(gameDir) || seen.has(path.resolve(gameDir))) continue;
     seen.add(path.resolve(gameDir));
+    const played = Number(row.last_played) || 0;
     out.push({
-      name: row.name || row.path, gameDir, version: row.game_version, loader: loaderName(row.mod_loader),
-      loaderVersion: row.mod_loader_version || null, icon: iconData(row.icon_path), lastPlayed: row.last_played ? Number(row.last_played) * (Number(row.last_played) < 1e12 ? 1000 : 1) : null
+      name: String(row.name || '').trim() || row.path, gameDir, version: row.game_version, loader: loaderName(row.mod_loader),
+      loaderVersion: row.mod_loader_version || null,
+      icon: iconData(row.icon_path && path.resolve(home, String(row.icon_path))),
+      lastPlayed: played ? played * (played < 1e12 ? 1000 : 1) : null
     });
   }
   for (const gameDir of subdirs(profiles)) {
@@ -223,24 +251,52 @@ function versionLoader(json) {
   return { loader: 'Vanilla', loaderVersion: null };
 }
 
+const VANILLA_ID = /^\d+\.\d+(\.\d+)?(-(pre|rc|snapshot)-?\d+| Pre-Release \d+)?$|^\d\dw\d\d[a-z]$/;
+/** Files the official Minecraft Launcher writes next to its profiles (TLauncher doesn't). */
+const OFFICIAL_MARKERS = ['launcher_accounts.json', 'launcher_accounts_microsoft_store.json', 'launcher_ui_state.json', 'launcher_product_state.json', 'launcher_msa_credentials.bin'];
+
+/** A launcher installation icon is a data URL, or the name of a block we don't have a picture of. */
+const profileIcon = (icon) => (/^data:image\/(png|jpeg|webp|gif);base64,/.test(String(icon || '')) && String(icon).length < 400000 ? String(icon) : null);
+
 function scanMinecraftDir(dir) {
-  const profiles = readJson(path.join(dir, 'launcher_profiles.json'))?.profiles || {};
-  const tl = readJson(path.join(dir, 'TlauncherProfiles.json'));
-  const gameDirFor = new Map();
-  for (const p of Object.values(profiles)) {
-    if (p?.lastVersionId && p.gameDir && isDir(p.gameDir)) gameDirFor.set(p.lastVersionId, p.gameDir);
-  }
-  const out = [];
+  const profiles = Object.values({
+    ...(readJson(path.join(dir, 'launcher_profiles.json'))?.profiles || {}),
+    ...(readJson(path.join(dir, 'launcher_profiles_microsoft_store.json'))?.profiles || {})
+  }).filter((p) => p && typeof p === 'object');
+  const tlauncher = Boolean(readJson(path.join(dir, 'TlauncherProfiles.json'))) || exists(path.join(dir, 'tlauncher-2.0.properties')) || exists(path.join(os.homedir(), '.tlauncher'));
+  const official = OFFICIAL_MARKERS.some((name) => exists(path.join(dir, name)));
+
+  // every version folder that holds a version json
+  const versions = new Map();
   for (const vdir of subdirs(path.join(dir, 'versions'))) {
     const id = path.basename(vdir);
     const json = readJson(path.join(vdir, `${id}.json`));
     if (!json) continue;
-    const version = json.inheritsFrom || (/^\d+\.\d+(\.\d+)?$|^\d\dw\d\d[a-z]$/.test(json.id || id) ? json.id || id : null);
+    const plain = !json.inheritsFrom && (['release', 'snapshot', 'old_beta', 'old_alpha'].includes(json.type) || VANILLA_ID.test(json.id || id));
+    const version = json.inheritsFrom || (plain ? json.id || id : null);
     if (!version) continue;
-    const own = gameDirFor.get(id);
-    out.push({ name: id, gameDir: own || dir, version, ...versionLoader(json), shared: !own, icon: null, lastPlayed: Date.parse(json.time) || null });
+    versions.set(id, { id, version, plain, type: json.type, time: Date.parse(json.releaseTime || json.time) || 0, played: Date.parse(json.time) || null, ...versionLoader(json) });
   }
-  return { instances: out, tlauncher: Boolean(tl) || exists(path.join(dir, 'tlauncher-2.0.properties')) || exists(path.join(os.homedir(), '.tlauncher')) };
+  const newest = (type) => [...versions.values()].filter((v) => v.plain && v.type === type).sort((a, c) => c.time - a.time)[0] || null;
+
+  // the launcher's installations ("Latest release", "My 1.20 world", ...)
+  const installs = [];
+  const used = new Set();
+  for (const p of profiles) {
+    const v = p.type === 'latest-release' ? newest('release') : p.type === 'latest-snapshot' ? newest('snapshot') : versions.get(String(p.lastVersionId || ''));
+    if (!v) continue;
+    const own = p.gameDir && isDir(p.gameDir) ? p.gameDir : null;
+    const name = String(p.name || '').trim() || (p.type === 'latest-release' ? 'Latest release' : p.type === 'latest-snapshot' ? 'Latest snapshot' : v.id);
+    used.add(v.id);
+    installs.push({ name, gameDir: own || dir, version: v.version, loader: v.loader, loaderVersion: v.loaderVersion, shared: !own, icon: profileIcon(p.icon), lastPlayed: Date.parse(p.lastUsed) || v.played });
+  }
+  const rest = [...versions.values()].filter((v) => !used.has(v.id))
+    .map((v) => ({ name: v.id, gameDir: dir, version: v.version, loader: v.loader, loaderVersion: v.loaderVersion, shared: true, icon: null, lastPlayed: v.played }));
+
+  // One .minecraft can hold both launchers: installations go to the Minecraft Launcher, the rest to TLauncher.
+  if (tlauncher && official) return { minecraft: installs, tlauncher: rest };
+  if (tlauncher) return { tlauncher: [...installs, ...rest] };
+  return { minecraft: [...installs, ...rest] };
 }
 
 /* ── scan ─────────────────────────────────────────────────────── */
@@ -274,8 +330,7 @@ function scan(b = bases()) {
   for (const dir of where.atlauncher) if (isDir(dir)) take('atlauncher', dir, scanAtLauncher(dir));
   for (const dir of where.minecraft) {
     if (!isDir(dir)) continue;
-    const { instances, tlauncher } = scanMinecraftDir(dir);
-    take(tlauncher ? 'tlauncher' : 'minecraft', dir, instances);
+    for (const [id, instances] of Object.entries(scanMinecraftDir(dir))) take(id, dir, instances);
   }
   const list = [...results.values()].map((entry) => ({
     ...entry,
@@ -283,8 +338,7 @@ function scan(b = bases()) {
       .map((i) => ({ ...i, key: `${entry.id}:${i.gameDir}:${i.name}`, ...summary(i.gameDir) }))
       .sort((a, c) => (c.lastPlayed || 0) - (a.lastPlayed || 0) || a.name.localeCompare(c.name))
   }));
-  // a launcher that is not installed is still listed (greyed out), unless it's the plain Minecraft Launcher
-  return list.filter((entry) => entry.found || entry.id !== 'minecraft');
+  return list; // a launcher that is not installed is still listed (greyed out)
 }
 
 /** Works out what kind of instance folder the user picked. */
@@ -372,6 +426,146 @@ async function copyInto(gameDir, target, names, onProgress) {
   return { files: files.length, bytes: done };
 }
 
+/* ── shared game files ─────────────────────────────────────────── */
+
+/**
+ * Folders holding another launcher's shared game files (assets/, libraries/, versions/), found by walking up
+ * from the instance: Prism / MultiMC / ATLauncher / .minecraft keep them at the root, the Modrinth App under
+ * meta/, CurseForge under Install/. The default .minecraft is added too, since every vanilla install fills it.
+ */
+function sharedStores(gameDir, b = bases()) {
+  const roots = [];
+  const add = (dir) => {
+    if (!dir || !isDir(path.join(dir, 'assets', 'objects'))) return;
+    const resolved = path.resolve(dir);
+    const own = deps ? path.resolve(rootDir()) : null;
+    if (resolved !== own && !roots.includes(resolved)) roots.push(resolved);
+  };
+  let dir = path.resolve(gameDir);
+  for (let up = 0; up < 5; up += 1) {
+    add(dir);
+    add(path.join(dir, 'meta'));
+    add(path.join(dir, 'Install'));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  add(b.mc);
+  return roots;
+}
+
+async function walkFiles(dir, visit, depth = 0) {
+  if (depth > 24) return;
+  let entries;
+  try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) await walkFiles(full, visit, depth + 1);
+    else if (e.isFile()) await visit(full, e.name);
+  }
+}
+
+/** Any one asset object in a store (to test whether it can be hard-linked). */
+function firstObject(objects) {
+  for (const sub of subdirs(objects)) {
+    try {
+      const name = fs.readdirSync(sub).find((n) => /^[0-9a-f]{40}$/.test(n));
+      if (name) return path.join(sub, name);
+    } catch { /* unreadable */ }
+  }
+  return null;
+}
+
+/** The version json another launcher keeps for a game version (Mojang's format), if it has one. */
+function storeVersionJson(store, version) {
+  return [
+    path.join(store, 'versions', version, `${version}.json`),
+    path.join(path.dirname(store), 'meta', 'net.minecraft', `${version}.json`), // Prism / MultiMC meta cache
+    path.join(store, 'meta', 'net.minecraft', `${version}.json`)
+  ].map(readJson).find((json) => json && (json.assetIndex || json.libraries)) || null;
+}
+
+/** Can a hard link be made from `src`'s drive into Native's folder? */
+async function canLink(src, dir) {
+  const probe = path.join(dir, `.link-probe-${process.pid}-${Date.now()}`);
+  try {
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.link(src, probe);
+    return true;
+  } catch { return false; } finally { await fsp.rm(probe, { force: true }).catch(() => {}); }
+}
+
+/**
+ * Brings the other launcher's game assets, libraries and vanilla jar into Native's shared folder, so the
+ * first launch doesn't download them again. Only files Native doesn't have yet; nothing is ever replaced.
+ * On the same drive everything is hard-linked (no extra space). Across drives only what this version
+ * needs is copied. Asset objects are named by their hash and checked again before launch; libraries and
+ * jars only come from the exact path every launcher uses for them. Returns how many files were added.
+ */
+async function reuseSharedFiles(stores, version, onProgress = () => {}) {
+  const target = rootDir();
+  let added = 0;
+  const place = async (src, dest, link) => {
+    try { await fsp.access(dest); return; } catch { /* not there yet */ }
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    if (link) {
+      try { await fsp.link(src, dest); added += 1; return; } catch (error) { if (error?.code === 'EEXIST') return; }
+    }
+    const tmp = `${dest}.${process.pid}.import`;
+    try {
+      await fsp.copyFile(src, tmp, fs.constants.COPYFILE_FICLONE);
+      await fsp.rename(tmp, dest);
+      added += 1;
+    } catch { await fsp.rm(tmp, { force: true }).catch(() => {}); }
+  };
+  const queue = [];
+  const flush = async () => { await Promise.all(queue.splice(0)); };
+  const push = async (job) => { queue.push(job); if (queue.length >= 32) await flush(); };
+
+  for (let i = 0; i < stores.length; i += 1) {
+    const store = stores[i];
+    const step = (f, detail) => onProgress((i + f) / stores.length, detail);
+    const objects = path.join(store, 'assets', 'objects');
+    const libs = path.join(store, 'libraries');
+    const sample = firstObject(objects);
+    if (!sample) continue;
+    const link = await canLink(sample, path.join(target, 'assets'));
+    const json = version ? storeVersionJson(store, version) : null;
+
+    // assets: all of them when linking, only this version's index when copying
+    let wanted = null;
+    if (!link) {
+      const index = json && readJson(path.join(store, 'assets', 'indexes', `${json.assetIndex?.id || json.assets}.json`));
+      if (!index?.objects) continue; // can't tell what this version needs; the launch downloads it
+      wanted = new Set(Object.values(index.objects).map((o) => o?.hash).filter(Boolean));
+    }
+    step(0, 'Reusing game assets…');
+    await walkFiles(objects, (file, name) => {
+      if (!/^[0-9a-f]{40}$/.test(name) || (wanted && !wanted.has(name))) return null;
+      return push(place(file, path.join(target, 'assets', 'objects', name.slice(0, 2), name), link));
+    });
+    await flush();
+
+    step(0.6, 'Reusing game libraries…');
+    if (link) {
+      await walkFiles(libs, (file, name) => (/\.jar$/i.test(name) ? push(place(file, path.join(target, 'libraries', path.relative(libs, file)), true)) : null));
+    } else {
+      for (const lib of Array.isArray(json?.libraries) ? json.libraries : []) {
+        const rel = lib?.downloads?.artifact?.path;
+        if (rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') && exists(path.join(libs, rel))) await push(place(path.join(libs, rel), path.join(target, 'libraries', rel), false));
+      }
+    }
+    await flush();
+
+    if (version && VANILLA_ID.test(version)) {
+      const jar = [path.join(store, 'versions', version, `${version}.jar`), path.join(libs, 'com', 'mojang', 'minecraft', version, `minecraft-${version}-client.jar`)].find(exists);
+      if (jar) await place(jar, path.join(target, 'versions', version, `${version}.jar`), link);
+    }
+  }
+  onProgress(1, 'Game files ready');
+  return added;
+}
+
 function emit(key, percent, detail, extra = {}) {
   const win = deps?.getWin?.();
   if (win && !win.isDestroyed()) win.webContents.send('import:progress', { key, percent, detail, ...extra });
@@ -390,7 +584,11 @@ async function importInstance({ source, gameDir, name, version, loader, loaderVe
   try {
     emit(tag, 0, 'Looking at the files…');
     const names = plan(gameDir, include, shared);
-    const result = await copyInto(gameDir, dir, names, (f, n) => emit(tag, Math.round(f * 96), `Copying ${n} files…`));
+    const result = await copyInto(gameDir, dir, names, (f, n) => emit(tag, Math.round(f * 80), `Copying ${n} files…`));
+    let reused = 0;
+    try {
+      reused = await reuseSharedFiles(sharedStores(gameDir), version, (f, detail) => emit(tag, 80 + Math.round(f * 16), detail));
+    } catch { /* the launch downloads whatever is still missing */ }
     for (const folder of ['mods', 'resourcepacks', 'shaderpacks']) {
       try {
         await require('./modMetadata').enrichFolder(path.join(dir, folder));
@@ -410,7 +608,7 @@ async function importInstance({ source, gameDir, name, version, loader, loaderVe
       created: Date.now(),
       lastPlayed: null,
       description: `Imported from ${launcher}`,
-      imported: { from: source, files: result.files, bytes: result.bytes }
+      imported: { from: source, files: result.files, bytes: result.bytes, reused }
     };
   } catch (error) {
     emit(tag, 100, 'Failed', { error: true });
@@ -471,4 +669,4 @@ function init(dependencies, ipcMain) {
   });
 }
 
-module.exports = { init, scan, bases, candidates, detectFolder, importInstance, importFile, plan, versionLoader, curseForgeLoader, prismInstance, fromLog, _internals: { scanModrinth, scanCurseForge, scanPrism, scanAtLauncher, scanMinecraftDir } };
+module.exports = { init, scan, bases, candidates, detectFolder, importInstance, importFile, plan, versionLoader, curseForgeLoader, prismInstance, fromLog, sharedStores, reuseSharedFiles, _internals: { scanModrinth, modrinthRows, scanCurseForge, scanPrism, scanAtLauncher, scanMinecraftDir } };
