@@ -123,3 +123,47 @@ test('browse keeps the hideInstallToast control prop wired to the installer', ()
   assert.ok(bvCode.includes('hideInstallToast = false'), 'BrowseView supports hideInstallToast prop');
 });
 
+
+/**
+ * The instance page renders on every tab. A render error there leaves the whole page blank (a variable read before
+ * it was defined did exactly that), and a build never notices.
+ */
+test('instance page renders every tab', { skip: !esbuild && 'esbuild is not installed' }, () => {
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-ui-'));
+  const entry = path.join(workDir, 'entry.jsx');
+  const bundle = path.join(workDir, 'bundle.cjs');
+  fs.writeFileSync(entry, `
+globalThis.window = { native: { version: '6', instance: {}, settings: {} }, addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
+  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) };
+globalThis.document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener() {}, removeEventListener() {},
+  querySelector: () => null, activeElement: null, hasFocus: () => true };
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+console.error = () => {}; // server-render warnings (layout effects) are not what this checks
+const React = require('react');
+const { renderToString } = require('react-dom/server');
+const { I18nProvider } = require(${JSON.stringify(path.join(ROOT, 'src/i18n/I18nProvider.jsx'))});
+const ClusterDetailView = require(${JSON.stringify(path.join(ROOT, 'src/features/cluster/ClusterDetailView.jsx'))}).default;
+const inst = { id: 'i1', name: 'My Pack', version: '1.21.1', loader: 'Fabric', mc_version: '1.21.1', mc_loader: 'Fabric', overrides: {} };
+const out = {};
+for (const tab of ['mods', 'worlds', 'screenshots', 'textures', 'loader', 'console', 'settings']) {
+  for (const status of ['idle', 'downloading', 'running']) {
+    const html = renderToString(React.createElement(I18nProvider, null, React.createElement(ClusterDetailView, {
+      cluster: inst, instances: [inst], initialTab: tab, onBack() {}, onLaunch() {}, onKill() {},
+      launcherState: { status, instanceId: 'i1', percent: 40 }, onUpdateCluster() {}, onUpdateInstance() {},
+      onAnalyzeCrash() {}, onOpenCrashReport() {}, onNavigateBrowse() {}, social: {}, account: null
+    })));
+    out[tab + ':' + status] = html.includes('im-settings-host') && html.includes('My Pack');
+  }
+}
+process.stdout.write(JSON.stringify(out));
+`);
+  esbuild.buildSync({
+    entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', jsx: 'automatic',
+    loader: { '.css': 'empty', '.png': 'dataurl', '.jpg': 'dataurl', '.svg': 'dataurl', '.webp': 'dataurl', '.ttf': 'dataurl' },
+    outfile: bundle, logLevel: 'error', nodePaths: [path.join(ROOT, 'node_modules')]
+  });
+  const result = JSON.parse(execFileSync(process.execPath, [bundle], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+  fs.rmSync(workDir, { recursive: true, force: true });
+  for (const [key, ok] of Object.entries(result)) assert.ok(ok, `instance page renders: ${key}`);
+  assert.equal(Object.keys(result).length, 21);
+});
