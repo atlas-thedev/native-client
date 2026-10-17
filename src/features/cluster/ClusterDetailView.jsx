@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NativeIcon from '../../components/ui/NativeIcon.jsx';
 import Dropdown from '../../components/ui/Dropdown.jsx';
 import LaunchActionButton from '../launcher/LaunchActionButton.jsx';
@@ -15,6 +15,21 @@ import './ClusterDetailView.css';
 import './InstanceManager.css';
 
 import useVersionBanners from '../../lib/useVersionBanners.js';
+
+/* Launch progress re-renders this page a few times a second; the content tabs (long mod lists, the
+   settings form) only re-render when their own props change. */
+const ContentTabView = React.memo(InstanceContentTab);
+const ConsoleTabView = React.memo(ConsoleTab);
+const LoaderTabView = React.memo(LoaderTab);
+const ScreenshotsView = React.memo(ScreenshotManager);
+const SettingsTabView = React.memo(SettingsTab);
+
+/** A callback whose identity never changes but always calls the latest `fn`. */
+function useLatest(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args) => ref.current?.(...args), []);
+}
 const TAB_META = {
   mods: { title: 'Mods', icon: 'type-mod', folder: 'mods', search: 'Find a mod…' },
   shaders: { title: 'Shaders', icon: 'type-shader', folder: 'shaderpacks', search: 'Find a shader…' },
@@ -61,10 +76,12 @@ export default function ClusterDetailView({
   const noticeTimerRef = useRef(null);
 
   const currentInstance = instances.find((item) => item.id === cluster.id) || cluster;
-  const isInstalled = useIsInstalled(currentInstance, launcherState?.status);
-  const isThisRunning =
-    (launcherState?.status === 'running' || Boolean(launcherState?.isGameRunning)) &&
-    (launcherState?.instanceId || launcherState?.instance?.id || launcherState?.clusterId) === cluster.id;
+  const isInstalled = useIsInstalled(currentInstance, launchStatus);
+  const launchStatus = launcherState?.status || 'idle';
+  const isThisInstance = (launcherState?.instanceId || launcherState?.instance?.id || launcherState?.clusterId) === cluster.id;
+  const isThisRunning = (launchStatus === 'running' || Boolean(launcherState?.isGameRunning)) && isThisInstance;
+  // Starting, downloading or running this instance: the Launch button shows the live progress right away.
+  const isThisActive = isThisInstance && !['idle', 'error', 'stopped'].includes(launchStatus);
 
   const [liveElapsed, setLiveElapsed] = useState(0);
 
@@ -93,12 +110,12 @@ export default function ClusterDetailView({
     return () => clearInterval(interval);
   }, [isThisRunning, cluster.id, launcherState?.startedAt, gameSince]);
 
-  const showNotice = (title, body) => {
+  const showNotice = useCallback((title, body) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     const payload = body ? { title, body } : { title: '', body: title };
     setNotice(payload);
     noticeTimerRef.current = setTimeout(() => setNotice(null), 4000);
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -116,6 +133,14 @@ export default function ClusterDetailView({
   };
   // The shell asks before switching tabs away from this page.
   if (guardRef) guardRef.current = confirmDiscard;
+  const browse = useLatest((contentType) => {
+    if (confirmDiscard()) onNavigateBrowse?.(cluster, contentType);
+  });
+  const onBrowse = onNavigateBrowse ? browse : undefined;
+  const updateCluster = useLatest(onUpdateCluster);
+  const updateInstance = useLatest(onUpdateInstance);
+  const analyzeCrash = useLatest(onAnalyzeCrash);
+  const openCrashReport = useLatest(onOpenCrashReport);
   useEffect(() => () => { if (guardRef) guardRef.current = null; }, [guardRef]);
 
   useEffect(() => {
@@ -264,7 +289,7 @@ export default function ClusterDetailView({
             <LaunchActionButton
               className="im-launch"
               instance={currentInstance}
-              launcherState={isThisRunning ? launcherState : null}
+              launcherState={isThisActive ? launcherState : null}
               isInstalled={isInstalled}
               onLaunch={onLaunch}
               onKill={onKill}
@@ -408,45 +433,39 @@ export default function ClusterDetailView({
           </div>
 
           {['mods', 'shaders', 'textures', 'worlds'].includes(tab) && (
-            <InstanceContentTab
+            <ContentTabView
               key={tab}
               cluster={cluster}
               type={tab}
               query={query}
               filtered={filtered}
-              onBrowse={
-                onNavigateBrowse
-                  ? (contentType) => {
-                      if (confirmDiscard()) onNavigateBrowse(cluster, contentType);
-                    }
-                  : undefined
-              }
+              onBrowse={onBrowse}
             />
           )}
 
           {tab === 'console' && (
-            <ConsoleTab
+            <ConsoleTabView
               cluster={cluster}
               query={query}
-              running={isThisRunning && ['running', 'launching', 'stopping'].includes(launcherState?.status)}
-              onAnalyzeCrash={onAnalyzeCrash}
-              onOpenCrashReport={onOpenCrashReport}
+              running={isThisInstance && ['running', 'launching', 'stopping'].includes(launchStatus)}
+              onAnalyzeCrash={onAnalyzeCrash ? analyzeCrash : undefined}
+              onOpenCrashReport={onOpenCrashReport ? openCrashReport : undefined}
               onNotify={showNotice}
             />
           )}
 
           {tab === 'loader' && (
-            <LoaderTab
+            <LoaderTabView
               cluster={cluster}
               query={query}
-              running={isThisRunning && ['running', 'launching', 'stopping', 'preparing', 'downloading'].includes(launcherState?.status)}
-              onUpdateInstance={onUpdateInstance}
+              running={isThisInstance && ['running', 'launching', 'stopping', 'preparing', 'downloading', 'verifying'].includes(launchStatus)}
+              onUpdateInstance={updateInstance}
               onNotify={showNotice}
             />
           )}
 
           {tab === 'screenshots' && (
-            <ScreenshotManager
+            <ScreenshotsView
               cluster={cluster}
               query={query}
               sortAlphabetically={filtered}
@@ -457,9 +476,9 @@ export default function ClusterDetailView({
           )}
 
           <div className="im-settings-host" hidden={tab !== 'settings'}>
-            <SettingsTab
+            <SettingsTabView
               cluster={cluster}
-              onUpdateCluster={onUpdateCluster}
+              onUpdateCluster={updateCluster}
               query={query}
               enabledOnly={filtered}
               onDirtyChange={setDirty}

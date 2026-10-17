@@ -717,6 +717,33 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not equip cape.'); }
   };
 
+  // Wings, backpacks and jetpacks hang where the cloak does, so it's one or the other: a back item takes the cloak
+  // off and a cloak takes the back item off. The server swaps them; when an older one didn't, ask for it here.
+  const afterBackOn = async (res) => {
+    let cloak = res?.equipped || null;
+    if (cloak) {
+      const off = await window.native?.store?.equip?.(account, null, officialMode ? { target: 'premium' } : undefined);
+      if (off?.ok) {
+        cloak = null;
+        if (!officialMode && off.state) publishState(off.state);
+      }
+    }
+    if (officialMode) setPremiumEquipped(cloak);
+    else if (res?.state) publishState(res.state);
+  };
+  const afterCloakOn = async (res) => {
+    if (localOnly) return;
+    let worn = res?.wearing || null;
+    if ((worn || wearing)?.back) {
+      const off = await window.native?.store?.wear?.(account, null, 'back');
+      if (off?.ok) worn = off.wearing || {};
+    }
+    if (worn) {
+      setWearing(worn);
+      window.dispatchEvent(new Event('native:cosmetics-changed'));
+    }
+  };
+
   // Premium (Microsoft) account: wear a Native Store cloak in game.
   const wearPremiumCape = async (item) => {
     if (!account || storeBusy) return;
@@ -725,6 +752,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const res = await window.native?.store?.equip?.(account, item?.id || null, { target: 'premium' });
       if (!res?.ok) throw new Error(res?.error || 'Could not wear that cloak.');
       setPremiumEquipped(res.premiumEquipped || null);
+      if (item) await afterCloakOn(res);
       if (item) onNotify?.(t('locker.title'), `${item.name} is now your cloak in game.`);
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not wear that cloak.'); }
     finally { setStoreBusy(null); }
@@ -737,6 +765,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       const res = await window.native?.store?.equip?.(account, item?.id || null);
       if (!res?.ok) throw new Error(res?.error || 'Could not wear that cloak.');
       if (res.state) publishState(res.state);
+      if (item) await afterCloakOn(res);
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not wear that cloak.'); }
     finally { setStoreBusy(null); }
   };
@@ -751,6 +780,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       if (!res?.ok) throw new Error(res?.error || 'Could not do that.');
       setWearing(res.wearing || {});
       if (res.sides) setSides(res.sides);
+      if (!off && item.slot === 'back') await afterBackOn(res);
       window.dispatchEvent(new Event('native:cosmetics-changed'));
     } catch (error) { onNotify?.(t('locker.title'), error?.message || 'Could not do that.'); }
     finally { setStoreBusy(null); }
@@ -814,12 +844,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         const worn = await window.native?.store?.wear?.(account, item.id, item.slot);
         if (!worn?.ok) throw new Error(worn?.error || 'Added, but could not put it on.');
         setWearing(worn.wearing || {});
+        if (item.slot === 'back') await afterBackOn(worn);
         window.dispatchEvent(new Event('native:cosmetics-changed'));
       } else {
         const worn = await window.native?.store?.equip?.(account, item.id, officialMode ? { target: 'premium' } : undefined);
         if (!worn?.ok) throw new Error(worn?.error || 'Added, but could not put it on.');
         if (officialMode) setPremiumEquipped(worn.premiumEquipped || item.id);
         else if (worn.state) publishState(worn.state);
+        await afterCloakOn(worn);
       }
       setTryOn(null);
       onNotify?.(t('locker.title'), `${item.name} is in your locker and you’re wearing it — in the launcher and in game.`);
@@ -842,7 +874,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         if (res.sides) setSides(res.sides);
       }
       setWearing(worn);
-      const cloak = pieces.find((piece) => piece.kind !== 'cosmetic');
+      // a set with wings / a backpack keeps them: its cloak would only hang behind them
+      const cloak = pieces.some((piece) => piece.kind === 'cosmetic' && piece.slot === 'back') ? null : pieces.find((piece) => piece.kind !== 'cosmetic');
       if (cloak) {
         const res = await window.native?.store?.equip?.(account, cloak.id, officialMode ? { target: 'premium' } : undefined);
         if (!res?.ok) throw new Error(res?.error || `Could not wear ${cloak.name}.`);
@@ -1044,7 +1077,8 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
         const color = bundleColor(bundle);
         const complete = have === pieces.length;
         const previewing = trySet === bundle.id;
-        const wornAll = pieces.every((item) => (item.kind === 'cosmetic' ? wearing?.[item.slot] === item.id : (officialMode ? premiumEquipped : (wardrobe?.active?.cape?.storeId || storeEquipped)) === item.id));
+        const hasBack = pieces.some((item) => item.kind === 'cosmetic' && item.slot === 'back');
+        const wornAll = pieces.every((item) => (item.kind === 'cosmetic' ? wearing?.[item.slot] === item.id : hasBack || (officialMode ? premiumEquipped : (wardrobe?.active?.cape?.storeId || storeEquipped)) === item.id));
         const busy = storeBusy === `set:${bundle.id}`;
         const cloak = pieces.find((item) => item.kind !== 'cosmetic');
         const act = () => (have > 0 ? (!wornAll && !storeBusy && wearSet(bundle)) : openStoreBundle(bundle));

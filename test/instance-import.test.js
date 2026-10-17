@@ -75,7 +75,7 @@ test('finds instances in every installed launcher', () => {
   assert.deepEqual([tl['Fabric 1.20.1'].version, tl['Fabric 1.20.1'].loader, tl['Fabric 1.20.1'].loaderVersion], ['1.20.1', 'Fabric', '0.15.11']);
   assert.deepEqual([tl['1.12.2-forge-14.23.5.2860'].loader, tl['1.12.2-forge-14.23.5.2860'].loaderVersion], ['Forge', '14.23.5.2860']);
   assert.equal(tl['1.20.1'].loader, 'Vanilla');
-  assert.ok(!by.minecraft, 'a TLauncher folder is not listed twice');
+  assert.equal(by.minecraft.found, false, 'a TLauncher folder is not listed twice');
   assert.equal(by.multimc.found, false);
 });
 

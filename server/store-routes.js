@@ -655,9 +655,18 @@ const ownerIds = (itemId) => { try { return sql().prepare('SELECT user_id FROM s
 
 
 /** Puts `item` on a profile (cape or cosmetic). */
+/**
+ * A profile wearing `item`. Wings, backpacks and jetpacks sit where the cloak hangs, so the back slot and a Store
+ * cloak are one or the other: putting on a back item takes the Store cloak off, putting on a cloak takes the back
+ * item off. (A cape that isn't from the Store, e.g. an uploaded one, stays; the back item just covers it.)
+ */
 function putOn(profile, item) {
-  if (cosmetics.isCosmetic(item)) return cosmetics.withItem(profile, item);
-  return { ...profile, cape: item.still, capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null, capeStore: item.id };
+  if (cosmetics.isCosmetic(item)) {
+    const next = cosmetics.withItem(profile, item);
+    return item.slot === 'back' && profile.capeStore ? { ...next, cape: null, capeAnim: null, capeStore: null } : next;
+  }
+  const next = profile.cosmetics && profile.cosmetics.back ? cosmetics.withoutSlot(profile, 'back') : profile;
+  return { ...next, cape: item.still, capeAnim: item.animated ? { strip: item.strip, frames: item.frames, fps: item.fps } : null, capeStore: item.id };
 }
 
 /**

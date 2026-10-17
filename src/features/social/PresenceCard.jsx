@@ -33,11 +33,23 @@ export function activityLine(user = {}) {
   }
 }
 
-function ServerIcon({ src, name }) {
-  const [broken, setBroken] = useState(false);
-  useEffect(() => setBroken(false), [src]);
-  if (src && !broken) return <img className="pc-icon" src={src} alt="" draggable={false} onError={() => setBroken(true)} />;
-  return <span className="pc-icon is-letter" aria-hidden="true">{String(name || '?').trim().charAt(0).toUpperCase()}</span>;
+/**
+ * The server's real logo: the favicon from our own ping, else a public server-icon service (it reaches servers that
+ * our ping can't, e.g. behind a firewall or still loading), else the first letter.
+ */
+export function serverIconSources(address, favicon) {
+  const host = String(address || '').trim().toLowerCase().replace(/:25565$/, '');
+  const remote = /^[a-z0-9.-]+(:\d{1,5})?$/.test(host) && host.includes('.') ? `https://api.mcsrvstat.us/icon/${host}` : null;
+  return [favicon, remote].filter(Boolean);
+}
+
+function ServerIcon({ address, favicon, name, className = 'pc-icon' }) {
+  const sources = useMemo(() => serverIconSources(address, favicon), [address, favicon]);
+  const [failed, setFailed] = useState(0);
+  useEffect(() => setFailed(0), [sources.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const src = sources[failed];
+  if (src) return <img className={className} src={src} alt="" draggable={false} onError={() => setFailed((n) => n + 1)} />;
+  return <span className={`${className} is-letter`} aria-hidden="true">{String(name || '?').trim().charAt(0).toUpperCase()}</span>;
 }
 
 /**
@@ -78,7 +90,7 @@ export default function PresenceCard({ user, onJoin, compact = false }) {
     <div className={`pc-card is-server${compact ? ' is-compact' : ''}`}>
       <span className="pc-kicker">Playing on a server</span>
       <div className="pc-row">
-        <ServerIcon src={live?.favicon} name={activity.label} />
+        <ServerIcon address={activity.address} favicon={live?.favicon} name={activity.label} />
         <div className="pc-text">
           <strong title={activity.label}>{activity.label}</strong>
           <button type="button" className="pc-address" onClick={copy} title="Copy address">
@@ -111,7 +123,7 @@ export function PresenceInline({ user }) {
   return (
     <span className="pc-inline">
       {activity.kind === 'server'
-        ? (live?.favicon ? <img src={live.favicon} alt="" className="pc-inline-icon" draggable={false} /> : <span className="pc-inline-icon is-letter">{activity.label.charAt(0).toUpperCase()}</span>)
+        ? <ServerIcon address={activity.address} favicon={live?.favicon} name={activity.label} className="pc-inline-icon" />
         : <img src={vanillaIcon} alt="" className="pc-inline-icon" draggable={false} />}
       <span className="pc-inline-text">{line}</span>
       {activity.kind === 'server' && live?.online && <span className="pc-inline-players"><i />{numberFormat.format(live.players?.online ?? 0)} online</span>}

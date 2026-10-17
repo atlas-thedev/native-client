@@ -935,7 +935,12 @@ async function wearStoreCosmetic(account, itemId, slot, side = null) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t do that (HTTP ${response.status}).`);
-  return { wearing: body.wearing || {}, sides: body.sides || null, owned: Array.isArray(body.owned) ? body.owned : null };
+  // A back item takes the Store cloak off (the server does it): bring the local copy of the look in line.
+  let state = null;
+  if (itemId && slot === 'back' && !body.equipped && loadMetadata(account).activeCape) {
+    state = await pullRemoteWardrobe(account, { authoritative: true }).catch(() => null);
+  }
+  return { wearing: body.wearing || {}, sides: body.sides || null, owned: Array.isArray(body.owned) ? body.owned : null, equipped: body.equipped || null, state };
 }
 
 /** Recolours a dyeable cosmetic of the account's locker (color null = the item's own colour). */
@@ -978,11 +983,14 @@ async function equipPremiumStoreItem(account, itemId) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t equip that (HTTP ${response.status}).`);
-  return { premiumEquipped: body.equipped || null, equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : null };
+  return { premiumEquipped: body.equipped || null, equipped: body.equipped || null, owned: Array.isArray(body.owned) ? body.owned : null, wearing: body.wearing || null };
 }
 
-/** Equip (or, with itemId null, remove) a store cloak on the signed-in Native account, then mirror it locally. */
-async function equipStoreItem(account, itemId) {
+/**
+ * Equip (or, with itemId null, remove) a store cloak on the signed-in Native account, then mirror it locally.
+ * `out.wearing` gets the 3D cosmetics worn afterwards (a cloak takes a back item off).
+ */
+async function equipStoreItem(account, itemId, out = {}) {
   if (!account?.token || isMicrosoftAccount(account) || isLocalOnlyAccount(account)) {
     throw new Error('Sign in with a Native account to use store items.');
   }
@@ -996,6 +1004,7 @@ async function equipStoreItem(account, itemId) {
   let body = {};
   try { body = await response.json(); } catch {}
   if (!response.ok || body.ok === false) throw new Error(body.error || `The store couldn’t equip that (HTTP ${response.status}).`);
+  if (body.wearing && typeof body.wearing === 'object') out.wearing = body.wearing;
 
   if (!itemId) {
     const metadata = loadMetadata(account);
@@ -2178,7 +2187,11 @@ function init(dependencies, ipcMain) {
     if (target === 'premium' || isMicrosoftAccount(account)) {
       try { return { ok: true, ...(await equipPremiumStoreItem(account, itemId)) }; } catch (error) { return { ok: false, error: error.message }; }
     }
-    try { return { ok: true, state: await equipStoreItem(account, itemId) }; } catch (error) { return { ok: false, error: error.message }; }
+    try {
+      const out = {};
+      const state = await equipStoreItem(account, itemId, out);
+      return { ok: true, state, wearing: out.wearing || null };
+    } catch (error) { return { ok: false, error: error.message }; }
   });
   ipc.handle('wardrobe:officialProfile', profileResult((_event, account) => officialProfile(account)));
   ipc.handle('wardrobe:reauthOfficialProfile', profileResult(async (_event, account) => {

@@ -4,7 +4,10 @@
  * (the Modrinth App keeps its instance list in app.db). Pages written to the -wal file but not yet
  * checkpointed are read too, so a profile created a minute ago still shows up. Never writes anything.
  *
- *   readTable('/path/app.db', 'profiles') -> [{ path: 'Fabulously Optimized', game_version: '1.21.1', ... }]
+ *   readTable('/path/app.db', 'instances') -> [{ path: 'Fabulously Optimized', name: 'FO', ... }]
+ *   readTables('/path/app.db', ['instances', 'settings']) -> { instances: [...], settings: [...] }
+ *
+ * Pages are read from disk when needed (the Modrinth app.db also holds a large API cache we never touch).
  */
 const fs = require('fs');
 
@@ -41,13 +44,28 @@ function walPages(walPath, pageSize) {
 }
 
 function open(dbPath) {
-  const db = fs.readFileSync(dbPath);
-  if (db.subarray(0, 16).toString('latin1') !== 'SQLite format 3\u0000') throw new Error('Not an SQLite database');
-  let pageSize = db.readUInt16BE(16);
+  const fd = fs.openSync(dbPath, 'r');
+  const head = Buffer.alloc(100);
+  fs.readSync(fd, head, 0, 100, 0);
+  if (head.subarray(0, 16).toString('latin1') !== 'SQLite format 3\u0000') { fs.closeSync(fd); throw new Error('Not an SQLite database'); }
+  let pageSize = head.readUInt16BE(16);
   if (pageSize === 1) pageSize = 65536;
-  const reserved = db[20];
+  const reserved = head[20];
   const wal = walPages(dbPath + '-wal', pageSize);
-  const page = (n) => wal.get(n) || db.subarray((n - 1) * pageSize, n * pageSize);
+  const cache = new Map();
+  const page = (n) => {
+    const fromWal = wal.get(n);
+    if (fromWal) return fromWal;
+    let buf = cache.get(n);
+    if (!buf) {
+      buf = Buffer.alloc(pageSize);
+      fs.readSync(fd, buf, 0, pageSize, (n - 1) * pageSize);
+      if (cache.size > 4096) cache.clear();
+      cache.set(n, buf);
+    }
+    return buf;
+  };
+  const close = () => { try { fs.closeSync(fd); } catch { /* already closed */ } };
   const usable = pageSize - reserved;
 
   /** The full payload of a cell, following overflow pages. */
@@ -124,15 +142,32 @@ function open(dbPath) {
     if (kind === 0x05) scan(buf.readUInt32BE(base + 8), out, depth + 1);
     return out;
   }
-  return { scan };
+  return { scan, close };
 }
 
-/** Column names from a CREATE TABLE statement (constraints skipped). */
-function columnsOf(sql) {
-  const body = String(sql || '').slice(String(sql).indexOf('(') + 1, String(sql).lastIndexOf(')'));
+/** CREATE TABLE text without SQL comments (Modrinth's migrations keep -- comments inside the column list). */
+function stripComments(sql) {
+  let out = '', quote = null;
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    if (quote) { out += ch; if (ch === quote) quote = null; continue; }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; out += ch; continue; }
+    if (ch === '-' && sql[i + 1] === '-') { while (i < sql.length && sql[i] !== '\n') i += 1; out += ' '; continue; }
+    if (ch === '/' && sql[i + 1] === '*') { const end = sql.indexOf('*/', i + 2); i = end < 0 ? sql.length : end + 1; out += ' '; continue; }
+    out += ch;
+  }
+  return out;
+}
+
+/** Column definitions of a CREATE TABLE statement (table constraints skipped). */
+function columnDefs(sql) {
+  const text = stripComments(String(sql || ''));
+  const body = text.slice(text.indexOf('(') + 1, text.lastIndexOf(')'));
   const parts = [];
-  let depth = 0, cur = '';
+  let depth = 0, cur = '', quote = null;
   for (const ch of body) {
+    if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+    if (ch === "'" || ch === '"' || ch === '`') quote = ch;
     if (ch === '(') depth += 1;
     if (ch === ')') depth -= 1;
     if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch;
@@ -141,21 +176,35 @@ function columnsOf(sql) {
   return parts
     .map((part) => part.trim())
     .filter((part) => part && !/^(primary|unique|foreign|check|constraint)\b/i.test(part))
-    .map((part) => part.match(/^["`[]?([^"`\]\s]+)/)[1]);
+    .map((part) => ({ name: (part.match(/^["`[]?([^"`\]\s]+)/) || [])[1], intKey: /\binteger\s+primary\s+key\b/i.test(part) }));
 }
 
-function readTable(dbPath, table) {
-  const db = open(dbPath);
-  const master = db.scan(1).map(([, v]) => ({ type: v[0], name: v[1], root: v[3], sql: v[4] }));
+const columnsOf = (sql) => columnDefs(sql).map((c) => c.name);
+
+function rowsOf(db, master, table) {
   const entry = master.find((row) => row.type === 'table' && row.name === table);
   if (!entry) return [];
-  const columns = columnsOf(entry.sql);
-  const intKey = columns.findIndex((_, i) => /\binteger\s+primary\s+key\b/i.test(String(entry.sql).split(',')[i] || ''));
+  const columns = columnDefs(entry.sql);
   return db.scan(entry.root).map(([rowid, values]) => {
     const row = {};
-    columns.forEach((name, i) => { row[name] = i === intKey && values[i] == null ? rowid : values[i] ?? null; });
+    columns.forEach((col, i) => { row[col.name] = col.intKey && values[i] == null ? rowid : values[i] ?? null; });
     return row;
   });
 }
 
-module.exports = { readTable, columnsOf };
+/** Rows of several tables in one pass over the file: { [table]: rows[] } (a missing table gives []). */
+function readTables(dbPath, tables) {
+  const db = open(dbPath);
+  try {
+    const master = db.scan(1).map(([, v]) => ({ type: v[0], name: v[1], root: v[3], sql: v[4] }));
+    return Object.fromEntries(tables.map((table) => {
+      try { return [table, rowsOf(db, master, table)]; } catch { return [table, []]; }
+    }));
+  } finally {
+    db.close();
+  }
+}
+
+const readTable = (dbPath, table) => readTables(dbPath, [table])[table];
+
+module.exports = { readTable, readTables, columnsOf };
