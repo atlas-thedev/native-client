@@ -269,14 +269,12 @@ export default function InstancesView({
         </div>
 
         <div className="instances-header-actions">
-          {instances.length > 0 && (
-            <button type="button" className="instances-ghost-btn instances-import-btn" onClick={() => onOpenImport?.(null)} title="Import from Modrinth, CurseForge, Prism, TLauncher and more">
-              <span className="instances-import-stack" aria-hidden="true">
-                {FEATURED_LAUNCHERS.slice(0, 3).map((entry) => <img key={entry.id} src={entry.icon} alt="" />)}
-              </span>
-              <span>Import</span>
-            </button>
-          )}
+          <button type="button" className="instances-ghost-btn instances-import-btn" onClick={() => onOpenImport?.(null)} title="Import from Modrinth, CurseForge, Prism, TLauncher and more">
+            <span className="instances-import-stack" aria-hidden="true">
+              {FEATURED_LAUNCHERS.slice(0, 3).map((entry) => <img key={entry.id} src={entry.icon} alt="" />)}
+            </span>
+            <span>Import</span>
+          </button>
           <button type="button" className="instances-brand-btn" onClick={onOpenCreateModal}>
             <NativeIcon name="plus" size={16} />
             <span>{t('instances.new')}</span>

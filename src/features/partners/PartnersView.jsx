@@ -5,22 +5,58 @@ import PartnerCard, { BUILT_IN_PARTNERS } from './PartnerCard.jsx';
 import './Partners.css';
 
 const PARTNER_PAGE = 'https://playnative.net/partners#become-a-partner';
+const CACHE_KEY = 'native.partners.cache.v1';
+const CACHE_TTL = 10 * 60_000;
+
+let memoryCache = null;
+
+function readCachedPartners() {
+  if (memoryCache && Array.isArray(memoryCache.partners)) return memoryCache;
+  try {
+    const raw = JSON.parse(window?.localStorage?.getItem?.(CACHE_KEY) || 'null');
+    if (raw && Array.isArray(raw.partners)) {
+      memoryCache = { partners: raw.partners, offline: false, at: Number(raw.at) || 0 };
+      return memoryCache;
+    }
+  } catch { /* storage unavailable */ }
+  return null;
+}
+
+function writeCachedPartners(partners, offline = false) {
+  const entry = { partners, offline: Boolean(offline), at: Date.now() };
+  memoryCache = entry;
+  try {
+    window?.localStorage?.setItem?.(CACHE_KEY, JSON.stringify({ partners, at: entry.at }));
+  } catch { /* storage unavailable */ }
+}
+
+export function invalidatePartnersCache() {
+  memoryCache = null;
+  try { window?.localStorage?.removeItem?.(CACHE_KEY); } catch { /* ignore */ }
+}
 
 /** Brands Native works with. The list (and each card's motion) is edited in Admin → Partners. */
 export default function PartnersView() {
-  const [partners, setPartners] = useState(null);
-  const [offline, setOffline] = useState(false);
+  const cached = readCachedPartners();
+  const [partners, setPartners] = useState(() => cached?.partners ?? BUILT_IN_PARTNERS);
+  const [offline, setOffline] = useState(() => Boolean(cached?.offline));
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (force = false) => {
     const result = await window.native?.partners?.list?.({ force }).catch(() => null);
     const list = Array.isArray(result?.partners) ? result.partners : null;
-    setOffline(!result?.ok);
-    // Nothing from the API (first run offline, or an older backend): show the bundled card.
-    setPartners(list ?? BUILT_IN_PARTNERS);
+    const isOffline = !result?.ok;
+    const next = list ?? readCachedPartners()?.partners ?? BUILT_IN_PARTNERS;
+    if (list) writeCachedPartners(list, isOffline);
+    setOffline(isOffline);
+    setPartners(next);
   }, []);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => {
+    const current = readCachedPartners();
+    if (current && Date.now() - current.at < CACHE_TTL) return;
+    load(false);
+  }, [load]);
 
   const refresh = async () => {
     if (refreshing) return;
