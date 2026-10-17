@@ -221,6 +221,13 @@ const api = {
     problems: (payload) => ipcRenderer.invoke('mods:problems', payload),
     onProgress: (callback) => subscribe('mods:progress', callback)
   },
+  imports: {
+    scan: () => ipcRenderer.invoke('import:scan'),
+    instance: (payload) => ipcRenderer.invoke('import:instance', payload),
+    file: (payload) => ipcRenderer.invoke('import:file', payload),
+    pick: (kind) => ipcRenderer.invoke('import:pick', { kind }),
+    onProgress: (callback) => subscribe('import:progress', callback)
+  },
   modpacks: {
     install: (payload) => ipcRenderer.invoke('modpack:install', payload),
     onProgress: (callback) => subscribe('modpack:progress', callback)

@@ -8,6 +8,8 @@ import fabricIcon from '../../assets/icons/fabric.png';
 import forgeIcon from '../../assets/icons/forge.jpg';
 import vanillaIcon from '../../assets/icons/vanilla.png';
 
+import { ImportFromLaunchers } from './ImportInstancesModal.jsx';
+import { FEATURED_LAUNCHERS } from './importLaunchers.js';
 import './InstancesView.css';
 
 
@@ -100,6 +102,7 @@ export default function InstancesView({
   onKill,
   launcherState,
   onOpenCreateModal,
+  onOpenImport,
   onUpdate,
   onDuplicate,
   onRemove,
@@ -266,6 +269,14 @@ export default function InstancesView({
         </div>
 
         <div className="instances-header-actions">
+          {instances.length > 0 && (
+            <button type="button" className="instances-ghost-btn instances-import-btn" onClick={() => onOpenImport?.(null)} title="Import from Modrinth, CurseForge, Prism, TLauncher and more">
+              <span className="instances-import-stack" aria-hidden="true">
+                {FEATURED_LAUNCHERS.slice(0, 3).map((entry) => <img key={entry.id} src={entry.icon} alt="" />)}
+              </span>
+              <span>Import</span>
+            </button>
+          )}
           <button type="button" className="instances-brand-btn" onClick={onOpenCreateModal}>
             <NativeIcon name="plus" size={16} />
             <span>{t('instances.new')}</span>
@@ -369,11 +380,13 @@ export default function InstancesView({
               <NativeIcon name="cube" size={28} />
             </div>
             <h2>{t('home.empty')}</h2>
-            <p>{t('instances.emptyBody')}</p>
+            <p>Create a fresh instance, or bring the ones you already have from another launcher.</p>
             <button type="button" className="instances-brand-btn" onClick={onOpenCreateModal}>
               <NativeIcon name="plus" size={16} />
               <span>{t('instances.create')}</span>
             </button>
+            <span className="instances-empty-or">or</span>
+            <ImportFromLaunchers onOpen={onOpenImport} launchers={FEATURED_LAUNCHERS} />
           </div>
         ) : visible.length === 0 ? (
           <div className="instances-empty small">
@@ -586,6 +599,12 @@ export default function InstancesView({
             <button type="button" className="instance-add-card" onClick={onOpenCreateModal}>
               <NativeIcon name="plus" size={24} />
               <span>{t('instances.new')}</span>
+            </button>
+            <button type="button" className="instance-add-card is-import" onClick={() => onOpenImport?.(null)}>
+              <span className="instances-import-stack is-big" aria-hidden="true">
+                {FEATURED_LAUNCHERS.map((entry) => <img key={entry.id} src={entry.icon} alt="" />)}
+              </span>
+              <span>Import from another launcher</span>
             </button>
           </div>
         )}

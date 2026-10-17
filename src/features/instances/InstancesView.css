@@ -645,3 +645,13 @@
 .instances-view .instances-empty-icon svg * { color: #fff; stroke: #fff; }
 
 .instances-view { isolation: isolate; }
+
+/* ---------- import from another launcher ---------- */
+.instances-import-btn { gap: 9px; padding-left: 10px; }
+.instances-import-stack { display: inline-flex; align-items: center; }
+.instances-import-stack img { width: 20px; height: 20px; padding: 2px; margin-left: -6px; border-radius: 6px; background: #0b0b0d; box-shadow: 0 0 0 1.5px #0b0b0d; object-fit: contain; }
+.instances-import-stack img:first-child { margin-left: 0; }
+.instances-import-stack.is-big img { width: 30px; height: 30px; padding: 4px; margin-left: -8px; border-radius: 9px; }
+.instances-import-stack.is-big img:first-child { margin-left: 0; }
+.instance-add-card.is-import { gap: 12px; }
+.instances-empty-or { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-muted); }

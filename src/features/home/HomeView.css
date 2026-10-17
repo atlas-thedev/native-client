@@ -816,3 +816,7 @@
 @media (max-height: 640px) {
   .home-view .recents-hint { display: none; }
 }
+
+/* empty Home: import from another launcher under the create button */
+.home-empty-state .home-actions-row { display: flex; flex-wrap: wrap; align-items: center; }
+.home-empty-state .home-import .imp-strip-main { height: 42px; }

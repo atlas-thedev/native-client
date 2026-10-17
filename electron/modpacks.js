@@ -137,6 +137,19 @@ async function installModrinth({ projectId, versionId = null, name = null, title
     fs.rmSync(packPath, { force: true });
   }
 
+  return installMrpackZip(zip, {
+    emit,
+    name: name?.trim() || project?.title || packTitle,
+    icon: project?.icon_url ?? packIcon ?? null,
+    pack: { projectId: project?.id || projectId, versionId: version.id, versionNumber: version.version_number }
+  });
+}
+
+/**
+ * Installs an opened .mrpack (AdmZip) into a new instance: downloads every file in modrinth.index.json
+ * (hash-checked, allowed hosts only), applies overrides and returns the new instance record.
+ */
+async function installMrpackZip(zip, { emit, name, icon = null, pack = null }) {
   const indexEntry = zip.getEntry('modrinth.index.json');
   if (!indexEntry) throw new Error('Invalid modpack: missing modrinth.index.json');
   const index = JSON.parse(indexEntry.getData().toString('utf8'));
@@ -210,19 +223,15 @@ async function installModrinth({ projectId, versionId = null, name = null, title
     emit(100, 'Installed');
     return {
       id,
-      name: name?.trim() || project?.title || packTitle,
+      name: name || index.name || 'Modpack',
       version: mcVersion,
       loader,
       loaderVersion,
       color: '#ff4133',
-      icon: project?.icon_url ?? packIcon ?? null,
+      icon,
       created: Date.now(),
       lastPlayed: null,
-      pack: {
-        projectId: project?.id || projectId,
-        versionId: version.id,
-        versionNumber: version.version_number
-      }
+      ...(pack ? { pack } : {})
     };
   } catch (err) {
     emit(100, 'Failed', { error: true });
@@ -372,6 +381,19 @@ async function installCurseForge({ projectId, versionId = null, name = null, tit
     fs.rmSync(packPath, { force: true });
   }
 
+  return installCurseForgeZip(zip, {
+    emit,
+    name: name?.trim() || project?.name || packTitle,
+    icon: packIcon,
+    pack: { projectId: 'cf:' + modId, versionId: `cf:${modId}:${packFile.id}`, versionNumber: packFile.displayName || packFile.fileName, source: 'cf' }
+  });
+}
+
+/**
+ * Installs an opened CurseForge modpack zip (manifest.json + overrides) into a new instance: resolves every
+ * file through the CurseForge API, downloads it (sha1-checked) and returns the new instance record.
+ */
+async function installCurseForgeZip(zip, { emit, name, icon = null, pack = null }) {
   const manifestEntry = zip.getEntry('manifest.json');
   if (!manifestEntry) throw new Error('Invalid CurseForge modpack: missing manifest.json');
   const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
@@ -470,21 +492,15 @@ async function installCurseForge({ projectId, versionId = null, name = null, tit
     emit(100, skipped.length ? `Installed (${skipped.length} file(s) unavailable)` : 'Installed');
     return {
       id,
-      name: name?.trim() || project?.name || packTitle,
+      name: name || manifest.name || 'Modpack',
       version: mcVersion,
       loader,
       loaderVersion,
       color: '#f16436',
-      icon: packIcon,
+      icon,
       created: Date.now(),
       lastPlayed: null,
-      pack: {
-        projectId: 'cf:' + modId,
-        versionId: `cf:${modId}:${packFile.id}`,
-        versionNumber: packFile.displayName || packFile.fileName,
-        source: 'cf',
-        ...(skipped.length ? { skipped } : {})
-      }
+      ...(pack || skipped.length ? { pack: { ...(pack || { source: 'cf' }), ...(skipped.length ? { skipped } : {}) } } : {})
     };
   } catch (err) {
     emit(100, 'Failed', { error: true });
@@ -500,4 +516,4 @@ function init(dependencies, ipcMain) {
   );
 }
 
-module.exports = { init, install, cfLoader, loaderFromDependencies, allowedDownloads, requireHashes };
+module.exports = { init, install, installMrpackZip, installCurseForgeZip, cfLoader, loaderFromDependencies, allowedDownloads, requireHashes };

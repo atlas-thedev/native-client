@@ -15,6 +15,7 @@ import { PRESETS, PRESET_LOADERS, checkPresetCompat, getPreset } from './presets
 import fabricIcon from '../../assets/icons/fabric.png';
 import forgeIcon from '../../assets/icons/forge.jpg';
 import vanillaIcon from '../../assets/icons/vanilla.png';
+import PixelIcon from './PixelIcons.jsx';
 import './CreateInstanceModal.css';
 import './Presets.css';
 
@@ -24,9 +25,9 @@ const RAM_MAX = 16384;
 const RAM_STEP = 512;
 
 const STEPS = [
-  { id: 'version', label: 'Version', hint: 'Which Minecraft' },
-  { id: 'loader', label: 'Loader', hint: 'Mods or vanilla' },
-  { id: 'extras', label: 'Extras', hint: 'Mods, memory, Native' }
+  { id: 'version', label: 'Version', hint: 'Which Minecraft', icon: 'grass' },
+  { id: 'loader', label: 'Loader', hint: 'Mods or vanilla', icon: 'table' },
+  { id: 'extras', label: 'Extras', hint: 'Mods, memory, Native', icon: 'chest' }
 ];
 
 const LOADER_INFO = {
@@ -297,7 +298,7 @@ export default function CreateInstanceModal({
             </dl>
 
             <div className="cim-stage-foot">
-              {problem ? <p className="cim-problem"><NativeIcon name="alert" size={13} />{problem}</p> : <p className="cim-ready"><NativeIcon name="check" size={13} />Ready to create</p>}
+              {problem && <p className="cim-problem"><NativeIcon name="alert" size={13} />{problem}</p>}
               <div className="cim-stage-actions">
                 <button type="button" className="cim-ghost" onClick={onClose}>{t('common.cancel')}</button>
                 <button type="button" className="cim-create" onClick={submit} disabled={!canSubmit} title="Ctrl + Enter">
@@ -321,7 +322,7 @@ export default function CreateInstanceModal({
                   aria-current={entry.id === step ? 'step' : undefined}
                   onClick={() => setStep(entry.id)}
                 >
-                  <i>{index < stepIndex ? <NativeIcon name="check" size={11} /> : index + 1}</i>
+                  <i><PixelIcon name={entry.icon} size={18} />{index < stepIndex && <b className="cim-step-done"><NativeIcon name="check" size={8} /></b>}</i>
                   <span><strong>{entry.label}</strong><small>{entry.hint}</small></span>
                 </button>
               ))}
