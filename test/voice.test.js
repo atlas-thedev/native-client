@@ -163,13 +163,18 @@ test('re-joining a call and a call nobody answered yet are not ended by that', (
   assert.equal(ringing.size, 1);
 });
 
-test('group calls and proximity rooms never ring', () => {
+test('there are no proximity rooms: voice is Relay calls only', () => {
+  reset();
+  assert.throws(() => join(alice, { room: 'srv:mc.example.net' }), (error) => error.status === 410);
+  assert.equal(sessions.size, 0);
+});
+
+test('group calls never ring', () => {
   reset();
   db.groupMemberIds = () => ['1', '2', '3'];
   const forBob = listen('2');
   const before = forBob.length;
   join(alice, { room: 'g:abc' });
-  join(alice, { room: 'srv:mc.example.net' });
   assert.equal(ofType(forBob.slice(before), 'voice:ring').length, 0);
   assert.equal(ringing.size, 0);
   // a group call carries on when a member leaves
