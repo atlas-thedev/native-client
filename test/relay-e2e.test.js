@@ -221,6 +221,9 @@ test('direct messages: send, realtime, read, reply, react, edit, delete, paging'
   assert.equal(page.status, 200);
   assert.ok(page.json.messages.some((m) => m.id === m1.id));
   await streamA.wait((e) => e.type === 'message:read');
+  // the reader's own sessions hear it too, so a toast for that chat goes away everywhere
+  const ownRead = await streamB.wait((e) => e.type === 'thread:read');
+  assert.deepEqual([ownRead.payload.kind, ownRead.payload.threadId], ['dm', U.a.id]);
   const afterRead = await api('GET', `/v1/social/messages/${U.b.id}`, { token: U.a.token });
   assert.ok(afterRead.json.messages.find((m) => m.id === m1.id).isRead, 'sender sees read flag');
 

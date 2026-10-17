@@ -1533,6 +1533,8 @@ async function handler(req, res) {
         if (result.messageIds.length) {
           events.publish(friendId, 'message:read', { readerId: authUser.id, messageIds: result.messageIds });
         }
+        // your other sessions (launcher, game, another PC): this chat is read, drop its notifications
+        events.publish(authUser.id, 'thread:read', { kind: 'dm', threadId: friendId });
         return send(res, 200, { ok: true, ...result }, { 'Cache-Control': 'no-store' });
       }
 
@@ -1660,6 +1662,7 @@ async function handler(req, res) {
           const page = db.getMessages(authUser.id, friendId, { limit, before, markRead });
           if (markRead) {
             events.publish(friendId, 'message:read', { readerId: authUser.id, messageIds: null });
+            events.publish(authUser.id, 'thread:read', { kind: 'dm', threadId: friendId });
           }
           return send(res, 200, { ok: true, ...page }, { 'Cache-Control': 'no-store' });
         }

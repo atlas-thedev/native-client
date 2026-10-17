@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  */
 
 const social = () => (typeof window !== 'undefined' ? window.native?.social : null);
+/** The launcher window is in front, so an open chat is really being looked at. */
+const windowSeen = () => typeof document === 'undefined' || (document.hasFocus() && document.visibilityState !== 'hidden');
 const relay = () => (typeof window !== 'undefined' ? window.native?.relay : null);
 
 const EMPTY_THREAD = { messages: [], hasMore: false, oldestTime: null, loading: false, loaded: false };
@@ -89,6 +91,20 @@ export function useSocial(account) {
   const typingSentRef = useRef({});
 
   useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
+  // Chats with messages that arrived while the window was in the background: read once you come back, not before.
+  const unseenRef = useRef(new Set());
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onFocus = () => {
+      const id = activeChatIdRef.current;
+      if (!id || !unseenRef.current.has(id)) return;
+      unseenRef.current.delete(id);
+      social()?.markRead?.(id);
+      setFriends((previous) => previous.map((friend) => (friend.id === id && friend.unreadCount ? { ...friend, unreadCount: 0 } : friend)));
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
   const activeChatFriend = useMemo(
@@ -313,7 +329,9 @@ export function useSocial(account) {
     });
 
     const isIncoming = message.senderId !== selfId;
-    const isOpen = activeChatIdRef.current === friendId;
+    // open is not enough: the window has to be in front, or the friend sees "seen" for a message you never saw
+    const isOpen = activeChatIdRef.current === friendId && windowSeen();
+    if (isIncoming && activeChatIdRef.current === friendId && !isOpen) unseenRef.current.add(friendId);
 
     setFriends((previous) => previous.map((friend) => {
       if (friend.id !== friendId) return friend;
@@ -395,6 +413,13 @@ export function useSocial(account) {
           }
           return next;
         });
+        break;
+
+      case 'thread:read':
+        // you read this chat somewhere else (in game, another PC): no unread badge here either
+        if (event.kind === 'dm' && event.threadId) {
+          setFriends((previous) => previous.map((friend) => (friend.id === event.threadId && friend.unreadCount ? { ...friend, unreadCount: 0 } : friend)));
+        }
         break;
 
       case 'message:read':

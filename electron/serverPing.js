@@ -12,6 +12,9 @@ const dns = require('dns');
  */
 
 const DEFAULT_PORT = 25565;
+// The protocol a real 1.21.1 client sends. "-1" (just pinging) is allowed by the spec, but some proxies and anti-bot
+// front ends drop it, so those servers showed as unreachable with no icon or player count.
+const STATUS_PROTOCOL = 767;
 const TIMEOUT_MS = 6000;
 
 /* ── VarInt helpers ─────────────────────────────────────────── */
@@ -114,7 +117,7 @@ function pingOnce(host, port) {
       started = Date.now();
       const handshake = makePacket(
         0x00,
-        encodeVarInt(-1),          // protocol version (-1 = "just pinging")
+        encodeVarInt(STATUS_PROTOCOL),
         writeString(host),
         Buffer.from([(port >> 8) & 0xff, port & 0xff]),
         encodeVarInt(1)            // next state: status

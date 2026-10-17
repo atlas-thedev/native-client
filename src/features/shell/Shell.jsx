@@ -314,6 +314,12 @@ export default function Shell({
     const burst = burstsRef.current.get(key);
     if (!burst) return;
     burst.timer = null;
+    // waited a moment: if that chat is on screen now, it has been seen
+    const state = relayNotificationRef.current;
+    if (document.hasFocus() && state.currentTab === 'relay' && burst.note?.threadId && state.activeThreadId === burst.note.threadId) {
+      burstsRef.current.delete(key);
+      return;
+    }
     burst.shownAt = Date.now();
     const { note, count } = burst;
     const body = count > 1 ? `${count} new messages \u00b7 ${note.body}` : note.body;
@@ -323,11 +329,35 @@ export default function Shell({
     }
   }, []);
 
+  /* A chat that was read (here, in game or elsewhere) is no longer news: cancel its pending toast, close the one on
+     screen and drop it from the drawer. */
+  const clearThreadNotes = useCallback((threadId) => {
+    if (!threadId) return;
+    for (const [key, burst] of burstsRef.current) {
+      if (burst.note?.threadId !== threadId) continue;
+      if (burst.timer) clearTimeout(burst.timer);
+      burstsRef.current.delete(key);
+      window.native?.clearNotification?.(key);
+    }
+    setNotifications((prev) => (prev.some((item) => item.target?.threadId === threadId)
+      ? prev.filter((item) => item.target?.threadId !== threadId)
+      : prev));
+  }, []);
+
   useEffect(() => {
     if (!hasNative) return undefined;
     const bursts = burstsRef.current;
     const off = social.subscribe((event) => {
       const state = relayNotificationRef.current;
+      if (event?.type === 'thread:read') {
+        clearThreadNotes(event.threadId);
+        return;
+      }
+      if (event?.type === 'group:read') {
+        const read = event.data || event;
+        if (read.readerId && read.readerId === state.selfId) clearThreadNotes(read.groupId);
+        return;
+      }
       const note = describeRelayEvent(event, state);
       if (!note) return;
       let mutedIds = {};
@@ -369,21 +399,17 @@ export default function Shell({
       for (const burst of bursts.values()) if (burst.timer) clearTimeout(burst.timer);
       bursts.clear();
     };
-  }, [hasNative, notify, showBurst, social.subscribe]);
+  }, [hasNative, notify, showBurst, social.subscribe, clearThreadNotes]);
 
-  /* Opening a chat ends its burst and removes its toast. */
+  /* Opening a chat ends its burst and removes its toast; so does coming back to the window with the chat open (a
+     toast that was waiting to be shown used to pop up after you had already read the messages). */
   useEffect(() => {
-    if (currentTab !== 'relay' || !relayActiveThreadId) return;
-    for (const [key, burst] of burstsRef.current) {
-      if (burst.note?.threadId !== relayActiveThreadId) continue;
-      if (burst.timer) clearTimeout(burst.timer);
-      burstsRef.current.delete(key);
-      window.native?.clearNotification?.(key);
-    }
-    setNotifications((prev) => (prev.some((item) => item.target?.threadId === relayActiveThreadId)
-      ? prev.filter((item) => item.target?.threadId !== relayActiveThreadId)
-      : prev));
-  }, [currentTab, relayActiveThreadId]);
+    if (currentTab !== 'relay' || !relayActiveThreadId) return undefined;
+    clearThreadNotes(relayActiveThreadId);
+    const onFocus = () => clearThreadNotes(relayActiveThreadId);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [currentTab, relayActiveThreadId, clearThreadNotes]);
 
   /* Profile page: opened from Relay, the Locker or anywhere via openProfile(). */
   const [profileTarget, setProfileTarget] = useState(null);

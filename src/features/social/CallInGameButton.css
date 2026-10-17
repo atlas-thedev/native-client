@@ -1,0 +1,110 @@
+.cig { position: relative; display: inline-flex; }
+
+/* the phone shakes like an incoming call, then settles */
+.cig-btn.is-ringing { color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+.cig-btn.is-ringing .cig-phone { animation: cig-shake 0.6s cubic-bezier(.36,.07,.19,.97) 2; transform-origin: 50% 60%; }
+@keyframes cig-shake {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(-16deg); }
+  30% { transform: rotate(14deg); }
+  45% { transform: rotate(-10deg); }
+  60% { transform: rotate(8deg); }
+  75% { transform: rotate(-4deg); }
+}
+
+.cig-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -6px;
+  z-index: 40;
+  width: 270px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-elevated, #16171c);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  transform-origin: calc(100% - 20px) -6px;
+  animation: cig-in 0.34s cubic-bezier(.2, .9, .3, 1.25) both;
+}
+.cig-pop::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: 17px;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  background: inherit;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+@keyframes cig-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.86); }
+  to { opacity: 1; transform: none; }
+}
+
+.cig-art {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.14);
+  animation: cig-bob 1.6s ease-in-out infinite;
+}
+.cig-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(34, 197, 94, 0.55);
+  animation: cig-ripple 1.6s ease-out infinite;
+}
+.cig-ring.is-late { animation-delay: 0.8s; }
+@keyframes cig-ripple {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.75); opacity: 0; }
+}
+@keyframes cig-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.cig-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cig-text strong { font-size: 13px; color: var(--fg-primary, #fff); }
+.cig-text span { font-size: 12px; line-height: 1.45; color: var(--fg-muted, #a1a1aa); }
+.cig-text kbd {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font: 600 11px/16px var(--font-mono, monospace);
+  text-align: center;
+  color: var(--fg-primary, #fff);
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+/* how long until it goes away */
+.cig-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: #22c55e;
+  transform-origin: left;
+  animation: cig-timer linear forwards;
+}
+@keyframes cig-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cig-pop, .cig-art, .cig-ring, .cig-btn.is-ringing .cig-phone { animation: none; }
+  .cig-timer { display: none; }
+}
