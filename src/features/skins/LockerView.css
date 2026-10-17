@@ -756,7 +756,9 @@
 /* Store items you don't own: dashed until you try one on */
 .locker-shop-row .locker-row-header { align-items: center; }
 .locker-shop-card { position: relative; border-style: dashed !important; transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s var(--ease), background 0.15s var(--ease); }
-.locker-shop-card:hover { transform: translateY(-3px); }
+/* the card stays put on hover (a card that rises slides out from under the cursor and shakes); its art lifts */
+.locker-shop-card :is(.locker-cape-texture, .locker-cape-anim, .locker-cosmetic-thumb) { transition: translate 0.2s var(--ease); }
+.locker-shop-card:hover :is(.locker-cape-texture, .locker-cape-anim, .locker-cosmetic-thumb) { translate: 0 -3px; }
 .locker-shop-card:active { transform: scale(0.96); }
 .locker-shop-card .locker-cosmetic-thumb, .locker-shop-card .locker-cape-texture { opacity: 0.82; transition: opacity 0.15s var(--ease), transform 0.2s var(--ease); }
 .locker-shop-card:hover .locker-cosmetic-thumb, .locker-shop-card:hover .locker-cape-texture, .locker-shop-card.is-trying .locker-cosmetic-thumb { opacity: 1; }
@@ -820,7 +822,7 @@
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .locker-set::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--bc), transparent); opacity: 0.8; }
-.locker-set:hover { border-color: color-mix(in srgb, var(--bc) 55%, transparent); transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35); }
+.locker-set:hover { border-color: color-mix(in srgb, var(--bc) 55%, transparent); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35); }
 .locker-set.is-trying { border-color: var(--bc); box-shadow: 0 0 0 1px var(--bc), 0 10px 30px color-mix(in srgb, var(--bc) 25%, transparent); }
 .locker-set.is-complete .locker-set-count { background: var(--bc); color: #0b0b0f; border-color: transparent; }
 .locker-set-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
