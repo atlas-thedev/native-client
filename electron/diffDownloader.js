@@ -23,8 +23,36 @@ const COPY_BUF = 1024 * 1024;
 
 class NotWorthIt extends Error {}
 
-async function fetchBlockmap(url, doFetch) {
-  const res = await doFetch(url, { headers: { 'User-Agent': 'NativeClient-Updater' }, redirect: 'follow' });
+async function readState(file) {
+  try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch { return null; }
+}
+
+async function writeState(file, state) {
+  const tmp = `${file}.tmp`;
+  await fsp.writeFile(tmp, JSON.stringify(state));
+  await fsp.rename(tmp, file);
+}
+
+async function inspect(dest) {
+  const state = await readState(`${dest}.diff.json`);
+  if (!state || !Array.isArray(state.jobs) || !(state.downloadBytes > 0)) return null;
+  try {
+    const st = await fsp.stat(`${dest}.diff`);
+    if (st.size !== state.size) return null;
+  } catch { return null; }
+  const transferred = state.jobs.reduce((n, j) => n + Math.max(0, Math.min(j.end - j.start + 1, (Number(j.pos) || j.start) - j.start)), 0);
+  return {
+    size: state.size,
+    sha512: state.sha512,
+    transferred,
+    total: state.downloadBytes,
+    percent: (transferred / state.downloadBytes) * 100,
+    optimized: true
+  };
+}
+
+async function fetchBlockmap(url, doFetch, abortSignal) {
+  const res = await doFetch(url, { headers: { 'User-Agent': 'NativeClient-Updater' }, redirect: 'follow', signal: abortSignal });
   if (!res.ok) throw new Error(`Blockmap HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const raw = buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf) : buf;
@@ -86,7 +114,7 @@ function plan(oldFile, newFile) {
  * @param {string} o.baseFile installer of the version that is installed now
  * @param {string} o.oldBlockmapUrl blockmap of baseFile
  * @param {string} o.newBlockmapUrl blockmap of the new installer
- * @param {{ cancelled: boolean }} [o.signal]
+ * @param {{ cancelled: boolean, cancel?: () => void }} [o.signal]
  * @param {() => number} [o.getConnections]
  * @param {(p) => void} [o.onPlan]  called once with `{ downloadBytes, copyBytes }`
  * @param {(p) => void} [o.onProgress]
@@ -95,8 +123,33 @@ function plan(oldFile, newFile) {
 async function download(o) {
   const doFetch = o.fetch || globalThis.fetch;
   const signal = o.signal || { cancelled: false };
+  const controllers = new Set();
+  const timers = new Set();
+  const cancelAll = () => {
+    signal.cancelled = true;
+    for (const c of controllers) { try { c.abort(); } catch {} }
+    for (const wake of timers) { try { wake(); } catch {} }
+  };
+  signal.cancel = cancelAll;
+  if (signal.cancelled) throw new DownloadCancelled();
+
   const size = Number(o.size);
-  const [oldFile, newFile] = await Promise.all([fetchBlockmap(o.oldBlockmapUrl, doFetch), fetchBlockmap(o.newBlockmapUrl, doFetch)]);
+  const bmController = new AbortController();
+  controllers.add(bmController);
+  let oldFile, newFile;
+  try {
+    [oldFile, newFile] = await Promise.all([
+      fetchBlockmap(o.oldBlockmapUrl, doFetch, bmController.signal),
+      fetchBlockmap(o.newBlockmapUrl, doFetch, bmController.signal)
+    ]);
+  } catch (err) {
+    if (signal.cancelled || err?.name === 'AbortError') throw new DownloadCancelled();
+    throw err;
+  } finally {
+    controllers.delete(bmController);
+  }
+  if (signal.cancelled) throw new DownloadCancelled();
+
   const oldSize = oldFile.sizes.reduce((n, s) => n + s, Number(oldFile.offset) || 0);
   const baseStat = await fsp.stat(o.baseFile);
   if (baseStat.size !== oldSize) throw new Error('The saved installer does not match its blockmap');
@@ -106,100 +159,161 @@ async function download(o) {
   const downloadBytes = segments.filter((s) => !s.copy).reduce((n, s) => n + s.len, 0);
   const copyBytes = size - downloadBytes;
   if (downloadBytes > size * 0.75) throw new NotWorthIt('Most of the installer changed');
-  o.onPlan?.({ downloadBytes, copyBytes });
 
   const work = `${o.dest}.diff`;
-  const out = await fsp.open(work, 'w');
+  const statePath = `${o.dest}.diff.json`;
+  const plannedJobs = [];
+  for (const s of segments) {
+    if (s.copy) continue;
+    for (let p = 0; p < s.len; p += CHUNK) {
+      const start = s.at + p;
+      plannedJobs.push({ start, end: s.at + Math.min(s.len, p + CHUNK) - 1, pos: start });
+    }
+  }
+
+  let state = await readState(statePath);
+  let workOk = false;
+  try { workOk = (await fsp.stat(work)).size === size; } catch {}
+  const canResume = workOk && state && state.sha512 === o.sha512 && state.size === size
+    && state.downloadBytes === downloadBytes && Array.isArray(state.jobs) && state.jobs.length === plannedJobs.length;
+
+  let out;
+  if (canResume) {
+    out = await fsp.open(work, 'r+');
+    state.jobs = plannedJobs.map((j, idx) => {
+      const savedPos = Number(state.jobs[idx]?.pos) || j.start;
+      return { start: j.start, end: j.end, pos: Math.max(j.start, Math.min(j.end + 1, savedPos)) };
+    });
+  } else {
+    state = { sha512: o.sha512, size, downloadBytes, copyBytes, copied: false, jobs: plannedJobs };
+    out = await fsp.open(work, 'w');
+    await out.truncate(size);
+  }
+
   const base = await fsp.open(o.baseFile, 'r');
-  let transferred = 0;
+  let transferred = state.jobs.reduce((n, j) => n + (j.pos - j.start), 0);
+  const startTransferred = transferred;
   const startedAt = Date.now();
   const samples = [];
+  let saving = Promise.resolve();
+  const queueSave = () => {
+    saving = saving.then(() => writeState(statePath, state)).catch(() => {});
+    return saving;
+  };
+  const sleep = (ms) => new Promise((resolve) => {
+    if (signal.cancelled) return resolve();
+    const wake = () => { clearTimeout(t); timers.delete(wake); resolve(); };
+    const t = setTimeout(wake, ms);
+    timers.add(wake);
+  });
+
+  o.onPlan?.({ downloadBytes, copyBytes, transferred, percent: downloadBytes ? (transferred / downloadBytes) * 100 : 100 });
+
   const report = () => {
     const now = Date.now();
     samples.push([now, transferred]);
     while (samples.length > 2 && now - samples[0][0] > 5000) samples.shift();
     const [t0, b0] = samples[0];
-    const bytesPerSecond = now > t0 ? ((transferred - b0) * 1000) / (now - t0) : (transferred * 1000) / Math.max(1, now - startedAt);
+    const bytesPerSecond = now > t0 ? ((transferred - b0) * 1000) / (now - t0) : ((transferred - startTransferred) * 1000) / Math.max(1, now - startedAt);
     o.onProgress?.({ transferred, total: downloadBytes, percent: downloadBytes ? (transferred / downloadBytes) * 100 : 100, bytesPerSecond: Math.max(0, bytesPerSecond) });
+    if (signal.cancelled) cancelAll();
   };
 
   try {
-    await out.truncate(size);
     // 1) reuse everything that didn't change
-    const buf = Buffer.allocUnsafe(COPY_BUF);
-    for (const s of segments) {
-      if (!s.copy) continue;
-      for (let done = 0; done < s.len;) {
-        if (signal.cancelled) throw new DownloadCancelled();
-        const n = Math.min(COPY_BUF, s.len - done);
-        const { bytesRead } = await base.read(buf, 0, n, s.from + done);
-        if (bytesRead !== n) throw new Error('The saved installer ended early');
-        await out.write(buf, 0, n, s.at + done);
-        done += n;
+    if (!state.copied) {
+      const buf = Buffer.allocUnsafe(COPY_BUF);
+      for (const s of segments) {
+        if (!s.copy) continue;
+        for (let done = 0; done < s.len;) {
+          if (signal.cancelled) throw new DownloadCancelled();
+          const n = Math.min(COPY_BUF, s.len - done);
+          const { bytesRead } = await base.read(buf, 0, n, s.from + done);
+          if (bytesRead !== n) throw new Error('The saved installer ended early');
+          await out.write(buf, 0, n, s.at + done);
+          done += n;
+        }
       }
+      state.copied = true;
+      await queueSave();
     }
 
     // 2) fetch only the changed ranges, a few at once
-    const jobs = [];
-    for (const s of segments) {
-      if (s.copy) continue;
-      for (let p = 0; p < s.len; p += CHUNK) jobs.push({ start: s.at + p, end: s.at + Math.min(s.len, p + CHUNK) - 1 });
-    }
     report();
-    const fetchRange = async ({ start, end }) => {
+    const fetchRange = async (job) => {
       for (let attempt = 0; ; attempt += 1) {
         if (signal.cancelled) throw new DownloadCancelled();
-        let got = 0;
+        if (job.pos > job.end) return;
+        const controller = new AbortController();
+        controllers.add(controller);
         try {
-          const res = await doFetch(o.url, { headers: { Range: `bytes=${start}-${end}`, 'User-Agent': 'NativeClient-Updater' }, redirect: 'follow' });
+          const res = await doFetch(o.url, {
+            headers: { Range: `bytes=${job.pos}-${job.end}`, 'User-Agent': 'NativeClient-Updater' },
+            redirect: 'follow',
+            signal: controller.signal
+          });
           if (res.status !== 206) { res.body?.cancel?.(); throw new Error(res.status === 200 ? 'Server does not support ranges' : `HTTP ${res.status}`); }
           const reader = res.body.getReader();
-          let pos = start;
           for (;;) {
             if (signal.cancelled) { reader.cancel().catch(() => {}); throw new DownloadCancelled(); }
             const { done, value } = await reader.read();
             if (done) break;
-            if (pos + value.length > end + 1) throw new Error('Server sent too much data');
-            await out.write(value, 0, value.length, pos);
-            pos += value.length; got += value.length; transferred += value.length;
+            if (job.pos + value.length > job.end + 1) throw new Error('Server sent too much data');
+            await out.write(value, 0, value.length, job.pos);
+            job.pos += value.length;
+            transferred += value.length;
             report();
           }
-          if (pos !== end + 1) throw new Error('Range ended early');
+          if (job.pos !== job.end + 1) throw new Error('Range ended early');
+          await queueSave();
           return;
         } catch (err) {
-          transferred -= got;
-          if (err.cancelled || /ranges/.test(err.message) || attempt >= 4) throw err;
-          await new Promise((r) => setTimeout(r, Math.min(10000, 800 * 2 ** attempt)));
+          if (signal.cancelled || err?.cancelled || err?.name === 'AbortError') {
+            queueSave();
+            throw new DownloadCancelled();
+          }
+          if (/ranges/.test(err.message) || attempt >= 4) throw err;
+          await sleep(Math.min(10000, 800 * 2 ** attempt));
+        } finally {
+          controllers.delete(controller);
         }
       }
     };
+    const pending = state.jobs.filter((j) => j.pos <= j.end);
     let failure = null;
     let next = 0;
     const lane = async () => {
-      while (!failure && next < jobs.length) {
-        const job = jobs[next++];
+      while (!failure && !signal.cancelled && next < pending.length) {
+        const job = pending[next++];
         await fetchRange(job).catch((err) => { failure = failure || err; });
       }
     };
     const lanes = Math.max(1, Math.min(6, Number(o.getConnections?.() ?? 4) || 1));
     await Promise.all(Array.from({ length: lanes }, lane));
     if (failure) throw failure;
+    if (signal.cancelled) throw new DownloadCancelled();
   } catch (err) {
+    const cancelled = signal.cancelled || err?.cancelled || err?.name === 'AbortError';
+    if (cancelled) queueSave();
+    await saving;
     await out.close().catch(() => {});
     await base.close().catch(() => {});
-    await fsp.rm(work, { force: true });
+    if (cancelled) throw new DownloadCancelled();
+    await Promise.all([fsp.rm(work, { force: true }), fsp.rm(statePath, { force: true })]);
     throw err;
   }
+  await saving;
   await out.close();
   await base.close();
 
   if (await sha512File(work) !== o.sha512) {
-    await fsp.rm(work, { force: true });
+    await Promise.all([fsp.rm(work, { force: true }), fsp.rm(statePath, { force: true })]);
     throw new Error('The patched update failed verification');
   }
   await fsp.rm(o.dest, { force: true });
   await fsp.rename(work, o.dest);
+  await fsp.rm(statePath, { force: true });
   return { path: o.dest, downloadBytes, copyBytes };
 }
 
-module.exports = { download, plan, fetchBlockmap, NotWorthIt };
+module.exports = { download, inspect, plan, fetchBlockmap, NotWorthIt };

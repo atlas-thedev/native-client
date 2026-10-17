@@ -102,3 +102,41 @@ test('an already finished file is reused', async () => {
   const r = await parts.download({ url: 'http://127.0.0.1:9/never', dest, size: DATA.length, sha512: SHA });
   assert.equal(r.resumed, true);
 });
+
+test('pausing mid-part before the first part finishes keeps the bytes written so far', async () => {
+  const ranges = [];
+  const srv = http.createServer((req, res) => {
+    const m = /bytes=(\d+)-(\d+)/.exec(req.headers.range || '');
+    const s = Number(m[1]); const e = Number(m[2]);
+    ranges.push([s, e]);
+    res.writeHead(206, { 'Content-Length': e - s + 1, 'Content-Range': `bytes ${s}-${e}/${DATA.length}` });
+    let pos = s;
+    const step = 16 * 1024;
+    const iv = setInterval(() => {
+      if (res.destroyed || pos > e) { clearInterval(iv); res.end(); return; }
+      const next = Math.min(e + 1, pos + step);
+      res.write(DATA.subarray(pos, next));
+      pos = next;
+    }, 5);
+    req.on('close', () => clearInterval(iv));
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${srv.address().port}/setup.exe`;
+  const dest = path.join(tmp(), 'setup.exe');
+  const signal = { cancelled: false };
+  try {
+    await assert.rejects(parts.download({
+      url, dest, size: DATA.length, sha512: SHA, partSize: DATA.length, connections: 1, signal,
+      onProgress: (p) => { if (p.transferred >= 64 * 1024) signal.cancel(); }
+    }), (e) => e.cancelled === true);
+    const saved = await parts.inspect(dest);
+    assert.ok(saved && saved.transferred >= 64 * 1024, 'mid-part progress is saved');
+    assert.equal(saved.doneParts, 0);
+    const r = await parts.download({ url, dest, size: DATA.length, sha512: SHA, partSize: DATA.length, connections: 1 });
+    assert.equal(r.resumed, true);
+    assert.equal(ranges[1][0], saved.transferred, 'resumes from exact saved byte offset');
+    assert.ok(fs.readFileSync(dest).equals(DATA));
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});

@@ -76,3 +76,43 @@ test('small unchanged gaps between changes are fetched in one request', () => {
   const { segments } = diff.plan(mk(['a', 'b', 'c', 'd']), mk(['x', 'b', 'y', 'd']));
   assert.deepStrictEqual(segments.map((s) => [s.copy, s.at, s.len]), [[false, 0, 3000], [true, 3000, 1000]]);
 });
+
+test('a paused differential update keeps its progress and resumes where it stopped', async () => {
+  const oldBuf = crypto.randomBytes(20 * BLOCK);
+  const newBuf = Buffer.concat([
+    oldBuf.subarray(0, 2 * BLOCK),
+    crypto.randomBytes(2 * BLOCK),
+    oldBuf.subarray(4 * BLOCK, 10 * BLOCK),
+    crypto.randomBytes(2 * BLOCK),
+    oldBuf.subarray(12 * BLOCK)
+  ]);
+  const sha512 = crypto.createHash('sha512').update(newBuf).digest('base64');
+  const stats = { ranged: 0 };
+  const server = await serve({ '/new.exe': newBuf, '/new.exe.blockmap': blockmap(newBuf), '/old.exe.blockmap': blockmap(oldBuf) }, stats);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-pause-'));
+  const baseFile = path.join(dir, 'old.exe');
+  const dest = path.join(dir, 'new.exe');
+  fs.writeFileSync(baseFile, oldBuf);
+  const signal = { cancelled: false };
+  try {
+    await assert.rejects(diff.download({
+      url: `${base}/new.exe`, dest, size: newBuf.length, sha512,
+      baseFile, oldBlockmapUrl: `${base}/old.exe.blockmap`, newBlockmapUrl: `${base}/new.exe.blockmap`,
+      signal, getConnections: () => 1,
+      onProgress: (p) => { if (p.transferred >= 2 * BLOCK) signal.cancel(); }
+    }), (e) => e.cancelled === true);
+    const saved = await diff.inspect(dest);
+    assert.ok(saved && saved.transferred >= 2 * BLOCK, 'differential progress is saved');
+    const out = await diff.download({
+      url: `${base}/new.exe`, dest, size: newBuf.length, sha512,
+      baseFile, oldBlockmapUrl: `${base}/old.exe.blockmap`, newBlockmapUrl: `${base}/new.exe.blockmap`,
+      getConnections: () => 1
+    });
+    assert.ok(fs.readFileSync(out.path).equals(newBuf));
+    assert.strictEqual(stats.ranged, 4 * BLOCK, 'already-downloaded ranges are not fetched again');
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

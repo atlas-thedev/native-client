@@ -159,6 +159,7 @@ let checkPromise = null;
 let downloadPromise = null;
 let downloadSignal = null; // parts downloader
 let downloadCancellation = null; // electron-updater
+let userPausedVersion = null;
 let activeCheckSilent = false;
 let readyInstaller = null; // Windows: verified installer path
 let installStarted = false;
@@ -201,13 +202,14 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
   ipcMain.handle('updater:install', () => installUpdate());
 
   autoUpdater.on('checking-for-update', () => {
-    if (!activeCheckSilent) setStatus(statusWithMeta('checking'));
+    if (!activeCheckSilent && currentStatus.type !== 'paused') setStatus(statusWithMeta('checking'));
   });
 
   autoUpdater.on('update-available', (info) => {
     latestInfo = info;
     log.info(`Update available: ${app.getVersion()} -> ${info.version}`);
     if (downloadPromise || currentStatus.type === 'downloaded') return;
+    if (currentStatus.type === 'paused' && userPausedVersion === info.version) return;
     setStatus(statusWithMeta('available', updateMeta(info)));
     savedProgress(info).then((saved) => {
       if (saved && currentStatus.type === 'available') setStatus(statusWithMeta('available', { ...updateMeta(info), saved }));
@@ -226,7 +228,7 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
 
   // electron-updater download events (macOS / Linux only)
   autoUpdater.on('download-progress', (progress) => {
-    if (USE_PARTS) return;
+    if (USE_PARTS || downloadCancellation?.cancelled || currentStatus.type === 'paused') return;
     const fullSize = getUpdateSize(latestInfo);
     const total = Number(progress.total) || 0;
     setStatus(statusWithMeta('downloading', {
@@ -242,12 +244,14 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    if (USE_PARTS) return;
+    if (USE_PARTS || downloadCancellation?.cancelled) return;
     latestInfo = info ?? latestInfo;
+    userPausedVersion = null;
     setStatus(statusWithMeta('downloaded', { ...updateMeta(latestInfo), downloadedAt: Date.now() }));
   });
 
   autoUpdater.on('error', (error) => {
+    if (downloadCancellation?.cancelled || currentStatus.type === 'paused') return;
     log.error('Update error:', error);
   });
 
@@ -271,7 +275,7 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
     }
 
     const interval = setInterval(() => {
-      if (updatePreferences().backgroundChecks && !downloadPromise && currentStatus.type !== 'downloaded') {
+      if (updatePreferences().backgroundChecks && !downloadPromise && currentStatus.type !== 'downloaded' && currentStatus.type !== 'paused') {
         checkForUpdates({ silent: true });
       }
     }, CHECK_INTERVAL_MS);
@@ -280,7 +284,7 @@ function init({ app, getWin, getSettings, isGameRunning }, ipcMain) {
     try {
       const { powerMonitor } = require('electron');
       powerMonitor.on('resume', () => {
-        if (!updatePreferences().backgroundChecks) return;
+        if (!updatePreferences().backgroundChecks || currentStatus.type === 'paused') return;
         const t = setTimeout(() => checkForUpdates({ silent: true }), RESUME_CHECK_DELAY_MS);
         t.unref?.();
       });
@@ -306,7 +310,7 @@ function rechannel() {
   const offered = currentStatus.version;
   const wrongChannel = effectiveChannel() === 'stable' && isPrereleaseVersion(offered);
   if (currentStatus.type !== 'downloaded' || wrongChannel) {
-    if (wrongChannel) { readyInstaller = null; latestInfo = null; }
+    if (wrongChannel) { readyInstaller = null; latestInfo = null; userPausedVersion = null; }
     setStatus(statusWithMeta('idle'));
   }
   const t = setTimeout(() => checkForUpdates({ silent: true }), 500);
@@ -321,6 +325,7 @@ async function checkForUpdates({ silent = false } = {}) {
   }
   if (downloadPromise) return { ok: true, busy: true, updateAvailable: true, latestVersion: latestInfo?.version };
   if (currentStatus.type === 'downloaded') return { ok: true, updateAvailable: true, latestVersion: currentStatus.version };
+  if (silent && currentStatus.type === 'paused') return { ok: true, paused: true, updateAvailable: true, latestVersion: currentStatus.version };
   if (checkPromise) return checkPromise;
 
   activeCheckSilent = silent;
@@ -383,9 +388,25 @@ async function savedProgress(info) {
   if (!USE_PARTS || !appRef?.isPackaged) return null;
   const asset = windowsAsset(info);
   if (!asset) return null;
-  const saved = await parts.inspect(path.join(cacheDir(), asset.name)).catch(() => null);
-  if (!saved || saved.sha512 !== asset.sha512 || !saved.doneParts) return null;
-  return { parts: saved.parts, doneParts: saved.doneParts, percent: Math.round((saved.doneParts / saved.parts) * 100) };
+  const dest = path.join(cacheDir(), asset.name);
+  const diffSaved = await diff.inspect?.(dest).catch(() => null);
+  if (diffSaved && diffSaved.sha512 === asset.sha512 && diffSaved.transferred > 0) {
+    return {
+      transferred: diffSaved.transferred,
+      total: diffSaved.total,
+      percent: Math.round(diffSaved.percent),
+      optimized: true
+    };
+  }
+  const saved = await parts.inspect(dest).catch(() => null);
+  if (!saved || saved.sha512 !== asset.sha512 || (!saved.doneParts && !saved.transferred)) return null;
+  return {
+    parts: saved.parts,
+    doneParts: saved.doneParts,
+    transferred: saved.transferred ?? saved.doneParts * parts.PART_SIZE,
+    total: saved.size ?? asset.size,
+    percent: Math.round(saved.percent ?? (saved.doneParts / saved.parts) * 100)
+  };
 }
 
 async function cleanupInstalled() {
@@ -418,17 +439,26 @@ async function pruneOthers(keep, alsoKeep = null) {
   await Promise.all(names.filter((n) => !n.startsWith(keep) && n !== alsoKeep).map((n) => fsp.rm(path.join(dir, n), { force: true, recursive: true })));
 }
 
-function downloadWithParts(info, background) {
+function downloadWithParts(info, background, signal) {
   const asset = windowsAsset(info);
   if (!asset) throw new Error('This release has no Windows installer.');
   const dest = path.join(cacheDir(), asset.name);
-  downloadSignal = { cancelled: false };
-  const signal = downloadSignal;
   const meta = { ...updateMeta(info), background, fullSize: asset.size };
-  setStatus(statusWithMeta('downloading', { ...meta, percent: 0, transferred: 0, total: asset.size, bytesPerSecond: 0 }));
+  const initialPercent = clampPercent(currentStatus.percent ?? currentStatus.saved?.percent ?? 0);
+  const initialTransferred = Number(currentStatus.transferred ?? currentStatus.saved?.transferred) || 0;
+  const initialTotal = Number(currentStatus.total ?? currentStatus.saved?.total) || asset.size;
+  setStatus(statusWithMeta('downloading', {
+    ...meta,
+    percent: initialPercent,
+    transferred: initialTransferred,
+    total: initialTotal,
+    bytesPerSecond: 0
+  }));
 
   const run = async (partSize) => {
+    if (signal.cancelled) throw new parts.DownloadCancelled();
     await pruneOthers(asset.name, asset.forVersion(appRef.getVersion())?.name);
+    if (signal.cancelled) throw new parts.DownloadCancelled();
     return parts.download({
       url: asset.url,
       dest,
@@ -437,34 +467,46 @@ function downloadWithParts(info, background) {
       partSize,
       signal,
       getConnections: () => (gameRunning() ? 1 : 4),
-      onProgress: (p) => setStatus(statusWithMeta('downloading', {
-        ...meta,
-        percent: clampPercent(p.percent),
-        transferred: p.transferred,
-        total: p.total,
-        bytesPerSecond: p.bytesPerSecond,
-        parts: p.parts,
-        doneParts: p.doneParts,
-        map: p.map,
-        resumed: p.resumed,
-        throttled: gameRunning()
-      }), true)
+      onProgress: (p) => {
+        if (signal.cancelled) return;
+        setStatus(statusWithMeta('downloading', {
+          ...meta,
+          percent: clampPercent(p.percent),
+          transferred: p.transferred,
+          total: p.total,
+          bytesPerSecond: p.bytesPerSecond,
+          parts: p.parts,
+          doneParts: p.doneParts,
+          map: p.map,
+          resumed: p.resumed,
+          throttled: gameRunning()
+        }), true);
+      }
     });
   };
 
   const full = () => run().catch((err) => {
+    if (err?.cancelled || signal.cancelled) throw err;
     if (/does not support ranges/i.test(err?.message)) return run(asset.size); // one big part
     throw err;
   });
 
   // Only what changed, built from the installer of the version that's installed now.
   const patch = async () => {
+    if (signal.cancelled) throw new parts.DownloadCancelled();
     const base = await baseInstaller(asset);
     if (!base) return null;
     const saved = await parts.inspect(dest).catch(() => null);
-    if (saved && saved.sha512 === asset.sha512 && saved.doneParts / saved.parts > 0.5) return null; // nearly there already
+    if (saved && saved.sha512 === asset.sha512 && (saved.transferred / asset.size > 0.5 || saved.doneParts / saved.parts > 0.5)) return null; // nearly there already
     await pruneOthers(asset.name, base.name);
-    setStatus(statusWithMeta('preparing', { ...meta, optimized: true }));
+    if (signal.cancelled) throw new parts.DownloadCancelled();
+    setStatus(statusWithMeta('preparing', {
+      ...meta,
+      optimized: true,
+      percent: initialPercent,
+      transferred: initialTransferred,
+      total: initialTotal
+    }));
     let planned = null;
     try {
       const result = await diff.download({
@@ -478,19 +520,30 @@ function downloadWithParts(info, background) {
         signal,
         getConnections: () => (gameRunning() ? 1 : 4),
         onPlan: (p) => {
+          if (signal.cancelled) return;
           planned = p;
           log.info(`Differential update: downloading ${p.downloadBytes} of ${asset.size} bytes, reusing ${p.copyBytes}`);
-          setStatus(statusWithMeta('downloading', { ...meta, optimized: true, percent: 0, transferred: 0, total: p.downloadBytes, bytesPerSecond: 0 }));
+          setStatus(statusWithMeta('downloading', {
+            ...meta,
+            optimized: true,
+            percent: clampPercent(p.percent ?? 0),
+            transferred: Number(p.transferred) || 0,
+            total: p.downloadBytes,
+            bytesPerSecond: 0
+          }));
         },
-        onProgress: (p) => setStatus(statusWithMeta('downloading', {
-          ...meta,
-          optimized: true,
-          percent: clampPercent(p.percent),
-          transferred: p.transferred,
-          total: p.total,
-          bytesPerSecond: p.bytesPerSecond,
-          throttled: gameRunning()
-        }), true)
+        onProgress: (p) => {
+          if (signal.cancelled) return;
+          setStatus(statusWithMeta('downloading', {
+            ...meta,
+            optimized: true,
+            percent: clampPercent(p.percent),
+            transferred: p.transferred,
+            total: p.total,
+            bytesPerSecond: p.bytesPerSecond,
+            throttled: gameRunning()
+          }), true);
+        }
       });
       return { path: result.path, resumed: false, patched: true };
     } catch (err) {
@@ -502,7 +555,9 @@ function downloadWithParts(info, background) {
   };
 
   return patch().then((done) => done || full()).then(({ path: file, resumed, patched }) => {
+    if (signal.cancelled) throw new parts.DownloadCancelled();
     readyInstaller = file;
+    userPausedVersion = null;
     log.info(`Update ${info.version} downloaded${patched ? ' (only what changed)' : resumed ? ' (resumed)' : ''}: ${file}`);
     setStatus(statusWithMeta('downloaded', { ...updateMeta(info), downloadedAt: Date.now(), resumed, optimized: !!patched }));
   });
@@ -511,32 +566,63 @@ function downloadWithParts(info, background) {
 async function downloadUpdate({ background = false } = {}) {
   if (!appRef?.isPackaged) return { ok: false, error: 'Updates require a packaged build.' };
   if (currentStatus.type === 'downloaded') return { ok: true, alreadyDownloaded: true };
+  if (background && currentStatus.type === 'paused' && userPausedVersion === latestInfo?.version) {
+    return { ok: false, paused: true };
+  }
   if (downloadPromise) {
-    if (!background && currentStatus.background) setStatus({ ...currentStatus, background: false, updatedAt: Date.now() });
-    return downloadPromise;
+    if (downloadSignal?.cancelled || downloadCancellation?.cancelled) {
+      await downloadPromise.catch(() => {});
+    } else {
+      if (!background && currentStatus.background) setStatus({ ...currentStatus, background: false, updatedAt: Date.now() });
+      return downloadPromise;
+    }
   }
   if (!latestInfo || compareVersions(latestInfo.version, appRef.getVersion()) <= 0) {
     return { ok: false, error: 'Check for updates before downloading.' };
   }
+  userPausedVersion = null;
   clearTimeout(retryTimer);
+  retryTimer = null;
   const info = latestInfo;
+  const signal = USE_PARTS ? { cancelled: false } : null;
+  const token = USE_PARTS ? null : new CancellationToken();
+  downloadSignal = signal;
+  downloadCancellation = token;
 
-  downloadPromise = (async () => {
+  const task = (async () => {
     try {
       if (USE_PARTS) {
-        await downloadWithParts(info, background);
+        await downloadWithParts(info, background, signal);
       } else {
-        setStatus(statusWithMeta('preparing', { ...updateMeta(info), background }));
-        downloadCancellation = new CancellationToken();
-        await autoUpdater.downloadUpdate(downloadCancellation);
+        setStatus(statusWithMeta('preparing', {
+          ...updateMeta(info),
+          background,
+          percent: clampPercent(currentStatus.percent ?? currentStatus.saved?.percent ?? 0),
+          transferred: Number(currentStatus.transferred ?? currentStatus.saved?.transferred) || 0,
+          total: Number(currentStatus.total ?? currentStatus.saved?.total) || getUpdateSize(info) || 0
+        }));
+        await autoUpdater.downloadUpdate(token);
       }
       retryCount = 0;
       return { ok: true };
     } catch (error) {
-      const cancelled = error?.cancelled || downloadSignal?.cancelled || downloadCancellation?.cancelled;
+      const cancelled = error?.cancelled || signal?.cancelled || token?.cancelled || /^cancelled$/i.test(String(error?.message || '').trim());
       if (cancelled) {
         const saved = await savedProgress(info);
-        setStatus(statusWithMeta('paused', { ...updateMeta(info), saved }));
+        const percent = clampPercent(saved?.percent ?? currentStatus.percent ?? currentStatus.saved?.percent ?? 0);
+        const transferred = Number(saved?.transferred ?? currentStatus.transferred ?? currentStatus.saved?.transferred) || 0;
+        const total = Number(saved?.total ?? currentStatus.total ?? currentStatus.saved?.total) || getUpdateSize(info) || 0;
+        const pausedSaved = saved || (transferred > 0 || percent > 0 ? { percent, transferred, total } : null);
+        if (downloadPromise === task || currentStatus.type === 'paused') {
+          setStatus(statusWithMeta('paused', {
+            ...updateMeta(info),
+            percent,
+            transferred,
+            total,
+            optimized: Boolean(saved?.optimized ?? currentStatus.optimized),
+            saved: pausedSaved
+          }));
+        }
         return { ok: false, cancelled: true };
       }
       log.error('Update download error:', error);
@@ -553,19 +639,42 @@ async function downloadUpdate({ background = false } = {}) {
       }
       return { ok: false, error: friendlyError(error) };
     } finally {
-      downloadPromise = null;
-      downloadSignal = null;
-      downloadCancellation = null;
+      if (downloadPromise === task) downloadPromise = null;
+      if (downloadSignal === signal) downloadSignal = null;
+      if (downloadCancellation === token) downloadCancellation = null;
     }
   })();
-  return downloadPromise;
+  downloadPromise = task;
+  return task;
 }
 
 function pauseDownload() {
   clearTimeout(retryTimer);
-  if (downloadSignal) { downloadSignal.cancelled = true; return { ok: true }; }
-  if (downloadCancellation) { downloadCancellation.cancel(); return { ok: true }; }
-  return { ok: false, error: 'No download is active.' };
+  retryTimer = null;
+  const active = Boolean(downloadSignal || downloadCancellation || downloadPromise || currentStatus.type === 'downloading' || currentStatus.type === 'preparing');
+  if (!active) return { ok: false, error: 'No download is active.' };
+  userPausedVersion = latestInfo?.version || currentStatus.version || null;
+  if (downloadSignal) {
+    downloadSignal.cancelled = true;
+    downloadSignal.cancel?.();
+  }
+  if (downloadCancellation) {
+    try { downloadCancellation.cancel(); } catch {}
+  }
+  const info = latestInfo || (currentStatus.version ? { version: currentStatus.version, releaseName: currentStatus.releaseName, releaseNotes: currentStatus.releaseNotes, releaseDate: currentStatus.releaseDate } : null);
+  const percent = clampPercent(currentStatus.percent ?? currentStatus.saved?.percent ?? 0);
+  const transferred = Number(currentStatus.transferred ?? currentStatus.saved?.transferred) || 0;
+  const total = Number(currentStatus.total ?? currentStatus.saved?.total) || getUpdateSize(latestInfo) || 0;
+  const saved = currentStatus.saved || (transferred > 0 || percent > 0 ? { percent, transferred, total } : null);
+  setStatus(statusWithMeta('paused', {
+    ...updateMeta(info),
+    percent,
+    transferred,
+    total,
+    optimized: currentStatus.optimized === true,
+    saved
+  }));
+  return { ok: true };
 }
 
 function runInstaller({ silent, relaunch }) {
