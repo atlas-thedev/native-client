@@ -65,9 +65,8 @@
 .cim-specs dd { margin: 0; font: 650 12.5px var(--font-sans); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cim-specs dd.is-on { color: #86efac; }
 .cim-stage-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-.cim-problem, .cim-ready { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.cim-problem { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
 .cim-problem { color: #fcd34d; }
-.cim-ready { color: #86efac; }
 .cim-stage-actions { display: flex; gap: 8px; }
 .cim-create { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; border: 0; border-radius: 12px; background: #fff; color: #09090b; font: 750 13.5px var(--font-sans); cursor: pointer; box-shadow: 0 12px 30px -12px rgba(255, 255, 255, 0.45); transition: transform 0.14s, opacity 0.14s, box-shadow 0.14s; }
 .cim-create:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 36px -12px rgba(255, 255, 255, 0.6); }
@@ -172,7 +171,7 @@
 .cim-native strong { font: 700 13.5px var(--font-sans); color: #fff; }
 .cim-native small { font-size: 12px; line-height: 1.45; color: var(--cim-dim); }
 .cim-native-mark { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); color: #fff; transition: background 0.2s, box-shadow 0.2s; }
-.cim-native.is-on .cim-native-mark { background: #fff; color: #09090b; box-shadow: 0 8px 22px -8px rgba(255, 255, 255, 0.55); }
+.cim-native.is-on .cim-native-mark { background: rgba(134, 239, 172, 0.1); box-shadow: inset 0 0 0 1.5px rgba(134, 239, 172, 0.55), 0 8px 22px -10px rgba(134, 239, 172, 0.5); }
 .cim-native.is-on { border-color: rgba(255, 255, 255, 0.16); }
 .cim-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .cim-preset { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--cim-line); border-radius: 12px; background: rgba(0, 0, 0, 0.35); color: var(--fg-primary, #d2d2d2); text-align: left; cursor: pointer; transition: border-color 0.14s, background 0.14s; }
@@ -207,3 +206,22 @@
 @media (prefers-reduced-motion: reduce) {
   .cim, .cim-body, .cim-stage-art, .cim-mod { animation: none; }
 }
+
+/* the Create button: black text and a black + on white, always visible */
+.cim-create, .cim-create span { color: #09090b !important; }
+:root .cim .cim-create svg,
+:root .cim .cim-create svg *,
+:root .cim .cim-create .native-icon-plus,
+:root .cim .cim-create .native-icon-plus path,
+:root .cim .cim-create .native-icon-play path { color: #09090b !important; stroke: #09090b !important; }
+
+/* step icons: little Minecraft blocks instead of numbers */
+.cim-step i { position: relative; width: 30px; height: 30px; border-radius: 9px; background: rgba(255, 255, 255, 0.05); }
+.cim-step i .pixel-icon { image-rendering: pixelated; opacity: 0.6; filter: saturate(0.6); transition: opacity 0.2s, filter 0.2s, transform 0.2s; }
+.cim-step:hover i .pixel-icon { opacity: 0.9; }
+.cim-step.is-on i { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1.5px #fff, 0 6px 16px -6px rgba(255, 255, 255, 0.5); }
+.cim-step.is-on i .pixel-icon, .cim-step.is-done i .pixel-icon { opacity: 1; filter: none; }
+.cim-step.is-on i .pixel-icon { transform: scale(1.08); }
+.cim-step.is-done i { background: rgba(134, 239, 172, 0.1); }
+.cim-step-done { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: #86efac; box-shadow: 0 0 0 2px #08080a; }
+.cim-step-done svg, .cim-step-done svg * { color: #052e16 !important; stroke: #052e16 !important; }

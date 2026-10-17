@@ -11,6 +11,8 @@ import HomeSidePanel from './HomeSidePanel.jsx';
 import AdCard from './AdCard.jsx';
 import HomeMascot from './HomeMascot.jsx';
 import IdentitySwitcher, { PlusTag } from './IdentitySwitcher.jsx';
+import { ImportFromLaunchers } from '../instances/ImportInstancesModal.jsx';
+import { FEATURED_LAUNCHERS } from '../instances/importLaunchers.js';
 import './HomeView.css';
 import './HomeSelection.css';
 
@@ -34,6 +36,7 @@ export default function HomeView({
   onOpenInstances,
   onOpenVersions,
   onCreateInstance,
+  onImportInstances,
   account,
   identity = null,
   isPlus = false,
@@ -273,12 +276,13 @@ export default function HomeView({
         ) : (
           <div className="home-empty-state">
             <h2 className="home-cluster-title">No instances yet</h2>
-            <p className="home-cluster-subtitle">Create your first instance to pick a version, a mod loader and start playing.</p>
+            <p className="home-cluster-subtitle">Create your first instance, or bring the ones you already have from another launcher.</p>
             <div className="home-actions-row">
               <button type="button" className="home-quick-btn is-primary" onClick={() => onCreateInstance()}>
                 <Plus size={16} strokeWidth={2.2} />
                 <span>{t('home.newInstance')}</span>
               </button>
+              <ImportFromLaunchers className="home-import is-inline" onOpen={onImportInstances} launchers={FEATURED_LAUNCHERS} />
             </div>
           </div>
         )}

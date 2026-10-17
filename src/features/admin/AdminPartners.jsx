@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Copy, Globe, Handshake, LoaderCircle, Pause, Play, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import PartnerCard, { PARTNER_ANIMATIONS, artSrc } from '../partners/PartnerCard.jsx';
+import { invalidatePartnersCache } from '../partners/PartnersView.jsx';
 import { AdminColor, AdminDateTime, AdminSegmented, AdminSlider, AdminSwitch, adminCall, formatDate, useAdminAction, useConfirm } from './adminShared.jsx';
 import './AdminPartners.css';
 
@@ -109,11 +110,16 @@ export default function AdminPartners({ doc, setDoc, onNotify, onAccessRevoked }
     } else {
       setDoc(await adminCall('PATCH', `/site/partners/${encodeURIComponent(selectedId)}`, draft, onAccessRevoked));
     }
+    invalidatePartnersCache();
   }, selectedId === 'new' ? 'Partner added.' : 'Partner saved.');
-  const patch = (id, body, ok) => run(id, async () => setDoc(await adminCall('PATCH', `/site/partners/${encodeURIComponent(id)}`, body, onAccessRevoked)), ok);
+  const patch = (id, body, ok) => run(id, async () => {
+    setDoc(await adminCall('PATCH', `/site/partners/${encodeURIComponent(id)}`, body, onAccessRevoked));
+    invalidatePartnersCache();
+  }, ok);
   const remove = (id) => ask(`del:${id}`) && run(`del:${id}`, async () => {
     setDoc(await adminCall('DELETE', `/site/partners/${encodeURIComponent(id)}`, undefined, onAccessRevoked));
     setSelectedId(null);
+    invalidatePartnersCache();
   }, 'Partner removed.');
   // Swap order with the neighbour (orders are re-numbered so ties never stick).
   const move = (index, delta) => run(`move:${index}`, async () => {
@@ -126,7 +132,10 @@ export default function AdminPartners({ doc, setDoc, onNotify, onAccessRevoked }
       const current = partners.find((pt) => pt.id === entry.id);
       if ((current.order || 0) !== entry.order) result = await adminCall('PATCH', `/site/partners/${encodeURIComponent(entry.id)}`, { order: entry.order }, onAccessRevoked);
     }
-    if (result) setDoc(result);
+    if (result) {
+      setDoc(result);
+      invalidatePartnersCache();
+    }
   });
   const startNew = () => { setError(''); setSelectedId('new'); setDraft(blank()); };
   const duplicate = () => { nextNew.current = { ...draft, name: `${draft.name} copy`.slice(0, 48), enabled: false }; setError(''); setSelectedId('new'); };

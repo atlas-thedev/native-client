@@ -54,3 +54,41 @@ process.stdout.write(renderToString(React.createElement(AdminPartners, { doc, se
   assert.match(html, /Orbit/);
   assert.match(html, /Shown on playnative\.net/);
 });
+
+test('partners page renders cached partners immediately and main process serves saved feed from disk cache', async () => {
+  const html = render(`
+const store = new Map([['native.partners.cache.v1', JSON.stringify({
+  at: Date.now(),
+  partners: [{ id: 'cached01', name: 'Cached Host', tagline: 'Instant from cache', website: 'https://cached.example', logo: 'https://cached.example/logo.png', tier: 'featured' }]
+})]]);
+globalThis.window = {
+  localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) },
+  native: {}
+};
+const React = require('react');
+const { renderToString } = require('react-dom/server');
+const PartnersView = require(${JSON.stringify(path.join(ROOT, 'src/features/partners/PartnersView.jsx'))}).default;
+process.stdout.write(renderToString(React.createElement(PartnersView)));
+`);
+  assert.match(html, /Cached Host/);
+  assert.match(html, /Instant from cache/);
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-partners-cache-'));
+  try {
+    const feedDir = path.join(tmp, 'partners');
+    fs.mkdirSync(feedDir, { recursive: true });
+    fs.writeFileSync(path.join(feedDir, 'feed.json'), JSON.stringify({
+      savedAt: Date.now(),
+      partners: [{ id: 'disk01', name: 'Disk Partner', website: 'https://disk.example', logo: 'https://disk.example/l.png' }]
+    }));
+    const partnersMod = require('../electron/partners');
+    partnersMod.resetCache();
+    partnersMod.init({ app: { getPath: () => tmp } }, { handle() {} });
+    const res = await partnersMod.list({ force: false });
+    assert.equal(res.ok, true);
+    assert.equal(res.cached, true);
+    assert.equal(res.partners[0].name, 'Disk Partner');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

@@ -61,8 +61,17 @@ function sanitize(list) {
     }));
 }
 
+let refreshing = null;
+
 async function readFeed() {
-  try { return sanitize(JSON.parse(await fsp.readFile(feedFile(), 'utf8')).partners); } catch { return null; }
+  if (!deps?.app) return null;
+  try {
+    const raw = JSON.parse(await fsp.readFile(feedFile(), 'utf8'));
+    if (!Array.isArray(raw?.partners)) return null;
+    return { partners: sanitize(raw.partners), savedAt: Number(raw.savedAt) || 0 };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchFeed() {
@@ -72,29 +81,58 @@ async function fetchFeed() {
     const res = await fetch(`${API}/v1/site/partners`, { signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const partners = sanitize((await res.json())?.partners);
-    await fsp.mkdir(path.dirname(feedFile()), { recursive: true });
-    await fsp.writeFile(feedFile(), JSON.stringify({ partners, savedAt: Date.now() }));
+    const savedAt = Date.now();
+    memo = { at: savedAt, partners };
+    if (deps?.app) {
+      await fsp.mkdir(path.dirname(feedFile()), { recursive: true });
+      await fsp.writeFile(feedFile(), JSON.stringify({ partners, savedAt }));
+    }
     return partners;
   } finally {
     clearTimeout(timer);
   }
 }
 
+function refresh() {
+  if (!refreshing) {
+    refreshing = fetchFeed().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
+
 async function list({ force = false } = {}) {
-  if (!force && memo.partners && Date.now() - memo.at < FEED_TTL) return { ok: true, partners: memo.partners, cached: true };
+  if (!memo.partners) {
+    const saved = await readFeed();
+    if (saved) memo = { at: saved.savedAt, partners: saved.partners };
+  }
+  if (!force && memo.partners) {
+    if (Date.now() - memo.at >= FEED_TTL) {
+      refresh().catch(() => {});
+    }
+    return { ok: true, partners: memo.partners, cached: true };
+  }
   try {
-    const partners = await fetchFeed();
-    memo = { at: Date.now(), partners };
+    const partners = await refresh();
     return { ok: true, partners };
   } catch (error) {
-    const saved = memo.partners || (await readFeed());
+    const saved = memo.partners || (await readFeed())?.partners || null;
     return { ok: false, offline: true, partners: saved, error: String(error?.message || error) };
   }
 }
 
+function resetCache() {
+  memo = { at: 0, partners: null };
+  refreshing = null;
+}
+
 function init(appDeps, ipcMain) {
   deps = appDeps;
+  readFeed().then((saved) => {
+    if (saved && !memo.partners) memo = { at: saved.savedAt, partners: saved.partners };
+  }).catch(() => {});
   ipcMain.handle('partners:list', (_e, options) => list({ force: Boolean(options?.force) }));
 }
 
-module.exports = { init, list, sanitize };
+module.exports = { init, list, sanitize, resetCache };

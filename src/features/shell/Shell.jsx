@@ -21,6 +21,7 @@ import SettingsView from '../settings/SettingsView.jsx';
 import SettingsModal from '../settings/SettingsModal.jsx';
 import AccountSwitcherModal, { sessionStateOf } from '../auth/AccountSwitcherModal.jsx';
 import CreateInstanceModal from '../instances/CreateInstanceModal.jsx';
+import ImportInstancesModal from '../instances/ImportInstancesModal.jsx';
 import useLauncher from '../launcher/useLauncher.js';
 import useInstances from '../instances/useInstances.js';
 import usePlaytimeTracker from '../instances/usePlaytimeTracker.js';
@@ -626,6 +627,13 @@ export default function Shell({
   };
 
   /* `seed` is a version string (quick search) or { name, version, loader, preset, play }. */
+  /* Import from another launcher; `launcherId` opens straight on that launcher. */
+  const [importState, setImportState] = useState({ open: false, launcher: null });
+  const openImport = (launcherId = null) => setImportState({ open: true, launcher: launcherId || null });
+  const handleImported = (list) => {
+    for (const instance of list || []) if (instance?.id) instancesManager.add(instance);
+  };
+
   const openCreateInstance = (seed = null) => {
     setCreateSeed(typeof seed === 'string' ? { version: seed } : seed);
     setCreateInstanceOpen(true);
@@ -790,6 +798,7 @@ export default function Shell({
               onOpenInstances={() => setCurrentTab('instances')}
               onOpenVersions={() => setCurrentTab('versions')}
               onCreateInstance={(seed) => openCreateInstance(seed || null)}
+              onImportInstances={openImport}
               account={launchAccount}
               identity={identity}
               isPlus={isPlus}
@@ -871,6 +880,7 @@ export default function Shell({
             onKill={launcher.kill}
             launcherState={launcher}
             onOpenCreateModal={() => openCreateInstance(null)}
+            onOpenImport={openImport}
             onUpdate={instancesManager.update}
             onDuplicate={handleDuplicate}
             onRemove={handleRemoveInstance}
@@ -1044,6 +1054,15 @@ export default function Shell({
         initialPlay={Boolean(createSeed?.play)}
         onClose={() => { setCreateInstanceOpen(false); setCreateSeed(null); }}
         onCreate={(values) => handleCreateInstance(values)}
+      />
+
+      <ImportInstancesModal
+        open={importState.open}
+        initialLauncher={importState.launcher}
+        instances={instancesManager.instances}
+        onClose={() => setImportState({ open: false, launcher: null })}
+        onImported={handleImported}
+        onNotify={notify}
       />
 
 

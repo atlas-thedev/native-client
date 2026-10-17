@@ -1,0 +1,157 @@
+/* ============================================================
+   Native — Import from another launcher
+   Launchers on the left (their own icons), that launcher's
+   instances in the middle, what to bring along on the right.
+   Same black tiles, hairlines and white primary as New instance.
+   ============================================================ */
+
+.imp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.74);
+  backdrop-filter: blur(6px);
+  animation: imp-fade 0.16s ease-out both;
+}
+@keyframes imp-fade { from { opacity: 0; } }
+
+.imp {
+  --imp-line: rgba(255, 255, 255, 0.07);
+  --imp-line-strong: rgba(255, 255, 255, 0.13);
+  --imp-tile: rgba(255, 255, 255, 0.03);
+  --imp-tile-hover: rgba(255, 255, 255, 0.06);
+  --imp-dim: rgba(255, 255, 255, 0.55);
+  --imp-mute: rgba(255, 255, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  width: 1080px;
+  max-width: 100%;
+  height: min(660px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid var(--imp-line-strong);
+  border-radius: 24px;
+  background: #08080a;
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.95);
+  font-family: var(--font-sans);
+  color: var(--fg-primary, #d2d2d2);
+  animation: imp-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes imp-pop { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+
+.imp-head { flex: none; display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px 16px; border-bottom: 1px solid var(--imp-line); }
+.imp-head > div { flex: 1; min-width: 0; }
+.imp-head h2 { margin: 0; font: 750 19px var(--font-sans); letter-spacing: -0.01em; color: #fff; }
+.imp-head p { margin: 4px 0 0; font-size: 12.5px; color: var(--imp-dim); }
+.imp-close { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--imp-line-strong); border-radius: 10px; background: transparent; color: var(--imp-dim); cursor: pointer; }
+.imp-close:hover:not(:disabled) { color: #fff; background: var(--imp-tile-hover); }
+.imp-close:disabled { opacity: 0.35; cursor: default; }
+
+.imp-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 260px; }
+
+/* ---------- launchers ---------- */
+.imp-rail { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; overflow-y: auto; border-right: 1px solid var(--imp-line); scrollbar-width: thin; }
+.imp-launcher { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 9px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--fg-primary, #d2d2d2); text-align: left; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.imp-launcher img, .imp-file-icon { flex: none; width: 30px; height: 30px; border-radius: 8px; object-fit: contain; }
+.imp-file-icon { display: grid; place-items: center; background: var(--imp-tile-hover); color: var(--imp-dim); }
+.imp-launcher > span:not(.imp-file-icon) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.imp-launcher strong { font: 650 13px var(--font-sans); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-launcher small { font-size: 11px; color: var(--imp-mute); }
+.imp-launcher em { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #fff; color: #09090b; font: 750 11px/20px var(--font-sans); font-style: normal; text-align: center; }
+.imp-launcher:hover { background: var(--imp-tile-hover); }
+.imp-launcher.is-on { border-color: var(--imp-line-strong); background: rgba(255, 255, 255, 0.07); }
+.imp-launcher.is-missing img { filter: grayscale(1); opacity: 0.45; }
+.imp-launcher.is-missing strong { color: var(--imp-dim); }
+.imp-rail-sep { height: 1px; margin: 8px 6px; background: var(--imp-line); }
+
+/* ---------- instances ---------- */
+.imp-list { min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; overflow: hidden; }
+.imp-list-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 0 4px; font-size: 12px; color: var(--imp-dim); }
+.imp-list-head > span { flex: 1; }
+.imp-link { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; color: var(--imp-dim); font: 600 12px var(--font-sans); cursor: pointer; }
+.imp-link:hover { color: #fff; }
+.imp-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; }
+.imp-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 9px 12px; border: 1px solid var(--imp-line); border-radius: 14px; background: var(--imp-tile); color: var(--fg-primary, #d2d2d2); text-align: left; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.imp-row:hover { background: var(--imp-tile-hover); border-color: var(--imp-line-strong); }
+.imp-row.is-on { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.06); }
+.imp-check { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid rgba(255, 255, 255, 0.3); border-radius: 6px; background: transparent; color: transparent; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.imp-check.is-on { border-color: #fff; background: #fff; color: #09090b; }
+.imp-check .native-icon, .imp-check svg { color: inherit !important; stroke: currentColor !important; }
+.imp-thumb { flex: none; display: grid; place-items: center; width: 40px; height: 40px; overflow: hidden; border-radius: 10px; background: #000; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); color: var(--imp-dim); }
+.imp-thumb img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.imp-thumb img.is-launcher { width: 60%; height: 60%; object-fit: contain; image-rendering: auto; opacity: 0.85; }
+.imp-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.imp-row-body strong { font: 650 13.5px var(--font-sans); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-row-body small { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--imp-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-row-body em { padding: 1px 6px; border-radius: 999px; background: rgba(252, 211, 77, 0.12); color: #fcd34d; font: 700 9.5px var(--font-sans); font-style: normal; letter-spacing: 0.04em; text-transform: uppercase; }
+.imp-tags { flex: none; display: flex; align-items: center; gap: 6px; }
+.imp-tag { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 1px solid var(--imp-line-strong); border-radius: 8px; font: 650 11.5px var(--font-mono); color: #fff; }
+.imp-tag.is-loader { font-family: var(--font-sans); color: var(--imp-dim); }
+.imp-tag img { width: 14px; height: 14px; border-radius: 3px; object-fit: cover; }
+
+.imp-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 30px; text-align: center; font-size: 12.5px; color: var(--imp-dim); }
+.imp-empty > strong { font: 700 15px var(--font-sans); color: #fff; }
+.imp-empty > span { max-width: 360px; line-height: 1.5; }
+.imp-empty-logo { width: 54px; height: 54px; margin-bottom: 4px; object-fit: contain; }
+.imp-empty-actions { display: flex; gap: 8px; margin-top: 8px; }
+.imp-note { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: #fcd34d; }
+
+/* ---------- bring along ---------- */
+.imp-side { display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 18px; border-left: 1px solid var(--imp-line); overflow-y: auto; }
+.imp-side h3 { margin: 0 0 4px; font: 700 11px var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--imp-mute); }
+.imp-part { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; border: 1px solid var(--imp-line); border-radius: 12px; background: var(--imp-tile); color: var(--fg-primary, #d2d2d2); text-align: left; cursor: pointer; }
+.imp-part > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.imp-part strong { font: 650 12.5px var(--font-sans); color: #fff; }
+.imp-part small { font-size: 11px; color: var(--imp-mute); }
+.imp-part i { flex: none; position: relative; width: 30px; height: 17px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); transition: background 0.16s; }
+.imp-part b { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--fg-secondary, #9b969e); transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.16s; }
+.imp-part.is-on i { background: #fff; }
+.imp-part.is-on b { transform: translateX(13px); background: #09090b; }
+.imp-side-note { margin: 6px 2px auto; font-size: 11.5px; line-height: 1.5; color: var(--imp-mute); }
+
+.imp-primary, .imp-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 12px; font: 700 13px var(--font-sans); cursor: pointer; transition: opacity 0.14s, transform 0.14s, background 0.14s; }
+.imp-primary { border: 0; background: #fff; color: #09090b; box-shadow: 0 12px 30px -12px rgba(255, 255, 255, 0.45); }
+.imp-primary .native-icon, .imp-primary svg, .imp-primary svg * { color: #09090b !important; stroke: #09090b !important; }
+.imp-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.imp-primary:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+.imp-primary.is-wide { width: 100%; margin-top: 10px; }
+.imp-ghost { border: 1px solid var(--imp-line-strong); background: transparent; color: var(--fg-primary, #d2d2d2); }
+.imp-ghost:hover { background: var(--imp-tile-hover); color: #fff; }
+
+/* ---------- progress ---------- */
+.imp-jobs { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 18px 22px; overflow-y: auto; }
+.imp-job { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--imp-line); border-radius: 14px; background: var(--imp-tile); }
+.imp-job-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.imp-job-body strong { font: 650 13.5px var(--font-sans); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-job-body small { font-size: 11.5px; color: var(--imp-mute); }
+.imp-bar { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.imp-bar i { display: block; height: 100%; border-radius: inherit; background: #fff; transition: width 0.25s ease-out; }
+.imp-job.is-done .imp-bar i { background: #86efac; }
+.imp-job.is-error .imp-bar i { background: #f87171; }
+.imp-job.is-error small { color: #fca5a5; }
+.imp-job-state { flex: none; width: 44px; text-align: right; font: 650 12px var(--font-mono); color: var(--imp-dim); }
+.imp-job.is-done .imp-job-state { color: #86efac; }
+.imp-job.is-error .imp-job-state { color: #f87171; }
+.imp-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 14px; }
+.imp-foot-note { flex: 1; font-size: 12.5px; color: var(--imp-dim); }
+
+/* ---------- "import from another launcher" on empty pages ---------- */
+.imp-strip { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.imp-strip-main { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 18px; border: 1px solid var(--in-line-strong, rgba(255, 255, 255, 0.14)); border-radius: 999px; background: transparent; color: var(--fg-primary, #d2d2d2); font: 600 13px var(--font-sans); cursor: pointer; transition: background 0.14s, border-color 0.14s; }
+.imp-strip-main:hover { background: var(--in-raise, rgba(255, 255, 255, 0.06)); border-color: rgba(255, 255, 255, 0.24); }
+.imp-strip-icons { display: flex; align-items: center; gap: 6px; }
+.imp-strip.is-inline { flex-direction: row; gap: 10px; }
+.imp-strip-icon { display: grid; place-items: center; width: 34px; height: 34px; padding: 6px; border: 1px solid var(--in-line, rgba(255, 255, 255, 0.08)); border-radius: 10px; background: rgba(255, 255, 255, 0.03); cursor: pointer; transition: transform 0.14s, border-color 0.14s, background 0.14s; }
+.imp-strip-icon img { width: 100%; height: 100%; object-fit: contain; }
+.imp-strip-icon:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.24); background: rgba(255, 255, 255, 0.07); }
+
+@media (max-width: 900px) {
+  .imp-main { grid-template-columns: 200px minmax(0, 1fr); }
+  .imp-side { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; border-left: 0; border-top: 1px solid var(--imp-line); }
+  .imp-side .imp-part { width: auto; flex: 1 1 180px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .imp, .imp-backdrop { animation: none; }
+}
