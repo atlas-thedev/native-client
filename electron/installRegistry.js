@@ -170,4 +170,9 @@ function forget(version, loader = 'Vanilla') {
   return true;
 }
 
-module.exports = { init, get, all, record, forget, fileFor, filePath, cacheKey };
+/** Changes whenever the registry file is written (cheap: one stat). */
+function stamp() {
+  try { return Math.floor(fs.statSync(filePath()).mtimeMs); } catch { return 0; }
+}
+
+module.exports = { init, get, all, record, forget, fileFor, filePath, cacheKey, stamp };

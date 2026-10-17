@@ -40,6 +40,7 @@ import UserProfilePanel from './UserProfilePanel.jsx';
 import { activityLine } from './PresenceCard.jsx';
 import GroupMembersPanel from './GroupMembersPanel.jsx';
 import FriendsHome from './FriendsHome.jsx';
+import CallInGameButton from './CallInGameButton.jsx';
 import { EmojiPicker, GifPicker, useDismiss } from './ComposerPickers.jsx';
 import './RelayPage.css';
 import './relay-groups.css';
@@ -415,6 +416,10 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
   }, [activeEntity?.id, activeEntity?.kind]);
 
   const setActiveChatFriend = social?.setActiveChatFriend;
+  // leaving Relay closes the chat for read receipts: messages that arrive meanwhile stay unread (and notify)
+  const closeChatRef = useRef(setActiveChatFriend);
+  closeChatRef.current = setActiveChatFriend;
+  useEffect(() => () => closeChatRef.current?.(null), []);
   useEffect(() => {
     if (!setActiveChatFriend) return;
     if (activeEntity && activeEntity.kind !== 'group') {
@@ -1362,6 +1367,7 @@ export default function RelayPage({ account, isPlus = false, social, onJoinServe
                     <Users size={16} />
                   </button>
                 )}
+                <CallInGameButton name={activeEntity?.nickname || activeEntity?.name} group={isGroupThread} />
                 <button
                   type="button"
                   className={`relay-action-btn ${activeEntity.muted ? 'is-active' : ''}`}

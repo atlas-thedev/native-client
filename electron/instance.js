@@ -86,6 +86,63 @@ function readJsonFile(filePath) {
   }
 }
 
+/**
+ * hash -> is that asset object on disk, from the folder listings of assets/objects. Shared for two seconds, so
+ * checking every installed version (the Instances page) lists the folders once.
+ */
+let listingCache = null; // { dir, at, dirs: Map<prefix, Set<name>> }
+function objectListing(objectsDir) {
+  const now = Date.now();
+  if (!listingCache || listingCache.dir !== objectsDir || now - listingCache.at > 2000) {
+    listingCache = { dir: objectsDir, at: now, dirs: new Map() };
+  }
+  const { dirs } = listingCache;
+  return (hash) => {
+    const prefix = hash.slice(0, 2);
+    let names = dirs.get(prefix);
+    if (!names) {
+      try { names = new Set(fs.readdirSync(path.join(objectsDir, prefix))); } catch { names = new Set(); }
+      dirs.set(prefix, names);
+    }
+    return names.has(hash);
+  };
+}
+
+/* ── cached answers for the UI ─────────────────────────────────
+   The Instances page and the instance page ask "is this installed?" whenever the launch state changes. Each answer
+   reads the disk on the main process, which is also the one starting the game, so answers are kept until something
+   under the shared folder changes (a version, an asset index, the install record), or for ten minutes. */
+const CHECK_TTL_MS = 10 * 60_000;
+const checkCache = new Map(); // key -> { stamp, at, value }
+
+function installStamp() {
+  const root = rootDir();
+  const mtime = (p) => { try { return Math.floor(fs.statSync(p).mtimeMs); } catch { return 0; } };
+  return [
+    mtime(path.join(root, 'versions')),
+    mtime(path.join(root, 'assets', 'indexes')),
+    mtime(path.join(root, 'assets', 'objects')),
+    mtime(path.join(root, 'libraries')),
+    installRegistry.stamp ? installRegistry.stamp() : 0
+  ].join(':');
+}
+
+function cachedCheck(key, compute) {
+  const stamp = installStamp();
+  const hit = checkCache.get(key);
+  if (hit && hit.stamp === stamp && Date.now() - hit.at < CHECK_TTL_MS) return hit.value;
+  if (hit && hit.stamp !== stamp) listingCache = null; // files changed: list the folders again
+  const value = compute();
+  checkCache.set(key, { stamp, at: Date.now(), value });
+  return value;
+}
+
+/** Drop the cached answers (after an install, a repair or deleting a version). */
+function forgetInstallChecks() {
+  checkCache.clear();
+  listingCache = null;
+}
+
 function hasValidFile(filePath, minBytes = 1) {
   if (!filePath) return false;
   try {
@@ -299,12 +356,14 @@ function verifyInstallation(version, loader = 'Vanilla') {
   }
 
   /* 4. asset objects ------------------------------------------ */
+  // one listing per objects/xx folder (256 reads) instead of a stat per object (thousands, on the main process)
+  const present = objectListing(objectsDir);
   let missingAssets = 0;
   const missingSamples = [];
   for (const key of objectKeys) {
     const hash = objects[key]?.hash;
     if (typeof hash !== 'string' || hash.length < 2) continue;
-    if (!hasValidFile(path.join(objectsDir, hash.slice(0, 2), hash), 1)) {
+    if (!present(hash)) {
       missingAssets += 1;
       if (missingSamples.length < 5) missingSamples.push(key);
     }
@@ -966,9 +1025,9 @@ function init(dependencies, ipcMain) {
   ipcMain.handle('instance:recentServers', () => recentServers());
   ipcMain.handle('instance:recentWorlds', () => recentWorlds());
 
-  ipcMain.handle('instance:isInstalled', (_e, version, loader) => isInstalled(version, loader));
+  ipcMain.handle('instance:isInstalled', (_e, version, loader) => cachedCheck(`one:${version}:${loader || 'Vanilla'}`, () => isInstalled(version, loader)));
   ipcMain.handle('instance:verifyInstallation', (_e, version, loader) => verifyInstallation(version, loader));
-  ipcMain.handle('instance:installedVersions', () => installedVersions());
+  ipcMain.handle('instance:installedVersions', () => cachedCheck('all', () => installedVersions()));
 
   ipcMain.handle('instance:toggleFile', async (_e, instanceId, subpath, filename, enabled) => {
     if (!enabled) require('./coreMods').assertNotCoreMod(subpath, filename);
@@ -992,6 +1051,7 @@ module.exports = {
   isInstalled,
   verifyInstallation,
   installedVersions,
+  forgetInstallChecks,
   cleanServerAddress,
   parseServerConnections,
   addContentFiles,

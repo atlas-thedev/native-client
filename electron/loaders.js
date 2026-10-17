@@ -677,6 +677,56 @@ function patchMclc() {
   } catch {
     /* library layout changed; the stock rule still covers 1.x */
   }
+  patchLibraryCheck();
+}
+
+/**
+ * MCLC's library download checks each jar's sha1 without awaiting it (`!this.checkSum(...)` is always false for a
+ * promise), so a damaged or half-written library was never downloaded again and the game kept crashing on it.
+ * Same method, with the check awaited: an existing jar whose sha1 doesn't match is downloaded again.
+ */
+function patchLibraryCheck() {
+  let Handler;
+  try { Handler = require('minecraft-launcher-core/components/handler'); } catch { return; }
+  if (!Handler?.prototype?.downloadToDirectory || Handler.prototype.__nativeLibraryCheck) return;
+  Handler.prototype.downloadToDirectory = async function downloadToDirectory(directory, libraries, eventName) {
+    const libs = [];
+    let counter = 0;
+    await Promise.all(libraries.map(async (library) => {
+      if (!library) return;
+      if (this.parseRule(library)) return;
+      const lib = library.name.split(':');
+      const artifact = library.downloads && library.downloads.artifact;
+      let jarPath;
+      let name;
+      if (artifact && artifact.path) {
+        name = artifact.path.split('/').pop();
+        jarPath = path.join(directory, this.popString(artifact.path));
+      } else {
+        name = `${lib[1]}-${lib[2]}${lib[3] ? '-' + lib[3] : ''}.jar`;
+        jarPath = path.join(directory, `${lib[0].replace(/\./g, '/')}/${lib[1]}/${lib[2]}`);
+      }
+      const download = async () => {
+        if (library.url) {
+          await this.downloadAsync(`${library.url}${lib[0].replace(/\./g, '/')}/${lib[1]}/${lib[2]}/${name}`, jarPath, name, true, eventName);
+        } else if (artifact && artifact.url) {
+          // no URL means a generated dependency (Forge processors): leave it alone
+          await this.downloadAsync(artifact.url, jarPath, name, true, eventName);
+        }
+      };
+      const file = path.join(jarPath, name);
+      if (!fs.existsSync(file)) await download();
+      else if (artifact && artifact.sha1 && artifact.url && !(await this.checkSum(artifact.sha1, file))) {
+        this.client.emit('debug', `[Native Client]: ${name} is damaged, downloading it again`);
+        await download();
+      }
+      counter += 1;
+      this.client.emit('progress', { type: eventName, task: counter, total: libraries.length });
+      libs.push(`${jarPath}${path.sep}${name}`);
+    }));
+    return libs;
+  };
+  Handler.prototype.__nativeLibraryCheck = true;
 }
 
 /* ── switching --------------------------------------------------------------- */

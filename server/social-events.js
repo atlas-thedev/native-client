@@ -15,7 +15,7 @@ const MOD_EVENTS = new Set(['presence', 'friends:changed', 'request:changed', 's
 // In-game Relay chat (mod 1.6+): a mod stream opened with ?relay=1 also receives the chat events, so the
 // overlay can show messages live. Only streams that asked for it get message text.
 const MOD_RELAY_EVENTS = new Set([
-  'message:new', 'message:updated', 'message:read', 'typing',
+  'message:new', 'message:updated', 'message:read', 'thread:read', 'typing',
   'group:message', 'group:message:updated', 'group:created', 'group:updated', 'group:removed', 'group:deleted', 'group:read', 'group:typing'
 ]);
 const relayModStreams = new WeakSet();

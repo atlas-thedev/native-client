@@ -370,6 +370,9 @@ async function handleRelayRoutes(req, res) {
         if (page.readIds?.length) {
           publish([friendId], 'message:read', { readerId: me, messageIds: page.readIds });
         }
+        if (url.searchParams.get('markRead') !== '0' && !beforeParam) {
+          publish([me], 'thread:read', { kind: 'dm', threadId: friendId }); // read in game: the launcher drops its toasts
+        }
         send(res, 200, { ok: true, ...page });
         return true;
       }
