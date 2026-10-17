@@ -8,7 +8,9 @@
  * Audio from one session is re-encrypted for every other session in the same room. Rooms:
  *   dm:<a>:<b>   a direct call between two friends
  *   g:<id>       a group call (members only)
- *   srv:<addr>   everyone with Native on the same Minecraft server (proximity, mixed by distance in the mod)
+
+ * Voice is for Relay calls only: there are no proximity rooms (players are never heard by strangers on a server just
+ * for being near them). Older mods still ask for `srv:<address>` rooms; they get a 410 and stay quiet.
  * Rosters go out on the existing mod event stream as `voice:state`.
  *
  * Private (dm) calls ring: the first person in the room is the caller, the other friend is the callee, until the
@@ -45,12 +47,6 @@ function userForTicket(ticket) {
 
 const str = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
 
-function normalizeServer(address) {
-  let a = str(address, 120).toLowerCase().replace(/\.$/, '');
-  if (a.endsWith(':25565')) a = a.slice(0, -6);
-  return a;
-}
-
 /** Resolves a conversation key from the mod to a room, or throws when the player may not join it. */
 function resolveRoom(user, key) {
   const k = str(key, 160);
@@ -67,11 +63,7 @@ function resolveRoom(user, key) {
     if (!members.includes(me)) throw Object.assign(new Error('You are not in this group.'), { status: 403 });
     return { room: `g:${groupId}`, kind: 'call', notify: members };
   }
-  if (k.startsWith('srv:')) {
-    const addr = normalizeServer(k.slice(4));
-    if (!addr || addr === 'singleplayer') throw Object.assign(new Error('Proximity voice needs a multiplayer server.'), { status: 400 });
-    return { room: `srv:${addr}`, kind: 'srv', notify: null };
-  }
+  if (k.startsWith('srv:')) throw Object.assign(new Error('Voice is for Relay calls only.'), { status: 410 });
   throw Object.assign(new Error('Unknown voice room.'), { status: 400 });
 }
 
@@ -440,4 +432,4 @@ async function handleVoiceRoutes(req, res, ctx) {
   return true;
 }
 
-module.exports = { start, stop, handleVoiceRoutes, _internals: { sessions, rooms, ringing, decline, removeSession, join, resolveRoom, onPacket, normalizeServer } };
+module.exports = { start, stop, handleVoiceRoutes, _internals: { sessions, rooms, ringing, decline, removeSession, join, resolveRoom, onPacket } };
