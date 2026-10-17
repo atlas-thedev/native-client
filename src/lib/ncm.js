@@ -183,8 +183,15 @@ export function buildCosmetic(THREE, modelJson, image) {
     // Minecraft model space -> three.js (y up, facing +z): a 180 degree turn about x
     const space = new THREE.Group();
     space.rotation.x = Math.PI;
-    space.add(make(part));
-    return { attach: part.attach, object: space, part, side: part.side };
+    const transformGroup = new THREE.Group();
+    transformGroup.name = `ncm-transform:${part.id}`;
+    transformGroup.rotation.order = 'ZYX';
+    const pivotOffsetGroup = new THREE.Group();
+    pivotOffsetGroup.name = `ncm-pivot:${part.id}`;
+    pivotOffsetGroup.add(make(part));
+    transformGroup.add(pivotOffsetGroup);
+    space.add(transformGroup);
+    return { attach: part.attach, object: space, transformGroup, pivotOffsetGroup, part, side: part.side };
   });
   let armor = new Set();
   const pose = new Array(6);
@@ -209,6 +216,29 @@ export function buildCosmetic(THREE, modelJson, image) {
       const first = roots.find((r) => r.side);
       const pick = want || (first ? first.side : 0);
       for (const r of roots) r.object.visible = !r.side || r.side === pick;
+    },
+    setTransform({ offset = [0, 0, 0], rotation = [0, 0, 0], scale = 1, center = [0, 0, 0], primarySide = null } = {}) {
+      const cx = num(center[0], 0), cy = num(center[1], 0), cz = num(center[2], 0);
+      const ox = num(offset[0], 0), oy = num(offset[1], 0), oz = num(offset[2], 0);
+      const rx = (num(rotation[0], 0) * Math.PI) / 180;
+      const ry = (num(rotation[1], 0) * Math.PI) / 180;
+      const rz = (num(rotation[2], 0) * Math.PI) / 180;
+      const s = Math.max(0.01, num(scale, 1));
+      for (const r of roots) {
+        if (!r.transformGroup || !r.pivotOffsetGroup) continue;
+        const partSide = r.side === 1 ? 'left' : r.side === 2 ? 'right' : null;
+        const isOpposite = Boolean(primarySide && partSide && partSide !== primarySide);
+        const gOffX = isOpposite ? -ox : ox;
+        const gOffY = oy;
+        const gOffZ = oz;
+        const gRotX = rx;
+        const gRotY = isOpposite ? -ry : ry;
+        const gRotZ = isOpposite ? -rz : rz;
+        r.transformGroup.position.set(cx + gOffX, cy + gOffY, cz + gOffZ);
+        r.transformGroup.rotation.set(gRotX, gRotY, gRotZ);
+        r.transformGroup.scale.set(s, s, s);
+        r.pivotOffsetGroup.position.set(-cx, -cy, -cz);
+      }
     },
     detach() { for (const r of roots) r.object.parent?.remove(r.object); },
     dispose() {

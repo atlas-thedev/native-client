@@ -83,6 +83,7 @@ function SkinViewerCanvas({
   autoRotate = false,
   className = '',
   onViewer = null,
+  onCosmeticsLoaded = null,
   cosmetics = null,
   zoom = 0.82,
   shot = null
@@ -183,6 +184,8 @@ function SkinViewerCanvas({
   onLostRef.current = onLost;
   const onViewerRef = useRef(onViewer);
   onViewerRef.current = onViewer;
+  const onCosmeticsLoadedRef = useRef(onCosmeticsLoaded);
+  onCosmeticsLoadedRef.current = onCosmeticsLoaded;
 
   /* ---- create the viewer once ---- */
   useEffect(() => {
@@ -374,11 +377,14 @@ function SkinViewerCanvas({
           if (cancelled) return;
           const one = ncm.attachToPlayer(ncm.buildCosmetic(THREE, item.model, image), viewer.playerObject.skin);
           one.setSide?.(item.side);
+          if (item.transform) one.setTransform?.(item.transform);
           built.push(one);
         } catch { /* a broken cosmetic is skipped, the rest still show */ }
       }
       if (cancelled) { built.forEach((b) => b.dispose()); return; }
       cosmeticsRef.current = built;
+      viewer.cosmetics = built;
+      onCosmeticsLoadedRef.current?.(built);
       // moving parts need frames even when the player stands still
       if (cosmeticsMove()) viewer.renderPaused = false;
       viewer.render();

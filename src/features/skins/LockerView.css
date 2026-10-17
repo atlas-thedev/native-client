@@ -1018,11 +1018,15 @@
 .locker-stage-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .locker-stage-actions button:disabled { opacity: 0.3; }
 
-/* Try-on banner sits at the top of the stage */
+/* Try-on banner: one compact strip along the bottom of the stage. (It used to get both a top and a
+   bottom from two rules, stretch over the whole model and hide what you were trying on.) */
 .locker-tryon {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: auto;
+  bottom: 70px; /* above the zoom / pause buttons */
+  left: 14px;
+  right: 14px;
+  height: auto;
   z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 16px !important;

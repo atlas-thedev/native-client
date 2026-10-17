@@ -159,7 +159,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     }
     if (isStoreAccount(account)) {
       const mine = await window.native?.store?.me?.(account).catch(() => null);
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], ownedHidden: mine.ownedHidden || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
     }
   }, [account]);
 
@@ -184,7 +184,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
         window.native?.billing?.me?.(account).catch(() => null)
       ]);
       if (stopped) return;
-      if (mine?.ok) setMe({ owned: mine.owned || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
+      if (mine?.ok) setMe({ owned: mine.owned || [], ownedHidden: mine.ownedHidden || [], equipped: (isPremiumLinked(account) ? mine.premiumEquipped : mine.equipped) || null, wearing: mine.wearing || {}, wishlist: mine.wishlist || [], bundles: mine.bundles || {}, dyes: mine.dyes || {} });
       if (bill?.ok) { setPlus(bill.plus || null); announcePlus(bill.plus?.active); }
       const done = pending.kind === 'plus' ? bill?.plus?.active
         : pending.kind === 'bundle' ? Boolean(mine?.bundles?.[pending.bundleId]?.complete)
@@ -305,7 +305,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   useEffect(() => {
     if (!catalog || !window.native?.store?.cosmetic) return undefined;
     let alive = true;
-    const list = (catalog.items || []).filter(isCosmetic);
+    const list = [...(catalog.items || []), ...(me.ownedHidden || [])].filter(isCosmetic);
     // pieces of bundles first (the All view opens with the bundle shelf), then the open section, then the rest
     const inBundles = new Set((catalog.bundles || []).flatMap((bundle) => bundle.itemIds || []));
     const rank = (item) => (inBundles.has(item.id) ? 0 : section === 'all' || sectionOf(item) === section ? 1 : 2);
@@ -346,7 +346,7 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
       flush();
     })();
     return () => { alive = false; };
-  }, [catalog, section]);
+  }, [catalog, section, me.ownedHidden]);
 
   // The item open in the viewer (Try on) is fetched straight away instead of waiting its turn in the queue.
   useEffect(() => {
@@ -580,7 +580,10 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
   }, [previews, wardrobe, account, wornCape]);
   const viewAccount = useMemo(() => accountWearing(viewing), [accountWearing, viewing]);
   /** The cosmetic being shown, plus what the player wears in the other slots (cloaks show with the whole outfit too). */
-  const catalogById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog]);
+  const catalogById = useMemo(() => new Map([
+    ...(catalog?.items || []).map((item) => [item.id, item]),
+    ...(me.ownedHidden || []).map((item) => [item.id, item])
+  ]), [catalog, me.ownedHidden]);
   // Dyeable cosmetics: the colour shown (being tried, saved, or its own) and its dyed texture.
   const dyeShown = useCallback((item) => (item?.dyeable ? tryDye[item.id] || me.dyes?.[item.id] || item.dyeDefault || null : null), [tryDye, me.dyes]);
   const loadDye = useCallback((id, color) => {
@@ -731,18 +734,36 @@ export default function StoreView({ account, onNotify, onOpenLocker, onOpenAccou
     onNotify?.('Store', `You’re wearing the ${bundle.name} set — in the launcher and in game.`);
   });
   const openBundle = (id) => { setViewId(null); setBundleId(id); if (section !== 'bundles') pickSection('bundles'); };
-  // The Locker's "Get the rest" opens the Store on that bundle (left in localStorage, or sent while the Store is open).
+  const openItem = (id) => {
+    setBundleId(null);
+    setViewId(id);
+    const item = (catalog?.items || []).find((entry) => entry.id === id);
+    if (item) {
+      const targetSection = sectionOf(item);
+      if (targetSection && section !== 'all' && section !== targetSection) pickSection(targetSection);
+    }
+  };
+  // The Locker's "Get the rest" / "Get" opens the Store on that bundle or item (left in localStorage, or sent while the Store is open).
   const openBundleRef = useRef(openBundle);
   openBundleRef.current = openBundle;
+  const openItemRef = useRef(openItem);
+  openItemRef.current = openItem;
   useEffect(() => {
     const take = () => {
       let id = null;
       try { id = localStorage.getItem('native.store.openBundle'); localStorage.removeItem('native.store.openBundle'); } catch {}
       if (id) openBundleRef.current(id);
+      let itemId = null;
+      try { itemId = localStorage.getItem('native.store.openItem'); localStorage.removeItem('native.store.openItem'); } catch {}
+      if (itemId) openItemRef.current(itemId);
     };
     take();
     window.addEventListener('native:store-open-bundle', take);
-    return () => window.removeEventListener('native:store-open-bundle', take);
+    window.addEventListener('native:store-open-item', take);
+    return () => {
+      window.removeEventListener('native:store-open-bundle', take);
+      window.removeEventListener('native:store-open-item', take);
+    };
   }, []);
   const renderBundleActions = (bundle) => {
     const mine = mineOf(bundle);

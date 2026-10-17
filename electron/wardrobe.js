@@ -777,10 +777,33 @@ async function fetchStoreCatalog({ force = false } = {}) {
   }
 }
 
+const hiddenItemCache = new Map(); // item id -> publicItem (for owned items hidden from the public store)
+
+async function findStoreItem(itemId) {
+  if (!itemId) return null;
+  try {
+    const catalog = await fetchStoreCatalog();
+    const found = (catalog.items || []).find((entry) => entry.id === itemId);
+    if (found) return found;
+  } catch {}
+  if (hiddenItemCache.has(itemId)) return hiddenItemCache.get(itemId);
+  try {
+    const response = await fetch(`${apiRoot()}/v1/store/items/${encodeURIComponent(itemId)}`, { signal: AbortSignal.timeout(8000) });
+    if (response.ok) {
+      const data = await response.json();
+      if (data?.ok && data.item?.id) {
+        hiddenItemCache.set(data.item.id, data.item);
+        return data.item;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function storeCapeName(id) {
   if (!id) return null;
   try {
-    const found = (await fetchStoreCatalog()).items.find((item) => item.id === id);
+    const found = await findStoreItem(id);
     if (found?.name) return found.name;
   } catch {}
   return String(id).replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -791,8 +814,7 @@ const stripCache = new Map(); // url -> data URL (store previews are shared by e
 /** A store item's whole animation strip as a data URL, for the in-launcher preview. */
 const stripJobs = new Map(); // url -> in-flight download, so the prefetch and the Locker never fetch the same strip twice
 async function fetchStoreStrip(itemId) {
-  const catalog = await fetchStoreCatalog();
-  const item = catalog.items.find((entry) => entry.id === itemId);
+  const item = await findStoreItem(itemId);
   if (!item) throw new Error('That store item does not exist.');
   const url = item.stripUrl || item.stillUrl;
   if (!url) throw new Error('That store item has no texture.');
@@ -819,8 +841,7 @@ const cosmeticCache = new Map(); // item id -> { key, value }
  * Saved to the shared texture cache by hash, so the game (which uses the same hashes) needs no new download.
  */
 async function fetchStoreCosmetic(itemId) {
-  const catalog = await fetchStoreCatalog();
-  const item = catalog.items.find((entry) => entry.id === itemId);
+  const item = await findStoreItem(itemId);
   if (!item || item.kind !== 'cosmetic' || !item.modelUrl || !item.textureUrl) throw new Error('That cosmetic does not exist.');
   return loadCosmeticAsset(item);
 }
@@ -937,8 +958,7 @@ async function dyeStoreCosmetic(account, itemId, color) {
 async function fetchDyedTexture(itemId, color) {
   const hex = String(color || '').replace(/^#/, '').toLowerCase();
   if (!/^[0-9a-f]{6}$/.test(hex)) throw new Error('Pick a colour like #ff8800.');
-  const catalog = await fetchStoreCatalog();
-  const item = catalog.items.find((entry) => entry.id === itemId);
+  const item = await findStoreItem(itemId);
   if (!item || !item.dyeable || !item.dyeUrl) throw new Error('That cosmetic can’t be dyed.');
   const png = await textureCache.fetchCached(`${item.dyeUrl}${hex}`, { maxBytes: 2 * 1024 * 1024, timeoutMs: 20_000 });
   if (!png) throw new Error('Couldn’t load that colour.');
@@ -1023,7 +1043,11 @@ async function fetchStoreMe(account) {
         throw new Error('Your Native session expired. Sign in again to see your capes and cosmetics.');
       }
       if (!response.ok || body.ok === false) throw new Error(body.error || `Couldn’t load your capes (HTTP ${response.status}).`);
-      return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || body.equipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], dyes: body.dyes && typeof body.dyes === 'object' ? body.dyes : {}, bundles: body.bundles && typeof body.bundles === 'object' ? body.bundles : {}, wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
+      const ownedHidden = Array.isArray(body.ownedHidden) ? body.ownedHidden : [];
+      for (const item of ownedHidden) {
+        if (item && item.id) hiddenItemCache.set(item.id, item);
+      }
+      return { equipped: body.equipped || null, premiumEquipped: body.premiumEquipped || body.equipped || null, wearing: body.wearing || {}, sides: body.sides || {}, owned: Array.isArray(body.owned) ? body.owned : [], ownedHidden, dyes: body.dyes && typeof body.dyes === 'object' ? body.dyes : {}, bundles: body.bundles && typeof body.bundles === 'object' ? body.bundles : {}, wishlist: Array.isArray(body.wishlist) ? body.wishlist : [], prefs: body.prefs || null };
     } finally {
       setTimeout(() => {
         if (storeMeInFlight.get(cacheKey)?.promise === promise) {

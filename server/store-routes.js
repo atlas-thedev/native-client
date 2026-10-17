@@ -816,7 +816,12 @@ async function handleStoreRoutes(req, res, ctx) {
     const equipped = worn && (worn.animated ? animationFor(profile) : profile.cape === worn.still) ? worn.id : null;
     if (equipped && !owns(user.id, equipped)) grant(user.id, equipped, 'legacy');
     try { grantPlusCapes(user.id); } catch (error) { console.warn('[Native Store] Plus capes:', error.message); }
-    send(res, 200, { ok: true, equipped, premiumEquipped: equipped, wearing: wearingOf(profile), sides: (profile && profile.cosmeticSides) || {}, owned: ownedBy(user.id).filter((entry) => findItem(entry.id)), dyes: (profile && profile.cosmeticDyes) || {}, bundles: myBundles(user.id), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
+    const wearing = wearingOf(profile);
+    const owned = ownedBy(user.id).filter((entry) => findItem(entry.id));
+    const hiddenIds = new Set([...owned.map((entry) => entry.id), ...(equipped ? [equipped] : []), ...Object.values(wearing || {})]);
+    const counts = ownerCounts();
+    const ownedHidden = [...hiddenIds].map((id) => findItem(id)).filter((item) => item && item.hidden).map((item) => publicItem(item, textureBase, counts));
+    send(res, 200, { ok: true, equipped, premiumEquipped: equipped, wearing, sides: (profile && profile.cosmeticSides) || {}, owned, ownedHidden, dyes: (profile && profile.cosmeticDyes) || {}, bundles: myBundles(user.id), wishlist: wishlistOf(user.id), prefs: prefsOf(user.id) }, noStore);
     return true;
   }
 

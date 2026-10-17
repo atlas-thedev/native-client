@@ -90,6 +90,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   }, []);
   // Everything in the Store (so the Locker can offer what you don't own yet) and the item being tried on.
   const [catalogItems, setCatalogItems] = useState([]);
+  const [ownedHiddenItems, setOwnedHiddenItems] = useState([]);
   const [tryOn, setTryOn] = useState(null);
   const [catalogBundles, setCatalogBundles] = useState([]); // Store bundles (sets of items)
   const [bundleMine, setBundleMine] = useState({}); // bundleId -> { owned, total, complete, due }
@@ -208,17 +209,29 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Native Store capes this account owns (claimed in the Store page or on the website).
   const storeSeq = useRef(0);
   const loadStoreCapes = async () => {
-    const premiumLinked = account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected);
-    if (!premiumLinked && (!(account?.token || account?.linkedFrom) || account?.type !== 'native' || localOnly)) { setStoreCapes([]); setPremiumEquipped(null); return; }
+    if (localOnly) { setStoreCapes([]); setOwnedHiddenItems([]); setPremiumEquipped(null); return; }
     const run = ++storeSeq.current;
     try {
       // The catalogue is cached locally, so show it (and start loading the worn cloak) without waiting for the account call.
       const catalogJob = Promise.resolve(window.native?.store?.catalog?.({}));
       catalogJob.then((early) => { if (run === storeSeq.current && early?.ok) { setCatalogItems(early.items || []); setCatalogBundles(early.bundles || []); } }).catch(() => {});
+      const premiumLinked = account?.type === 'microsoft' && Boolean(account?.nativeLink?.connected);
+      if (!premiumLinked && (!(account?.token || account?.linkedFrom) || account?.type !== 'native')) {
+        setStoreCapes([]);
+        setOwnedHiddenItems([]);
+        setPremiumEquipped(null);
+        await catalogJob;
+        return;
+      }
       const [catalog, mine] = await Promise.all([catalogJob, window.native?.store?.me?.(account)]);
       if (run !== storeSeq.current || !catalog?.ok || !mine?.ok) return;
-      const byId = new Map((catalog.items || []).map((item) => [item.id, item]));
+      const hiddenOwned = Array.isArray(mine.ownedHidden) ? mine.ownedHidden.filter(Boolean) : [];
+      const byId = new Map([
+        ...(catalog.items || []).map((item) => [item.id, item]),
+        ...hiddenOwned.map((item) => [item.id, item])
+      ]);
       setCatalogItems(catalog.items || []);
+      setOwnedHiddenItems(hiddenOwned);
       setCatalogBundles(catalog.bundles || []);
       setBundleMine(mine.bundles || {});
       setStoreEquipped(mine.equipped || null);
@@ -334,12 +347,17 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
   // Official cape equips never touch the local wardrobe, so feed the active
   // official cape URL straight into the viewer; otherwise use the wardrobe cape.
   const premiumCapeItem = showOfficialCards && premiumEquipped ? (storeCapes.find(({ item }) => item.id === premiumEquipped)?.item || null) : null;
+  // Dyeable cosmetics and owned hidden items: look up any catalog or hidden owned item by ID.
+  const catalogById = useMemo(() => new Map([
+    ...catalogItems.map((item) => [item.id, item]),
+    ...ownedHiddenItems.map((item) => [item.id, item])
+  ]), [catalogItems, ownedHiddenItems]);
   // A worn Store cloak the wardrobe hasn't caught up with yet (cloud sync still downloading): show it straight from the Store cache.
   const earlyCapeItem = !officialMode && !wardrobe?.active?.cape?.storeId && storeEquipped
-    ? (catalogItems.find((item) => item.id === storeEquipped && item.kind !== 'cosmetic') || null) : null;
+    ? (() => { const item = catalogById.get(storeEquipped); return item && item.kind !== 'cosmetic' ? item : null; })() : null;
   const wornCapeUrl = showOfficialCards ? (premiumCapeItem?.stillUrl || official.activeCape?.url || null) : (wardrobe?.active?.capeUrl || earlyCapeItem?.stillUrl || null);
   const trySetBundle = trySet ? (catalogBundles.find((bundle) => bundle.id === trySet) || null) : null;
-  const trySetPieces = trySetBundle ? trySetBundle.itemIds.map((id) => catalogItems.find((item) => item.id === id)).filter(Boolean) : [];
+  const trySetPieces = trySetBundle ? trySetBundle.itemIds.map((id) => catalogById.get(id)).filter(Boolean) : [];
   const tryCloak = tryOn && tryOn.kind !== 'cosmetic' ? tryOn : (trySetPieces.find((item) => item.kind !== 'cosmetic') || null);
   const previewStoreItem = tryCloak || (showCape ? (premiumCapeItem || earlyCapeItem) : null);
   useEffect(() => {
@@ -359,8 +377,6 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
       : previewCapeUrl ? (showOfficialCards ? premiumCapeAnim : (earlyCapeItem ? storeAnimOf(earlyCapeItem) : (wardrobe?.active?.capeAnim || null))) : null;
   }, [tryCloak, previewCapeUrl, showOfficialCards, premiumCapeItem, earlyCapeItem, storePreview?.strip, wardrobe?.active?.capeAnim]);
   const [showCosmetics, setShowCosmetics] = useState(true);
-  // Dyeable cosmetics: the colour shown for an item (being picked, saved, or its own) and its dyed texture.
-  const catalogById = useMemo(() => new Map(catalogItems.map((item) => [item.id, item])), [catalogItems]);
   const dyeOf = (id) => dyes[id] || null;
   const queueDyeTex = (key, value) => {
     dyePendingBatch.current[key] = value;
@@ -546,9 +562,10 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     };
     frame = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(frame); player.position.y = baseY; };
-  }, [viewAngle]);
+  }, [viewAngle, viewerTick]);
 
-  const shotKey = section === 'cosmetics' ? ({ cloaks: 'cloak', capes: 'cloak' }[cosTab] || cosTab) : 'all';
+  const tryShotKey = tryOn ? (tryOn.kind === 'cosmetic' ? tryOn.slot : 'cloak') : null;
+  const shotKey = section === 'cosmetics' ? (tryShotKey || ({ cloaks: 'cloak', capes: 'cloak' }[cosTab] || cosTab)) : 'all';
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return undefined;
@@ -558,9 +575,9 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     syncZoom();
     return () => { cam.dispose(); if (camRef.current === cam) camRef.current = null; };
   }, [viewerTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { holdShots(550); camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { holdShots(550); camRef.current?.fly(SHOTS[shotKey] || SHOTS.all); syncZoom(); }, [shotKey, shotTick, tryOn?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Cosmetics load a moment after they're put on: re-frame so a tall hat never gets cut off at the top.
-  const wornKey = (wornCosmetics || []).map((entry) => `${entry?.slot || ''}:${entry?.id || entry?.model?.id || ''}:${entry?.side || ''}`).join('|');
+  const wornKey = `${tryCloak?.id || ''}|` + (wornCosmetics || []).map((entry) => `${entry?.slot || ''}:${entry?.id || entry?.model?.id || ''}:${entry?.side || ''}`).join('|');
   useEffect(() => {
     if (!wornKey) return undefined;
     const timer = setTimeout(() => camRef.current?.refit?.(), 300);
@@ -845,6 +862,14 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     window.dispatchEvent(new Event('native:store-open-bundle'));
     onOpenStore?.();
   };
+  // "Get · $X.XX": open the Store on that exact item.
+  const openStoreItem = (item) => {
+    if (item?.id) {
+      try { localStorage.setItem('native.store.openItem', item.id); } catch {}
+      window.dispatchEvent(new Event('native:store-open-item'));
+    }
+    onOpenStore?.();
+  };
   const ownedCosmetics = storeCapes.filter(({ item }) => item.kind === 'cosmetic').map(({ item }) => item);
   const ownedIds = useMemo(() => new Set(storeCapes.map(({ item }) => item.id)), [storeCapes]);
   const canShop = !localOnly && catalogItems.length > 0;
@@ -1121,7 +1146,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
     <div className="locker-workspace">
       <section className="locker-stage" aria-label={t('locker.currentSkin')}>
         <div className="locker-stage-heading"><h2>{t('locker.currentSkin')}</h2></div>
-        <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={360} height={470} animation={paused ? null : 'pose'} paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
+        <div className="locker-stage-model" ref={stageRef}>{skeleton ? <span className="locker-skel locker-skel-model" aria-label="Loading skin"/> : <SkinViewer3D account={viewerAccount} cosmetics={wornCosmetics} width={360} height={470} animation="pose" paused={paused} onViewer={(viewer) => { viewerRef.current = viewer; setViewerTick((n) => n + 1); }}/>}</div>
         {trySetBundle && !tryOn && section === 'cosmetics' && <div key={`tryset:${trySetBundle.id}`} className="locker-tryon is-set" role="status" style={{ '--bc': bundleColor(trySetBundle) }}>
           <div className="locker-tryon-text"><span>Previewing set</span><strong>{trySetBundle.name}</strong></div>
           <div className="locker-tryon-actions">
@@ -1134,7 +1159,7 @@ export default function LockerView({ account, onWardrobeChanged, onNotify, onOpe
             {tryOn.exclusive
               ? <PixelButton size="sm" variant="exclusive" label="Event only" title="Not sold. You get it at Native events or with a code."/>
               : tryOn.paid
-                ? <PixelButton size="sm" icon={<Store size={14}/>} label={`Get · ${priceLabel(tryOn)}`} title="Buy it in the Native Store" onClick={() => onOpenStore?.()}/>
+                ? <PixelButton size="sm" icon={<Store size={14}/>} label={`Get · ${priceLabel(tryOn)}`} title="Buy it in the Native Store" onClick={() => openStoreItem(tryOn)}/>
                 : <PixelButton size="sm" poof disabled={Boolean(storeBusy)} busy={storeBusy === `add:${tryOn.id}`} busyIcon={<RefreshCw size={14} className="is-spinning"/>} icon={<Plus size={14} strokeWidth={3}/>} label="Add & wear" title="Add it to your locker and put it on" onClick={addTryOn}/>}
             <PixelIconButton size="sm" icon={<X size={14} strokeWidth={3}/>} label="Stop trying on" onClick={() => setTryOn(null)}/>
           </div>

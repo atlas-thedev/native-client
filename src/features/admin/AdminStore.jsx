@@ -3,6 +3,7 @@ import { Box, DollarSign, Eye, EyeOff, FileJson, Gift, ImageIcon, LoaderCircle, 
 import { drawCapeFront, firstFrameDataUrl, guessFrames, isNativeCapeRatio, MAX_FPS, MAX_FRAMES } from '../../lib/animatedCape.js';
 import { WornShot, wornShot } from '../../lib/wornShot.jsx';
 import SkinViewer3D, { prepareSkinSource } from '../../components/ui/SkinViewer3D.jsx';
+import CosmeticGizmoStage from '../../components/ui/CosmeticGizmoStage.jsx';
 import { PixelTabs } from '../../components/ui/PixelControls.jsx';
 import steveSkin from '../../assets/steve.png';
 import { ImportPackModal, PricingModal } from './AdminStoreTools.jsx';
@@ -336,15 +337,50 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
     }
   };
 
-  // cosmetics: a Blockbench-style model (.json), its texture PNG, an optional thumbnail and dye mask
+  // cosmetics: a Blockbench-style model (.json or .bbmodel), its texture PNG, an optional thumbnail and dye mask
   const pickModel = async (file) => {
     setFileError('');
     if (!file) return;
     try {
       if (file.size > MAX_MODEL_KB * 1024) throw new Error(`The model must be smaller than ${MAX_MODEL_KB} KB.`);
-      const text = await readText(file);
-      let json;
-      try { json = JSON.parse(text); } catch { throw new Error('That model isn’t valid JSON.'); }
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let text = '';
+      let json = null;
+      const isBb = /\.bbmodel$/i.test(file.name);
+      if (isBb) {
+        const { discover, convert } = await import('../../lib/ncmImport.js');
+        const files = { [file.name]: bytes };
+        const disc = discover(files);
+        if (!disc.entries?.length) throw new Error('Could not find elements in that .bbmodel.');
+        const conv = await convert(files, disc.entries[0], { slot: section });
+        json = conv.model;
+        text = JSON.stringify(json);
+        if (conv.png && !draft.cosTexture) {
+          const reader = new FileReader();
+          const dataUrl = await new Promise((res) => {
+            reader.onload = () => res(String(reader.result));
+            reader.readAsDataURL(new Blob([conv.png], { type: 'image/png' }));
+          });
+          setDraft((current) => ({
+            ...current,
+            cosTexture: { dataUrl, size: conv.png.length, fileName: file.name.replace(/\.bbmodel$/i, '.png') }
+          }));
+        }
+      } else {
+        text = new TextDecoder().decode(bytes);
+        try { json = JSON.parse(text); } catch { throw new Error('That model isn’t valid JSON.'); }
+        if (json && !json.format && (json.elements || json.textures || json.meta)) {
+          const { discover, convert } = await import('../../lib/ncmImport.js');
+          const files = { [file.name]: bytes };
+          const disc = discover(files);
+          if (disc.entries?.length) {
+            const conv = await convert(files, disc.entries[0], { slot: section });
+            json = conv.model;
+            text = JSON.stringify(json);
+          }
+        }
+      }
       setDraft((current) => ({ ...current, model: { text, json, fileName: file.name }, name: current.name || nameFrom(file) }));
     } catch (reason) { setFileError(reason?.message || 'Could not use that model.'); }
   };
@@ -407,6 +443,42 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
       if (creating) { body.kind = 'cosmetic'; body.slot = section; }
       if (draft.model) body.model = draft.model.text;
       if (draft.cosTexture) body.texture = draft.cosTexture.dataUrl;
+      if (draft.transform && (draft.transform.ox || draft.transform.oy || draft.transform.oz || draft.transform.rx || draft.transform.ry || draft.transform.rz || (draft.transform.scale && Math.abs(draft.transform.scale - 1) > 0.001))) {
+        try {
+          const { transformNcmModel, scaleNcmAsset } = await import('../../lib/ncmImport.js');
+          let mod = typeof body.model === 'string' ? JSON.parse(body.model) : (body.model || (editingItem?.model ? JSON.parse(editingItem.model) : null));
+          if (mod) {
+            mod = transformNcmModel(mod, {
+              offset: [draft.transform.ox || 0, draft.transform.oy || 0, draft.transform.oz || 0],
+              rotation: [draft.transform.rx || 0, draft.transform.ry || 0, draft.transform.rz || 0],
+              slot: section
+            });
+            if (draft.transform.scale && Math.abs(draft.transform.scale - 1) > 0.001 && (body.texture || editingItem?.texture)) {
+              const texSrc = body.texture || editingItem.texture;
+              const res = await fetch(texSrc);
+              const pngBytes = new Uint8Array(await res.arrayBuffer());
+              const maskSrc = body.dyeMask || editingItem?.dyeMask;
+              const maskBytes = maskSrc ? new Uint8Array(await fetch(maskSrc).then((r) => r.arrayBuffer())) : null;
+              const scaled = await scaleNcmAsset(mod, pngBytes, maskBytes, draft.transform.scale);
+              mod = scaled.model;
+              const reader = new FileReader();
+              body.texture = await new Promise((res2) => {
+                reader.onload = () => res2(String(reader.result));
+                reader.readAsDataURL(new Blob([scaled.png], { type: 'image/png' }));
+              });
+              if (scaled.mask) {
+                body.dyeMask = await new Promise((res3) => {
+                  reader.onload = () => res3(String(reader.result));
+                  reader.readAsDataURL(new Blob([scaled.mask], { type: 'image/png' }));
+                });
+              }
+            }
+            body.model = JSON.stringify(mod);
+          }
+        } catch (e) {
+          console.warn('Could not bake cosmetic transform', e);
+        }
+      }
       if (draft.thumb) body.thumb = draft.thumb.dataUrl;
       else if (draft.model || draft.cosTexture) {
         // no thumbnail picked: draw the piece worn on Steve, like the Store does
@@ -541,16 +613,35 @@ export default function AdminStore({ onNotify, onError, onAccessRevoked, onItems
 
             {cosmeticSection ? (
               <>
-                <div className="admin-cos-stage">
-                  {shownAsset
-                    ? <SkinViewer3D key={`${shownAsset.id}:${String(shownAsset.texture).length}:${draft.model?.fileName || ''}`} account={PREVIEW_ACCOUNT} cosmetics={[shownAsset]} zoom={0.74} width={260} height={300} animation="walk" autoRotate/>
-                    : <span className="admin-store-empty is-stage">{editingItem && !savedAsset && !draft.model ? <><LoaderCircle size={16} className="is-spinning"/>Loading model…</> : 'Pick a model and a texture to preview it in 3D'}</span>}
-                </div>
+                {shownAsset ? (
+                  <CosmeticGizmoStage
+                    cosmetic={{
+                      id: shownAsset.id,
+                      slot: shownAsset.slot,
+                      side: shownAsset.side,
+                      model: shownAsset.model,
+                      texture: shownAsset.texture
+                    }}
+                    transform={draft.transform || { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0, scale: 1 }}
+                    onChange={(nextT) => {
+                      setDraft((current) => ({ ...current, transform: nextT }));
+                    }}
+                    width={290}
+                    height={340}
+                    account={PREVIEW_ACCOUNT}
+                  />
+                ) : (
+                  <div className="admin-cos-stage" style={{ width: 290, height: 340 }}>
+                    <span className="admin-store-empty is-stage">
+                      {editingItem && !savedAsset && !draft.model ? <><LoaderCircle size={16} className="is-spinning"/>Loading model…</> : 'Pick a model and a texture to preview it in 3D'}
+                    </span>
+                  </div>
+                )}
                 <div className="admin-cos-files">
-                  <button type="button" className="admin-store-upload" onClick={() => modelRef.current?.click()}><FileJson size={14}/>{draft.model || editingItem ? 'Replace model' : 'Model (.json)'}</button>
+                  <button type="button" className="admin-store-upload" onClick={() => modelRef.current?.click()}><FileJson size={14}/>{draft.model || editingItem ? 'Replace model' : 'Model (.json / .bbmodel)'}</button>
                   <button type="button" className="admin-store-upload" onClick={() => cosTexRef.current?.click()}><Upload size={14}/>{draft.cosTexture || editingItem ? 'Replace texture' : 'Texture PNG'}</button>
                   <button type="button" className="admin-store-upload" onClick={() => thumbRef.current?.click()}><ImageIcon size={14}/>{draft.thumb ? 'Change thumbnail' : 'Thumbnail (optional)'}</button>
-                  <input ref={modelRef} type="file" accept=".json,application/json" hidden onChange={(event) => { pickModel(event.target.files?.[0]); event.target.value = ''; }}/>
+                  <input ref={modelRef} type="file" accept=".json,.bbmodel,application/json" hidden onChange={(event) => { pickModel(event.target.files?.[0]); event.target.value = ''; }}/>
                   <input ref={cosTexRef} type="file" accept="image/png" hidden onChange={(event) => { pickPng('cosTexture', MAX_TEXTURE_MB)(event.target.files?.[0]); event.target.value = ''; }}/>
                   <input ref={thumbRef} type="file" accept="image/png" hidden onChange={(event) => { pickPng('thumb', 5)(event.target.files?.[0]); event.target.value = ''; }}/>
                 </div>
