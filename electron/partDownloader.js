@@ -39,12 +39,19 @@ async function sha512File(file) {
   return hash.digest('base64');
 }
 
-/** `{ total, done, parts }` of a saved download, or null. Cheap: never touches the data. */
+/** `{ total, done, parts, transferred, percent }` of a saved download, or null. Cheap: never touches the data. */
 async function inspect(dest) {
   const state = await readState(`${dest}.parts.json`);
-  if (!state || state.v !== STATE_VERSION) return null;
+  if (!state || state.v !== STATE_VERSION || !Array.isArray(state.done)) return null;
+  const partSize = state.partSize || PART_SIZE;
+  const size = Number(state.size) || 0;
+  const lenOf = (i) => Math.max(0, Math.min(partSize, size - i * partSize));
   const done = state.done.reduce((n, d) => n + (d ? 1 : 0), 0);
-  return { url: state.url, size: state.size, sha512: state.sha512, parts: state.done.length, doneParts: done };
+  const transferred = Array.isArray(state.bytes)
+    ? state.bytes.reduce((n, b, i) => n + (state.done[i] ? lenOf(i) : Math.min(Math.max(0, Number(b) || 0), lenOf(i))), 0)
+    : state.done.reduce((n, d, i) => n + (d ? lenOf(i) : 0), 0);
+  const percent = size > 0 ? (transferred / size) * 100 : (state.done.length ? (done / state.done.length) * 100 : 0);
+  return { url: state.url, size, transferred, percent, sha512: state.sha512, parts: state.done.length, doneParts: done };
 }
 
 /**
@@ -56,7 +63,7 @@ async function inspect(dest) {
  * @param {number} [o.connections=4]  parallel parts (read again for every part, so it can change live)
  * @param {() => number} [o.getConnections]
  * @param {(p) => void} [o.onProgress]
- * @param {{ cancelled: boolean }} [o.signal]  set `.cancelled = true` to stop (parts are kept)
+ * @param {{ cancelled: boolean, cancel?: () => void }} [o.signal]  set `.cancelled = true` or call `.cancel()` to stop (progress is kept)
  * @param {typeof fetch} [o.fetch]
  * @returns {Promise<{ path: string, resumed: boolean }>}
  */
@@ -76,6 +83,8 @@ async function download(o) {
     if (st.size === size && await sha512File(o.dest) === o.sha512) return { path: o.dest, resumed: true };
   } catch {}
 
+  function partLength(i) { return Math.min(partSize, size - i * partSize); }
+
   const count = Math.ceil(size / partSize);
   let state = await readState(statePath);
   const sameFile = state && state.v === STATE_VERSION && state.size === size && state.sha512 === o.sha512
@@ -83,23 +92,54 @@ async function download(o) {
   let partialOk = false;
   try { partialOk = (await fsp.stat(partialPath)).size === size; } catch {}
   if (!sameFile || !partialOk) {
-    state = { v: STATE_VERSION, url: o.url, size, sha512: o.sha512, partSize, done: new Array(count).fill(0) };
+    state = {
+      v: STATE_VERSION, url: o.url, size, sha512: o.sha512, partSize,
+      done: new Array(count).fill(0),
+      bytes: new Array(count).fill(0)
+    };
     const fh = await fsp.open(partialPath, 'w');
     await fh.truncate(size);
     await fh.close();
     await writeState(statePath, state);
+  } else {
+    if (!Array.isArray(state.bytes) || state.bytes.length !== count) {
+      state.bytes = state.done.map((d, i) => (d ? partLength(i) : 0));
+    } else {
+      state.bytes = state.bytes.map((b, i) => (state.done[i] ? partLength(i) : Math.max(0, Math.min(partLength(i), Number(b) || 0))));
+    }
   }
-  const resumed = state.done.some(Boolean);
+  const resumed = state.done.some(Boolean) || state.bytes.some((b) => b > 0);
 
   const fh = await fsp.open(partialPath, 'r+');
-  let transferred = state.done.reduce((n, d, i) => n + (d ? partLength(i) : 0), 0);
+  let transferred = state.bytes.reduce((n, b) => n + b, 0);
   const startTransferred = transferred;
   const startedAt = Date.now();
   const samples = [];
   let saving = Promise.resolve();
   let rangeUnsupported = false;
+  const controllers = new Set();
+  const timers = new Set();
 
-  function partLength(i) { return Math.min(partSize, size - i * partSize); }
+  function cancelAll() {
+    signal.cancelled = true;
+    for (const c of controllers) { try { c.abort(); } catch {} }
+    for (const wake of timers) { try { wake(); } catch {} }
+  }
+  signal.cancel = cancelAll;
+
+  function queueSave() {
+    saving = saving.then(() => writeState(statePath, state)).catch(() => {});
+    return saving;
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => {
+      if (signal.cancelled) return resolve();
+      const wake = () => { clearTimeout(t); timers.delete(wake); resolve(); };
+      const t = setTimeout(wake, ms);
+      timers.add(wake);
+    });
+  }
 
   function report() {
     const now = Date.now();
@@ -113,18 +153,39 @@ async function download(o) {
       parts: count, doneParts: state.done.reduce((n, d) => n + (d ? 1 : 0), 0), resumed,
       map: state.done.slice()
     });
+    if (signal.cancelled) cancelAll();
   }
 
   async function fetchPart(i) {
-    const start = i * partSize;
-    const end = start + partLength(i) - 1;
+    const partStart = i * partSize;
+    const len = partLength(i);
+    const end = partStart + len - 1;
     for (let attempt = 0; ; attempt += 1) {
       if (signal.cancelled) throw new DownloadCancelled();
-      let got = 0;
+      const already = state.bytes[i] || 0;
+      if (already >= len) {
+        state.bytes[i] = len;
+        state.done[i] = 1;
+        return;
+      }
+      const start = partStart + already;
+      const controller = new AbortController();
+      controllers.add(controller);
       try {
-        const res = await doFetch(o.url, { headers: { Range: `bytes=${start}-${end}`, 'User-Agent': 'NativeClient-Updater' }, redirect: 'follow' });
-        if (res.status === 200 && !(start === 0 && end === size - 1)) { rangeUnsupported = true; res.body?.cancel?.(); throw new Error('Server does not support ranges'); }
-        if (res.status !== 206 && res.status !== 200) { res.body?.cancel?.(); throw new Error(`HTTP ${res.status}`); }
+        const res = await doFetch(o.url, {
+          headers: { Range: `bytes=${start}-${end}`, 'User-Agent': 'NativeClient-Updater' },
+          redirect: 'follow',
+          signal: controller.signal
+        });
+        if (res.status === 200 && !(start === 0 && end === size - 1)) {
+          rangeUnsupported = true;
+          res.body?.cancel?.();
+          throw new Error('Server does not support ranges');
+        }
+        if (res.status !== 206 && res.status !== 200) {
+          res.body?.cancel?.();
+          throw new Error(`HTTP ${res.status}`);
+        }
         const reader = res.body.getReader();
         let pos = start;
         for (;;) {
@@ -133,47 +194,62 @@ async function download(o) {
           if (done) break;
           if (pos + value.length > end + 1) throw new Error('Server sent too much data');
           await fh.write(value, 0, value.length, pos);
-          pos += value.length; got += value.length; transferred += value.length;
+          pos += value.length;
+          state.bytes[i] = pos - partStart;
+          transferred += value.length;
           report();
         }
         if (pos !== end + 1) throw new Error('Part ended early');
+        state.bytes[i] = len;
         state.done[i] = 1;
-        saving = saving.then(() => writeState(statePath, state)).catch(() => {});
-        await saving;
+        await queueSave();
         report();
         return;
       } catch (err) {
-        transferred -= got;
-        if (err.cancelled || rangeUnsupported || attempt >= 5) throw err;
-        await new Promise((r) => setTimeout(r, Math.min(15000, 800 * 2 ** attempt)));
+        if (signal.cancelled || err?.cancelled || err?.name === 'AbortError') {
+          queueSave();
+          throw new DownloadCancelled();
+        }
+        if (rangeUnsupported || attempt >= 5) throw err;
+        await sleep(Math.min(15000, 800 * 2 ** attempt));
+      } finally {
+        controllers.delete(controller);
       }
     }
   }
 
   try {
+    if (signal.cancelled) throw new DownloadCancelled();
     report();
     const queue = state.done.map((d, i) => (d ? -1 : i)).filter((i) => i >= 0);
     let failure = null;
     let active = 0;
     await new Promise((resolve) => {
+      let pollTimer = null;
+      const clearPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
       const pump = () => {
+        clearPoll();
+        if (signal.cancelled && !failure) failure = new DownloadCancelled();
         if (failure && active === 0) return resolve();
         if (!queue.length && active === 0) return resolve();
         const limit = Math.max(1, Math.min(8, Number(o.getConnections?.() ?? o.connections ?? 4) || 1));
-        while (!failure && queue.length && active < limit) {
+        while (!failure && !signal.cancelled && queue.length && active < limit) {
           const i = queue.shift();
           active += 1;
           fetchPart(i).catch((err) => { failure = failure || err; }).finally(() => { active -= 1; pump(); });
         }
-        if (!failure && queue.length && active >= limit) {
+        if (!failure && !signal.cancelled && queue.length && active >= limit) {
           // connection limit may rise later (e.g. the game closed); keep pumping
-          const t = setTimeout(pump, 2000); t.unref?.();
+          pollTimer = setTimeout(pump, 2000);
+          pollTimer.unref?.();
         }
       };
       pump();
     });
     if (failure) throw failure;
+    if (signal.cancelled) throw new DownloadCancelled();
   } finally {
+    if (signal.cancelled) queueSave();
     await saving;
     await fh.close();
   }

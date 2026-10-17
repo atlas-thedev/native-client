@@ -76,6 +76,11 @@ function deriveUpdatePill(status, t) {
       const label = t('update.downloadingPercent', { percent });
       return { variant: 'downloading', Icon: Download, spin: false, label, tooltip: label, percent };
     }
+    case 'paused': {
+      const percent = Math.max(0, Math.min(100, Math.round(status.percent ?? status.saved?.percent ?? 0)));
+      const label = percent > 0 ? `Paused ${percent}%` : 'Update paused';
+      return { variant: 'available', Icon: Download, spin: false, label, tooltip: label, percent };
+    }
     case 'downloaded':
     case 'installing': {
       const label = t('update.pillReady');

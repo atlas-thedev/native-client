@@ -128,10 +128,13 @@ function Progress({ status }) {
   const shown = ['preparing', 'downloading', 'paused', 'downloaded', 'installing'].includes(type) || (type === 'error' && status.saved);
   if (!shown) return null;
   const percent = type === 'downloaded' || type === 'installing' ? 100 : clampPercent(status.percent ?? status.saved?.percent ?? 0);
+  const transferred = Number(status.transferred ?? status.saved?.transferred) || 0;
+  const total = Number(status.total ?? status.saved?.total) || 0;
   const detail = [];
-  if (status.total && percent < 100) detail.push(`${formatBytes(status.transferred)} / ${formatBytes(status.total)}`);
-  if (type === 'downloading' && status.bytesPerSecond > 0) detail.push(`${formatBytes(status.bytesPerSecond)}/s`, eta(status.total, status.transferred, status.bytesPerSecond));
+  if (total && percent < 100) detail.push(`${formatBytes(transferred)} / ${formatBytes(total)}`);
+  if (type === 'downloading' && status.bytesPerSecond > 0) detail.push(`${formatBytes(status.bytesPerSecond)}/s`, eta(total, transferred, status.bytesPerSecond));
   if (type === 'downloading' && status.throttled) detail.push('slowed while Minecraft runs');
+  if (type === 'paused') detail.push('Paused');
   return (
     <div className="uc-progress">
       <div className={`uc-bar${type === 'paused' || type === 'error' ? ' is-paused' : ''}`} role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100">
